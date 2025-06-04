@@ -50,9 +50,8 @@ export interface Casa {
   availableDays?: CasaAvailability; 
   isBlocked: boolean; 
   notes?: string;
-  associatedTerritories?: string[]; 
+  // associatedTerritories?: string[]; // Removed as requested by user
   isSuitableForRural?: boolean;
-  // isBlockedForGeneralAI?: boolean; // Removed as requested
   addedByGroupId?: string; // Optional FK to preachingGroups
 
   lastVisitedAt?: Timestamp; 
@@ -81,7 +80,7 @@ export interface Territory {
   blockReason?: string;
   unblockDate?: Timestamp;
   groupIds?: string[]; // IDs of preachingGroups assigned
-  // colorClass?: string; // Removed as requested
+  associatedCasaIds?: string[]; // IDs/Names of nearby houses
   createdAt: Timestamp;
   updatedAt: Timestamp;
   createdBy?: string;
@@ -93,3 +92,4 @@ export interface PreachingGroup {
   name: string;
   // ... other fields
 }
+

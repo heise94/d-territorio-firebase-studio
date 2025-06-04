@@ -6,13 +6,13 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, CheckCircle2, Eye, Share2, Link as LinkIcon, BarChart3 } from "lucide-react";
+import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, CheckCircle2, Eye, Share2, Link as LinkIcon, BarChart3, Building } from "lucide-react"; // Added Building icon
 import type { Territory } from "@/types";
 
 interface TerritoryCardProps {
   territory: Territory;
   onEdit: () => void;
-  onDelete: () => void; // Will be wrapped by AlertDialogTrigger
+  onDelete: () => void; 
   onBlockToggle: () => void;
 }
 
@@ -34,7 +34,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
         <CardDescription className="text-xs pt-1 flex items-center">
           <Badge variant="outline" className="mr-2 capitalize">{territory.type}</Badge>
           {territory.lastWorked && (
-            <span className="flex items-center"><CalendarClock size={12} className="mr-1 shrink-0" /> Pred. Últ.: {territory.lastWorked}</span>
+            <span className="flex items-center"><CalendarClock size={12} className="mr-1 shrink-0" /> Pred. Últ.: {new Date(territory.lastWorked).toLocaleDateString()}</span>
           )}
         </CardDescription>
       </CardHeader>
@@ -55,6 +55,9 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
             <p className="flex items-center"><Home size={12} className="mr-1.5 shrink-0 text-muted-foreground"/> Casas Aprox: {approxHouseCountDisplay}</p>
             {territory.groupIds && territory.groupIds.length > 0 && (
                 <p className="flex items-center"><Users size={12} className="mr-1.5 shrink-0 text-muted-foreground"/> Grupos: {territory.groupIds.join(', ')}</p>
+            )}
+            {territory.associatedCasaIds && territory.associatedCasaIds.length > 0 && (
+                <p className="flex items-center"><Building size={12} className="mr-1.5 shrink-0 text-muted-foreground"/> Casas Cercanas: {territory.associatedCasaIds.join(', ')}</p>
             )}
          </div>
          {territory.warnings && territory.warnings.length > 0 && (
@@ -103,7 +106,6 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
           </AlertDialogContent>
         </AlertDialog>
         
-        {/* Simpler buttons for View Image, Maps, Share for now */}
         {territory.mapImageUrl && (
              <Button variant="outline" size="sm" onClick={() => window.open(territory.mapImageUrl, '_blank')} className="text-xs col-span-1">
                 <Eye className="mr-1.5 h-3.5 w-3.5" /> Ver Imagen

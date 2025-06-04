@@ -75,7 +75,6 @@ export default function CasasPage() {
             c.id === casaId ? {...c, isBlocked: !c.isBlocked, updatedAt: Timestamp.now() } : c
         )
      );
-     // Find the casa *before* mapping to ensure the correct message is displayed
      const casa = casas.find(c => c.id === casaId);
      toast({ 
         title: casa?.isBlocked ? "Casa Desbloqueada" : "Casa Bloqueada", 
@@ -167,19 +166,13 @@ export default function CasasPage() {
                         <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad (Lu-Vi):</span>
                         <p className="text-foreground pl-1 text-xs">{formatAvailability(casa.availableDays)}</p>
                     </div>
-                    {casa.associatedTerritories && casa.associatedTerritories.length > 0 && (
-                         <div>
-                            <span className="font-medium text-muted-foreground flex items-center"><Users size={14} className="mr-2" /> Territorios Asociados:</span>
-                            <p className="text-foreground pl-1 text-xs">{casa.associatedTerritories.join(', ')}</p>
-                        </div>
-                    )}
+                    {/* Associated Territories display removed from here */}
                     {casa.isSuitableForRural !== undefined && (
                         <div className="flex items-center">
                             {casa.isSuitableForRural ? <CheckCircle2 size={14} className="mr-2 text-green-600" /> : <Ban size={14} className="mr-2 text-red-600" />}
                             <span className="text-xs">{casa.isSuitableForRural ? 'Apta para rural' : 'No apta para rural'}</span>
                         </div>
                     )}
-                    {/* Removed isBlockedForGeneralAI display block */}
                     {casa.notes && (
                         <div>
                             <span className="font-medium text-muted-foreground">Notas:</span>
@@ -239,4 +232,3 @@ export default function CasasPage() {
     </div>
   );
 }
-

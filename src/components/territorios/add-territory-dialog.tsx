@@ -37,13 +37,14 @@ const territoryFormSchema = z.object({
   type: z.enum(["urban", "rural"], { required_error: "El tipo es obligatorio." }),
   number: z.string().optional(),
   name: z.string().min(2, { message: "El nombre debe tener al menos 2 caracteres." }).max(100),
-  mapImageUrl: z.string().optional().or(z.literal('')), // Accepts Data URI or empty string
+  mapImageUrl: z.string().optional().or(z.literal('')), 
   googleMapsLink: z.string().url({ message: "Debe ser una URL válida." }).optional().or(z.literal('')),
   totalBlocks: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().default(0),
   blockHouseCounts: z.array(z.coerce.number().int().min(0, "Debe ser 0 o más.")).optional(),
   doNotCallAddressesString: z.string().optional(),
   warningsString: z.string().optional(),
   groupIdsString: z.string().optional(),
+  associatedCasaIdsString: z.string().optional(), // Added for nearby house IDs/names
 }).superRefine((data, ctx) => {
   if (data.type === "urban" && (!data.number || data.number.trim() === "")) {
     ctx.addIssue({
@@ -82,6 +83,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       doNotCallAddressesString: "",
       warningsString: "",
       groupIdsString: "",
+      associatedCasaIdsString: "", // Added default
     },
   });
 
@@ -101,6 +103,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
         doNotCallAddressesString: territoryToEdit.doNotCallAddresses?.join("\n") || "",
         warningsString: territoryToEdit.warnings?.join("\n") || "",
         groupIdsString: territoryToEdit.groupIds?.join(", ") || "",
+        associatedCasaIdsString: territoryToEdit.associatedCasaIds?.join(", ") || "", // Populate for edit
       });
       if (territoryToEdit.mapImageUrl) {
         setMapImagePreview(territoryToEdit.mapImageUrl);
@@ -117,7 +120,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     const currentBlockCounts = form.getValues("blockHouseCounts") || [];
     const newTotal = watchedTotalBlocks || 0;
 
-    if (newTotal < 0) return; // Should be handled by Zod validation anyway
+    if (newTotal < 0) return; 
 
     const newCounts = Array(newTotal);
     for (let i = 0; i < newTotal; i++) {
@@ -125,12 +128,12 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     }
     form.setValue("blockHouseCounts", newCounts, { shouldValidate: true, shouldDirty: form.formState.isDirty });
 
-  }, [watchedTotalBlocks, form, isOpen]); // Added isOpen to re-run if dialog reopens with new totalBlocks
+  }, [watchedTotalBlocks, form, isOpen]); 
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      if (file.size > 2 * 1024 * 1024) { 
         toast({
           variant: "destructive",
           title: "Imagen Demasiado Grande",
@@ -180,6 +183,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       warnings: values.warningsString?.split('\n').map(s => s.trim()).filter(s => s) || [],
       isBlocked: isEditMode && territoryToEdit ? territoryToEdit.isBlocked : false,
       groupIds: values.groupIdsString?.split(',').map(s => s.trim()).filter(s => s) || [],
+      associatedCasaIds: values.associatedCasaIdsString?.split(',').map(s => s.trim()).filter(s => s) || [], // Parse and add
       lastWorked: isEditMode && territoryToEdit ? territoryToEdit.lastWorked : undefined,
       createdAt: isEditMode && territoryToEdit ? territoryToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -397,6 +401,21 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
 
             <FormField
               control={form.control}
+              name="associatedCasaIdsString"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>IDs/Nombres de Casas Cercanas (Opcional)</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Ej: Casa Pérez, Casa González, ID-123 (separados por coma)" {...field} rows={2}/>
+                  </FormControl>
+                  <FormFieldDescription>IDs o nombres identificativos de las casas, separados por comas.</FormFieldDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="groupIdsString"
               render={({ field }) => (
                 <FormItem>
@@ -427,4 +446,3 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     </Dialog>
   );
 }
-    

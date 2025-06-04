@@ -48,7 +48,7 @@ const casaFormSchema = z.object({
     thursday: dayAvailabilitySchema,
     friday: dayAvailabilitySchema,
   }).optional(),
-  associatedTerritories: z.string().optional().describe("Territorios asociados, separados por comas"),
+  // associatedTerritories: z.string().optional().describe("Territorios asociados, separados por comas"), // Removed
   notes: z.string().max(1000).optional(),
   isSuitableForRural: z.boolean().optional().default(false),
 });
@@ -88,7 +88,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
         thursday: { am: false, pm: false },
         friday: { am: false, pm: false },
       },
-      associatedTerritories: "",
+      // associatedTerritories: "", // Removed
       notes: "",
       isSuitableForRural: false,
     },
@@ -107,12 +107,25 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
           thursday: { am: false, pm: false },
           friday: { am: false, pm: false },
         },
-        associatedTerritories: casaToEdit.associatedTerritories?.join(", ") || "",
+        // associatedTerritories: casaToEdit.associatedTerritories?.join(", ") || "", // Removed
         notes: casaToEdit.notes || "",
         isSuitableForRural: casaToEdit.isSuitableForRural || false,
       });
     } else if (!isOpen) {
-      form.reset(); 
+      form.reset({ // Ensure form resets to default values when closing after adding, not editing
+        ownerName: "",
+        address: "",
+        phoneNumber: "",
+        availableDays: {
+          monday: { am: false, pm: false },
+          tuesday: { am: false, pm: false },
+          wednesday: { am: false, pm: false },
+          thursday: { am: false, pm: false },
+          friday: { am: false, pm: false },
+        },
+        notes: "",
+        isSuitableForRural: false,
+      });
     }
   }, [casaToEdit, isOpen, form]);
 
@@ -125,7 +138,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
       address: values.address,
       phoneNumber: values.phoneNumber || undefined,
       availableDays: values.availableDays as CasaAvailability,
-      associatedTerritories: values.associatedTerritories?.split(',').map(t => t.trim()).filter(t => t) || [],
+      // associatedTerritories: values.associatedTerritories?.split(',').map(t => t.trim()).filter(t => t) || [], // Removed
       notes: values.notes || undefined,
       isSuitableForRural: values.isSuitableForRural,
       isBlocked: isEditMode && casaToEdit ? casaToEdit.isBlocked : false, 
@@ -148,7 +161,10 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-        if (!open && !isEditMode) form.reset(); 
+        if (!open) { // When dialog closes
+            if (!isEditMode) form.reset(); // If not edit mode (i.e. add mode), reset form
+            // If it was edit mode, form.reset() was already handled by useEffect or will be if opened again
+        }
         onOpenChange(open);
     }}>
       <DialogContent className="sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -238,22 +254,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
               </div>
             </div>
             
-            <FormField
-              control={form.control}
-              name="associatedTerritories"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Territorios Cercanos/Asociados</FormLabel>
-                   <FormFieldDescription className="text-xs">
-                    Nombres o IDs de territorios, separados por comas (ej: T-101, Centro Alto, T-205).
-                  </FormFieldDescription>
-                  <FormControl>
-                    <Textarea placeholder="Ej: T-101, Centro Alto, T-205" {...field} rows={2} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* associatedTerritories field removed */}
 
             <FormField
               control={form.control}
