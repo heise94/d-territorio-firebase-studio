@@ -47,13 +47,10 @@ const casaFormSchema = z.object({
     wednesday: dayAvailabilitySchema,
     thursday: dayAvailabilitySchema,
     friday: dayAvailabilitySchema,
-    // saturday: dayAvailabilitySchema, // Keep if needed based on PRD, removed for Lu-Vi focus
-    // sunday: dayAvailabilitySchema,   // Keep if needed based on PRD, removed for Lu-Vi focus
   }).optional(),
   associatedTerritories: z.string().optional().describe("Territorios asociados, separados por comas"),
   notes: z.string().max(1000).optional(),
   isSuitableForRural: z.boolean().optional().default(false),
-  // isBlockedForGeneralAI: z.boolean().optional().default(false), // Removed
 });
 
 type CasaFormValues = z.infer<typeof casaFormSchema>;
@@ -64,8 +61,6 @@ const WEEK_DAYS = [
   { id: 'wednesday', label: 'Miércoles' },
   { id: 'thursday', label: 'Jueves' },
   { id: 'friday', label: 'Viernes' },
-  // { id: 'saturday', label: 'Sábado' }, // Keep if needed
-  // { id: 'sunday', label: 'Domingo' },   // Keep if needed
 ] as const;
 
 interface AddCasaDialogProps {
@@ -96,7 +91,6 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
       associatedTerritories: "",
       notes: "",
       isSuitableForRural: false,
-      // isBlockedForGeneralAI: false, // Removed
     },
   });
 
@@ -116,7 +110,6 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
         associatedTerritories: casaToEdit.associatedTerritories?.join(", ") || "",
         notes: casaToEdit.notes || "",
         isSuitableForRural: casaToEdit.isSuitableForRural || false,
-        // isBlockedForGeneralAI: casaToEdit.isBlockedForGeneralAI || false, // Removed
       });
     } else if (!isOpen) {
       form.reset(); 
@@ -135,7 +128,6 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
       associatedTerritories: values.associatedTerritories?.split(',').map(t => t.trim()).filter(t => t) || [],
       notes: values.notes || undefined,
       isSuitableForRural: values.isSuitableForRural,
-      // isBlockedForGeneralAI: values.isBlockedForGeneralAI, // Removed
       isBlocked: isEditMode && casaToEdit ? casaToEdit.isBlocked : false, 
       createdAt: isEditMode && casaToEdit ? casaToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -225,7 +217,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
                           <FormControl>
                             <Checkbox checked={field.value} onCheckedChange={field.onChange} id={`${day.id}-am`} />
                           </FormControl>
-                          <FormLabel htmlFor={`${day.id}-am`} className="font-normal text-sm cursor-pointer">AM (Mañana)</FormLabel>
+                          <FormLabel htmlFor={`${day.id}-am`} className="font-normal text-sm cursor-pointer">AM</FormLabel>
                         </FormItem>
                       )}
                     />
@@ -237,7 +229,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
                           <FormControl>
                             <Checkbox checked={field.value} onCheckedChange={field.onChange} id={`${day.id}-pm`} />
                           </FormControl>
-                          <FormLabel htmlFor={`${day.id}-pm`} className="font-normal text-sm cursor-pointer">PM (Tarde)</FormLabel>
+                          <FormLabel htmlFor={`${day.id}-pm`} className="font-normal text-sm cursor-pointer">PM</FormLabel>
                         </FormItem>
                       )}
                     />
