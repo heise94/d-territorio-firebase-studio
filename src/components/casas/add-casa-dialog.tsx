@@ -21,6 +21,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription as FormFieldDescription, // Renamed to avoid conflict
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,18 +32,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Casa } from "@/types";
+import { Checkbox } from "@/components/ui/checkbox";
+import type { Casa, CasaAvailability, DayAvailability } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Pencil, Trash2, Ban } from "lucide-react";
 import { useState } from "react";
+
+const dayAvailabilitySchema = z.object({
+  am: z.boolean().optional().default(false),
+  pm: z.boolean().optional().default(false),
+});
 
 const casaFormSchema = z.object({
   ownerName: z.string().min(2, { message: "El nombre del propietario debe tener al menos 2 caracteres." }).max(100),
   address: z.string().min(5, { message: "La dirección debe tener al menos 5 caracteres." }).max(200),
   city: z.string().max(50).optional(),
   status: z.enum(['available', 'do_not_call', 'contacted', 'needs_revisit']),
-  availabilityNotes: z.string().max(500).optional(),
+  availability: z.object({
+    monday: dayAvailabilitySchema,
+    tuesday: dayAvailabilitySchema,
+    wednesday: dayAvailabilitySchema,
+    thursday: dayAvailabilitySchema,
+    friday: dayAvailabilitySchema,
+  }).optional(),
+  nearbyTerritoryIds: z.string().max(500).optional().describe("IDs o nombres de territorios cercanos, separados por comas"),
   notes: z.string().max(1000).optional(),
 });
 
@@ -55,10 +69,18 @@ const CASA_STATUS_OPTIONS: { value: Casa['status']; label: string }[] = [
   { value: 'needs_revisit', label: 'Necesita Revisita' },
 ];
 
+const WEEK_DAYS = [
+  { id: 'monday', label: 'Lunes' },
+  { id: 'tuesday', label: 'Martes' },
+  { id: 'wednesday', label: 'Miércoles' },
+  { id: 'thursday', label: 'Jueves' },
+  { id: 'friday', label: 'Viernes' },
+] as const; // `as const` ensures types are literals like 'monday'
+
 interface AddCasaDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onCasaAdded: (casa: Casa) => void; // Callback para cuando se añade una casa
+  onCasaAdded: (casa: Casa) => void; 
 }
 
 export function AddCasaDialog({ isOpen, onOpenChange, onCasaAdded }: AddCasaDialogProps) {
@@ -72,7 +94,14 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaAdded }: AddCasaDial
       address: "",
       city: "",
       status: "available",
-      availabilityNotes: "",
+      availability: {
+        monday: { am: false, pm: false },
+        tuesday: { am: false, pm: false },
+        wednesday: { am: false, pm: false },
+        thursday: { am: false, pm: false },
+        friday: { am: false, pm: false },
+      },
+      nearbyTerritoryIds: "",
       notes: "",
     },
   });
@@ -81,34 +110,32 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaAdded }: AddCasaDial
     setIsSubmitting(true);
     console.log("Datos del formulario de casa:", values);
 
-    // Simulación de guardado y creación del objeto Casa
-    // En el futuro, esto interactuará con Firestore
     const newCasa: Casa = {
-      id: crypto.randomUUID(), // ID temporal para la demo
+      id: crypto.randomUUID(), 
       ...values,
       city: values.city || undefined,
-      availabilityNotes: values.availabilityNotes || undefined,
+      availability: values.availability as CasaAvailability, // Cast as it's optional in form but we provide defaults
+      nearbyTerritoryIds: values.nearbyTerritoryIds || undefined,
       notes: values.notes || undefined,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
     
-    // Simular una demora de red
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    onCasaAdded(newCasa); // Llama al callback
+    onCasaAdded(newCasa); 
     toast({
       title: "Casa Añadida (Simulación)",
       description: `La casa para ${values.ownerName} ha sido registrada (simulación).`,
     });
     form.reset();
-    onOpenChange(false); // Cierra el diálogo
+    onOpenChange(false); 
     setIsSubmitting(false);
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Añadir Nueva Casa</DialogTitle>
           <DialogDescription>
@@ -116,78 +143,129 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaAdded }: AddCasaDial
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            <FormField
-              control={form.control}
-              name="ownerName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre del Propietario/Residente</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: Juan Pérez" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-2 pr-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="ownerName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre del Propietario/Residente</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ej: Familia Pérez" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Estado</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un estado" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {CASA_STATUS_OPTIONS.map(option => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
               name="address"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Dirección</FormLabel>
+                  <FormLabel>Dirección Completa</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Ej: Calle Falsa 123, Depto 4B" {...field} />
+                    <Textarea placeholder="Ej: Calle Falsa 123, Depto 4B, Comuna" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="city"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Ciudad (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: Springfield" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Estado</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+             <FormField
+                control={form.control}
+                name="city"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ciudad/Sector (Opcional)</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un estado" />
-                      </SelectTrigger>
+                      <Input placeholder="Ej: Santiago Centro" {...field} />
                     </FormControl>
-                    <SelectContent>
-                      {CASA_STATUS_OPTIONS.map(option => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+            <div>
+              <FormLabel className="text-base font-medium">Disponibilidad (Lunes a Viernes)</FormLabel>
+              <FormFieldDescription>
+                Marca los bloques horarios en que la casa estaría disponible para reuniones de grupo.
+              </FormFieldDescription>
+              <div className="mt-3 space-y-3 rounded-md border p-4 shadow-sm bg-muted/20">
+                {WEEK_DAYS.map(day => (
+                  <div key={day.id} className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
+                    <FormLabel className="font-normal col-span-1">{day.label}</FormLabel>
+                    <FormField
+                      control={form.control}
+                      name={`availability.${day.id}.am`}
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-1">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal text-sm">AM</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`availability.${day.id}.pm`}
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-1">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="font-normal text-sm">PM</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            
             <FormField
               control={form.control}
-              name="availabilityNotes"
+              name="nearbyTerritoryIds"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notas de Disponibilidad (Opcional)</FormLabel>
+                  <FormLabel>Territorios Cercanos</FormLabel>
+                   <FormFieldDescription>
+                    Nombres o IDs de territorios fácilmente accesibles desde esta casa (ej: T-101, T-102, Centro Alto).
+                  </FormFieldDescription>
                   <FormControl>
-                    <Textarea placeholder="Ej: Mejor por las tardes, evitar siestas, etc." {...field} />
+                    <Textarea placeholder="Separados por comas o listados..." {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -198,9 +276,12 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaAdded }: AddCasaDial
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notas Generales (Opcional)</FormLabel>
+                  <FormLabel>Notas Adicionales (Opcional)</FormLabel>
+                   <FormFieldDescription>
+                    Cualquier otra información relevante sobre la casa o su uso.
+                  </FormFieldDescription>
                   <FormControl>
-                    <Textarea placeholder="Ej: Tiene perro, preguntar por el hijo mayor, etc." {...field} />
+                    <Textarea placeholder="Ej: Entrada por el pasaje, preguntar por citófono 1A, etc." {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

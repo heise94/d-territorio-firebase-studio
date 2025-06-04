@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 import type { UserRole, PermissionId } from '@/lib/constants';
 
@@ -27,15 +28,28 @@ export interface SettingsDoc {
   // Other settings like preachingSchedules, groupPreachingDays, etc. will be added later
 }
 
+export interface DayAvailability {
+  am?: boolean;
+  pm?: boolean;
+}
+
+export interface CasaAvailability {
+  monday?: DayAvailability;
+  tuesday?: DayAvailability;
+  wednesday?: DayAvailability;
+  thursday?: DayAvailability;
+  friday?: DayAvailability;
+}
+
 export interface Casa {
   id: string; // Firestore document ID
   ownerName: string;
   address: string;
   city?: string;
   status: 'available' | 'do_not_call' | 'contacted' | 'needs_revisit'; // Estado de la casa
-  availabilityNotes?: string; // Notas sobre cuándo es mejor contactar, horarios, etc.
+  availability?: CasaAvailability;
+  nearbyTerritoryIds?: string; // IDs o nombres de territorios cercanos, separados por comas u otra lógica.
   notes?: string; // Notas generales sobre la casa o los residentes
-  assignedTerritoryId?: string; // FK al territorio al que pertenece (opcional)
   lastVisitedAt?: Timestamp; // Fecha de la última visita
   createdAt: Timestamp;
   updatedAt: Timestamp;
