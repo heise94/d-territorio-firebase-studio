@@ -13,7 +13,6 @@ export interface UserProfile {
   invitationToken?: string | null; // Can be null after acceptance
   invitationStatus?: 'pending' | 'accepted';
   firebaseAuthUid?: string; // UID from Firebase Auth
-  isBlockedForGeneralAI?: boolean; // This was requested to be kept for UserProfile by user context.
   addedByGroupId?: string; // FK to preachingGroups
   createdAt?: Timestamp; // Optional for existing data, should be set for new
   updatedAt?: Timestamp; // Optional for existing data, should be set for new
@@ -53,7 +52,6 @@ export interface Casa {
   notes?: string;
   associatedTerritories?: string[]; 
   isSuitableForRural?: boolean;
-  // isBlockedForGeneralAI?: boolean; // Removed as per user request
   addedByGroupId?: string; // Optional FK to preachingGroups
 
   lastVisitedAt?: Timestamp; 
@@ -63,12 +61,30 @@ export interface Casa {
   updatedBy?: string; 
 }
 
+export type TerritoryType = "urban" | "rural";
 
-// Placeholder for other types to be defined in later phases
 export interface Territory {
-  id: string;
+  id: string; // Firestore document ID
+  number?: string; // For urban territories
   name: string;
-  // ... other fields
+  type: TerritoryType;
+  mapImageUrl?: string; // Data URI or URL to image
+  googleMapsLink?: string;
+  lastWorked?: string; // "dd/MM/yyyy" format, updated from reports
+  totalBlocks?: number;
+  blockHouseCounts?: number[]; // Array with house count per block
+  approxHouseCount?: number; // Calculated from blockHouseCounts
+  doNotCallAddresses?: string[];
+  warnings?: string[];
+  isBlocked: boolean; // Default false
+  blockReason?: string;
+  unblockDate?: Timestamp;
+  groupIds?: string[]; // IDs of preachingGroups assigned
+  colorClass?: string; // Tailwind class for UI, e.g., "bg-sky-100"
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  createdBy?: string;
+  updatedBy?: string;
 }
 
 export interface PreachingGroup {
@@ -76,4 +92,3 @@ export interface PreachingGroup {
   name: string;
   // ... other fields
 }
-
