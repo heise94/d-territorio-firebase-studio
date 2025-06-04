@@ -52,6 +52,7 @@ export interface Casa {
   notes?: string;
   associatedTerritories?: string[]; 
   isSuitableForRural?: boolean;
+  // isBlockedForGeneralAI?: boolean; // Removed as requested
   addedByGroupId?: string; // Optional FK to preachingGroups
 
   lastVisitedAt?: Timestamp; 
@@ -80,7 +81,7 @@ export interface Territory {
   blockReason?: string;
   unblockDate?: Timestamp;
   groupIds?: string[]; // IDs of preachingGroups assigned
-  colorClass?: string; // Tailwind class for UI, e.g., "bg-sky-100"
+  // colorClass?: string; // Removed as requested
   createdAt: Timestamp;
   updatedAt: Timestamp;
   createdBy?: string;

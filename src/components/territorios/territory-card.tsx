@@ -20,7 +20,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
   const approxHouseCountDisplay = territory.approxHouseCount ?? territory.blockHouseCounts?.reduce((a, b) => a + b, 0) ?? 'N/A';
 
   return (
-    <Card className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${territory.isBlocked ? 'opacity-60 bg-muted/50' : ''} ${territory.colorClass || 'bg-card'}`}>
+    <Card className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${territory.isBlocked ? 'opacity-60 bg-muted/50' : 'bg-card'}`}>
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
           <CardTitle className="text-xl font-semibold">
@@ -121,4 +121,3 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
     </Card>
   );
 }
-

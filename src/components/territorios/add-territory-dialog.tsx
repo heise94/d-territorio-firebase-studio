@@ -45,7 +45,7 @@ const territoryFormSchema = z.object({
   doNotCallAddressesString: z.string().optional(),
   warningsString: z.string().optional(),
   groupIdsString: z.string().optional(),
-  colorClass: z.string().optional(),
+  // colorClass: z.string().optional(), // Removed
 }).superRefine((data, ctx) => {
   if (data.type === "urban" && (!data.number || data.number.trim() === "")) {
     ctx.addIssue({
@@ -93,7 +93,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       doNotCallAddressesString: "",
       warningsString: "",
       groupIdsString: "",
-      colorClass: "bg-sky-100",
+      // colorClass: "bg-sky-100", // Removed
     },
   });
 
@@ -112,10 +112,10 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
         doNotCallAddressesString: territoryToEdit.doNotCallAddresses?.join("\n") || "",
         warningsString: territoryToEdit.warnings?.join("\n") || "",
         groupIdsString: territoryToEdit.groupIds?.join(", ") || "",
-        colorClass: territoryToEdit.colorClass || "bg-sky-100",
+        // colorClass: territoryToEdit.colorClass || "bg-sky-100", // Removed
       });
     } else if (!isOpen) {
-      form.reset(); // Reset to default values when dialog is closed and not in edit mode
+      form.reset(); 
     }
   }, [territoryToEdit, isOpen, form]);
 
@@ -137,16 +137,14 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       approxHouseCount: approxHouseCount,
       doNotCallAddresses: values.doNotCallAddressesString?.split('\n').map(s => s.trim()).filter(s => s) || [],
       warnings: values.warningsString?.split('\n').map(s => s.trim()).filter(s => s) || [],
-      isBlocked: isEditMode && territoryToEdit ? territoryToEdit.isBlocked : false, // Default to not blocked
-      // blockReason and unblockDate handled by block/unblock actions
+      isBlocked: isEditMode && territoryToEdit ? territoryToEdit.isBlocked : false, 
       groupIds: values.groupIdsString?.split(',').map(s => s.trim()).filter(s => s) || [],
-      colorClass: values.colorClass || undefined,
-      lastWorked: isEditMode && territoryToEdit ? territoryToEdit.lastWorked : undefined, // Not editable here
+      // colorClass: values.colorClass || undefined, // Removed
+      lastWorked: isEditMode && territoryToEdit ? territoryToEdit.lastWorked : undefined, 
       createdAt: isEditMode && territoryToEdit ? territoryToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
     
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 700));
 
     onTerritorySubmit(submittedTerritory);
@@ -156,7 +154,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     });
     
     if (!isEditMode) form.reset(); 
-    onOpenChange(false); // Close dialog
+    onOpenChange(false); 
     setIsSubmitting(false);
   }
 
@@ -329,7 +327,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
               )}
             />
             
-            <FormField
+            {/* <FormField // Removed colorClass field
               control={form.control}
               name="colorClass"
               render={({ field }) => (
@@ -342,7 +340,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
                   <FormMessage />
                 </FormItem>
               )}
-            />
+            /> */}
 
             <DialogFooter className="pt-4">
               <DialogClose asChild>
