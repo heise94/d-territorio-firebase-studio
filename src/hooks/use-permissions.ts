@@ -1,4 +1,3 @@
-
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
@@ -12,7 +11,7 @@ import { useToast } from './use-toast';
 
 interface PermissionsContextType {
   userProfile: UserProfile | null;
-  rolePermissionsConfig: RoleConfiguration | null; // Renamed from rolePermissions to avoid conflict
+  rolePermissionsConfig: RoleConfiguration | null;
   isLoadingPermissions: boolean;
   hasPermission: (permissionId: PermissionId) => boolean;
 }
@@ -26,6 +25,11 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
   const { toast } = useToast();
 
+  // Debug log to see when this component is rendered and with what authUser
+  if (typeof window !== 'undefined') {
+    console.log('[PermissionsProvider] Rendering. AuthUser UID:', authUser?.uid, 'AuthLoading:', authLoading);
+  }
+
   useEffect(() => {
     let unsubscribeUserProfile: (() => void) | undefined;
     let unsubscribeRolePermissions: (() => void) | undefined;
@@ -33,18 +37,24 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     async function fetchInitialData() {
       setIsLoadingPermissions(true);
 
+      // Debug log
+      if (typeof window !== 'undefined') {
+        console.log('[PermissionsProvider:fetchInitialData] Start. AuthUser UID:', authUser?.uid, 'AuthLoading:', authLoading);
+      }
+
+
       if (authLoading) {
-        // If auth is still loading, we can't determine permissions yet.
-        // Ensure isLoadingPermissions is false so UI doesn't hang if this is the only blocker.
-        // However, AuthenticatedLayoutContent also checks authLoading, so this might be redundant
-        // but ensures PermissionsProvider itself isn't stuck in a loading state.
-        setIsLoadingPermissions(false);
+        if (typeof window !== 'undefined') {
+            console.log('[PermissionsProvider:fetchInitialData] Auth is loading, returning early and setting isLoadingPermissions to false.');
+        }
+        setIsLoadingPermissions(false); // Ensure loading state is updated
         return;
       }
 
-      if (!authUser || typeof authUser.uid === 'undefined') {
-        // This case handles when user is logged out, or authUser/uid is unexpectedly undefined.
-        console.warn('PermissionsProvider: authUser or authUser.uid is not available. User might be logged out or authUser is not yet fully loaded/propagated.', { authUser });
+      if (!authUser || !authUser.uid) {
+        if (typeof window !== 'undefined') {
+            console.warn('PermissionsProvider:fetchInitialData: authUser or authUser.uid is not available. User might be logged out or authUser is not yet fully loaded/propagated.', { authUserExists: !!authUser, authUserUid: authUser?.uid });
+        }
         setUserProfile(null);
         setRolePermissionsConfig(null);
         setIsLoadingPermissions(false);
@@ -58,10 +68,8 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Fetch UserProfile by firebaseAuthUid
       try {
         const usersRef = collection(db, "users");
-        // At this point, authUser and authUser.uid should be defined.
         const q = query(usersRef, where("firebaseAuthUid", "==", authUser.uid));
         
         unsubscribeUserProfile = onSnapshot(q, (querySnapshot) => {
@@ -81,12 +89,8 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       } catch (error) {
           console.error("Error setting up user profile listener:", error);
           setUserProfile(null);
-          // Ensure loading state is updated even if an error occurs before onSnapshot setup
-          // This path might not be hit if query itself throws, but as a safeguard.
-          // The primary isLoadingPermissions(false) is in the rolePermissions fetch.
       }
 
-      // Fetch RolePermissions from settings/rolePermissions
       try {
         const rolePermissionsDocRef = doc(db, "settings", "rolePermissions");
         unsubscribeRolePermissions = onSnapshot(rolePermissionsDocRef, (docSnap) => {
