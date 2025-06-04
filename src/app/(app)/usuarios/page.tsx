@@ -1,35 +1,63 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Search, Users } from "lucide-react";
-// Importaremos el diálogo de invitar usuario cuando lo creemos
-// import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
-import type { UserProfile } from "@/types"; // Asumimos que UserProfile ya existe
+import { PlusCircle, Search, Users, Settings2 } from "lucide-react";
+import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
+import type { UserProfile } from "@/types";
+import { useToast } from "@/hooks/use-toast";
 
 export default function UsuariosPage() {
   const [isInviteUserDialogOpen, setIsInviteUserDialogOpen] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>([]); // Simulación, se llenará desde Firestore
   const [searchTerm, setSearchTerm] = useState("");
+  const { toast } = useToast();
 
   // Simulación de usuarios para demostración inicial
   // const [users, setUsers] = useState<UserProfile[]>([
-  //   { id: '1', name: 'Juan Pérez', email: 'juan@example.com', role: 'Publicador', status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uid1' },
-  //   { id: '2', name: 'Ana Gómez', email: 'ana@example.com', role: 'Encargado Territorio', status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uid2' },
-  //   { id: '3', name: 'Luis Kato', email: 'luis@example.com', role: 'SS', status: 'Bloqueado', invitationStatus: 'accepted', firebaseAuthUid: 'uid3' },
+  //   { id: '1', name: 'Juan Pérez', email: 'juan@example.com', role: 'Publicador', status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uid1', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+  //   { id: '2', name: 'Ana Gómez', email: 'ana@example.com', role: 'Encargado Territorio', status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uid2', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+  //   { id: '3', name: 'Luis Kato', email: 'luis@example.com', role: 'SS', status: 'Bloqueado', invitationStatus: 'accepted', firebaseAuthUid: 'uid3', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
   // ]);
 
   const handleOpenInviteDialog = () => {
     setIsInviteUserDialogOpen(true);
   };
 
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleManagePermissions = () => {
+    toast({
+      title: "Próximamente",
+      description: "La gestión de permisos de roles estará disponible pronto.",
+    });
+  };
+  
+  const handleUserInvited = (invitedUser: Pick<UserProfile, 'name' | 'email' | 'role'>) => {
+    // Simulación: Aquí normalmente se generaría el token y se guardaría en Firestore.
+    // Por ahora, solo añadimos al estado local para visualización.
+    const newUser: UserProfile = {
+      id: crypto.randomUUID(),
+      ...invitedUser,
+      status: 'Activo', // O 'Invitado' si tienes ese estado
+      invitationStatus: 'pending',
+      createdAt: new (window as any).firebase.firestore.Timestamp(Date.now()/1000,0), // Simulación de Timestamp
+      updatedAt: new (window as any).firebase.firestore.Timestamp(Date.now()/1000,0), // Simulación de Timestamp
+    };
+    setUsers(prev => [...prev, newUser]);
+    setIsInviteUserDialogOpen(false);
+  };
+
+
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm) return users;
+    return users.filter(user =>
+        (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (user.role?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    );
+  }, [users, searchTerm]);
 
   return (
     <div className="space-y-8">
@@ -40,10 +68,16 @@ export default function UsuariosPage() {
             Administra los usuarios, sus roles y permisos en la aplicación.
           </p>
         </div>
-        <Button onClick={handleOpenInviteDialog} size="lg" disabled> {/* El diálogo aún no está creado */}
-          <PlusCircle className="mr-2 h-5 w-5" />
-          Invitar Nuevo Usuario
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+            <Button onClick={handleManagePermissions} variant="outline" size="lg">
+                <Settings2 className="mr-2 h-5 w-5" />
+                Permisos de Roles
+            </Button>
+            <Button onClick={handleOpenInviteDialog} size="lg">
+                <PlusCircle className="mr-2 h-5 w-5" />
+                Invitar Nuevo Usuario
+            </Button>
+        </div>
       </div>
 
       <Card className="shadow-lg">
@@ -61,7 +95,7 @@ export default function UsuariosPage() {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Buscar por nombre o email..."
+                placeholder="Buscar por nombre, email o rol..."
                 className="pl-8 w-full"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -88,26 +122,24 @@ export default function UsuariosPage() {
             </div>
           ) : (
             <div className="text-center py-10">
-              <p className="text-muted-foreground">La lista de usuarios y las tarjetas de usuario se implementarán aquí.</p>
-              <p className="text-sm text-muted-foreground mt-2">Por ahora, puedes imaginar una tabla o una cuadrícula de tarjetas de usuario.</p>
-              {/* Aquí iría el mapeo de `filteredUsers` a componentes de tarjeta de usuario */}
+              <p className="text-muted-foreground font-medium text-lg">¡Listado de Usuarios en Construcción!</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Aquí se mostrará una tabla responsiva con los usuarios y sus detalles.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                (Nombre, Email, Rol, Grupo, Estado, Estado Invitación, Acciones)
+              </p>
+              {/* Aquí iría el mapeo de `filteredUsers` a componentes de tabla/tarjeta de usuario */}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* 
-      Cuando creemos el diálogo:
       <InviteUserDialog
         isOpen={isInviteUserDialogOpen}
         onOpenChange={setIsInviteUserDialogOpen}
-        onUserInvited={(invitedUser) => {
-          // Lógica para manejar el usuario invitado (simulación)
-          console.log("Usuario invitado:", invitedUser);
-          // setUsers(prev => [...prev, invitedUser]); // Actualizar estado local
-        }}
-      /> 
-      */}
+        onUserInvited={handleUserInvited}
+      />
     </div>
   );
 }

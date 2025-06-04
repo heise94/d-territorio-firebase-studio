@@ -8,14 +8,15 @@ export interface UserProfile {
   email: string; // unique
   phoneNumber?: string;
   role: UserRole;
-  status: 'Activo' | 'Bloqueado';
+  status: 'Activo' | 'Bloqueado'; // Enum for status
   assignedGroupId?: string; // FK to preachingGroups
   invitationToken?: string | null; // Can be null after acceptance
-  invitationStatus?: 'pending' | 'accepted';
+  invitationStatus?: 'pending' | 'accepted'; // Enum for invitation status
   firebaseAuthUid?: string; // UID from Firebase Auth
-  addedByGroupId?: string; // FK to preachingGroups
-  createdAt?: Timestamp; // Optional for existing data, should be set for new
-  updatedAt?: Timestamp; // Optional for existing data, should be set for new
+  isBlockedForGeneralAI?: boolean; // Optional, for AI considerations
+  addedByGroupId?: string; // Optional FK to preachingGroups, if user was added via a group context
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface RoleConfiguration {
@@ -38,8 +39,8 @@ export interface CasaAvailability {
   wednesday?: DayAvailability;
   thursday?: DayAvailability;
   friday?: DayAvailability;
-  saturday?: DayAvailability; 
-  sunday?: DayAvailability;   
+  saturday?: DayAvailability;
+  sunday?: DayAvailability;
 }
 
 export interface Casa {
@@ -47,18 +48,17 @@ export interface Casa {
   ownerName: string;
   address: string;
   phoneNumber?: string;
-  availableDays?: CasaAvailability; 
-  isBlocked: boolean; 
+  availableDays?: CasaAvailability;
+  isBlocked: boolean;
   notes?: string;
-  // associatedTerritories?: string[]; // Removed as requested by user
   isSuitableForRural?: boolean;
   addedByGroupId?: string; // Optional FK to preachingGroups
 
-  lastVisitedAt?: Timestamp; 
+  lastVisitedAt?: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  createdBy?: string; 
-  updatedBy?: string; 
+  createdBy?: string;
+  updatedBy?: string;
 }
 
 export type TerritoryType = "urban" | "rural";
@@ -92,4 +92,3 @@ export interface PreachingGroup {
   name: string;
   // ... other fields
 }
-
