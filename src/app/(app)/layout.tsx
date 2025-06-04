@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, ReactNode } from 'react';
@@ -17,6 +18,20 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // Debug log
+  if (typeof window !== 'undefined') { // Avoid SSR logging if not intended
+    console.log(
+      '[AuthenticatedLayoutContent] States:',
+      { 
+        userExists: !!user, 
+        authLoading, 
+        isLoadingPermissions,
+        userUid: user?.uid 
+      }
+    );
+  }
+
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace('/login');
@@ -25,6 +40,10 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
 
   if (authLoading || isLoadingPermissions || !user) {
     // Added !user check to ensure loader shows until user object is confirmed
+    // Also log why loader is showing
+    if (typeof window !== 'undefined') {
+        console.log('[AuthenticatedLayoutContent] Showing loader because:', {authLoading, isLoadingPermissions, userExists: !!user});
+    }
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />

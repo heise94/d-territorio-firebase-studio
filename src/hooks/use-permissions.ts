@@ -1,3 +1,4 @@
+
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
@@ -32,11 +33,20 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     async function fetchInitialData() {
       setIsLoadingPermissions(true);
 
-      if (authLoading) return;
+      if (authLoading) {
+        // If auth is still loading, we can't determine permissions yet.
+        // Ensure isLoadingPermissions is false so UI doesn't hang if this is the only blocker.
+        // However, AuthenticatedLayoutContent also checks authLoading, so this might be redundant
+        // but ensures PermissionsProvider itself isn't stuck in a loading state.
+        setIsLoadingPermissions(false);
+        return;
+      }
 
-      if (!authUser) {
+      if (!authUser || typeof authUser.uid === 'undefined') {
+        // This case handles when user is logged out, or authUser/uid is unexpectedly undefined.
+        console.warn('PermissionsProvider: authUser or authUser.uid is not available. User might be logged out or authUser is not yet fully loaded/propagated.', { authUser });
         setUserProfile(null);
-        setRolePermissionsConfig(null); // No specific permissions for unauthenticated users
+        setRolePermissionsConfig(null);
         setIsLoadingPermissions(false);
         return;
       }
@@ -51,20 +61,16 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       // Fetch UserProfile by firebaseAuthUid
       try {
         const usersRef = collection(db, "users");
+        // At this point, authUser and authUser.uid should be defined.
         const q = query(usersRef, where("firebaseAuthUid", "==", authUser.uid));
         
-        // Using onSnapshot for real-time updates to user profile (e.g. role change)
         unsubscribeUserProfile = onSnapshot(q, (querySnapshot) => {
           if (!querySnapshot.empty) {
             const userDoc = querySnapshot.docs[0];
             setUserProfile({ id: userDoc.id, ...userDoc.data() } as UserProfile);
           } else {
-            // This case might happen if user exists in Auth but not in Firestore users collection yet
-            // or if there's a delay in data sync.
             console.warn(`User profile not found in Firestore for auth UID: ${authUser.uid}`);
             setUserProfile(null); 
-            // Potentially redirect or show error if user profile is critical and not found
-            // For now, permissions will be denied if profile (and thus role) is missing.
           }
         }, (error) => {
           console.error("Error fetching user profile:", error);
@@ -75,6 +81,9 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       } catch (error) {
           console.error("Error setting up user profile listener:", error);
           setUserProfile(null);
+          // Ensure loading state is updated even if an error occurs before onSnapshot setup
+          // This path might not be hit if query itself throws, but as a safeguard.
+          // The primary isLoadingPermissions(false) is in the rolePermissions fetch.
       }
 
       // Fetch RolePermissions from settings/rolePermissions
@@ -88,10 +97,10 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
             console.warn("Role permissions document (settings/rolePermissions) not found. Using default permissions.");
             setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
           }
-          setIsLoadingPermissions(false); // Set loading to false after both fetches attempted
+          setIsLoadingPermissions(false); 
         }, (error) => {
           console.error("Error fetching role permissions:", error);
-          setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS); // Fallback
+          setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS); 
           setIsLoadingPermissions(false);
           toast({ title: "Error de Permisos", description: "No se pudieron cargar las configuraciones de permisos.", variant: "destructive" });
         });
@@ -115,10 +124,8 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     if (!userProfile || !userProfile.role || !rolePermissionsConfig) {
       return false; 
     }
-    // Super Admins (Encargado Territorio) have all permissions implicitly for Phase 0 or as a fallback.
-    // This can be made more granular by checking their actual configured permissions.
     if (userProfile.role === USER_ROLES.ENCARGADO_TERRITORIO) {
-        return true; // Encargado Territorio has all permissions by default for now
+        return true; 
     }
 
     const permissionsForRole = rolePermissionsConfig[userProfile.role];
