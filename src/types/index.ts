@@ -39,23 +39,30 @@ export interface CasaAvailability {
   wednesday?: DayAvailability;
   thursday?: DayAvailability;
   friday?: DayAvailability;
+  saturday?: DayAvailability; // As per common preaching schedules, including Sat/Sun might be useful
+  sunday?: DayAvailability;   // Or keep it Lu-Vi if strictly for weekday prep meetings
 }
 
 export interface Casa {
   id: string; // Firestore document ID
   ownerName: string;
   address: string;
-  city?: string;
-  status: 'available' | 'do_not_call' | 'contacted' | 'needs_revisit'; // Estado de la casa
-  availability?: CasaAvailability;
-  nearbyTerritoryIds?: string; // IDs o nombres de territorios cercanos, separados por comas u otra lógica.
-  notes?: string; // Notas generales sobre la casa o los residentes
-  lastVisitedAt?: Timestamp; // Fecha de la última visita
+  phoneNumber?: string;
+  availableDays?: CasaAvailability; // Consistent with earlier structure, e.g., { monday: { am: true, pm: false }, ... }
+  isBlocked: boolean; // Replaces 'status' field for simplicity. True if "No Visitar" or otherwise blocked.
+  notes?: string;
+  associatedTerritories?: string[]; // Array of territory names or IDs
+  isSuitableForRural?: boolean;
+  isBlockedForGeneralAI?: boolean;
+  addedByGroupId?: string; // Optional FK to preachingGroups
+
+  lastVisitedAt?: Timestamp; // Fecha de la última visita - Retaining from previous
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  createdBy?: string; // User ID of creator
-  updatedBy?: string; // User ID of last updater
+  createdBy?: string; // User ID of creator - Retaining from previous
+  updatedBy?: string; // User ID of last updater - Retaining from previous
 }
+
 
 // Placeholder for other types to be defined in later phases
 export interface Territory {
