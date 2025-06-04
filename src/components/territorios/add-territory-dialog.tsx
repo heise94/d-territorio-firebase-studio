@@ -39,10 +39,8 @@ const territoryFormSchema = z.object({
   name: z.string().min(2, { message: "El nombre debe tener al menos 2 caracteres." }).max(100),
   mapImageUrl: z.string().optional().or(z.literal('')), // Accepts Data URI or empty string
   googleMapsLink: z.string().url({ message: "Debe ser una URL válida." }).optional().or(z.literal('')),
-  totalBlocks: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional(),
-  blockHouseCountsString: z.string().optional().refine(val => !val || /^\d+(,\d+)*$/.test(val), {
-    message: "Debe ser números separados por comas (ej: 10,12,8)."
-  }),
+  totalBlocks: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().default(0),
+  blockHouseCounts: z.array(z.coerce.number().int().min(0, "Debe ser 0 o más.")).optional(),
   doNotCallAddressesString: z.string().optional(),
   warningsString: z.string().optional(),
   groupIdsString: z.string().optional(),
@@ -53,16 +51,6 @@ const territoryFormSchema = z.object({
       message: "El número es obligatorio para territorios urbanos.",
       path: ["number"],
     });
-  }
-  if (data.blockHouseCountsString && data.totalBlocks !== undefined) {
-    const counts = data.blockHouseCountsString.split(',').map(s => s.trim()).filter(s => s);
-    if (counts.length !== data.totalBlocks) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Debe haber ${data.totalBlocks} conteos de casas, uno por cada manzana.`,
-        path: ["blockHouseCountsString"],
-      });
-    }
   }
 });
 
@@ -90,7 +78,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       mapImageUrl: "",
       googleMapsLink: "",
       totalBlocks: 0,
-      blockHouseCountsString: "",
+      blockHouseCounts: [],
       doNotCallAddressesString: "",
       warningsString: "",
       groupIdsString: "",
@@ -98,6 +86,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
   });
 
   const watchedType = form.watch("type");
+  const watchedTotalBlocks = form.watch("totalBlocks");
 
   useEffect(() => {
     if (territoryToEdit && isOpen) {
@@ -108,7 +97,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
         mapImageUrl: territoryToEdit.mapImageUrl || "",
         googleMapsLink: territoryToEdit.googleMapsLink || "",
         totalBlocks: territoryToEdit.totalBlocks || 0,
-        blockHouseCountsString: territoryToEdit.blockHouseCounts?.join(", ") || "",
+        blockHouseCounts: territoryToEdit.blockHouseCounts || [],
         doNotCallAddressesString: territoryToEdit.doNotCallAddresses?.join("\n") || "",
         warningsString: territoryToEdit.warnings?.join("\n") || "",
         groupIdsString: territoryToEdit.groupIds?.join(", ") || "",
@@ -124,9 +113,32 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     }
   }, [territoryToEdit, isOpen, form]);
 
+  useEffect(() => {
+    const currentBlockCounts = form.getValues("blockHouseCounts") || [];
+    const newTotal = watchedTotalBlocks || 0;
+
+    if (newTotal < 0) return; // Should be handled by Zod validation anyway
+
+    const newCounts = Array(newTotal);
+    for (let i = 0; i < newTotal; i++) {
+      newCounts[i] = currentBlockCounts[i] || 0;
+    }
+    form.setValue("blockHouseCounts", newCounts, { shouldValidate: true, shouldDirty: form.formState.isDirty });
+
+  }, [watchedTotalBlocks, form, isOpen]); // Added isOpen to re-run if dialog reopens with new totalBlocks
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast({
+          variant: "destructive",
+          title: "Imagen Demasiado Grande",
+          description: "Por favor, selecciona una imagen de menos de 2MB.",
+        });
+        clearImage();
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUri = reader.result as string;
@@ -135,8 +147,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       };
       reader.readAsDataURL(file);
     } else {
-      setMapImagePreview(null);
-      form.setValue('mapImageUrl', '', { shouldValidate: true });
+      clearImage();
     }
   };
 
@@ -145,14 +156,14 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     form.setValue('mapImageUrl', '', { shouldValidate: true });
     const fileInput = document.getElementById('mapImageUpload') as HTMLInputElement;
     if (fileInput) {
-      fileInput.value = ""; // Reset file input
+      fileInput.value = "";
     }
   };
 
   async function onSubmit(values: TerritoryFormValues) {
     setIsSubmitting(true);
 
-    const blockHouseCounts = values.blockHouseCountsString?.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)) || [];
+    const blockHouseCounts = values.blockHouseCounts || [];
     const approxHouseCount = blockHouseCounts.reduce((sum, count) => sum + count, 0);
 
     const submittedTerritory: Territory = {
@@ -160,7 +171,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       type: values.type,
       number: values.type === "urban" ? values.number : undefined,
       name: values.name,
-      mapImageUrl: values.mapImageUrl || undefined, // Will be Data URI or undefined
+      mapImageUrl: values.mapImageUrl || undefined,
       googleMapsLink: values.googleMapsLink || undefined,
       totalBlocks: values.totalBlocks,
       blockHouseCounts: blockHouseCounts,
@@ -194,7 +205,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) {
             if (!isEditMode) form.reset();
-            setMapImagePreview(null); // Clear preview when dialog closes
+            setMapImagePreview(null); 
         }
         onOpenChange(open);
     }}>
@@ -275,7 +286,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
                     hover:file:bg-primary/20"
                 />
               </FormControl>
-              <FormFieldDescription>Sube una imagen del mapa del territorio.</FormFieldDescription>
+              <FormFieldDescription>Sube una imagen del mapa (máx. 2MB).</FormFieldDescription>
               {mapImagePreview && (
                 <div className="mt-2 relative w-full aspect-video rounded-md overflow-hidden border p-1">
                   <Image src={mapImagePreview} alt="Vista previa del mapa" layout="fill" objectFit="contain" />
@@ -313,29 +324,46 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
               name="totalBlocks"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Total de Manzanas (Opcional)</FormLabel>
+                  <FormLabel>Total de Manzanas</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="Ej: 5" {...field} onChange={e => field.onChange(parseInt(e.target.value,10) || 0)} />
+                    <Input type="number" min="0" placeholder="Ej: 5" {...field} onChange={e => field.onChange(parseInt(e.target.value,10) || 0)} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="blockHouseCountsString"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Conteo de Casas por Manzana (Opcional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Ej: 10,12,8,15,11 (separados por coma)" {...field} rows={2}/>
-                  </FormControl>
-                  <FormFieldDescription>Si ingresaste "Total de Manzanas", asegúrate que el número de conteos coincida.</FormFieldDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {(watchedTotalBlocks || 0) > 0 && (
+              <div className="space-y-3 rounded-md border p-3 shadow-sm bg-muted/20">
+                <FormLabel className="text-sm font-medium">Conteo de Casas por Manzana</FormLabel>
+                {Array.from({ length: watchedTotalBlocks || 0 }, (_, index) => (
+                  <FormField
+                    key={`blockHouseCounts-${index}`}
+                    control={form.control}
+                    name={`blockHouseCounts.${index}`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-normal">
+                          Casas en Manzana {index + 1}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="Ej: 10"
+                            {...field}
+                            onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)}
+                            value={field.value || 0} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ))}
+              </div>
+            )}
+
 
             <FormField
               control={form.control}
@@ -399,5 +427,4 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     </Dialog>
   );
 }
-
     
