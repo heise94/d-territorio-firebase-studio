@@ -47,11 +47,13 @@ const casaFormSchema = z.object({
     wednesday: dayAvailabilitySchema,
     thursday: dayAvailabilitySchema,
     friday: dayAvailabilitySchema,
+    // saturday: dayAvailabilitySchema, // Keep if needed based on PRD, removed for Lu-Vi focus
+    // sunday: dayAvailabilitySchema,   // Keep if needed based on PRD, removed for Lu-Vi focus
   }).optional(),
   associatedTerritories: z.string().optional().describe("Territorios asociados, separados por comas"),
   notes: z.string().max(1000).optional(),
   isSuitableForRural: z.boolean().optional().default(false),
-  isBlockedForGeneralAI: z.boolean().optional().default(false),
+  // isBlockedForGeneralAI: z.boolean().optional().default(false), // Removed
 });
 
 type CasaFormValues = z.infer<typeof casaFormSchema>;
@@ -62,6 +64,8 @@ const WEEK_DAYS = [
   { id: 'wednesday', label: 'Miércoles' },
   { id: 'thursday', label: 'Jueves' },
   { id: 'friday', label: 'Viernes' },
+  // { id: 'saturday', label: 'Sábado' }, // Keep if needed
+  // { id: 'sunday', label: 'Domingo' },   // Keep if needed
 ] as const;
 
 interface AddCasaDialogProps {
@@ -92,7 +96,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
       associatedTerritories: "",
       notes: "",
       isSuitableForRural: false,
-      isBlockedForGeneralAI: false,
+      // isBlockedForGeneralAI: false, // Removed
     },
   });
 
@@ -112,10 +116,10 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
         associatedTerritories: casaToEdit.associatedTerritories?.join(", ") || "",
         notes: casaToEdit.notes || "",
         isSuitableForRural: casaToEdit.isSuitableForRural || false,
-        isBlockedForGeneralAI: casaToEdit.isBlockedForGeneralAI || false,
+        // isBlockedForGeneralAI: casaToEdit.isBlockedForGeneralAI || false, // Removed
       });
     } else if (!isOpen) {
-      form.reset(); // Reset form when dialog closes if not editing
+      form.reset(); 
     }
   }, [casaToEdit, isOpen, form]);
 
@@ -123,7 +127,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
     setIsSubmitting(true);
 
     const submittedCasa: Casa = {
-      id: isEditMode ? casaToEdit.id : crypto.randomUUID(),
+      id: isEditMode && casaToEdit ? casaToEdit.id : crypto.randomUUID(),
       ownerName: values.ownerName,
       address: values.address,
       phoneNumber: values.phoneNumber || undefined,
@@ -131,14 +135,12 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
       associatedTerritories: values.associatedTerritories?.split(',').map(t => t.trim()).filter(t => t) || [],
       notes: values.notes || undefined,
       isSuitableForRural: values.isSuitableForRural,
-      isBlockedForGeneralAI: values.isBlockedForGeneralAI,
-      isBlocked: isEditMode ? casaToEdit.isBlocked : false, // New houses are not blocked by default
-      createdAt: isEditMode ? casaToEdit.createdAt : Timestamp.now(),
+      // isBlockedForGeneralAI: values.isBlockedForGeneralAI, // Removed
+      isBlocked: isEditMode && casaToEdit ? casaToEdit.isBlocked : false, 
+      createdAt: isEditMode && casaToEdit ? casaToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
-      // createdBy and updatedBy would be set by actual Firestore logic
     };
     
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 700));
 
     onCasaSubmit(submittedCasa);
@@ -147,14 +149,14 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
       description: `La casa para ${values.ownerName} ha sido ${isEditMode ? 'actualizada' : 'registrada'} (simulación).`,
     });
     
-    if (!isEditMode) form.reset(); // Only reset if adding, not editing, so user can see changes
+    if (!isEditMode) form.reset(); 
     onOpenChange(false);
     setIsSubmitting(false);
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-        if (!open) form.reset(); // Ensure form is reset if dialog is closed manually
+        if (!open && !isEditMode) form.reset(); 
         onOpenChange(open);
     }}>
       <DialogContent className="sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -261,49 +263,27 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
               )}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                <FormField
-                control={form.control}
-                name="isSuitableForRural"
-                render={({ field }) => (
-                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 shadow-sm">
-                    <FormControl>
-                        <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        />
-                    </FormControl>
-                    <div className="space-y-0.5">
-                        <FormLabel>Apta para Predicación Rural</FormLabel>
-                        <FormFieldDescription>
-                        Marcar si esta casa puede usarse para grupos de territorios rurales.
-                        </FormFieldDescription>
-                    </div>
-                    </FormItem>
-                )}
-                />
-                 <FormField
-                control={form.control}
-                name="isBlockedForGeneralAI"
-                render={({ field }) => (
-                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 shadow-sm">
-                    <FormControl>
-                        <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        />
-                    </FormControl>
-                    <div className="space-y-0.5">
-                        <FormLabel>Bloquear para IA General</FormLabel>
-                        <FormFieldDescription>
-                        Si se marca, la IA no considerará esta casa para asignaciones generales (sólo manual).
-                        </FormFieldDescription>
-                    </div>
-                    </FormItem>
-                )}
-                />
-            </div>
-
+            <FormField
+              control={form.control}
+              name="isSuitableForRural"
+              render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 shadow-sm">
+                  <FormControl>
+                      <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      />
+                  </FormControl>
+                  <div className="space-y-0.5">
+                      <FormLabel>Apta para Predicación Rural</FormLabel>
+                      <FormFieldDescription>
+                      Marcar si esta casa puede usarse para grupos de territorios rurales.
+                      </FormFieldDescription>
+                  </div>
+                  </FormItem>
+              )}
+            />
+           
             <FormField
               control={form.control}
               name="notes"
@@ -334,3 +314,4 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
     </Dialog>
   );
 }
+

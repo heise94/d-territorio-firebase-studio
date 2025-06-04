@@ -6,19 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck } from "lucide-react";
 import type { Casa, CasaAvailability } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp } from "firebase/firestore"; // Added import
+import { Timestamp } from "firebase/firestore"; 
 
 function formatAvailability(availability?: CasaAvailability): string {
   if (!availability) return "No especificada";
   
-  const dayLabels: Record<keyof Required<CasaAvailability>, string> = {
-    monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi', saturday: 'Sa', sunday: 'Do'
+  const dayLabels: Record<keyof Pick<Required<CasaAvailability>, 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday'>, string> = {
+    monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi'
   };
-  const daysOrder: (keyof Required<CasaAvailability>)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+  const daysOrder: (keyof Pick<Required<CasaAvailability>, 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday'>)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 
   const parts: string[] = [];
   daysOrder.forEach(dayKey => {
@@ -36,7 +36,7 @@ function formatAvailability(availability?: CasaAvailability): string {
 export default function CasasPage() {
   const [isCasaDialogOpen, setIsCasaDialogOpen] = useState(false);
   const [casaToEdit, setCasaToEdit] = useState<Casa | null>(null);
-  const [casas, setCasas] = useState<Casa[]>([]);
+  const [casas, setCasas] = useState<Casa[]>([]); // Populate this from Firestore later
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
@@ -72,15 +72,14 @@ export default function CasasPage() {
   const handleToggleBlockCasa = (casaId: string) => {
      setCasas(prevCasas => 
         prevCasas.map(c => 
-            c.id === casaId ? {...c, isBlocked: !c.isBlocked, updatedAt: Timestamp.now() } : c // Changed to Timestamp.now()
+            c.id === casaId ? {...c, isBlocked: !c.isBlocked, updatedAt: Timestamp.now() } : c
         )
      );
-     const casa = casas.find(c => c.id === casaId); // Find after state update might not reflect immediately
-     // To ensure correct toast message, find the casa *before* mapping for update, or infer from current state
-     const currentCasaState = casas.find(c => c.id === casaId);
+     // Find the casa *before* mapping to ensure the correct message is displayed
+     const casa = casas.find(c => c.id === casaId);
      toast({ 
-        title: currentCasaState?.isBlocked ? "Casa Desbloqueada" : "Casa Bloqueada", 
-        description: `La casa ha sido ${currentCasaState?.isBlocked ? 'desbloqueada' : 'bloqueada'} (simulación).`
+        title: casa?.isBlocked ? "Casa Desbloqueada" : "Casa Bloqueada", 
+        description: `La casa ha sido ${casa?.isBlocked ? 'desbloqueada' : 'bloqueada'} (simulación).`
     });
   }
 
@@ -180,12 +179,7 @@ export default function CasasPage() {
                             <span className="text-xs">{casa.isSuitableForRural ? 'Apta para rural' : 'No apta para rural'}</span>
                         </div>
                     )}
-                     {casa.isBlockedForGeneralAI && (
-                        <div className="flex items-center text-amber-700 dark:text-amber-500">
-                           <ShieldAlert size={14} className="mr-2" />
-                           <span className="text-xs">Bloqueada para IA general</span>
-                        </div>
-                    )}
+                    {/* Removed isBlockedForGeneralAI display block */}
                     {casa.notes && (
                         <div>
                             <span className="font-medium text-muted-foreground">Notas:</span>
@@ -245,3 +239,4 @@ export default function CasasPage() {
     </div>
   );
 }
+

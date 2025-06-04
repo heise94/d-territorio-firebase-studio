@@ -13,7 +13,7 @@ export interface UserProfile {
   invitationToken?: string | null; // Can be null after acceptance
   invitationStatus?: 'pending' | 'accepted';
   firebaseAuthUid?: string; // UID from Firebase Auth
-  isBlockedForGeneralAI?: boolean;
+  isBlockedForGeneralAI?: boolean; // This was requested to be kept for UserProfile by user context.
   addedByGroupId?: string; // FK to preachingGroups
   createdAt?: Timestamp; // Optional for existing data, should be set for new
   updatedAt?: Timestamp; // Optional for existing data, should be set for new
@@ -39,8 +39,8 @@ export interface CasaAvailability {
   wednesday?: DayAvailability;
   thursday?: DayAvailability;
   friday?: DayAvailability;
-  saturday?: DayAvailability; // As per common preaching schedules, including Sat/Sun might be useful
-  sunday?: DayAvailability;   // Or keep it Lu-Vi if strictly for weekday prep meetings
+  saturday?: DayAvailability; 
+  sunday?: DayAvailability;   
 }
 
 export interface Casa {
@@ -48,19 +48,19 @@ export interface Casa {
   ownerName: string;
   address: string;
   phoneNumber?: string;
-  availableDays?: CasaAvailability; // Consistent with earlier structure, e.g., { monday: { am: true, pm: false }, ... }
-  isBlocked: boolean; // Replaces 'status' field for simplicity. True if "No Visitar" or otherwise blocked.
+  availableDays?: CasaAvailability; 
+  isBlocked: boolean; 
   notes?: string;
-  associatedTerritories?: string[]; // Array of territory names or IDs
+  associatedTerritories?: string[]; 
   isSuitableForRural?: boolean;
-  isBlockedForGeneralAI?: boolean;
+  // isBlockedForGeneralAI?: boolean; // Removed as per user request
   addedByGroupId?: string; // Optional FK to preachingGroups
 
-  lastVisitedAt?: Timestamp; // Fecha de la última visita - Retaining from previous
+  lastVisitedAt?: Timestamp; 
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  createdBy?: string; // User ID of creator - Retaining from previous
-  updatedBy?: string; // User ID of last updater - Retaining from previous
+  createdBy?: string; 
+  updatedBy?: string; 
 }
 
 
@@ -76,3 +76,4 @@ export interface PreachingGroup {
   name: string;
   // ... other fields
 }
+
