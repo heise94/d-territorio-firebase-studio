@@ -159,7 +159,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-2 pr-2">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2 pr-2">
             <FormField
               control={form.control}
               name="ownerName"
@@ -180,7 +180,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
                 <FormItem>
                   <FormLabel>Dirección Completa</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Ej: Calle Falsa 123, Depto 4B, Comuna" {...field} />
+                    <Textarea placeholder="Ej: Calle Falsa 123, Depto 4B, Comuna" {...field} rows={2} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -201,14 +201,14 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
             />
             
             <div>
-              <FormLabel className="text-base font-medium">Disponibilidad (Lunes a Viernes)</FormLabel>
-              <FormFieldDescription>
+              <FormLabel className="text-sm font-medium">Disponibilidad (Lunes a Viernes)</FormLabel>
+              <FormFieldDescription className="text-xs">
                 Marca los bloques horarios en que la casa estaría disponible.
               </FormFieldDescription>
-              <div className="mt-3 space-y-3 rounded-md border p-4 shadow-sm bg-muted/20">
+              <div className="mt-2 space-y-2 rounded-md border p-3 shadow-sm bg-muted/20">
                 {WEEK_DAYS.map(day => (
-                  <div key={day.id} className="grid grid-cols-1 sm:grid-cols-3 items-center gap-x-4 gap-y-2">
-                    <FormLabel className="font-normal col-span-1 sm:text-right sm:pr-2">{day.label}</FormLabel>
+                  <div key={day.id} className="grid grid-cols-1 sm:grid-cols-3 items-center gap-x-3 gap-y-1.5">
+                    <FormLabel className="font-normal col-span-1 sm:text-right sm:pr-2 text-sm">{day.label}</FormLabel>
                     <FormField
                       control={form.control}
                       name={`availableDays.${day.id}.am`}
@@ -244,11 +244,11 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Territorios Cercanos/Asociados</FormLabel>
-                   <FormFieldDescription>
+                   <FormFieldDescription className="text-xs">
                     Nombres o IDs de territorios, separados por comas (ej: T-101, Centro Alto, T-205).
                   </FormFieldDescription>
                   <FormControl>
-                    <Textarea placeholder="Ej: T-101, Centro Alto, T-205" {...field} />
+                    <Textarea placeholder="Ej: T-101, Centro Alto, T-205" {...field} rows={2} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -268,7 +268,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
                   </FormControl>
                   <div className="space-y-0.5">
                       <FormLabel>Apta para Predicación Rural</FormLabel>
-                      <FormFieldDescription>
+                      <FormFieldDescription className="text-xs">
                       Marcar si esta casa puede usarse para grupos de territorios rurales.
                       </FormFieldDescription>
                   </div>
@@ -283,7 +283,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
                 <FormItem>
                   <FormLabel>Notas Adicionales (Opcional)</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Ej: Entrada por el pasaje, preguntar por citófono 1A, etc." {...field} />
+                    <Textarea placeholder="Ej: Entrada por el pasaje, preguntar por citófono 1A, etc." {...field} rows={2}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -306,4 +306,3 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
     </Dialog>
   );
 }
-
