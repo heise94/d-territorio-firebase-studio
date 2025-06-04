@@ -10,6 +10,7 @@ import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone,
 import type { Casa, CasaAvailability } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { Timestamp } from "firebase/firestore"; // Added import
 
 function formatAvailability(availability?: CasaAvailability): string {
   if (!availability) return "No especificada";
@@ -17,7 +18,7 @@ function formatAvailability(availability?: CasaAvailability): string {
   const dayLabels: Record<keyof Required<CasaAvailability>, string> = {
     monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi', saturday: 'Sa', sunday: 'Do'
   };
-  const daysOrder: (keyof Required<CasaAvailability>)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']; // Customize as needed
+  const daysOrder: (keyof Required<CasaAvailability>)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 
   const parts: string[] = [];
   daysOrder.forEach(dayKey => {
@@ -53,20 +54,17 @@ export default function CasasPage() {
     setCasas(prevCasas => {
       const existingIndex = prevCasas.findIndex(c => c.id === submittedCasa.id);
       if (existingIndex > -1) {
-        // Update existing casa
         const updatedCasas = [...prevCasas];
         updatedCasas[existingIndex] = submittedCasa;
         return updatedCasas;
       } else {
-        // Add new casa
         return [...prevCasas, submittedCasa];
       }
     });
-    setIsCasaDialogOpen(false); // Close dialog handled by dialog itself
+    setIsCasaDialogOpen(false); 
   };
 
   const handleDeleteCasa = (casaId: string) => {
-    // Actual deletion from Firestore would happen here
     setCasas(prevCasas => prevCasas.filter(c => c.id !== casaId));
     toast({ title: "Casa Eliminada", description: "La casa ha sido eliminada (simulación)." });
   };
@@ -74,13 +72,15 @@ export default function CasasPage() {
   const handleToggleBlockCasa = (casaId: string) => {
      setCasas(prevCasas => 
         prevCasas.map(c => 
-            c.id === casaId ? {...c, isBlocked: !c.isBlocked, updatedAt: new window.firebase.firestore.Timestamp(Date.now()/1000,0) } : c
+            c.id === casaId ? {...c, isBlocked: !c.isBlocked, updatedAt: Timestamp.now() } : c // Changed to Timestamp.now()
         )
      );
-     const casa = casas.find(c => c.id === casaId);
+     const casa = casas.find(c => c.id === casaId); // Find after state update might not reflect immediately
+     // To ensure correct toast message, find the casa *before* mapping for update, or infer from current state
+     const currentCasaState = casas.find(c => c.id === casaId);
      toast({ 
-        title: casa?.isBlocked ? "Casa Desbloqueada" : "Casa Bloqueada", 
-        description: `La casa ha sido ${casa?.isBlocked ? 'desbloqueada' : 'bloqueada'} (simulación).`
+        title: currentCasaState?.isBlocked ? "Casa Desbloqueada" : "Casa Bloqueada", 
+        description: `La casa ha sido ${currentCasaState?.isBlocked ? 'desbloqueada' : 'bloqueada'} (simulación).`
     });
   }
 
@@ -245,15 +245,3 @@ export default function CasasPage() {
     </div>
   );
 }
-
-// Helper to access Firebase Timestamp if window.firebase is available
-// This is a workaround for client components. In server components, you'd import directly.
-declare global {
-  interface Window { firebase: any; }
-}
-
-if (typeof window !== 'undefined' && !window.firebase?.firestore?.Timestamp) {
-  console.warn("Firebase Timestamp might not be available globally. Ensure Firebase is loaded.");
-  // Fallback or polyfill if necessary, but for this simulation, direct new Date() might suffice for 'updatedAt' if Timestamp is truly missing
-}
-
