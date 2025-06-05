@@ -79,7 +79,7 @@ export interface Territory {
   isBlocked: boolean; // Default false
   blockReason?: string;
   unblockDate?: Timestamp;
-  groupIds?: string[]; // IDs of preachingGroups assigned
+  groupIds?: string[]; // IDs of preachingGroups assigned (this is the territory being assigned to groups)
   associatedCasaIds?: string[]; // IDs/Names of nearby houses
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -88,7 +88,17 @@ export interface Territory {
 }
 
 export interface PreachingGroup {
-  id: string;
+  id: string; // Firestore document ID
   name: string;
-  // ... other fields
+  description?: string;
+  superintendentId?: string; // User ID of the superintendent
+  auxiliaryId?: string; // User ID of the auxiliary
+  memberIds?: string[]; // Array of User IDs who are members
+  assignedTerritoryIds?: string[]; // Array of Territory IDs assigned to this group
+  assignedCasaIds?: string[]; // Array of Casa IDs assigned or commonly used by this group
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  createdBy?: string;
+  updatedBy?: string;
 }
+
