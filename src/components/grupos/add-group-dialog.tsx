@@ -47,7 +47,6 @@ interface AddGroupDialogProps {
   groupToEdit?: PreachingGroup | null;
 }
 
-// Mock user data for Select components - replace with actual data fetching later
 const mockUsers = [
     { id: 'uidElena', name: 'Elena Campos' },
     { id: 'uidCarlos', name: 'Carlos Rivas' },
@@ -56,6 +55,8 @@ const mockUsers = [
     { id: 'userTest1', name: 'Usuario Prueba Uno' },
     { id: 'userTest2', name: 'Usuaria Prueba Dos' },
 ];
+
+const NO_USER_VALUE = "___NO_USER_SELECTED___";
 
 export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdit }: AddGroupDialogProps) {
   const { toast } = useToast();
@@ -164,14 +165,17 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Superintendente (SG) (Opcional)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select
+                    onValueChange={(value) => field.onChange(value === NO_USER_VALUE ? "" : value)}
+                    value={field.value} // Use value for controlled component
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar Superintendente" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Nadie Asignado</SelectItem>
+                      <SelectItem key={NO_USER_VALUE} value={NO_USER_VALUE}>Nadie Asignado</SelectItem>
                       {mockUsers.map(user => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.name}
@@ -189,14 +193,17 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Auxiliar (Opcional)</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                   <Select
+                    onValueChange={(value) => field.onChange(value === NO_USER_VALUE ? "" : value)}
+                    value={field.value} // Use value for controlled component
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar Auxiliar" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Nadie Asignado</SelectItem>
+                      <SelectItem key={NO_USER_VALUE} value={NO_USER_VALUE}>Nadie Asignado</SelectItem>
                       {mockUsers.map(user => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.name}
