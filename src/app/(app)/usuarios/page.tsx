@@ -5,7 +5,7 @@ import { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Search, Users, Settings2, MoreHorizontal, Edit3, Trash2, ShieldOff, ShieldCheck, Send } from "lucide-react";
+import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, Send, CalendarClock } from "lucide-react";
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import type { UserProfile } from "@/types";
 import { useToast } from "@/hooks/use-toast";
@@ -20,14 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,6 +33,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 export default function UsuariosPage() {
   const [isInviteUserDialogOpen, setIsInviteUserDialogOpen] = useState(false);
@@ -74,7 +68,7 @@ export default function UsuariosPage() {
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
-    setUsers(prev => [newUser, ...prev]); // Añadir al inicio para verlo fácilmente
+    setUsers(prev => [newUser, ...prev]); 
     setIsInviteUserDialogOpen(false);
   };
 
@@ -117,6 +111,14 @@ export default function UsuariosPage() {
     console.log(`Editando usuario ${userId}`);
   };
 
+  const handleViewAvailability = (userId: string) => {
+    toast({
+      title: "Función no implementada",
+      description: "La visualización de disponibilidad de usuario estará disponible pronto.",
+    });
+    console.log(`Viendo disponibilidad del usuario ${userId}`);
+  };
+
 
   const getInitials = (name?: string) => {
     if (!name) return "??";
@@ -137,134 +139,162 @@ export default function UsuariosPage() {
   }, [users, searchTerm]);
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-headline font-bold tracking-tight">Gestión de Usuarios</h1>
-          <p className="text-muted-foreground mt-1">
-            Administra los usuarios, sus roles y permisos en la aplicación.
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-            <Button onClick={handleManagePermissions} variant="outline" size="lg">
-                <Settings2 className="mr-2 h-5 w-5" />
-                Permisos de Roles
-            </Button>
-            <Button onClick={handleOpenInviteDialog} size="lg">
-                <PlusCircle className="mr-2 h-5 w-5" />
-                Invitar Nuevo Usuario
-            </Button>
-        </div>
-      </div>
-
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle>Lista de Usuarios</CardTitle>
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
-            <CardDescription>
-              {filteredUsers.length > 0
-                ? `Mostrando ${filteredUsers.length} de ${users.length} usuario(s) registrados.`
-                : users.length > 0 ? "Ningún usuario coincide con la búsqueda."
-                : "Actualmente no hay usuarios registrados."
-              }
-            </CardDescription>
-            <div className="relative w-full sm:w-64 md:w-72">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Buscar por nombre, email o rol..."
-                className="pl-8 w-full"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+    <TooltipProvider>
+      <div className="space-y-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-headline font-bold tracking-tight">Gestión de Usuarios</h1>
+            <p className="text-muted-foreground mt-1">
+              Administra los usuarios, sus roles y permisos en la aplicación.
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {users.length === 0 && !searchTerm ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
-              <Users className="h-20 w-20 text-muted-foreground/70 mb-6" />
-              <p className="text-xl font-medium text-muted-foreground mb-2">No hay usuarios para mostrar.</p>
-              <p className="text-sm text-muted-foreground">
-                Haz clic en "Invitar Nuevo Usuario" para registrar el primero.
-              </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+              <Button onClick={handleManagePermissions} variant="outline" size="lg">
+                  <Settings2 className="mr-2 h-5 w-5" />
+                  Permisos de Roles
+              </Button>
+              <Button onClick={handleOpenInviteDialog} size="lg">
+                  <PlusCircle className="mr-2 h-5 w-5" />
+                  Invitar Nuevo Usuario
+              </Button>
+          </div>
+        </div>
+
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>Lista de Usuarios</CardTitle>
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
+              <CardDescription>
+                {filteredUsers.length > 0
+                  ? `Mostrando ${filteredUsers.length} de ${users.length} usuario(s) registrados.`
+                  : users.length > 0 ? "Ningún usuario coincide con la búsqueda."
+                  : "Actualmente no hay usuarios registrados."
+                }
+              </CardDescription>
+              <div className="relative w-full sm:w-64 md:w-72">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Buscar por nombre, email o rol..."
+                  className="pl-8 w-full"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </div>
-          ) : filteredUsers.length === 0 && searchTerm ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
-              <Search className="h-20 w-20 text-muted-foreground/70 mb-6" />
-              <p className="text-xl font-medium text-muted-foreground mb-2">Sin resultados</p>
-              <p className="text-sm text-muted-foreground">
-                No se encontraron usuarios que coincidan con "{searchTerm}".
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[280px]">Usuario</TableHead>
-                    <TableHead>Rol</TableHead>
-                    <TableHead>Grupo</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Invitación</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                            <AvatarImage src={(user as any).avatarUrl || undefined} alt={user.name} />
-                            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{user.name}</div>
-                            <div className="text-xs text-muted-foreground">{user.email}</div>
+          </CardHeader>
+          <CardContent>
+            {users.length === 0 && !searchTerm ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
+                <Users className="h-20 w-20 text-muted-foreground/70 mb-6" />
+                <p className="text-xl font-medium text-muted-foreground mb-2">No hay usuarios para mostrar.</p>
+                <p className="text-sm text-muted-foreground">
+                  Haz clic en "Invitar Nuevo Usuario" para registrar el primero.
+                </p>
+              </div>
+            ) : filteredUsers.length === 0 && searchTerm ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
+                <Search className="h-20 w-20 text-muted-foreground/70 mb-6" />
+                <p className="text-xl font-medium text-muted-foreground mb-2">Sin resultados</p>
+                <p className="text-sm text-muted-foreground">
+                  No se encontraron usuarios que coincidan con "{searchTerm}".
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[280px]">Usuario</TableHead>
+                      <TableHead>Rol</TableHead>
+                      <TableHead>Grupo</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Invitación</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9">
+                              <AvatarImage src={(user as any).avatarUrl || undefined} alt={user.name} />
+                              <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium">{user.name}</div>
+                              <div className="text-xs text-muted-foreground">{user.email}</div>
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell><Badge variant="outline">{user.role}</Badge></TableCell>
-                      <TableCell>{user.assignedGroupId || 'N/A'}</TableCell>
-                      <TableCell>
-                        <Badge variant={user.status === 'Activo' ? 'default' : 'destructive'}>
-                          {user.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={user.invitationStatus === 'accepted' ? 'secondary' : 'outline'} className={user.invitationStatus === 'pending' ? 'text-amber-600 border-amber-500' : ''}>
-                          {user.invitationStatus === 'pending' ? 'Pendiente' : 'Aceptada'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Abrir menú</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleEditUser(user.id)}>
-                              <Edit3 className="mr-2 h-4 w-4" /> Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleToggleBlockUser(user.id)}>
-                              {user.status === 'Activo' ? <ShieldOff className="mr-2 h-4 w-4" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                              {user.status === 'Activo' ? 'Bloquear' : 'Desbloquear'}
-                            </DropdownMenuItem>
+                        </TableCell>
+                        <TableCell><Badge variant="outline">{user.role}</Badge></TableCell>
+                        <TableCell>{user.assignedGroupId || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Badge variant={user.status === 'Activo' ? 'default' : 'destructive'}>
+                            {user.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={user.invitationStatus === 'accepted' ? 'secondary' : 'outline'} className={user.invitationStatus === 'pending' ? 'text-amber-600 border-amber-500' : ''}>
+                            {user.invitationStatus === 'pending' ? 'Pendiente' : 'Aceptada'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user.id)}>
+                                  <Edit3 className="h-4 w-4" />
+                                  <span className="sr-only">Editar</span>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Editar Usuario</TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleToggleBlockUser(user.id)}>
+                                  {user.status === 'Activo' ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                                  <span className="sr-only">{user.status === 'Activo' ? 'Bloquear' : 'Desbloquear'}</span>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{user.status === 'Activo' ? 'Bloquear Usuario' : 'Desbloquear Usuario'}</TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleViewAvailability(user.id)}>
+                                  <CalendarClock className="h-4 w-4" />
+                                  <span className="sr-only">Ver Disponibilidad</span>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Ver Disponibilidad</TooltipContent>
+                            </Tooltip>
+
                             {user.invitationStatus === 'pending' && (
-                              <DropdownMenuItem onClick={() => handleResendInvitation(user.email)}>
-                                <Send className="mr-2 h-4 w-4" /> Reenviar Invitación
-                              </DropdownMenuItem>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleResendInvitation(user.email)}>
+                                    <Send className="h-4 w-4" />
+                                    <span className="sr-only">Reenviar Invitación</span>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Reenviar Invitación</TooltipContent>
+                              </Tooltip>
                             )}
-                            <DropdownMenuSeparator />
-                             <AlertDialog>
+                            
+                            <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600 hover:!text-red-600 focus:!text-red-600 focus:!bg-red-50 dark:text-red-500 dark:hover:!text-red-500 dark:focus:!text-red-500 dark:focus:!bg-red-900/20">
-                                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar
-                                </DropdownMenuItem>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                      <Trash2 className="h-4 w-4" />
+                                      <span className="sr-only">Eliminar</span>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Eliminar Usuario</TooltipContent>
+                                </Tooltip>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
@@ -281,24 +311,24 @@ export default function UsuariosPage() {
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      <InviteUserDialog
-        isOpen={isInviteUserDialogOpen}
-        onOpenChange={setIsInviteUserDialogOpen}
-        onUserInvited={handleUserInvited}
-      />
-    </div>
+        <InviteUserDialog
+          isOpen={isInviteUserDialogOpen}
+          onOpenChange={setIsInviteUserDialogOpen}
+          onUserInvited={handleUserInvited}
+        />
+      </div>
+    </TooltipProvider>
   );
 }
 
