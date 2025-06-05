@@ -33,7 +33,7 @@ export interface ProgramScheduleSlot {
   id: string;
   dayOfWeek: DayOfWeek;
   startTime: string; // HH:mm
-  endTime?: string; // HH:mm, optional
+  // endTime?: string; // HH:mm, optional - REMOVED
   type: PreachingType;
   status: ScheduleSlotStatus;
 }
