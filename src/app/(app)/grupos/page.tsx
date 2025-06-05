@@ -1,42 +1,69 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { useState, useMemo, useEffect } from "react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Search, Users2 as GroupIcon } from "lucide-react";
-// import { AddGroupDialog } from "@/components/grupos/add-group-dialog"; // Placeholder
+import { PlusCircle, Search, Users2 as GroupIcon, Pencil, Trash2 } from "lucide-react";
+import { AddGroupDialog } from "@/components/grupos/add-group-dialog";
 import type { PreachingGroup } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { Timestamp } from "firebase/firestore";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { GroupCard } from "@/components/grupos/group-card";
+
+
+const initialGroups: PreachingGroup[] = [
+    { id: 'G1', name: 'Grupo Los Pioneros', description: 'Grupo de predicación enfocado en el centro.', superintendentId: 'uidElena', auxiliaryId: 'uidCarlos', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+    { id: 'G2', name: 'Grupo Betel', description: 'Conquistadores de nuevos territorios rurales.', superintendentId: 'uidPedro', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+    { id: 'G3', name: 'Grupo Emanuel', superintendentId: 'uidLaura', auxiliaryId: 'someOtherUID', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+];
+
 
 export default function GruposPage() {
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [groupToEdit, setGroupToEdit] = useState<PreachingGroup | null>(null);
-  const [groups, setGroups] = useState<PreachingGroup[]>([]); // Populate this from Firestore later
+  const [groups, setGroups] = useState<PreachingGroup[]>(initialGroups);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
+  // Effect to reset edit state when dialog closes
+  useEffect(() => {
+    if (!isGroupDialogOpen) {
+      setGroupToEdit(null);
+    }
+  }, [isGroupDialogOpen]);
+
   const handleOpenAddDialog = () => {
     setGroupToEdit(null);
-    // setIsGroupDialogOpen(true); // Uncomment when dialog is created
-    toast({ title: "Próximamente", description: "El diálogo para añadir grupos estará disponible pronto."});
+    setIsGroupDialogOpen(true);
   };
 
   const handleOpenEditDialog = (group: PreachingGroup) => {
     setGroupToEdit(group);
-    // setIsGroupDialogOpen(true); // Uncomment when dialog is created
-    toast({ title: "Próximamente", description: "El diálogo para editar grupos estará disponible pronto."});
+    setIsGroupDialogOpen(true);
   };
 
   const handleGroupSubmit = (submittedGroup: PreachingGroup) => {
-    // Logic to add/update group in state (and later Firestore)
+    setGroups(prevGroups => {
+      const existingIndex = prevGroups.findIndex(g => g.id === submittedGroup.id);
+      if (existingIndex > -1) {
+        const updatedGroups = [...prevGroups];
+        updatedGroups[existingIndex] = submittedGroup;
+        return updatedGroups;
+      } else {
+        // For new groups, ensure id is unique if not already handled by dialog
+        return [...prevGroups, { ...submittedGroup, id: submittedGroup.id || crypto.randomUUID() }];
+      }
+    });
     setIsGroupDialogOpen(false);
   };
 
   const handleDeleteGroup = (groupId: string) => {
-    // Logic to delete group
-    toast({ title: "Grupo Eliminado", description: "El grupo ha sido eliminado (simulación)." });
+    setGroups(prevGroups => prevGroups.filter(g => g.id !== groupId));
+    const group = groups.find(g => g.id === groupId);
+    toast({ title: "Grupo Eliminado", description: `El grupo "${group?.name || groupId}" ha sido eliminado (simulación).`, variant: "destructive" });
   };
 
   const filteredGroups = useMemo(() => {
@@ -86,7 +113,7 @@ export default function GruposPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {groups.length === 0 ? (
+          {groups.length === 0 && !searchTerm ? (
             <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
               <GroupIcon className="h-20 w-20 text-muted-foreground/70 mb-6" />
               <p className="text-xl font-medium text-muted-foreground mb-2">No hay grupos para mostrar.</p>
@@ -103,22 +130,26 @@ export default function GruposPage() {
                 </p>
             </div>
           ) : (
-            <div className="text-center py-10 text-muted-foreground">
-              <p>(Listado de grupos aparecerá aquí)</p>
-              {/* Placeholder for group cards or table */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredGroups.map((group) => (
+                <GroupCard
+                  key={group.id}
+                  group={group}
+                  onEdit={() => handleOpenEditDialog(group)}
+                  onDelete={() => handleDeleteGroup(group.id)} // Actual confirmation handled within GroupCard via AlertDialog
+                />
+              ))}
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* 
+      
       <AddGroupDialog
         isOpen={isGroupDialogOpen}
         onOpenChange={setIsGroupDialogOpen}
         onGroupSubmit={handleGroupSubmit}
         groupToEdit={groupToEdit}
-      /> 
-      */}
+      />
     </div>
   );
 }

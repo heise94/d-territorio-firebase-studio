@@ -91,14 +91,13 @@ export interface PreachingGroup {
   id: string; // Firestore document ID
   name: string;
   description?: string;
-  superintendentId?: string; // User ID of the superintendent
+  superintendentId?: string; // User ID of the superintendent (SG)
   auxiliaryId?: string; // User ID of the auxiliary
-  memberIds?: string[]; // Array of User IDs who are members
-  assignedTerritoryIds?: string[]; // Array of Territory IDs assigned to this group
-  assignedCasaIds?: string[]; // Array of Casa IDs assigned or commonly used by this group
+  // memberIds?: string[]; // Array of User IDs who are members - Keep for future expansion if needed
+  // assignedTerritoryIds?: string[]; // Array of Territory IDs assigned to this group - Keep for future expansion
+  // assignedCasaIds?: string[]; // Array of Casa IDs assigned or commonly used by this group - Keep for future
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  createdBy?: string;
-  updatedBy?: string;
+  createdBy?: string; // User ID or name
+  updatedBy?: string; // User ID or name
 }
-
