@@ -36,6 +36,7 @@ const inviteUserFormSchema = z.object({
   role: z.custom<UserRole>((val) => USER_ROLES_LIST.includes(val as UserRole), {
     message: "Debe seleccionar un rol válido.",
   }),
+  assignedGroupId: z.string().optional(),
 });
 
 type InviteUserFormValues = z.infer<typeof inviteUserFormSchema>;
@@ -43,7 +44,7 @@ type InviteUserFormValues = z.infer<typeof inviteUserFormSchema>;
 interface InviteUserDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onUserInvited: (user: Pick<UserProfile, 'name' | 'email' | 'role'>) => void;
+  onUserInvited: (user: Pick<UserProfile, 'name' | 'email' | 'role' | 'assignedGroupId'>) => void;
 }
 
 export function InviteUserDialog({ isOpen, onOpenChange, onUserInvited }: InviteUserDialogProps) {
@@ -55,20 +56,20 @@ export function InviteUserDialog({ isOpen, onOpenChange, onUserInvited }: Invite
     defaultValues: {
       name: "",
       email: "",
-      role: undefined, // USER_ROLES_LIST[1] as UserRole, // Default to "Publicador" for example
+      role: undefined, 
+      assignedGroupId: "",
     },
   });
 
   useEffect(() => {
     if (!isOpen) {
-      form.reset(); // Reset form when dialog closes
+      form.reset(); 
     }
   }, [isOpen, form]);
 
   async function onSubmit(values: InviteUserFormValues) {
     setIsSubmitting(true);
 
-    // Simulate API call or Firestore operation
     await new Promise(resolve => setTimeout(resolve, 700));
 
     console.log("Usuario a invitar:", values);
@@ -76,10 +77,10 @@ export function InviteUserDialog({ isOpen, onOpenChange, onUserInvited }: Invite
     
     toast({
       title: "Invitación Enviada (Simulación)",
-      description: `Se ha enviado una invitación a ${values.email} para el rol de ${values.role}.`,
+      description: `Se ha enviado una invitación a ${values.email} para el rol de ${values.role}${values.assignedGroupId ? ` y asignado al grupo ${values.assignedGroupId}` : ''}.`,
     });
     
-    onOpenChange(false); // Close dialog
+    onOpenChange(false); 
     setIsSubmitting(false);
   }
 
@@ -140,6 +141,19 @@ export function InviteUserDialog({ isOpen, onOpenChange, onUserInvited }: Invite
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="assignedGroupId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ID de Grupo Asignado (Opcional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ej: G1, GrupoAlfa" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

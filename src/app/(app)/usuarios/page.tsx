@@ -3,14 +3,14 @@
 
 import { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, Send, CalendarClock } from "lucide-react";
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import type { UserProfile } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp } from "firebase/firestore";
-import { USER_ROLES } from "@/lib/constants";
+import { USER_ROLES, USER_ROLES_LIST } from "@/lib/constants";
 
 import {
   Table,
@@ -59,7 +59,7 @@ export default function UsuariosPage() {
     });
   };
   
-  const handleUserInvited = (invitedUser: Pick<UserProfile, 'name' | 'email' | 'role'>) => {
+  const handleUserInvited = (invitedUser: Pick<UserProfile, 'name' | 'email' | 'role' | 'assignedGroupId'>) => {
     const newUser: UserProfile = {
       id: crypto.randomUUID(),
       ...invitedUser,
@@ -331,12 +331,3 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
-
-// Helper function for AlertDialogAction to use destructive variant
-function buttonVariants({ variant }: { variant: "destructive" | "default" | "secondary" | "outline" | "ghost" | "link" | null | undefined }) {
-  if (variant === "destructive") return "bg-destructive text-destructive-foreground hover:bg-destructive/90";
-  // Add other variants if needed, or return default
-  return "bg-primary text-primary-foreground hover:bg-primary/90";
-}
-
-    
