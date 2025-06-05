@@ -14,6 +14,7 @@ export interface UserProfile {
   invitationStatus?: 'pending' | 'accepted'; // Enum for invitation status
   firebaseAuthUid?: string; // UID from Firebase Auth
   isBlockedForGeneralAI?: boolean; // Optional, for AI considerations
+  availability?: CasaAvailability; // User's availability
   addedByGroupId?: string; // Optional FK to preachingGroups, if user was added via a group context
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
@@ -33,7 +34,7 @@ export interface DayAvailability {
   pm?: boolean;
 }
 
-export interface CasaAvailability {
+export interface CasaAvailability { // Also used for UserAvailability
   monday?: DayAvailability;
   tuesday?: DayAvailability;
   wednesday?: DayAvailability;
@@ -98,3 +99,4 @@ export interface PreachingGroup {
   createdBy?: string; // User ID or name
   updatedBy?: string; // User ID or name
 }
+
