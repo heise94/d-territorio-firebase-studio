@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { PreachingGroup } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -33,8 +34,8 @@ import { useState, useEffect } from "react";
 const groupFormSchema = z.object({
   name: z.string().min(2, { message: "El nombre debe tener al menos 2 caracteres." }).max(100),
   description: z.string().max(500).optional().or(z.literal('')),
-  superintendentId: z.string().max(50).optional().or(z.literal('')), // User ID or name
-  auxiliaryId: z.string().max(50).optional().or(z.literal('')), // User ID or name
+  superintendentId: z.string().max(50).optional().or(z.literal('')), 
+  auxiliaryId: z.string().max(50).optional().or(z.literal('')), 
 });
 
 type GroupFormValues = z.infer<typeof groupFormSchema>;
@@ -45,6 +46,16 @@ interface AddGroupDialogProps {
   onGroupSubmit: (group: PreachingGroup) => void;
   groupToEdit?: PreachingGroup | null;
 }
+
+// Mock user data for Select components - replace with actual data fetching later
+const mockUsers = [
+    { id: 'uidElena', name: 'Elena Campos' },
+    { id: 'uidCarlos', name: 'Carlos Rivas' },
+    { id: 'uidLaura', name: 'Laura Méndez' },
+    { id: 'uidPedro', name: 'Pedro Herrera' },
+    { id: 'userTest1', name: 'Usuario Prueba Uno' },
+    { id: 'userTest2', name: 'Usuaria Prueba Dos' },
+];
 
 export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdit }: AddGroupDialogProps) {
   const { toast } = useToast();
@@ -69,7 +80,7 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
         superintendentId: groupToEdit.superintendentId || "",
         auxiliaryId: groupToEdit.auxiliaryId || "",
       });
-    } else if (!isOpen && !isEditMode) { // Reset form when dialog closes AND it was not an edit operation
+    } else if (!isOpen && !isEditMode) { 
       form.reset();
     }
   }, [groupToEdit, isOpen, form, isEditMode]);
@@ -87,7 +98,6 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
       updatedAt: Timestamp.now(),
     };
     
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 600));
 
     onGroupSubmit(submittedGroup);
@@ -103,11 +113,9 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
   
   const handleDialogClose = (open: boolean) => {
     if (!open) {
-        if (!isEditMode) { // Only reset fully if it was an add operation
+        if (!isEditMode) { 
             form.reset();
         }
-        // For edit mode, the useEffect will handle resetting to groupToEdit's values if re-opened,
-        // or it remains as is if user just cancels without saving.
     }
     onOpenChange(open);
   };
@@ -155,10 +163,22 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
               name="superintendentId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>ID/Nombre del Superintendente (SG) (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: Juan Pérez o user_id_123" {...field} />
-                  </FormControl>
+                  <FormLabel>Superintendente (SG) (Opcional)</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar Superintendente" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">Nadie Asignado</SelectItem>
+                      {mockUsers.map(user => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -168,10 +188,22 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
               name="auxiliaryId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>ID/Nombre del Auxiliar (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: Ana Gómez o user_id_456" {...field} />
-                  </FormControl>
+                  <FormLabel>Auxiliar (Opcional)</FormLabel>
+                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar Auxiliar" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">Nadie Asignado</SelectItem>
+                      {mockUsers.map(user => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
