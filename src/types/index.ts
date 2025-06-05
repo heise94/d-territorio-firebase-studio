@@ -14,7 +14,7 @@ export interface UserProfile {
   invitationStatus?: 'pending' | 'accepted'; // Enum for invitation status
   firebaseAuthUid?: string; // UID from Firebase Auth
   isBlockedForGeneralAI?: boolean; // Optional, for AI considerations
-  availability?: CasaAvailability; // User's availability
+  availability?: UserAvailability; 
   addedByGroupId?: string; // Optional FK to preachingGroups, if user was added via a group context
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
@@ -24,17 +24,33 @@ export interface RoleConfiguration {
   [roleName: string]: PermissionId[];
 }
 
+export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+
+export type PreachingType = 'general' | 'rural' | 'zoom';
+export type ScheduleSlotStatus = 'fixed' | 'tentative';
+
+export interface ProgramScheduleSlot {
+  id: string;
+  dayOfWeek: DayOfWeek;
+  startTime: string; // HH:mm
+  endTime?: string; // HH:mm, optional
+  type: PreachingType;
+  status: ScheduleSlotStatus;
+}
+
 export interface SettingsDoc {
   rolePermissions?: RoleConfiguration;
-  // Other settings like preachingSchedules, groupPreachingDays, etc. will be added later
+  programScheduleSlots?: ProgramScheduleSlot[];
+  // Other settings like groupPreachingDays, ruralRotation, etc. will be added later
 }
+
 
 export interface DayAvailability {
   am?: boolean;
   pm?: boolean;
 }
 
-export interface CasaAvailability { // Also used for UserAvailability
+export interface CasaAvailability { // Also used for UserAvailability at a high level if not using specific slots
   monday?: DayAvailability;
   tuesday?: DayAvailability;
   wednesday?: DayAvailability;
@@ -43,6 +59,17 @@ export interface CasaAvailability { // Also used for UserAvailability
   saturday?: DayAvailability;
   sunday?: DayAvailability;
 }
+
+// More granular availability for users, pointing to specific schedule slots
+export interface UserAvailability {
+  availableSlotIds?: string[]; // Array of ProgramScheduleSlot IDs
+  // We might retain CasaAvailability for general preferences if needed, 
+  // or completely replace it with slot-based availability.
+  // For now, let's assume UserAvailability will primarily use availableSlotIds.
+  // Legacy CasaAvailability structure can be kept for migration or other purposes.
+  general?: CasaAvailability; 
+}
+
 
 export interface Casa {
   id: string; // Firestore document ID
@@ -99,4 +126,3 @@ export interface PreachingGroup {
   createdBy?: string; // User ID or name
   updatedBy?: string; // User ID or name
 }
-
