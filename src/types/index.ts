@@ -33,7 +33,6 @@ export interface ProgramScheduleSlot {
   id: string;
   dayOfWeek: DayOfWeek;
   startTime: string; // HH:mm
-  // endTime?: string; // HH:mm, optional - REMOVED
   type: PreachingType;
   status: ScheduleSlotStatus;
 }
@@ -41,7 +40,8 @@ export interface ProgramScheduleSlot {
 export interface SettingsDoc {
   rolePermissions?: RoleConfiguration;
   programScheduleSlots?: ProgramScheduleSlot[];
-  // Other settings like groupPreachingDays, ruralRotation, etc. will be added later
+  groupOrganizedDays?: DayOfWeek[]; // Días donde la predicación es organizada por los grupos
+  // Other settings like ruralRotation, etc. will be added later
 }
 
 

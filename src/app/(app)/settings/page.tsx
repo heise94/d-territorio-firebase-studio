@@ -7,7 +7,8 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save } from "lucide-react";
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -69,9 +70,12 @@ export default function SettingsPage() {
   const [scheduleSlots, setScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [isAddSlotDialogOpen, setIsAddSlotDialogOpen] = useState(false);
   const [dayForNewSlot, setDayForNewSlot] = useState<DayOfWeek | null>(null);
-  // const [slotToEdit, setSlotToEdit] = useState<ProgramScheduleSlot | null>(null); // For future edit functionality
   const { toast } = useToast();
   const [isSubmittingDialog, setIsSubmittingDialog] = useState(false);
+  
+  const [groupOrganizedDays, setGroupOrganizedDays] = useState<DayOfWeek[]>([]);
+  const [isSavingGroupOrganizedDays, setIsSavingGroupOrganizedDays] = useState(false);
+
 
   const form = useForm<ScheduleSlotFormValues>({
     resolver: zodResolver(scheduleSlotFormSchema),
@@ -84,8 +88,7 @@ export default function SettingsPage() {
 
   const handleOpenAddDialog = (day: DayOfWeek) => {
     setDayForNewSlot(day);
-    // setSlotToEdit(null); // Ensure not in edit mode
-    form.reset({startTime: "", type: undefined, status: "fixed"}); // Reset form for new entry
+    form.reset({startTime: "", type: undefined, status: "fixed"}); 
     setIsAddSlotDialogOpen(true);
   };
 
@@ -101,7 +104,6 @@ export default function SettingsPage() {
       status: data.status as ScheduleSlotStatus,
     };
 
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 500));
 
     setScheduleSlots((prev) => [...prev, newSlot].sort((a,b) => {
@@ -121,17 +123,24 @@ export default function SettingsPage() {
     toast({ title: "Horario Eliminado", description: "El horario ha sido eliminado (simulación).", variant: "destructive" });
   };
 
-  // Placeholder for future edit functionality
-  // const handleOpenEditDialog = (slot: ProgramScheduleSlot) => {
-  //   setSlotToEdit(slot);
-  //   setDayForNewSlot(slot.dayOfWeek); // Day is fixed for edit
-  //   form.reset({
-  //     startTime: slot.startTime,
-  //     type: slot.type,
-  //     status: slot.status,
-  //   });
-  //   setIsAddSlotDialogOpen(true);
-  // };
+  const handleGroupOrganizedDayChange = (day: DayOfWeek, checked: boolean) => {
+    setGroupOrganizedDays(prev => 
+      checked ? [...prev, day] : prev.filter(d => d !== day)
+    );
+  };
+
+  const handleSaveGroupOrganizedDays = async () => {
+    setIsSavingGroupOrganizedDays(true);
+    // Simulate API call to save groupOrganizedDays to Firestore
+    await new Promise(resolve => setTimeout(resolve, 700));
+    console.log("Días organizados por grupo guardados (simulación):", groupOrganizedDays);
+    toast({
+      title: "Configuración Guardada",
+      description: "Los días de predicación organizados por grupos han sido actualizados (simulación).",
+    });
+    setIsSavingGroupOrganizedDays(false);
+  };
+
 
   return (
     <div className="space-y-8">
@@ -151,7 +160,7 @@ export default function SettingsPage() {
             Ajustes del Programa Semanal
           </CardTitle>
           <CardDescription>
-            Define los horarios fijos y tentativos para la predicación durante la semana.
+            Define los horarios fijos y tentativos para la predicación durante la semana, y qué días son organizados por los grupos.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -181,9 +190,6 @@ export default function SettingsPage() {
                                     {slot.status === 'fixed' ? 'Fijo' : 'Tentativo'}
                                     {slot.status === 'tentative' && <AlertTriangle className="ml-1 h-3 w-3" />}
                                 </Badge>
-                                {/* <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(slot)} className="h-6 w-6 text-muted-foreground hover:text-primary">
-                                    <Edit2 className="h-3.5 w-3.5" />
-                                </Button> */}
                                 <Button variant="ghost" size="icon" onClick={() => handleDeleteSlot(slot.id)} className="h-6 w-6 text-destructive hover:text-destructive/80">
                                     <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
@@ -202,6 +208,46 @@ export default function SettingsPage() {
               );
             })}
           </div>
+
+          <Separator className="my-8" />
+
+          <div>
+            <h3 className="text-lg font-medium mb-1 flex items-center">
+                <GanttChartSquare className="mr-2 h-5 w-5 text-primary" />
+                Días Organizados por Grupos de Predicación
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Marca los días en que la organización de la predicación recae directamente en los grupos.
+              La IA no asignará horarios centralizados para estos días.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 p-4 border rounded-md shadow-sm bg-muted/20">
+              {dayOrder.map(dayKey => (
+                <div key={`group-day-${dayKey}`} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
+                  <Checkbox
+                    id={`group-organized-${dayKey}`}
+                    checked={groupOrganizedDays.includes(dayKey)}
+                    onCheckedChange={(checked) => {
+                      handleGroupOrganizedDayChange(dayKey, !!checked);
+                    }}
+                  />
+                  <label
+                    htmlFor={`group-organized-${dayKey}`}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    {dayOfWeekLabels[dayKey]}
+                  </label>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 flex justify-end">
+                <Button onClick={handleSaveGroupOrganizedDays} disabled={isSavingGroupOrganizedDays}>
+                {isSavingGroupOrganizedDays && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Save className="mr-2 h-4 w-4" />
+                Guardar Días Grupales
+                </Button>
+            </div>
+          </div>
+
         </CardContent>
       </Card>
 
@@ -209,18 +255,15 @@ export default function SettingsPage() {
           setIsAddSlotDialogOpen(isOpen);
           if (!isOpen) {
             form.reset();
-            // setSlotToEdit(null);
             setDayForNewSlot(null);
           }
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {/* {slotToEdit ? 'Editar Horario' : 'Añadir Nuevo Horario'} para {dayForNewSlot ? dayOfWeekLabels[dayForNewSlot] : ''} */}
               Añadir Nuevo Horario para {dayForNewSlot ? dayOfWeekLabels[dayForNewSlot] : ''}
             </DialogTitle>
             <DialogDescription>
-              {/* {slotToEdit ? 'Modifica los detalles del horario.' : 'Completa los detalles para el nuevo horario.'} */}
               Completa los detalles para el nuevo horario.
             </DialogDescription>
           </DialogHeader>
@@ -290,7 +333,6 @@ export default function SettingsPage() {
                 </DialogClose>
                 <Button type="submit" disabled={isSubmittingDialog}>
                   {isSubmittingDialog && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {/* {slotToEdit ? "Guardar Cambios" : "Añadir Horario"} */}
                   Añadir Horario
                 </Button>
               </DialogFooter>
