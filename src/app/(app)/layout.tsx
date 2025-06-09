@@ -11,6 +11,7 @@ import { AppLogo } from '@/components/layout/app-logo';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { PermissionsProvider, usePermissions } from '@/hooks/use-permissions';
+import { ThemeToggle } from '@/components/layout/theme-toggle'; // Added import
 
 function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -94,6 +95,7 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
            <div className="flex-1 md:hidden">
              {/* Intentionally empty or for breadcrumbs later */}
            </div>
+           <ThemeToggle /> {/* Added ThemeToggle */}
           <UserNav />
         </header>
 
