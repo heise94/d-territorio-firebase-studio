@@ -7,7 +7,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
+// Switch is no longer needed for campaigns
+// import { Switch } from "@/components/ui/switch"; 
 import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload } from "lucide-react";
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -209,18 +210,18 @@ export default function SettingsPage() {
     toast({ title: "Campaña Eliminada", description: "La campaña ha sido eliminada (simulación).", variant: "destructive" });
   };
   
-  const handleToggleCampaignActive = (campaignId: string, isActive: boolean) => {
-    setCampaigns(prevCampaigns =>
-      prevCampaigns.map(c =>
-        c.id === campaignId ? { ...c, isActive, updatedAt: Timestamp.now() } : c
-      )
-    );
-    const campaign = campaigns.find(c => c.id === campaignId);
-    toast({
-      title: `Campaña ${isActive ? "Activada" : "Desactivada"}`,
-      description: `La campaña "${campaign?.name}" ha sido ${isActive ? 'activada' : 'desactivada'} (simulación).`,
-    });
-  };
+  // const handleToggleCampaignActive = (campaignId: string, isActive: boolean) => {
+  //   setCampaigns(prevCampaigns =>
+  //     prevCampaigns.map(c =>
+  //       c.id === campaignId ? { ...c, isActive, updatedAt: Timestamp.now() } : c
+  //     )
+  //   );
+  //   const campaign = campaigns.find(c => c.id === campaignId);
+  //   toast({
+  //     title: `Campaña ${isActive ? "Activada" : "Desactivada"}`,
+  //     description: `La campaña "${campaign?.name}" ha sido ${isActive ? 'activada' : 'desactivada'} (simulación).`,
+  //   });
+  // };
 
 
   const handleOpenAddHolidayDialog = () => {
@@ -256,18 +257,20 @@ export default function SettingsPage() {
     const currentYear = getYear(new Date());
     const exampleChileanHolidays: Omit<CustomHoliday, 'id' | 'createdAt' | 'updatedAt' | 'description'>[] = [
       { name: "Año Nuevo", date: Timestamp.fromDate(new Date(currentYear, 0, 1)) },
+      // Dates for Easter can vary, using an example for 2024 - adjust as needed or use a library for accurate dates
       { name: "Viernes Santo", date: Timestamp.fromDate(new Date(currentYear, 2, 29)) }, 
       { name: "Sábado Santo", date: Timestamp.fromDate(new Date(currentYear, 2, 30)) }, 
       { name: "Día del Trabajo", date: Timestamp.fromDate(new Date(currentYear, 4, 1)) }, 
       { name: "Día de las Glorias Navales", date: Timestamp.fromDate(new Date(currentYear, 4, 21)) }, 
-      { name: "Día Nacional de los Pueblos Indígenas", date: Timestamp.fromDate(new Date(currentYear, 5, 20))},
+      { name: "Día Nacional de los Pueblos Indígenas", date: Timestamp.fromDate(new Date(currentYear, 5, 20))}, // Date varies, e.g., June 20th in 2024
       { name: "San Pedro y San Pablo", date: Timestamp.fromDate(new Date(currentYear, 5, 29)) }, 
       { name: "Día de la Virgen del Carmen", date: Timestamp.fromDate(new Date(currentYear, 6, 16)) }, 
       { name: "Asunción de la Virgen", date: Timestamp.fromDate(new Date(currentYear, 7, 15)) }, 
       { name: "Independencia Nacional", date: Timestamp.fromDate(new Date(currentYear, 8, 18)) }, 
       { name: "Día de las Glorias del Ejército", date: Timestamp.fromDate(new Date(currentYear, 8, 19)) }, 
+      // "Encuentro de Dos Mundos" might be Columbus Day, date can vary or be moved to nearest Monday
       { name: "Encuentro de Dos Mundos", date: Timestamp.fromDate(new Date(currentYear, 9, 12)) }, 
-      { name: "Día de las Iglesias Evangélicas y Protestantes", date: Timestamp.fromDate(new Date(currentYear, 9, 31))}, 
+      { name: "Día de las Iglesias Evangélicas y Protestantes", date: Timestamp.fromDate(new Date(currentYear, 9, 31))}, // Can be Oct 31 or moved
       { name: "Día de Todos los Santos", date: Timestamp.fromDate(new Date(currentYear, 10, 1)) }, 
       { name: "Inmaculada Concepción", date: Timestamp.fromDate(new Date(currentYear, 11, 8)) }, 
       { name: "Navidad", date: Timestamp.fromDate(new Date(currentYear, 11, 25)) }, 
@@ -309,7 +312,10 @@ export default function SettingsPage() {
     
     customHolidays.forEach(holiday => {
       const holidayDate = holiday.date.toDate();
-      const monthYearKey = formatDate(holidayDate, "yyyy-MM"); 
+      // Use UTC methods to avoid timezone shifts when creating the key
+      const year = holidayDate.getUTCFullYear();
+      const month = holidayDate.getUTCMonth(); // 0-indexed
+      const monthYearKey = `${year}-${String(month).padStart(2, '0')}`; // e.g., "2024-00" for Jan
       
       if (!groups[monthYearKey]) {
         groups[monthYearKey] = [];
@@ -553,7 +559,7 @@ export default function SettingsPage() {
                     <TableHead>Tipo</TableHead>
                     <TableHead>Fechas</TableHead>
                     <TableHead>Detalles Adic.</TableHead>
-                    <TableHead>Activa</TableHead>
+                    {/* <TableHead>Activa</TableHead> */}{/* Removed */}
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -574,13 +580,13 @@ export default function SettingsPage() {
                         )}
                         {campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}
                       </TableCell>
-                      <TableCell>
+                      {/* <TableCell>
                         <Switch
                           checked={campaign.isActive}
                           onCheckedChange={(checked) => handleToggleCampaignActive(campaign.id, checked)}
                           aria-label={campaign.isActive ? "Desactivar campaña" : "Activar campaña"}
                         />
-                      </TableCell>
+                      </TableCell> */}{/* Removed */}
                       <TableCell className="text-right space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenEditCampaignDialog(campaign)} className="h-8 w-8">
                           <Edit className="h-4 w-4" />
@@ -671,8 +677,11 @@ export default function SettingsPage() {
                 <TableBody>
                   {sortedMonthYearKeys.map((monthYearKey) => {
                     const holidaysInMonth = groupedHolidays[monthYearKey];
-                    const [year, monthIndex] = monthYearKey.split('-').map(Number);
-                    const monthDate = new Date(year, monthIndex); 
+                    const [yearStr, monthIndexStr] = monthYearKey.split('-');
+                    const year = parseInt(yearStr, 10);
+                    const monthIndex = parseInt(monthIndexStr, 10); // 0-indexed
+                    // Create a date object for the first day of the month in UTC to avoid timezone issues for formatting.
+                    const monthDate = new Date(Date.UTC(year, monthIndex, 1)); 
                                         
                     return (
                       <React.Fragment key={monthYearKey}>
@@ -681,7 +690,7 @@ export default function SettingsPage() {
                             colSpan={4} 
                             className="font-semibold text-primary py-2.5 px-4 text-sm"
                           >
-                            {formatDate(monthDate, "MMMM yyyy", { locale: es }).toUpperCase()}
+                            {formatDate(monthDate, "MMMM yyyy", { locale: es, timeZone: 'UTC' }).toUpperCase()}
                           </TableCell>
                         </TableRow>
                         {holidaysInMonth.map((holiday) => (
@@ -790,3 +799,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+

@@ -45,10 +45,10 @@ export interface Campaign {
   type: CampaignType;
   startDate: Timestamp;
   endDate: Timestamp;
-  superintendentName?: string;
-  specialCampaignTerritoriesPerDay?: number;
+  superintendentName?: string; // Only for 'superintendent_visit'
+  specialCampaignTerritoriesPerDay?: number; // Applicable to all types, AI uses this to assign more territories
   description?: string;
-  isActive: boolean; // Re-added
+  // isActive: boolean; // Removed as requested
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -148,3 +148,4 @@ export interface PreachingGroup {
   createdBy?: string; // User ID or name
   updatedBy?: string; // User ID or name
 }
+

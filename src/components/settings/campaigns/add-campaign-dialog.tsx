@@ -35,7 +35,8 @@ import { Loader2, CalendarIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Switch } from "@/components/ui/switch";
+// Switch component is no longer needed here
+// import { Switch } from "@/components/ui/switch"; 
 
 const campaignFormSchema = z.object({
   name: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }).max(100),
@@ -45,7 +46,7 @@ const campaignFormSchema = z.object({
   description: z.string().max(500).optional().or(z.literal('')),
   superintendentName: z.string().max(100).optional().or(z.literal('')),
   specialCampaignTerritoriesPerDay: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().default(0),
-  isActive: z.boolean().default(true), // Re-added
+  // isActive: z.boolean().default(true), // Removed
 }).superRefine((data, ctx) => {
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
     ctx.addIssue({
@@ -70,7 +71,7 @@ type CampaignFormValues = z.infer<typeof campaignFormSchema>;
 interface AddCampaignDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onCampaignSubmit: (campaign: Campaign) => void;
+  onCampaignSubmit: (campaign: Omit<Campaign, 'isActive'>) => void; // Omit isActive from submitted type
   campaignToEdit?: Campaign | null;
 }
 
@@ -95,7 +96,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       description: "",
       superintendentName: "",
       specialCampaignTerritoriesPerDay: 0,
-      isActive: true, // Re-added default
+      // isActive: true, // Removed
     },
   });
 
@@ -111,10 +112,10 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
         description: campaignToEdit.description || "",
         superintendentName: campaignToEdit.superintendentName || "",
         specialCampaignTerritoriesPerDay: campaignToEdit.specialCampaignTerritoriesPerDay || 0,
-        isActive: campaignToEdit.isActive === undefined ? true : campaignToEdit.isActive, // Re-added logic
+        // isActive: campaignToEdit.isActive === undefined ? true : campaignToEdit.isActive, // Removed
       });
     } else if (!isOpen) {
-      form.reset({ // Reset to full defaults when closing
+      form.reset({ 
         name: "",
         type: undefined,
         startDate: undefined,
@@ -122,7 +123,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
         description: "",
         superintendentName: "",
         specialCampaignTerritoriesPerDay: 0,
-        isActive: true,
+        // isActive: true, // Removed
       });
     }
   }, [campaignToEdit, isOpen, form]);
@@ -130,7 +131,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
   async function onSubmit(values: CampaignFormValues) {
     setIsSubmitting(true);
 
-    const submittedCampaign: Campaign = {
+    const submittedCampaign: Omit<Campaign, 'isActive'> = { // Ensure type matches props
       id: isEditMode && campaignToEdit ? campaignToEdit.id : crypto.randomUUID(),
       name: values.name,
       type: values.type,
@@ -139,14 +140,14 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       description: values.description || undefined,
       superintendentName: values.type === 'superintendent_visit' ? values.superintendentName || undefined : undefined,
       specialCampaignTerritoriesPerDay: values.specialCampaignTerritoriesPerDay,
-      isActive: values.isActive, // Re-added
+      // isActive: values.isActive, // Removed
       createdAt: isEditMode && campaignToEdit ? campaignToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
     
     await new Promise(resolve => setTimeout(resolve, 600));
 
-    onCampaignSubmit(submittedCampaign);
+    onCampaignSubmit(submittedCampaign as Campaign); // Cast to Campaign for the parent, though isActive is gone
     toast({
       title: isEditMode ? "Campaña Actualizada" : "Campaña Añadida",
       description: `La campaña "${values.name}" ha sido ${isEditMode ? 'actualizada' : 'registrada'} (simulación).`,
@@ -167,7 +168,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
         description: "",
         superintendentName: "",
         specialCampaignTerritoriesPerDay: 0,
-        isActive: true,
+        // isActive: true, // Removed
       });
     }
     onOpenChange(open);
@@ -354,26 +355,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="isActive"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                  <div className="space-y-0.5">
-                    <FormLabel>Campaña Activa</FormLabel>
-                    <FormFieldDescription>
-                      Indica si esta campaña está actualmente activa y debe ser considerada por la IA.
-                    </FormFieldDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+            {/* FormField for isActive Switch has been removed */}
             <DialogFooter className="pt-6">
               <DialogClose asChild>
                 <Button type="button" variant="outline" disabled={isSubmitting}>
@@ -391,3 +373,4 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
     </Dialog>
   );
 }
+
