@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from "react"; // Added this line
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
