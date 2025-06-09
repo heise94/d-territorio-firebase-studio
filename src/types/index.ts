@@ -46,9 +46,8 @@ export interface Campaign {
   startDate: Timestamp;
   endDate: Timestamp;
   superintendentName?: string; // Only for 'superintendent_visit'
-  specialCampaignTerritoriesPerDay?: number; // Applicable to all types, AI uses this to assign more territories
+  specialCampaignTerritoriesPerDay?: number; 
   description?: string;
-  // isActive: boolean; // Removed as requested
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -68,6 +67,7 @@ export interface SettingsDoc {
   groupOrganizedDays?: DayOfWeek[];
   campaigns?: Campaign[];
   customHolidays?: CustomHoliday[];
+  lastRuralWeekendLeadingGroupId?: string; // ID of the last group that led weekend rural preaching
 }
 
 

@@ -7,11 +7,11 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload } from "lucide-react";
+import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound } from "lucide-react";
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday } from "@/types";
+import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup } from "@/types";
 import {
   Dialog,
   DialogContent,
@@ -96,6 +96,14 @@ const CampaignTypeLabels: Record<CampaignType, string> = {
   special: "Campaña Especial"
 };
 
+const MOCK_GROUPS_FOR_ROTATION_SELECT: Pick<PreachingGroup, 'id' | 'name' | 'superintendentId'>[] = [
+    { id: 'G1', name: 'Grupo Los Pioneros', superintendentId: 'uidElena' },
+    { id: 'G2', name: 'Grupo Betel', superintendentId: 'uidPedro' },
+    { id: 'G3', name: 'Grupo Emanuel', superintendentId: 'uidLaura' },
+    { id: 'G4', name: 'Grupo Sinai', superintendentId: 'uidCarlos' },
+    { id: 'G5', name: 'Grupo Jerusalen', superintendentId: 'uidAna' },
+];
+
 
 export default function SettingsPage() {
   const [scheduleSlots, setScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
@@ -114,6 +122,9 @@ export default function SettingsPage() {
   const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   const [isHolidayDialogOpen, setIsHolidayDialogOpen] = useState(false);
   const [holidayToEdit, setHolidayToEdit] = useState<CustomHoliday | null>(null);
+
+  const [selectedLastRuralGroupId, setSelectedLastRuralGroupId] = useState<string | undefined>(undefined);
+  const [isSavingRuralRotation, setIsSavingRuralRotation] = useState(false);
 
 
   const slotForm = useForm<ScheduleSlotFormValues>({
@@ -239,20 +250,19 @@ export default function SettingsPage() {
 
   const handleLoadExampleHolidays = () => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalizar a inicio del día para comparaciones
+    today.setHours(0, 0, 0, 0); 
 
-    // Festivos chilenos con fecha fija (día, mes 0-indexed)
-    // Omitimos festivos variables o que se trasladan frecuentemente para esta carga simple.
     const baseFixedHolidays: { day: number; month: number; name: string }[] = [
       { day: 1, month: 0, name: "Año Nuevo" },
       { day: 1, month: 4, name: "Día del Trabajo" },
       { day: 21, month: 4, name: "Día de las Glorias Navales" },
-      // San Pedro y San Pablo (29 Junio) se mueve a lunes si cae entre martes-viernes. Aquí lo dejamos fijo.
-      { day: 29, month: 5, name: "San Pedro y San Pablo" },
+      { day: 29, month: 5, name: "San Pedro y San Pablo" }, // Puede moverse a lunes
       { day: 16, month: 6, name: "Día de la Virgen del Carmen" },
       { day: 15, month: 7, name: "Asunción de la Virgen" },
       { day: 18, month: 8, name: "Independencia Nacional" },
       { day: 19, month: 8, name: "Día de las Glorias del Ejército" },
+      { day: 12, month: 9, name: "Encuentro de Dos Mundos" }, // Puede moverse a lunes
+      { day: 31, month: 9, name: "Día Nac. de las Iglesias Evangélicas y Protestantes" }, // Puede moverse
       { day: 1, month: 10, name: "Día de Todos los Santos" },
       { day: 8, month: 11, name: "Inmaculada Concepción" },
       { day: 25, month: 11, name: "Navidad" },
@@ -260,19 +270,20 @@ export default function SettingsPage() {
 
     const newHolidaysToAdd: CustomHoliday[] = [];
     const existingDates = new Set(customHolidays.map(h => h.date.toDate().toDateString()));
+    const twelveMonthsFromTodayEnd = new Date(today.getFullYear(), today.getMonth() + 12, today.getDate());
 
-    for (let i = 0; i < 12; i++) { // Iterar sobre los próximos 12 meses
+
+    for (let i = 0; i < 12; i++) { 
       const currentDateIter = new Date(today.getFullYear(), today.getMonth() + i, 1);
       const targetYear = currentDateIter.getFullYear();
       const targetMonth = currentDateIter.getMonth();
 
       baseFixedHolidays.forEach(bh => {
-        if (bh.month === targetMonth) { // Si el festivo base es de este mes
+        if (bh.month === targetMonth) { 
           const potentialHolidayDate = new Date(targetYear, bh.month, bh.day);
           potentialHolidayDate.setHours(0,0,0,0);
 
-          // Solo añadir si es en o después de hoy y no existe ya
-          if (potentialHolidayDate >= today && !existingDates.has(potentialHolidayDate.toDateString())) {
+          if (potentialHolidayDate >= today && potentialHolidayDate < twelveMonthsFromTodayEnd && !existingDates.has(potentialHolidayDate.toDateString())) {
             newHolidaysToAdd.push({
               id: crypto.randomUUID(),
               name: bh.name,
@@ -280,24 +291,18 @@ export default function SettingsPage() {
               createdAt: Timestamp.now(),
               updatedAt: Timestamp.now(),
             });
-            existingDates.add(potentialHolidayDate.toDateString()); // Para evitar duplicados en esta misma carga
+            existingDates.add(potentialHolidayDate.toDateString()); 
           }
         }
       });
     }
     
-    // Ejemplo de festivo variable (Semana Santa) - el usuario debería ajustar esto.
-    // Aquí, solo añadimos un ejemplo si cae en los próximos 12 meses para el año actual o el siguiente.
-    const currentYear = today.getFullYear();
-    const nextYear = currentYear + 1;
     const easterExamples = [
-        // 2024 (si aplica)
+        // Estos son ejemplos y DEBEN ser verificados/ajustados por el usuario cada año.
         { year: 2024, month: 2, day: 29, name: "Viernes Santo (Ej. 2024)"},
         { year: 2024, month: 2, day: 30, name: "Sábado Santo (Ej. 2024)"},
-        // 2025 (si aplica)
         { year: 2025, month: 3, day: 18, name: "Viernes Santo (Ej. 2025)"},
         { year: 2025, month: 3, day: 19, name: "Sábado Santo (Ej. 2025)"},
-        // 2026 (si aplica)
         { year: 2026, month: 3, day: 3, name: "Viernes Santo (Ej. 2026)"},
         { year: 2026, month: 3, day: 4, name: "Sábado Santo (Ej. 2026)"},
     ];
@@ -305,10 +310,8 @@ export default function SettingsPage() {
     easterExamples.forEach(ee => {
         const potentialHolidayDate = new Date(ee.year, ee.month, ee.day);
         potentialHolidayDate.setHours(0,0,0,0);
-        const twelveMonthsFromToday = new Date(today);
-        twelveMonthsFromToday.setMonth(today.getMonth() + 12);
-
-        if (potentialHolidayDate >= today && potentialHolidayDate < twelveMonthsFromToday && !existingDates.has(potentialHolidayDate.toDateString())) {
+        
+        if (potentialHolidayDate >= today && potentialHolidayDate < twelveMonthsFromTodayEnd && !existingDates.has(potentialHolidayDate.toDateString())) {
              newHolidaysToAdd.push({
               id: crypto.randomUUID(),
               name: ee.name,
@@ -320,13 +323,12 @@ export default function SettingsPage() {
         }
     });
 
-
     if (newHolidaysToAdd.length > 0) {
       setCustomHolidays(prev => [...prev, ...newHolidaysToAdd].sort((a,b) => a.date.toMillis() - b.date.toMillis()));
       toast({
         title: "Festivos de Ejemplo Cargados",
-        description: `${newHolidaysToAdd.length} festivos de ejemplo para Chile (próximos 12 meses) han sido añadidos. Los festivos variables como Semana Santa son ejemplos, por favor verifíquelos. Otros festivos móviles pueden necesitar ser añadidos manualmente.`,
-        duration: 7000,
+        description: `${newHolidaysToAdd.length} festivos de ejemplo para Chile (próximos 12 meses) han sido añadidos. Los festivos variables (ej. Semana Santa) y aquellos que se trasladan a lunes son ejemplos y deben ser verificados/ajustados manualmente.`,
+        duration: 10000,
       });
     } else {
       toast({
@@ -356,6 +358,21 @@ export default function SettingsPage() {
   }, [customHolidays]);
 
   const sortedMonthYearKeys = useMemo(() => Object.keys(groupedHolidays).sort(), [groupedHolidays]);
+
+  const handleSaveRuralRotation = async () => {
+    setIsSavingRuralRotation(true);
+    // Simulate saving to Firestore
+    await new Promise(resolve => setTimeout(resolve, 700));
+    console.log("Configuración de rotación rural guardada (simulación):", selectedLastRuralGroupId);
+    toast({
+        title: "Configuración Guardada",
+        description: "La rotación para predicación rural de fin de semana ha sido actualizada (simulación).",
+    });
+    setIsSavingRuralRotation(false);
+  };
+  
+  // TODO: Cargar `selectedLastRuralGroupId` desde Firestore en un useEffect
+
 
   return (
     <div className="space-y-8">
@@ -659,12 +676,57 @@ export default function SettingsPage() {
       <Card className="hover:shadow-lg transition-shadow">
         <CardHeader>
           <CardTitle className="flex items-center text-xl">
+            <UsersRound className="mr-3 h-6 w-6 text-primary" />
+            Rotación Rural Fin de Semana
+          </CardTitle>
+          <CardDescription>
+            Define el último grupo que se hizo cargo de la predicación rural de fin de semana para asegurar una rotación equitativa. La IA usará esta información para asignar al SG del siguiente grupo como capitán.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <FormItem>
+            <FormLabel>Último grupo que dirigió el rural de fin de semana</FormLabel>
+            <Select
+              value={selectedLastRuralGroupId}
+              onValueChange={setSelectedLastRuralGroupId}
+            >
+              <FormControl>
+                <SelectTrigger className="w-full sm:w-[300px]">
+                  <SelectValue placeholder="Seleccionar grupo..." />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="NONE_OR_RESET">Ninguno / Reiniciar Rotación</SelectItem>
+                {MOCK_GROUPS_FOR_ROTATION_SELECT.map(group => (
+                  <SelectItem key={group.id} value={group.id}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormDescription>
+              Selecciona el grupo que más recientemente dirigió. Si es la primera vez o quieres reiniciar, selecciona "Ninguno".
+            </FormDescription>
+          </FormItem>
+        </CardContent>
+        <CardFooter>
+          <Button onClick={handleSaveRuralRotation} disabled={isSavingRuralRotation}>
+            {isSavingRuralRotation && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Save className="mr-2 h-4 w-4" />
+            Guardar Rotación Rural
+          </Button>
+        </CardFooter>
+      </Card>
+
+      <Card className="hover:shadow-lg transition-shadow">
+        <CardHeader>
+          <CardTitle className="flex items-center text-xl">
             <CalendarDays className="mr-3 h-6 w-6 text-primary" /> 
             Días Festivos Personalizados
           </CardTitle>
           <div className="flex flex-col sm:flex-row justify-between sm:items-center pt-1 gap-2">
             <CardDescription>
-              Añade días festivos que la IA debe considerar. Puedes cargar ejemplos de festivos fijos chilenos para los próximos 12 meses. Los festivos variables o móviles deben añadirse o ajustarse manualmente.
+               Añade días festivos que la IA debe considerar. Puedes cargar ejemplos de festivos fijos chilenos para los próximos 12 meses. Los festivos variables (ej. Semana Santa) y aquellos que se trasladan a lunes son ejemplos y deben ser verificados/ajustados manualmente. Otros festivos móviles o regionales deben añadirse manualmente.
             </CardDescription>
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                 <Button onClick={handleLoadExampleHolidays} size="sm" variant="outline" className="w-full sm:w-auto">
@@ -820,3 +882,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+
