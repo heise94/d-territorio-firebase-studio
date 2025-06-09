@@ -14,7 +14,7 @@ export interface UserProfile {
   invitationStatus?: 'pending' | 'accepted'; // Enum for invitation status
   firebaseAuthUid?: string; // UID from Firebase Auth
   isBlockedForGeneralAI?: boolean; // Optional, for AI considerations
-  availability?: UserAvailability; 
+  availability?: UserAvailability;
   addedByGroupId?: string; // Optional FK to preachingGroups, if user was added via a group context
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
@@ -33,15 +33,32 @@ export interface ProgramScheduleSlot {
   id: string;
   dayOfWeek: DayOfWeek;
   startTime: string; // HH:mm
+  // endTime?: string; // HH:mm - Eliminado según solicitud
   type: PreachingType;
   status: ScheduleSlotStatus;
+}
+
+export type CampaignType = 'invitation' | 'superintendent_visit' | 'special';
+
+export interface Campaign {
+  id: string;
+  name: string;
+  type: CampaignType;
+  startDate: Timestamp;
+  endDate: Timestamp;
+  superintendentName?: string; // Solo para 'superintendent_visit'
+  territoriesPerDayForSuperintendentVisit?: number; // Solo para 'superintendent_visit'
+  description?: string;
+  isActive: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 export interface SettingsDoc {
   rolePermissions?: RoleConfiguration;
   programScheduleSlots?: ProgramScheduleSlot[];
-  groupOrganizedDays?: DayOfWeek[]; // Días donde la predicación es organizada por los grupos
-  // Other settings like ruralRotation, etc. will be added later
+  groupOrganizedDays?: DayOfWeek[];
+  campaigns?: Campaign[];
 }
 
 
@@ -63,11 +80,7 @@ export interface CasaAvailability { // Also used for UserAvailability at a high 
 // More granular availability for users, pointing to specific schedule slots
 export interface UserAvailability {
   availableSlotIds?: string[]; // Array of ProgramScheduleSlot IDs
-  // We might retain CasaAvailability for general preferences if needed, 
-  // or completely replace it with slot-based availability.
-  // For now, let's assume UserAvailability will primarily use availableSlotIds.
-  // Legacy CasaAvailability structure can be kept for migration or other purposes.
-  general?: CasaAvailability; 
+  general?: CasaAvailability;
 }
 
 

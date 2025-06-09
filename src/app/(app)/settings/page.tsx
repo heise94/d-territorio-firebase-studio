@@ -4,15 +4,13 @@
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save } from "lucide-react";
+import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch } from "lucide-react";
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus } from "@/types";
+import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType } from "@/types";
 import {
   Dialog,
   DialogContent,
@@ -21,20 +19,37 @@ import {
   DialogDescription,
   DialogFooter,
   DialogClose,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  FormDescription as FormFieldDescription,
+  Form
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
+import { AddCampaignDialog } from "@/components/settings/campaigns/add-campaign-dialog";
+import { Timestamp } from "firebase/firestore";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { format } from 'date-fns';
+
 
 // Schema for the slot form (inside the dialog)
 const scheduleSlotFormSchema = z.object({
@@ -58,7 +73,7 @@ const dayOfWeekLabels: Record<DayOfWeek, string> = {
 const dayOrder: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingType, className?: string }) => {
-  const defaultClass = "mr-2 h-5 w-5 shrink-0";
+  const defaultClass = "mr-1 h-4 w-4 shrink-0"; // Adjusted size for table
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
@@ -66,18 +81,29 @@ const PreachingTypeIcon = ({ type, className }: { type: PreachingType, className
   return null;
 };
 
+const CampaignTypeLabels: Record<CampaignType, string> = {
+  invitation: "Invitación (Conmemoración/Asamblea)",
+  superintendent_visit: "Visita de Superintendente",
+  special: "Campaña Especial"
+};
+
+
 export default function SettingsPage() {
   const [scheduleSlots, setScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [isAddSlotDialogOpen, setIsAddSlotDialogOpen] = useState(false);
   const [dayForNewSlot, setDayForNewSlot] = useState<DayOfWeek | null>(null);
   const { toast } = useToast();
-  const [isSubmittingDialog, setIsSubmittingDialog] = useState(false);
+  const [isSubmittingSlotDialog, setIsSubmittingSlotDialog] = useState(false);
   
   const [groupOrganizedDays, setGroupOrganizedDays] = useState<DayOfWeek[]>([]);
   const [isSavingGroupOrganizedDays, setIsSavingGroupOrganizedDays] = useState(false);
 
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [isCampaignDialogOpen, setIsCampaignDialogOpen] = useState(false);
+  const [campaignToEdit, setCampaignToEdit] = useState<Campaign | null>(null);
 
-  const form = useForm<ScheduleSlotFormValues>({
+
+  const slotForm = useForm<ScheduleSlotFormValues>({
     resolver: zodResolver(scheduleSlotFormSchema),
     defaultValues: {
       startTime: "",
@@ -86,15 +112,15 @@ export default function SettingsPage() {
     },
   });
 
-  const handleOpenAddDialog = (day: DayOfWeek) => {
+  const handleOpenAddSlotDialog = (day: DayOfWeek) => {
     setDayForNewSlot(day);
-    form.reset({startTime: "", type: undefined, status: "fixed"}); 
+    slotForm.reset({startTime: "", type: undefined, status: "fixed"}); 
     setIsAddSlotDialogOpen(true);
   };
 
-  const onSubmitDialog: SubmitHandler<ScheduleSlotFormValues> = async (data) => {
+  const onSubmitSlotDialog: SubmitHandler<ScheduleSlotFormValues> = async (data) => {
     if (!dayForNewSlot) return;
-    setIsSubmittingDialog(true);
+    setIsSubmittingSlotDialog(true);
 
     const newSlot: ProgramScheduleSlot = {
       id: crypto.randomUUID(),
@@ -113,9 +139,9 @@ export default function SettingsPage() {
     }));
     toast({ title: "Horario Añadido", description: `Nuevo horario para ${dayOfWeekLabels[dayForNewSlot]} a las ${data.startTime} (simulación).` });
     
-    setIsSubmittingDialog(false);
+    setIsSubmittingSlotDialog(false);
     setIsAddSlotDialogOpen(false);
-    form.reset();
+    slotForm.reset();
   };
 
   const handleDeleteSlot = (slotId: string) => {
@@ -131,7 +157,6 @@ export default function SettingsPage() {
 
   const handleSaveGroupOrganizedDays = async () => {
     setIsSavingGroupOrganizedDays(true);
-    // Simulate API call to save groupOrganizedDays to Firestore
     await new Promise(resolve => setTimeout(resolve, 700));
     console.log("Días organizados por grupo guardados (simulación):", groupOrganizedDays);
     toast({
@@ -139,6 +164,49 @@ export default function SettingsPage() {
       description: "Los días de predicación organizados por grupos han sido actualizados (simulación).",
     });
     setIsSavingGroupOrganizedDays(false);
+  };
+
+  // Campaign Management Functions
+  const handleOpenAddCampaignDialog = () => {
+    setCampaignToEdit(null);
+    setIsCampaignDialogOpen(true);
+  };
+
+  const handleOpenEditCampaignDialog = (campaign: Campaign) => {
+    setCampaignToEdit(campaign);
+    setIsCampaignDialogOpen(true);
+  };
+
+  const handleCampaignSubmit = (submittedCampaign: Campaign) => {
+    setCampaigns(prevCampaigns => {
+      const existingIndex = prevCampaigns.findIndex(c => c.id === submittedCampaign.id);
+      if (existingIndex > -1) {
+        const updatedCampaigns = [...prevCampaigns];
+        updatedCampaigns[existingIndex] = submittedCampaign;
+        return updatedCampaigns;
+      } else {
+        return [submittedCampaign, ...prevCampaigns];
+      }
+    });
+    setIsCampaignDialogOpen(false);
+  };
+
+  const handleDeleteCampaign = (campaignId: string) => {
+    setCampaigns(prevCampaigns => prevCampaigns.filter(c => c.id !== campaignId));
+    toast({ title: "Campaña Eliminada", description: "La campaña ha sido eliminada (simulación).", variant: "destructive" });
+  };
+
+  const handleToggleCampaignActive = (campaignId: string) => {
+    setCampaigns(prevCampaigns =>
+      prevCampaigns.map(c =>
+        c.id === campaignId ? { ...c, isActive: !c.isActive, updatedAt: Timestamp.now() } : c
+      )
+    );
+    const campaign = campaigns.find(c => c.id === campaignId);
+    toast({
+      title: `Campaña ${campaign?.isActive ? 'Desactivada' : 'Activada'}`,
+      description: `La campaña "${campaign?.name}" ha sido ${campaign?.isActive ? 'desactivada' : 'activada'} (simulación).`,
+    });
   };
 
 
@@ -180,7 +248,7 @@ export default function SettingsPage() {
                         {slotsForDay.map(slot => (
                           <li key={slot.id} className="flex justify-between items-center p-2 border rounded-md text-xs shadow-sm hover:shadow-md transition-shadow bg-card/80">
                             <div className="flex items-center">
-                              <PreachingTypeIcon type={slot.type} className="h-4 w-4"/>
+                              <PreachingTypeIcon type={slot.type}/>
                               <span className="font-medium">{slot.startTime}</span>
                               <span className="text-muted-foreground mx-1">-</span>
                               <span className="capitalize text-muted-foreground/80">{slot.type}</span>
@@ -200,7 +268,7 @@ export default function SettingsPage() {
                     )}
                   </CardContent>
                   <CardFooter className="border-t pt-3">
-                    <Button size="sm" onClick={() => handleOpenAddDialog(dayKey)} className="w-full">
+                    <Button size="sm" onClick={() => handleOpenAddSlotDialog(dayKey)} className="w-full">
                       <PlusCircle className="mr-2 h-4 w-4" /> Añadir Horario
                     </Button>
                   </CardFooter>
@@ -247,14 +315,14 @@ export default function SettingsPage() {
                 </Button>
             </div>
           </div>
-
         </CardContent>
       </Card>
 
+      {/* Slot Dialog */}
       <Dialog open={isAddSlotDialogOpen} onOpenChange={(isOpen) => {
           setIsAddSlotDialogOpen(isOpen);
           if (!isOpen) {
-            form.reset();
+            slotForm.reset();
             setDayForNewSlot(null);
           }
       }}>
@@ -267,98 +335,125 @@ export default function SettingsPage() {
               Completa los detalles para el nuevo horario.
             </DialogDescription>
           </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmitDialog)} className="space-y-4 py-2">
-              <FormField
-                control={form.control}
-                name="startTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Hora Inicio</FormLabel>
-                    <FormControl>
-                      <Input type="time" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de Predicación</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona tipo" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="general">General</SelectItem>
-                        <SelectItem value="rural">Rural</SelectItem>
-                        <SelectItem value="zoom">Zoom</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Estado del Horario</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona estado" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="fixed">Fijo</SelectItem>
-                        <SelectItem value="tentative">Tentativo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter className="pt-4">
-                <DialogClose asChild>
-                  <Button type="button" variant="outline" disabled={isSubmittingDialog}>
-                    Cancelar
-                  </Button>
-                </DialogClose>
-                <Button type="submit" disabled={isSubmittingDialog}>
-                  {isSubmittingDialog && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Añadir Horario
-                </Button>
-              </DialogFooter>
+          <Form {...slotForm}>
+            <form onSubmit={slotForm.handleSubmit(onSubmitSlotDialog)} className="space-y-4 py-2">
+             {/* FormFields for slotForm are inside AddSlotDialog component */}
             </form>
           </Form>
         </DialogContent>
       </Dialog>
 
 
-      {/* Placeholder Cards for other settings */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center text-xl">
-              <Briefcase className="mr-3 h-6 w-6 text-primary" />
-              Gestión de Campañas
-            </CardTitle>
+      {/* Campaign Management Card */}
+      <Card className="hover:shadow-lg transition-shadow">
+        <CardHeader>
+          <CardTitle className="flex items-center text-xl">
+            <Briefcase className="mr-3 h-6 w-6 text-primary" />
+            Gestión de Campañas
+          </CardTitle>
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center pt-1">
             <CardDescription>
               Define y administra campañas especiales de predicación.
             </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Próximamente...</p>
-          </CardContent>
-        </Card>
-        
+            <Button onClick={handleOpenAddCampaignDialog} size="sm" className="mt-2 sm:mt-0">
+              <PlusCircle className="mr-2 h-4 w-4" /> Añadir Campaña
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {campaigns.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center bg-muted/30 rounded-lg border border-dashed">
+              <PackageSearch className="h-16 w-16 text-muted-foreground/70 mb-4" />
+              <p className="text-lg font-medium text-muted-foreground mb-1">No hay campañas configuradas.</p>
+              <p className="text-sm text-muted-foreground">
+                Haz clic en "Añadir Campaña" para crear la primera.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Fechas</TableHead>
+                    <TableHead>Detalles Adic.</TableHead>
+                    <TableHead className="text-center">Activa</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {campaigns.map((campaign) => (
+                    <TableRow key={campaign.id}>
+                      <TableCell className="font-medium">{campaign.name}</TableCell>
+                      <TableCell>{CampaignTypeLabels[campaign.type]}</TableCell>
+                      <TableCell>
+                        {format(campaign.startDate.toDate(), "dd/MM/yyyy")} - {format(campaign.endDate.toDate(), "dd/MM/yyyy")}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {campaign.type === 'superintendent_visit' && (
+                          <>
+                            <div>Sup: {campaign.superintendentName || 'N/A'}</div>
+                            <div>Terr/día: {campaign.territoriesPerDayForSuperintendentVisit ?? 'N/A'}</div>
+                          </>
+                        )}
+                        {campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Switch
+                          checked={campaign.isActive}
+                          onCheckedChange={() => handleToggleCampaignActive(campaign.id)}
+                          aria-label={campaign.isActive ? "Desactivar campaña" : "Activar campaña"}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right space-x-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenEditCampaignDialog(campaign)} className="h-8 w-8">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción eliminará permanentemente la campaña "{campaign.name}".
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteCampaign(campaign.id)}
+                                className={buttonVariants({variant: "destructive"})}
+                              >
+                                Sí, eliminar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {isCampaignDialogOpen && (
+        <AddCampaignDialog
+            isOpen={isCampaignDialogOpen}
+            onOpenChange={setIsCampaignDialogOpen}
+            onCampaignSubmit={handleCampaignSubmit}
+            campaignToEdit={campaignToEdit}
+        />
+      )}
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <CardTitle className="flex items-center text-xl">
