@@ -33,7 +33,6 @@ export interface ProgramScheduleSlot {
   id: string;
   dayOfWeek: DayOfWeek;
   startTime: string; // HH:mm
-  // endTime?: string; // HH:mm - Eliminado según solicitud
   type: PreachingType;
   status: ScheduleSlotStatus;
 }
@@ -49,7 +48,7 @@ export interface Campaign {
   superintendentName?: string; // Solo para 'superintendent_visit'
   territoriesPerDayForSuperintendentVisit?: number; // Solo para 'superintendent_visit'
   description?: string;
-  isActive: boolean;
+  // isActive: boolean; // Removed as per user request
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

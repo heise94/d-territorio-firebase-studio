@@ -28,13 +28,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
+// import { Switch } from "@/components/ui/switch"; // Switch no longer needed
 import type { Campaign, CampaignType } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { useState, useEffect } from "react";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const campaignFormSchema = z.object({
@@ -43,7 +43,7 @@ const campaignFormSchema = z.object({
   startDate: z.date({ required_error: "La fecha de inicio es obligatoria." }),
   endDate: z.date({ required_error: "La fecha de fin es obligatoria." }),
   description: z.string().max(500).optional().or(z.literal('')),
-  isActive: z.boolean().default(true),
+  // isActive: z.boolean().default(true), // Removed
   superintendentName: z.string().max(100).optional().or(z.literal('')),
   territoriesPerDayForSuperintendentVisit: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional(),
 }).superRefine((data, ctx) => {
@@ -100,7 +100,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       startDate: undefined,
       endDate: undefined,
       description: "",
-      isActive: true,
+      // isActive: true, // Removed
       superintendentName: "",
       territoriesPerDayForSuperintendentVisit: 0,
     },
@@ -116,12 +116,12 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
         startDate: campaignToEdit.startDate?.toDate() || undefined,
         endDate: campaignToEdit.endDate?.toDate() || undefined,
         description: campaignToEdit.description || "",
-        isActive: campaignToEdit.isActive === undefined ? true : campaignToEdit.isActive,
+        // isActive: campaignToEdit.isActive === undefined ? true : campaignToEdit.isActive, // Removed
         superintendentName: campaignToEdit.superintendentName || "",
         territoriesPerDayForSuperintendentVisit: campaignToEdit.territoriesPerDayForSuperintendentVisit || 0,
       });
     } else if (!isOpen) {
-      form.reset(); // Reset on close if not edit mode or if dialog is closed generally
+      form.reset(); 
     }
   }, [campaignToEdit, isOpen, form]);
 
@@ -135,7 +135,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       startDate: Timestamp.fromDate(values.startDate),
       endDate: Timestamp.fromDate(values.endDate),
       description: values.description || undefined,
-      isActive: values.isActive,
+      // isActive: values.isActive, // Removed
       superintendentName: values.type === 'superintendent_visit' ? values.superintendentName || undefined : undefined,
       territoriesPerDayForSuperintendentVisit: values.type === 'superintendent_visit' ? values.territoriesPerDayForSuperintendentVisit : undefined,
       createdAt: isEditMode && campaignToEdit ? campaignToEdit.createdAt : Timestamp.now(),
@@ -157,7 +157,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
   
   const handleDialogClose = (open: boolean) => {
     if (!open) {
-        form.reset(); // Always reset form on close
+        form.reset(); 
     }
     onOpenChange(open);
   };
@@ -229,7 +229,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                             )}
                           >
                             {field.value ? (
-                              format(field.value, "PPP") // PPP es dd MMM yyyy
+                              format(field.value, "PPP") 
                             ) : (
                               <span>Selecciona fecha</span>
                             )}
@@ -242,7 +242,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                           mode="single"
                           selected={field.value}
                           onSelect={field.onChange}
-                          disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) && !isEditMode } // Disable past dates for new entries
+                          disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) && !isEditMode } 
                           initialFocus
                         />
                       </PopoverContent>
@@ -342,26 +342,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="isActive"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                  <div className="space-y-0.5">
-                    <FormLabel>Campaña Activa</FormLabel>
-                    <FormDescription>
-                      Indica si esta campaña está actualmente activa y debe ser considerada por la IA.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+            {/* FormField for isActive removed */}
             <DialogFooter className="pt-6">
               <DialogClose asChild>
                 <Button type="button" variant="outline" disabled={isSubmitting}>

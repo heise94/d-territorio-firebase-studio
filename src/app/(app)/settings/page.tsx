@@ -21,8 +21,15 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
-  Form
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
 } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
@@ -36,7 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
+// import { Switch } from "@/components/ui/switch"; // Switch no longer needed for campaigns table
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,7 +80,7 @@ const dayOfWeekLabels: Record<DayOfWeek, string> = {
 const dayOrder: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingType, className?: string }) => {
-  const defaultClass = "mr-1 h-4 w-4 shrink-0"; // Adjusted size for table
+  const defaultClass = "mr-1 h-4 w-4 shrink-0"; 
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
@@ -196,19 +203,7 @@ export default function SettingsPage() {
     toast({ title: "Campaña Eliminada", description: "La campaña ha sido eliminada (simulación).", variant: "destructive" });
   };
 
-  const handleToggleCampaignActive = (campaignId: string) => {
-    setCampaigns(prevCampaigns =>
-      prevCampaigns.map(c =>
-        c.id === campaignId ? { ...c, isActive: !c.isActive, updatedAt: Timestamp.now() } : c
-      )
-    );
-    const campaign = campaigns.find(c => c.id === campaignId);
-    toast({
-      title: `Campaña ${campaign?.isActive ? 'Desactivada' : 'Activada'}`,
-      description: `La campaña "${campaign?.name}" ha sido ${campaign?.isActive ? 'desactivada' : 'activada'} (simulación).`,
-    });
-  };
-
+  // handleToggleCampaignActive removed as isActive is removed
 
   return (
     <div className="space-y-8">
@@ -318,7 +313,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Slot Dialog */}
       <Dialog open={isAddSlotDialogOpen} onOpenChange={(isOpen) => {
           setIsAddSlotDialogOpen(isOpen);
           if (!isOpen) {
@@ -337,14 +331,79 @@ export default function SettingsPage() {
           </DialogHeader>
           <Form {...slotForm}>
             <form onSubmit={slotForm.handleSubmit(onSubmitSlotDialog)} className="space-y-4 py-2">
-             {/* FormFields for slotForm are inside AddSlotDialog component */}
+              <FormField
+                control={slotForm.control}
+                name="startTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Hora de Inicio (HH:mm)</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={slotForm.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Predicación</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un tipo" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="general">General</SelectItem>
+                        <SelectItem value="rural">Rural</SelectItem>
+                        <SelectItem value="zoom">Zoom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={slotForm.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Estado del Horario</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona un estado" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fijo</SelectItem>
+                        <SelectItem value="tentative">Tentativo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter className="pt-4">
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" disabled={isSubmittingSlotDialog}>
+                    Cancelar
+                  </Button>
+                </DialogClose>
+                <Button type="submit" disabled={isSubmittingSlotDialog}>
+                  {isSubmittingSlotDialog && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Añadir Horario
+                </Button>
+              </DialogFooter>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
 
 
-      {/* Campaign Management Card */}
       <Card className="hover:shadow-lg transition-shadow">
         <CardHeader>
           <CardTitle className="flex items-center text-xl">
@@ -378,7 +437,7 @@ export default function SettingsPage() {
                     <TableHead>Tipo</TableHead>
                     <TableHead>Fechas</TableHead>
                     <TableHead>Detalles Adic.</TableHead>
-                    <TableHead className="text-center">Activa</TableHead>
+                    {/* <TableHead className="text-center">Activa</TableHead> Removed */}
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -399,13 +458,7 @@ export default function SettingsPage() {
                         )}
                         {campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}
                       </TableCell>
-                      <TableCell className="text-center">
-                        <Switch
-                          checked={campaign.isActive}
-                          onCheckedChange={() => handleToggleCampaignActive(campaign.id)}
-                          aria-label={campaign.isActive ? "Desactivar campaña" : "Activar campaña"}
-                        />
-                      </TableCell>
+                      {/* Switch for isActive removed */}
                       <TableCell className="text-right space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenEditCampaignDialog(campaign)} className="h-8 w-8">
                           <Edit className="h-4 w-4" />
