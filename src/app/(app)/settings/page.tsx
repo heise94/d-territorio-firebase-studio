@@ -31,6 +31,7 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -200,15 +201,21 @@ export default function SettingsPage() {
     setIsCampaignDialogOpen(true);
   };
 
-  const handleCampaignSubmit = (submittedCampaign: Campaign) => {
+  const handleCampaignSubmit = (submittedCampaign: Omit<Campaign, 'isActive'>) => {
+    const campaignWithIsActive = {
+        ...submittedCampaign,
+        // isActive will be determined by dates, so not needed here for storage if removed from type
+    } as Campaign;
+
+
     setCampaigns(prevCampaigns => {
-      const existingIndex = prevCampaigns.findIndex(c => c.id === submittedCampaign.id);
+      const existingIndex = prevCampaigns.findIndex(c => c.id === campaignWithIsActive.id);
       if (existingIndex > -1) {
         const updatedCampaigns = [...prevCampaigns];
-        updatedCampaigns[existingIndex] = submittedCampaign;
+        updatedCampaigns[existingIndex] = campaignWithIsActive;
         return updatedCampaigns.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
       } else {
-        return [...prevCampaigns, submittedCampaign].sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
+        return [...prevCampaigns, campaignWithIsActive].sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
       }
     });
     setIsCampaignDialogOpen(false);
@@ -253,19 +260,39 @@ export default function SettingsPage() {
     today.setHours(0, 0, 0, 0); 
 
     const baseFixedHolidays: { day: number; month: number; name: string }[] = [
-      { day: 1, month: 0, name: "Año Nuevo" },
+      { day: 1, month: 0, name: "Año Nuevo" }, // month is 0-indexed
       { day: 1, month: 4, name: "Día del Trabajo" },
       { day: 21, month: 4, name: "Día de las Glorias Navales" },
-      { day: 29, month: 5, name: "San Pedro y San Pablo" }, // Puede moverse a lunes
+      // Junio
+      // { day: 9, month: 5, name: "Elecciones Primarias Alcaldes y Gobernadores (Irrenunciable)" }, // Variable, specific to 2024
+      { day: 20, month: 5, name: "Día Nacional de los Pueblos Indígenas" },
+      { day: 29, month: 5, name: "San Pedro y San Pablo" }, // Usually moved to nearest Monday if on Tue/Wed/Thu
+      // Julio
       { day: 16, month: 6, name: "Día de la Virgen del Carmen" },
+      // Agosto
       { day: 15, month: 7, name: "Asunción de la Virgen" },
+      // Septiembre
       { day: 18, month: 8, name: "Independencia Nacional" },
       { day: 19, month: 8, name: "Día de las Glorias del Ejército" },
-      { day: 12, month: 9, name: "Encuentro de Dos Mundos" }, // Puede moverse a lunes
-      { day: 31, month: 9, name: "Día Nac. de las Iglesias Evangélicas y Protestantes" }, // Puede moverse
+      // { day: 20, month: 8, name: "Fiestas Patrias (Adicional 2023, check for current year)" }, // Variable, specific to some years
+      // Octubre
+      { day: 12, month: 9, name: "Encuentro de Dos Mundos" }, // Often moved
+      { day: 27, month: 9, name: "Día Nacional de las Iglesias Evangélicas y Protestantes" }, // (variable, usually Oct 31, moved to Fri if Oct 31 is Wed)
+      { day: 31, month: 9, name: "Día Nacional de las Iglesias Evangélicas y Protestantes" },
+      // Noviembre
       { day: 1, month: 10, name: "Día de Todos los Santos" },
+      // Diciembre
       { day: 8, month: 11, name: "Inmaculada Concepción" },
       { day: 25, month: 11, name: "Navidad" },
+    ];
+    
+    const easterExamples = [ // These need verification each year
+        { year: 2024, month: 2, day: 29, name: "Viernes Santo (Ej. 2024)"},
+        { year: 2024, month: 2, day: 30, name: "Sábado Santo (Ej. 2024)"},
+        { year: 2025, month: 3, day: 18, name: "Viernes Santo (Ej. 2025)"},
+        { year: 2025, month: 3, day: 19, name: "Sábado Santo (Ej. 2025)"},
+        { year: 2026, month: 3, day: 3, name: "Viernes Santo (Ej. 2026)"},
+        { year: 2026, month: 3, day: 4, name: "Sábado Santo (Ej. 2026)"},
     ];
 
     const newHolidaysToAdd: CustomHoliday[] = [];
@@ -295,33 +322,25 @@ export default function SettingsPage() {
           }
         }
       });
-    }
-    
-    const easterExamples = [
-        // Estos son ejemplos y DEBEN ser verificados/ajustados por el usuario cada año.
-        { year: 2024, month: 2, day: 29, name: "Viernes Santo (Ej. 2024)"},
-        { year: 2024, month: 2, day: 30, name: "Sábado Santo (Ej. 2024)"},
-        { year: 2025, month: 3, day: 18, name: "Viernes Santo (Ej. 2025)"},
-        { year: 2025, month: 3, day: 19, name: "Sábado Santo (Ej. 2025)"},
-        { year: 2026, month: 3, day: 3, name: "Viernes Santo (Ej. 2026)"},
-        { year: 2026, month: 3, day: 4, name: "Sábado Santo (Ej. 2026)"},
-    ];
-
-    easterExamples.forEach(ee => {
-        const potentialHolidayDate = new Date(ee.year, ee.month, ee.day);
-        potentialHolidayDate.setHours(0,0,0,0);
-        
-        if (potentialHolidayDate >= today && potentialHolidayDate < twelveMonthsFromTodayEnd && !existingDates.has(potentialHolidayDate.toDateString())) {
-             newHolidaysToAdd.push({
-              id: crypto.randomUUID(),
-              name: ee.name,
-              date: Timestamp.fromDate(potentialHolidayDate),
-              createdAt: Timestamp.now(),
-              updatedAt: Timestamp.now(),
-            });
-            existingDates.add(potentialHolidayDate.toDateString());
+       easterExamples.forEach(ee => {
+        if (ee.year === targetYear && ee.month === targetMonth) {
+            const potentialHolidayDate = new Date(ee.year, ee.month, ee.day);
+            potentialHolidayDate.setHours(0,0,0,0);
+            
+            if (potentialHolidayDate >= today && potentialHolidayDate < twelveMonthsFromTodayEnd && !existingDates.has(potentialHolidayDate.toDateString())) {
+                 newHolidaysToAdd.push({
+                  id: crypto.randomUUID(),
+                  name: ee.name,
+                  date: Timestamp.fromDate(potentialHolidayDate),
+                  createdAt: Timestamp.now(),
+                  updatedAt: Timestamp.now(),
+                });
+                existingDates.add(potentialHolidayDate.toDateString());
+            }
         }
     });
+    }
+    
 
     if (newHolidaysToAdd.length > 0) {
       setCustomHolidays(prev => [...prev, ...newHolidaysToAdd].sort((a,b) => a.date.toMillis() - b.date.toMillis()));
@@ -345,9 +364,9 @@ export default function SettingsPage() {
     
     customHolidays.forEach(holiday => {
       const holidayDate = holiday.date.toDate();
-      const year = holidayDate.getUTCFullYear();
+      const year = holidayDate.getUTCFullYear(); // Use UTC to avoid timezone shifts changing the date
       const month = holidayDate.getUTCMonth(); 
-      const monthYearKey = `${year}-${String(month).padStart(2, '0')}`; 
+      const monthYearKey = `${year}-${String(month).padStart(2, '0')}`; // Pad month for correct sorting
       
       if (!groups[monthYearKey]) {
         groups[monthYearKey] = [];
@@ -684,17 +703,16 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <FormItem>
-            <FormLabel>Último grupo que dirigió el rural de fin de semana</FormLabel>
+          <div className="space-y-2">
+            <Label htmlFor="ruralRotationSelect">Último grupo que dirigió el rural de fin de semana</Label>
             <Select
+              id="ruralRotationSelect"
               value={selectedLastRuralGroupId}
               onValueChange={setSelectedLastRuralGroupId}
             >
-              <FormControl>
-                <SelectTrigger className="w-full sm:w-[300px]">
-                  <SelectValue placeholder="Seleccionar grupo..." />
-                </SelectTrigger>
-              </FormControl>
+              <SelectTrigger className="w-full sm:w-[300px]">
+                <SelectValue placeholder="Seleccionar grupo..." />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="NONE_OR_RESET">Ninguno / Reiniciar Rotación</SelectItem>
                 {MOCK_GROUPS_FOR_ROTATION_SELECT.map(group => (
@@ -704,10 +722,10 @@ export default function SettingsPage() {
                 ))}
               </SelectContent>
             </Select>
-            <FormDescription>
+            <p className="text-sm text-muted-foreground">
               Selecciona el grupo que más recientemente dirigió. Si es la primera vez o quieres reiniciar, selecciona "Ninguno".
-            </FormDescription>
-          </FormItem>
+            </p>
+          </div>
         </CardContent>
         <CardFooter>
           <Button onClick={handleSaveRuralRotation} disabled={isSavingRuralRotation}>
