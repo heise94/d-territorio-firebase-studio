@@ -35,24 +35,24 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
     .array(z.any())
     .describe('Predefined assignments for rural Sundays.'),
   groupPreachingDays: z.any().describe('Days when preaching is organized by groups.'),
-  configuredCampaigns: z.array(z.object({ // Make campaign structure more specific
+  configuredCampaigns: z.array(z.object({ 
     id: z.string(),
     name: z.string(),
-    type: z.string(), // Consider z.enum if types are fixed and known
+    type: z.string(), 
     startDate: z.string().describe("Campaign start date, YYYY-MM-DD or similar Firestore Timestamp representation"),
     endDate: z.string().describe("Campaign end date, YYYY-MM-DD or similar Firestore Timestamp representation"),
     superintendentName: z.string().optional(),
     specialCampaignTerritoriesPerDay: z.number().optional().describe("Number of specific territories for this campaign per day"),
     description: z.string().optional(),
   })).describe('Configured campaigns for the month. Each campaign can have its own specialCampaignTerritoriesPerDay.'),
-  specialCampaignTerritoriesPerDay: z // This can be a global default if a campaign doesn't specify its own
+  specialCampaignTerritoriesPerDay: z 
     .number()
     .describe('Default number of territories to assign per day for special campaigns, if not specified in the campaign object itself.'),
-  holidayDatesInMonth: z.array(z.string()).describe('Holiday dates in the month.'),
+  holidayDatesInMonth: z.array(z.string()).describe('Holiday dates in the month (YYYY-MM-DD format). The AI should consider these for potentially different scheduling patterns, guided by additional instructions.'),
   publisherDetailedAvailabilities: z
     .array(z.any())
     .describe('Detailed availability information for each publisher.'),
-  additionalInstructions: z.string().optional().describe('Additional instructions for the AI.'),
+  additionalInstructions: z.string().optional().describe('Additional instructions for the AI, including how to handle holiday scheduling if different from normal days.'),
 });
 
 export type GenerateMonthlyAssignmentsInput = z.infer<
@@ -124,7 +124,6 @@ const prompt = ai.definePrompt({
   {{/if}}
 
   Default Special Campaign Territories Per Day (use if a campaign doesn't specify its own, or if relevant for general special days): {{{specialCampaignTerritoriesPerDay}}}
-
   Holiday Dates in Month: {{{holidayDatesInMonth}}}
   Publisher Detailed Availabilities: {{{publisherDetailedAvailabilities}}}
   Additional Instructions: {{{additionalInstructions}}}
@@ -132,6 +131,8 @@ const prompt = ai.definePrompt({
   Key considerations for campaign types:
   - 'invitation' (Conmemoración/Asamblea) and 'special': Assign more territories as specified by 'specialCampaignTerritoriesPerDay' for that campaign (or the default if not set per campaign). Captain assignment follows normal logic.
   - 'superintendent_visit': On the days of this campaign, assign the specified 'specialCampaignTerritoriesPerDay' (for this campaign) to the 'superintendentName' as the captain. If 'specialCampaignTerritoriesPerDay' is not set for this campaign, use the default.
+
+  Consider the 'Holiday Dates in Month'. For these dates, scheduling might need to be adjusted (e.g., different hours, more/less activity). Refer to 'Additional Instructions' for specific guidance on holiday scheduling. If no specific instructions are given for holidays, apply standard logic but be mindful they are special days.
 
   Return the schedule in the following JSON format:
   {

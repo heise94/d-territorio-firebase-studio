@@ -6,11 +6,11 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch } from "lucide-react";
+import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays } from "lucide-react"; // Added CalendarDays
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType } from "@/types";
+import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday } from "@/types";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { AddCampaignDialog } from "@/components/settings/campaigns/add-campaign-dialog";
+import { AddHolidayDialog } from "@/components/settings/holidays/add-holiday-dialog"; // Import AddHolidayDialog
 import { Timestamp } from "firebase/firestore";
 import {
   Table,
@@ -54,7 +55,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { format as formatDate } from 'date-fns'; // Renamed to avoid conflict with internal format function
+import { format as formatDate } from 'date-fns';
 
 
 // Schema for the slot form (inside the dialog)
@@ -107,6 +108,10 @@ export default function SettingsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isCampaignDialogOpen, setIsCampaignDialogOpen] = useState(false);
   const [campaignToEdit, setCampaignToEdit] = useState<Campaign | null>(null);
+
+  const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
+  const [isHolidayDialogOpen, setIsHolidayDialogOpen] = useState(false);
+  const [holidayToEdit, setHolidayToEdit] = useState<CustomHoliday | null>(null);
 
 
   const slotForm = useForm<ScheduleSlotFormValues>({
@@ -191,7 +196,7 @@ export default function SettingsPage() {
         updatedCampaigns[existingIndex] = submittedCampaign;
         return updatedCampaigns;
       } else {
-        return [submittedCampaign, ...prevCampaigns];
+        return [submittedCampaign, ...prevCampaigns].sort((a,b) => b.startDate.toMillis() - a.startDate.toMillis());
       }
     });
     setIsCampaignDialogOpen(false);
@@ -200,6 +205,36 @@ export default function SettingsPage() {
   const handleDeleteCampaign = (campaignId: string) => {
     setCampaigns(prevCampaigns => prevCampaigns.filter(c => c.id !== campaignId));
     toast({ title: "Campaña Eliminada", description: "La campaña ha sido eliminada (simulación).", variant: "destructive" });
+  };
+
+  // Holiday Management Functions
+  const handleOpenAddHolidayDialog = () => {
+    setHolidayToEdit(null);
+    setIsHolidayDialogOpen(true);
+  };
+
+  const handleOpenEditHolidayDialog = (holiday: CustomHoliday) => {
+    setHolidayToEdit(holiday);
+    setIsHolidayDialogOpen(true);
+  };
+
+  const handleHolidaySubmit = (submittedHoliday: CustomHoliday) => {
+    setCustomHolidays(prevHolidays => {
+      const existingIndex = prevHolidays.findIndex(h => h.id === submittedHoliday.id);
+      if (existingIndex > -1) {
+        const updatedHolidays = [...prevHolidays];
+        updatedHolidays[existingIndex] = submittedHoliday;
+        return updatedHolidays;
+      } else {
+        return [submittedHoliday, ...prevHolidays].sort((a,b) => a.date.toMillis() - b.date.toMillis());
+      }
+    });
+    setIsHolidayDialogOpen(false);
+  };
+
+  const handleDeleteHoliday = (holidayId: string) => {
+    setCustomHolidays(prevHolidays => prevHolidays.filter(h => h.id !== holidayId));
+    toast({ title: "Festivo Eliminado", description: "El festivo ha sido eliminado (simulación).", variant: "destructive" });
   };
 
 
@@ -501,6 +536,96 @@ export default function SettingsPage() {
             campaignToEdit={campaignToEdit}
         />
       )}
+
+      <Card className="hover:shadow-lg transition-shadow">
+        <CardHeader>
+          <CardTitle className="flex items-center text-xl">
+            <CalendarDays className="mr-3 h-6 w-6 text-primary" /> 
+            Días Festivos Personalizados
+          </CardTitle>
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center pt-1">
+            <CardDescription>
+              Añade días festivos específicos que la IA debe considerar para la programación.
+            </CardDescription>
+            <Button onClick={handleOpenAddHolidayDialog} size="sm" className="mt-2 sm:mt-0">
+              <PlusCircle className="mr-2 h-4 w-4" /> Añadir Festivo
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {customHolidays.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center bg-muted/30 rounded-lg border border-dashed">
+              <CalendarDays className="h-16 w-16 text-muted-foreground/70 mb-4" />
+              <p className="text-lg font-medium text-muted-foreground mb-1">No hay festivos personalizados.</p>
+              <p className="text-sm text-muted-foreground">
+                Haz clic en "Añadir Festivo" para crear el primero.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Descripción</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {customHolidays.map((holiday) => (
+                    <TableRow key={holiday.id}>
+                      <TableCell>{formatDate(holiday.date.toDate(), "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="font-medium">{holiday.name}</TableCell>
+                      <TableCell className="text-xs italic text-muted-foreground truncate w-64" title={holiday.description}>
+                        {holiday.description || 'N/A'}
+                      </TableCell>
+                      <TableCell className="text-right space-x-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenEditHolidayDialog(holiday)} className="h-8 w-8">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción eliminará permanentemente el festivo "{holiday.name}".
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteHoliday(holiday.id)}
+                                className={buttonVariants({variant: "destructive"})}
+                              >
+                                Sí, eliminar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {isHolidayDialogOpen && (
+        <AddHolidayDialog
+            isOpen={isHolidayDialogOpen}
+            onOpenChange={setIsHolidayDialogOpen}
+            onHolidaySubmit={handleHolidaySubmit}
+            holidayToEdit={holidayToEdit}
+        />
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
         <Card className="hover:shadow-lg transition-shadow">
@@ -511,21 +636,6 @@ export default function SettingsPage() {
             </CardTitle>
             <CardDescription>
               Administra los roles de usuario y sus permisos detallados.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Próximamente...</p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center text-xl">
-              <UsersIconLucide className="mr-3 h-6 w-6 text-primary" />
-              Días Festivos Personalizados
-            </CardTitle>
-            <CardDescription>
-              Añade días festivos específicos que afecten la programación.
             </CardDescription>
           </CardHeader>
           <CardContent>

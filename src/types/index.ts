@@ -46,7 +46,16 @@ export interface Campaign {
   startDate: Timestamp;
   endDate: Timestamp;
   superintendentName?: string; // Solo para 'superintendent_visit'
-  specialCampaignTerritoriesPerDay?: number; // Número de territorios específicos para esta campaña por día
+  specialCampaignTerritoriesPerDay?: number;
+  description?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface CustomHoliday {
+  id: string;
+  name: string;
+  date: Timestamp;
   description?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -57,6 +66,7 @@ export interface SettingsDoc {
   programScheduleSlots?: ProgramScheduleSlot[];
   groupOrganizedDays?: DayOfWeek[];
   campaigns?: Campaign[];
+  customHolidays?: CustomHoliday[];
 }
 
 
