@@ -28,7 +28,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-// import { Switch } from "@/components/ui/switch"; // Switch no longer needed
 import type { Campaign, CampaignType } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -43,9 +42,8 @@ const campaignFormSchema = z.object({
   startDate: z.date({ required_error: "La fecha de inicio es obligatoria." }),
   endDate: z.date({ required_error: "La fecha de fin es obligatoria." }),
   description: z.string().max(500).optional().or(z.literal('')),
-  // isActive: z.boolean().default(true), // Removed
   superintendentName: z.string().max(100).optional().or(z.literal('')),
-  territoriesPerDayForSuperintendentVisit: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional(),
+  specialCampaignTerritoriesPerDay: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().default(0),
 }).superRefine((data, ctx) => {
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
     ctx.addIssue({
@@ -61,13 +59,6 @@ const campaignFormSchema = z.object({
         message: "El nombre del superintendente es obligatorio para este tipo de campaña.",
         path: ["superintendentName"],
       });
-    }
-    if (data.territoriesPerDayForSuperintendentVisit === undefined || data.territoriesPerDayForSuperintendentVisit < 0) {
-         ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "La cantidad de territorios por día es obligatoria y debe ser 0 o más.",
-            path: ["territoriesPerDayForSuperintendentVisit"],
-        });
     }
   }
 });
@@ -100,9 +91,8 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       startDate: undefined,
       endDate: undefined,
       description: "",
-      // isActive: true, // Removed
       superintendentName: "",
-      territoriesPerDayForSuperintendentVisit: 0,
+      specialCampaignTerritoriesPerDay: 0,
     },
   });
 
@@ -116,9 +106,8 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
         startDate: campaignToEdit.startDate?.toDate() || undefined,
         endDate: campaignToEdit.endDate?.toDate() || undefined,
         description: campaignToEdit.description || "",
-        // isActive: campaignToEdit.isActive === undefined ? true : campaignToEdit.isActive, // Removed
         superintendentName: campaignToEdit.superintendentName || "",
-        territoriesPerDayForSuperintendentVisit: campaignToEdit.territoriesPerDayForSuperintendentVisit || 0,
+        specialCampaignTerritoriesPerDay: campaignToEdit.specialCampaignTerritoriesPerDay || 0,
       });
     } else if (!isOpen) {
       form.reset(); 
@@ -135,9 +124,8 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       startDate: Timestamp.fromDate(values.startDate),
       endDate: Timestamp.fromDate(values.endDate),
       description: values.description || undefined,
-      // isActive: values.isActive, // Removed
       superintendentName: values.type === 'superintendent_visit' ? values.superintendentName || undefined : undefined,
-      territoriesPerDayForSuperintendentVisit: values.type === 'superintendent_visit' ? values.territoriesPerDayForSuperintendentVisit : undefined,
+      specialCampaignTerritoriesPerDay: values.specialCampaignTerritoriesPerDay,
       createdAt: isEditMode && campaignToEdit ? campaignToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -229,7 +217,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                             )}
                           >
                             {field.value ? (
-                              format(field.value, "PPP") 
+                              format(field.value, "PPP", { timeZone: 'UTC' }) 
                             ) : (
                               <span>Selecciona fecha</span>
                             )}
@@ -268,7 +256,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                             )}
                           >
                             {field.value ? (
-                              format(field.value, "PPP")
+                              format(field.value, "PPP", { timeZone: 'UTC' })
                             ) : (
                               <span>Selecciona fecha</span>
                             )}
@@ -309,25 +297,26 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="territoriesPerDayForSuperintendentVisit"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Territorios a Asignar por Día (Visita)</FormLabel>
-                      <FormControl>
-                        <Input type="number" min="0" placeholder="Ej: 2" {...field} 
-                         onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} />
-                      </FormControl>
-                      <FormDescription>
-                        Cantidad de territorios que la IA asignará automáticamente al superintendente cada día de su visita.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
             )}
+
+            <FormField
+              control={form.control}
+              name="specialCampaignTerritoriesPerDay"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Territorios Específicos por Día (Campaña)</FormLabel>
+                  <FormControl>
+                    <Input type="number" min="0" placeholder="Ej: 2" {...field} 
+                     onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} />
+                  </FormControl>
+                  <FormDescription>
+                    Número de territorios a asignar para esta campaña cada día que esté activa. Usar 0 para lógica estándar.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
@@ -342,7 +331,6 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                 </FormItem>
               )}
             />
-            {/* FormField for isActive removed */}
             <DialogFooter className="pt-6">
               <DialogClose asChild>
                 <Button type="button" variant="outline" disabled={isSubmitting}>

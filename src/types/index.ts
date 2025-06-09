@@ -46,9 +46,8 @@ export interface Campaign {
   startDate: Timestamp;
   endDate: Timestamp;
   superintendentName?: string; // Solo para 'superintendent_visit'
-  territoriesPerDayForSuperintendentVisit?: number; // Solo para 'superintendent_visit'
+  specialCampaignTerritoriesPerDay?: number; // Número de territorios específicos para esta campaña por día
   description?: string;
-  // isActive: boolean; // Removed as per user request
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

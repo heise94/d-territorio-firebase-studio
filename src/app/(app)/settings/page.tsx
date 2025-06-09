@@ -43,7 +43,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-// import { Switch } from "@/components/ui/switch"; // Switch no longer needed for campaigns table
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,7 +54,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { format } from 'date-fns';
+import { format as formatDate } from 'date-fns'; // Renamed to avoid conflict with internal format function
 
 
 // Schema for the slot form (inside the dialog)
@@ -203,7 +202,6 @@ export default function SettingsPage() {
     toast({ title: "Campaña Eliminada", description: "La campaña ha sido eliminada (simulación).", variant: "destructive" });
   };
 
-  // handleToggleCampaignActive removed as isActive is removed
 
   return (
     <div className="space-y-8">
@@ -437,7 +435,6 @@ export default function SettingsPage() {
                     <TableHead>Tipo</TableHead>
                     <TableHead>Fechas</TableHead>
                     <TableHead>Detalles Adic.</TableHead>
-                    {/* <TableHead className="text-center">Activa</TableHead> Removed */}
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -447,18 +444,17 @@ export default function SettingsPage() {
                       <TableCell className="font-medium">{campaign.name}</TableCell>
                       <TableCell>{CampaignTypeLabels[campaign.type]}</TableCell>
                       <TableCell>
-                        {format(campaign.startDate.toDate(), "dd/MM/yyyy")} - {format(campaign.endDate.toDate(), "dd/MM/yyyy")}
+                        {formatDate(campaign.startDate.toDate(), "dd/MM/yyyy")} - {formatDate(campaign.endDate.toDate(), "dd/MM/yyyy")}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {campaign.type === 'superintendent_visit' && (
-                          <>
-                            <div>Sup: {campaign.superintendentName || 'N/A'}</div>
-                            <div>Terr/día: {campaign.territoriesPerDayForSuperintendentVisit ?? 'N/A'}</div>
-                          </>
+                        {campaign.type === 'superintendent_visit' && campaign.superintendentName && (
+                          <div>Sup: {campaign.superintendentName}</div>
+                        )}
+                        {(campaign.specialCampaignTerritoriesPerDay ?? 0) > 0 && (
+                           <div>Terr/día (Camp.): {campaign.specialCampaignTerritoriesPerDay}</div>
                         )}
                         {campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}
                       </TableCell>
-                      {/* Switch for isActive removed */}
                       <TableCell className="text-right space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenEditCampaignDialog(campaign)} className="h-8 w-8">
                           <Edit className="h-4 w-4" />

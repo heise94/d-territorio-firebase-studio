@@ -1,3 +1,4 @@
+
 // use server'
 'use server';
 /**
@@ -34,10 +35,19 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
     .array(z.any())
     .describe('Predefined assignments for rural Sundays.'),
   groupPreachingDays: z.any().describe('Days when preaching is organized by groups.'),
-  configuredCampaigns: z.array(z.any()).describe('Configured campaigns for the month.'),
-  specialCampaignTerritoriesPerDay: z
+  configuredCampaigns: z.array(z.object({ // Make campaign structure more specific
+    id: z.string(),
+    name: z.string(),
+    type: z.string(), // Consider z.enum if types are fixed and known
+    startDate: z.string().describe("Campaign start date, YYYY-MM-DD or similar Firestore Timestamp representation"),
+    endDate: z.string().describe("Campaign end date, YYYY-MM-DD or similar Firestore Timestamp representation"),
+    superintendentName: z.string().optional(),
+    specialCampaignTerritoriesPerDay: z.number().optional().describe("Number of specific territories for this campaign per day"),
+    description: z.string().optional(),
+  })).describe('Configured campaigns for the month. Each campaign can have its own specialCampaignTerritoriesPerDay.'),
+  specialCampaignTerritoriesPerDay: z // This can be a global default if a campaign doesn't specify its own
     .number()
-    .describe('Number of territories to assign per day for special campaigns.'),
+    .describe('Default number of territories to assign per day for special campaigns, if not specified in the campaign object itself.'),
   holidayDatesInMonth: z.array(z.string()).describe('Holiday dates in the month.'),
   publisherDetailedAvailabilities: z
     .array(z.any())
@@ -97,11 +107,31 @@ const prompt = ai.definePrompt({
   Designated Rural Sundays: {{{designatedRuralSundays}}}
   Predetermined Rural Sunday Assignments: {{{predeterminedRuralSundayAssignments}}}
   Group Preaching Days: {{{groupPreachingDays}}}
-  Configured Campaigns: {{{configuredCampaigns}}}
-  Special Campaign Territories Per Day: {{{specialCampaignTerritoriesPerDay}}}
+
+  Configured Campaigns:
+  {{#if configuredCampaigns}}
+    {{#each configuredCampaigns}}
+    - Campaign Name: {{this.name}}
+      Type: {{this.type}}
+      Start Date: {{this.startDate}}
+      End Date: {{this.endDate}}
+      {{#if this.superintendentName}}Superintendent for this campaign: {{this.superintendentName}}{{/if}}
+      {{#if this.specialCampaignTerritoriesPerDay}}Territories per day for this campaign: {{this.specialCampaignTerritoriesPerDay}}{{else}}Use default logic for territories per day.{{/if}}
+      {{#if this.description}}Description: "{{this.description}}"{{/if}}
+    {{/each}}
+  {{else}}
+    No specific campaigns configured for this month.
+  {{/if}}
+
+  Default Special Campaign Territories Per Day (use if a campaign doesn't specify its own, or if relevant for general special days): {{{specialCampaignTerritoriesPerDay}}}
+
   Holiday Dates in Month: {{{holidayDatesInMonth}}}
   Publisher Detailed Availabilities: {{{publisherDetailedAvailabilities}}}
   Additional Instructions: {{{additionalInstructions}}}
+
+  Key considerations for campaign types:
+  - 'invitation' (Conmemoración/Asamblea) and 'special': Assign more territories as specified by 'specialCampaignTerritoriesPerDay' for that campaign (or the default if not set per campaign). Captain assignment follows normal logic.
+  - 'superintendent_visit': On the days of this campaign, assign the specified 'specialCampaignTerritoriesPerDay' (for this campaign) to the 'superintendentName' as the captain. If 'specialCampaignTerritoriesPerDay' is not set for this campaign, use the default.
 
   Return the schedule in the following JSON format:
   {
@@ -113,7 +143,7 @@ const prompt = ai.definePrompt({
           "captain": "Publicador name",
           "time": "HH:MM",
           "status": "not_sent",
-          "preachingType": "publica",
+          "preachingType": "publica", // or 'rural', 'zoom'
           "casaName": "Optional casa name",
           "casaAddress": "Optional casa address",
           "territoryName": "Optional territory name"
