@@ -21,7 +21,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
+  FormDescription as FormFieldDescription, 
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +35,7 @@ import { Loader2, CalendarIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 
 const campaignFormSchema = z.object({
   name: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }).max(100),
@@ -44,6 +45,7 @@ const campaignFormSchema = z.object({
   description: z.string().max(500).optional().or(z.literal('')),
   superintendentName: z.string().max(100).optional().or(z.literal('')),
   specialCampaignTerritoriesPerDay: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().default(0),
+  isActive: z.boolean().default(true), // Re-added
 }).superRefine((data, ctx) => {
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
     ctx.addIssue({
@@ -93,6 +95,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       description: "",
       superintendentName: "",
       specialCampaignTerritoriesPerDay: 0,
+      isActive: true, // Re-added default
     },
   });
 
@@ -108,9 +111,19 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
         description: campaignToEdit.description || "",
         superintendentName: campaignToEdit.superintendentName || "",
         specialCampaignTerritoriesPerDay: campaignToEdit.specialCampaignTerritoriesPerDay || 0,
+        isActive: campaignToEdit.isActive === undefined ? true : campaignToEdit.isActive, // Re-added logic
       });
     } else if (!isOpen) {
-      form.reset(); 
+      form.reset({ // Reset to full defaults when closing
+        name: "",
+        type: undefined,
+        startDate: undefined,
+        endDate: undefined,
+        description: "",
+        superintendentName: "",
+        specialCampaignTerritoriesPerDay: 0,
+        isActive: true,
+      });
     }
   }, [campaignToEdit, isOpen, form]);
 
@@ -126,6 +139,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       description: values.description || undefined,
       superintendentName: values.type === 'superintendent_visit' ? values.superintendentName || undefined : undefined,
       specialCampaignTerritoriesPerDay: values.specialCampaignTerritoriesPerDay,
+      isActive: values.isActive, // Re-added
       createdAt: isEditMode && campaignToEdit ? campaignToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -145,7 +159,16 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
   
   const handleDialogClose = (open: boolean) => {
     if (!open) {
-        form.reset(); 
+      form.reset({
+        name: "",
+        type: undefined,
+        startDate: undefined,
+        endDate: undefined,
+        description: "",
+        superintendentName: "",
+        specialCampaignTerritoriesPerDay: 0,
+        isActive: true,
+      });
     }
     onOpenChange(open);
   };
@@ -310,9 +333,9 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                     <Input type="number" min="0" placeholder="Ej: 2" {...field} 
                      onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} />
                   </FormControl>
-                  <FormDescription>
+                  <FormFieldDescription>
                     Número de territorios a asignar para esta campaña cada día que esté activa. Usar 0 para lógica estándar.
-                  </FormDescription>
+                  </FormFieldDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -328,6 +351,26 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                     <Textarea placeholder="Detalles adicionales sobre la campaña..." {...field} rows={2} />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="isActive"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                  <div className="space-y-0.5">
+                    <FormLabel>Campaña Activa</FormLabel>
+                    <FormFieldDescription>
+                      Indica si esta campaña está actualmente activa y debe ser considerada por la IA.
+                    </FormFieldDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />

@@ -45,9 +45,10 @@ export interface Campaign {
   type: CampaignType;
   startDate: Timestamp;
   endDate: Timestamp;
-  superintendentName?: string; // Solo para 'superintendent_visit'
+  superintendentName?: string;
   specialCampaignTerritoriesPerDay?: number;
   description?: string;
+  isActive: boolean; // Re-added
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

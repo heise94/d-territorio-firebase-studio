@@ -1,12 +1,13 @@
 
 "use client";
 
-import * as React from "react"; // Added this line
+import * as React from "react"; 
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload } from "lucide-react";
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,6 +29,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -206,6 +208,20 @@ export default function SettingsPage() {
     setCampaigns(prevCampaigns => prevCampaigns.filter(c => c.id !== campaignId));
     toast({ title: "Campaña Eliminada", description: "La campaña ha sido eliminada (simulación).", variant: "destructive" });
   };
+  
+  const handleToggleCampaignActive = (campaignId: string, isActive: boolean) => {
+    setCampaigns(prevCampaigns =>
+      prevCampaigns.map(c =>
+        c.id === campaignId ? { ...c, isActive, updatedAt: Timestamp.now() } : c
+      )
+    );
+    const campaign = campaigns.find(c => c.id === campaignId);
+    toast({
+      title: `Campaña ${isActive ? "Activada" : "Desactivada"}`,
+      description: `La campaña "${campaign?.name}" ha sido ${isActive ? 'activada' : 'desactivada'} (simulación).`,
+    });
+  };
+
 
   const handleOpenAddHolidayDialog = () => {
     setHolidayToEdit(null);
@@ -293,7 +309,7 @@ export default function SettingsPage() {
     
     customHolidays.forEach(holiday => {
       const holidayDate = holiday.date.toDate();
-      const monthYearKey = formatDate(holidayDate, "yyyy-MM"); // Key: "2024-00" for January
+      const monthYearKey = formatDate(holidayDate, "yyyy-MM"); 
       
       if (!groups[monthYearKey]) {
         groups[monthYearKey] = [];
@@ -345,7 +361,6 @@ export default function SettingsPage() {
                             <div className="flex items-center">
                               <PreachingTypeIcon type={slot.type}/>
                               <span className="font-medium">{slot.startTime}</span>
-                              {/* Removed endTime */}
                               <span className="text-muted-foreground mx-1">-</span>
                               <span className="capitalize text-muted-foreground/80">{slot.type}</span>
                             </div>
@@ -445,7 +460,6 @@ export default function SettingsPage() {
                   </FormItem>
                 )}
               />
-              {/* endTime field removed */}
               <FormField
                 control={slotForm.control}
                 name="type"
@@ -539,6 +553,7 @@ export default function SettingsPage() {
                     <TableHead>Tipo</TableHead>
                     <TableHead>Fechas</TableHead>
                     <TableHead>Detalles Adic.</TableHead>
+                    <TableHead>Activa</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -558,6 +573,13 @@ export default function SettingsPage() {
                            <div>Terr/día (Camp.): {campaign.specialCampaignTerritoriesPerDay}</div>
                         )}
                         {campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={campaign.isActive}
+                          onCheckedChange={(checked) => handleToggleCampaignActive(campaign.id, checked)}
+                          aria-label={campaign.isActive ? "Desactivar campaña" : "Activar campaña"}
+                        />
                       </TableCell>
                       <TableCell className="text-right space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenEditCampaignDialog(campaign)} className="h-8 w-8">
@@ -650,7 +672,6 @@ export default function SettingsPage() {
                   {sortedMonthYearKeys.map((monthYearKey) => {
                     const holidaysInMonth = groupedHolidays[monthYearKey];
                     const [year, monthIndex] = monthYearKey.split('-').map(Number);
-                    // Create a date object for the first day of that month to format it
                     const monthDate = new Date(year, monthIndex); 
                                         
                     return (
@@ -769,5 +790,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    
