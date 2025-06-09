@@ -1,12 +1,12 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload } from "lucide-react"; // Added CalendarDays, Upload
+import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload } from "lucide-react";
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,7 +16,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription as DialogDescriptionComponent, // Renamed to avoid conflict with CardDescription
+  DialogDescription as DialogDescriptionComponent,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -55,10 +55,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { format as formatDate, getYear } from 'date-fns';
+import { format as formatDate, getYear, getMonth, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 
-// Schema for the slot form (inside the dialog)
 const scheduleSlotFormSchema = z.object({
   startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Debe ser formato HH:mm."),
   type: z.enum(['general', 'rural', 'zoom'], { required_error: "Debes seleccionar un tipo." }),
@@ -177,7 +177,6 @@ export default function SettingsPage() {
     setIsSavingGroupOrganizedDays(false);
   };
 
-  // Campaign Management Functions
   const handleOpenAddCampaignDialog = () => {
     setCampaignToEdit(null);
     setIsCampaignDialogOpen(true);
@@ -194,9 +193,8 @@ export default function SettingsPage() {
       if (existingIndex > -1) {
         const updatedCampaigns = [...prevCampaigns];
         updatedCampaigns[existingIndex] = submittedCampaign;
-        return updatedCampaigns;
+        return updatedCampaigns.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
       } else {
-        // Sort by start date descending when adding new
         return [...prevCampaigns, submittedCampaign].sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
       }
     });
@@ -208,7 +206,6 @@ export default function SettingsPage() {
     toast({ title: "Campaña Eliminada", description: "La campaña ha sido eliminada (simulación).", variant: "destructive" });
   };
 
-  // Holiday Management Functions
   const handleOpenAddHolidayDialog = () => {
     setHolidayToEdit(null);
     setIsHolidayDialogOpen(true);
@@ -225,10 +222,8 @@ export default function SettingsPage() {
       if (existingIndex > -1) {
         const updatedHolidays = [...prevHolidays];
         updatedHolidays[existingIndex] = submittedHoliday;
-        // Sort by date ascending when editing
         return updatedHolidays.sort((a,b) => a.date.toMillis() - b.date.toMillis());
       } else {
-        // Sort by date ascending when adding new
         return [...prevHolidays, submittedHoliday].sort((a,b) => a.date.toMillis() - b.date.toMillis());
       }
     });
@@ -243,22 +238,22 @@ export default function SettingsPage() {
   const handleLoadExampleHolidays = () => {
     const currentYear = getYear(new Date());
     const exampleChileanHolidays: Omit<CustomHoliday, 'id' | 'createdAt' | 'updatedAt' | 'description'>[] = [
-      { name: "Año Nuevo", date: Timestamp.fromDate(new Date(currentYear, 0, 1)) }, // Jan 1
-      { name: "Viernes Santo", date: Timestamp.fromDate(new Date(currentYear, 2, 29)) }, // Example, will vary: March 29 for 2024
-      { name: "Sábado Santo", date: Timestamp.fromDate(new Date(currentYear, 2, 30)) }, // Example, will vary: March 30 for 2024
-      { name: "Día del Trabajo", date: Timestamp.fromDate(new Date(currentYear, 4, 1)) }, // May 1
-      { name: "Día de las Glorias Navales", date: Timestamp.fromDate(new Date(currentYear, 4, 21)) }, // May 21
-      { name: "Día Nacional de los Pueblos Indígenas", date: Timestamp.fromDate(new Date(currentYear, 5, 20))}, // June 20 (changes) -> fixed for 2024
-      { name: "San Pedro y San Pablo", date: Timestamp.fromDate(new Date(currentYear, 5, 29)) }, // June 29
-      { name: "Día de la Virgen del Carmen", date: Timestamp.fromDate(new Date(currentYear, 6, 16)) }, // July 16
-      { name: "Asunción de la Virgen", date: Timestamp.fromDate(new Date(currentYear, 7, 15)) }, // Aug 15
-      { name: "Independencia Nacional", date: Timestamp.fromDate(new Date(currentYear, 8, 18)) }, // Sep 18
-      { name: "Día de las Glorias del Ejército", date: Timestamp.fromDate(new Date(currentYear, 8, 19)) }, // Sep 19
-      { name: "Encuentro de Dos Mundos", date: Timestamp.fromDate(new Date(currentYear, 9, 12)) }, // Oct 12 (might be moved to a Monday)
-      { name: "Día de las Iglesias Evangélicas y Protestantes", date: Timestamp.fromDate(new Date(currentYear, 9, 31))}, // Oct 31 (might be moved)
-      { name: "Día de Todos los Santos", date: Timestamp.fromDate(new Date(currentYear, 10, 1)) }, // Nov 1
-      { name: "Inmaculada Concepción", date: Timestamp.fromDate(new Date(currentYear, 11, 8)) }, // Dec 8
-      { name: "Navidad", date: Timestamp.fromDate(new Date(currentYear, 11, 25)) }, // Dec 25
+      { name: "Año Nuevo", date: Timestamp.fromDate(new Date(currentYear, 0, 1)) },
+      { name: "Viernes Santo", date: Timestamp.fromDate(new Date(currentYear, 2, 29)) }, 
+      { name: "Sábado Santo", date: Timestamp.fromDate(new Date(currentYear, 2, 30)) }, 
+      { name: "Día del Trabajo", date: Timestamp.fromDate(new Date(currentYear, 4, 1)) }, 
+      { name: "Día de las Glorias Navales", date: Timestamp.fromDate(new Date(currentYear, 4, 21)) }, 
+      { name: "Día Nacional de los Pueblos Indígenas", date: Timestamp.fromDate(new Date(currentYear, 5, 20))},
+      { name: "San Pedro y San Pablo", date: Timestamp.fromDate(new Date(currentYear, 5, 29)) }, 
+      { name: "Día de la Virgen del Carmen", date: Timestamp.fromDate(new Date(currentYear, 6, 16)) }, 
+      { name: "Asunción de la Virgen", date: Timestamp.fromDate(new Date(currentYear, 7, 15)) }, 
+      { name: "Independencia Nacional", date: Timestamp.fromDate(new Date(currentYear, 8, 18)) }, 
+      { name: "Día de las Glorias del Ejército", date: Timestamp.fromDate(new Date(currentYear, 8, 19)) }, 
+      { name: "Encuentro de Dos Mundos", date: Timestamp.fromDate(new Date(currentYear, 9, 12)) }, 
+      { name: "Día de las Iglesias Evangélicas y Protestantes", date: Timestamp.fromDate(new Date(currentYear, 9, 31))}, 
+      { name: "Día de Todos los Santos", date: Timestamp.fromDate(new Date(currentYear, 10, 1)) }, 
+      { name: "Inmaculada Concepción", date: Timestamp.fromDate(new Date(currentYear, 11, 8)) }, 
+      { name: "Navidad", date: Timestamp.fromDate(new Date(currentYear, 11, 25)) }, 
     ];
 
     const newHolidaysToAdd: CustomHoliday[] = [];
@@ -290,6 +285,24 @@ export default function SettingsPage() {
     }
   };
 
+  const groupedHolidays = useMemo(() => {
+    if (!customHolidays.length) return {};
+    
+    const groups: Record<string, CustomHoliday[]> = {};
+    
+    customHolidays.forEach(holiday => {
+      const holidayDate = holiday.date.toDate();
+      const monthYearKey = formatDate(holidayDate, "yyyy-MM"); // Key: "2024-00" for January
+      
+      if (!groups[monthYearKey]) {
+        groups[monthYearKey] = [];
+      }
+      groups[monthYearKey].push(holiday);
+    });
+    return groups;
+  }, [customHolidays]);
+
+  const sortedMonthYearKeys = useMemo(() => Object.keys(groupedHolidays).sort(), [groupedHolidays]);
 
   return (
     <div className="space-y-8">
@@ -331,6 +344,7 @@ export default function SettingsPage() {
                             <div className="flex items-center">
                               <PreachingTypeIcon type={slot.type}/>
                               <span className="font-medium">{slot.startTime}</span>
+                              {/* Removed endTime */}
                               <span className="text-muted-foreground mx-1">-</span>
                               <span className="capitalize text-muted-foreground/80">{slot.type}</span>
                             </div>
@@ -430,6 +444,7 @@ export default function SettingsPage() {
                   </FormItem>
                 )}
               />
+              {/* endTime field removed */}
               <FormField
                 control={slotForm.control}
                 name="type"
@@ -631,44 +646,63 @@ export default function SettingsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {customHolidays.map((holiday) => (
-                    <TableRow key={holiday.id}>
-                      <TableCell>{formatDate(holiday.date.toDate(), "dd/MM/yyyy")}</TableCell>
-                      <TableCell className="font-medium">{holiday.name}</TableCell>
-                      <TableCell className="text-xs italic text-muted-foreground truncate w-64" title={holiday.description}>
-                        {holiday.description || 'N/A'}
-                      </TableCell>
-                      <TableCell className="text-right space-x-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenEditHolidayDialog(holiday)} className="h-8 w-8">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta acción eliminará permanentemente el festivo "{holiday.name}".
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteHoliday(holiday.id)}
-                                className={buttonVariants({variant: "destructive"})}
-                              >
-                                Sí, eliminar
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {sortedMonthYearKeys.map((monthYearKey) => {
+                    const holidaysInMonth = groupedHolidays[monthYearKey];
+                    const [year, monthIndex] = monthYearKey.split('-').map(Number);
+                    // Create a date object for the first day of that month to format it
+                    const monthDate = new Date(year, monthIndex); 
+                                        
+                    return (
+                      <React.Fragment key={monthYearKey}>
+                        <TableRow className="bg-muted/40 hover:bg-muted/40 sticky top-0 z-10">
+                          <TableCell 
+                            colSpan={4} 
+                            className="font-semibold text-primary py-2.5 px-4 text-sm"
+                          >
+                            {formatDate(monthDate, "MMMM yyyy", { locale: es }).toUpperCase()}
+                          </TableCell>
+                        </TableRow>
+                        {holidaysInMonth.map((holiday) => (
+                          <TableRow key={holiday.id}>
+                            <TableCell>{formatDate(holiday.date.toDate(), "dd/MM/yyyy")}</TableCell>
+                            <TableCell className="font-medium">{holiday.name}</TableCell>
+                            <TableCell className="text-xs italic text-muted-foreground truncate w-64" title={holiday.description}>
+                              {holiday.description || 'N/A'}
+                            </TableCell>
+                            <TableCell className="text-right space-x-1">
+                              <Button variant="ghost" size="icon" onClick={() => handleOpenEditHolidayDialog(holiday)} className="h-8 w-8">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Esta acción eliminará permanentemente el festivo "{holiday.name}".
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteHoliday(holiday.id)}
+                                      className={buttonVariants({variant: "destructive"})}
+                                    >
+                                      Sí, eliminar
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -734,6 +768,5 @@ export default function SettingsPage() {
     </div>
   );
 }
-
 
     
