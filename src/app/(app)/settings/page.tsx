@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays } from "lucide-react"; // Added CalendarDays
+import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload } from "lucide-react"; // Added CalendarDays, Upload
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,7 +16,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
+  DialogDescription as DialogDescriptionComponent, // Renamed to avoid conflict with CardDescription
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -34,7 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { AddCampaignDialog } from "@/components/settings/campaigns/add-campaign-dialog";
-import { AddHolidayDialog } from "@/components/settings/holidays/add-holiday-dialog"; // Import AddHolidayDialog
+import { AddHolidayDialog } from "@/components/settings/holidays/add-holiday-dialog";
 import { Timestamp } from "firebase/firestore";
 import {
   Table,
@@ -55,7 +55,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { format as formatDate } from 'date-fns';
+import { format as formatDate, getYear } from 'date-fns';
 
 
 // Schema for the slot form (inside the dialog)
@@ -196,7 +196,8 @@ export default function SettingsPage() {
         updatedCampaigns[existingIndex] = submittedCampaign;
         return updatedCampaigns;
       } else {
-        return [submittedCampaign, ...prevCampaigns].sort((a,b) => b.startDate.toMillis() - a.startDate.toMillis());
+        // Sort by start date descending when adding new
+        return [...prevCampaigns, submittedCampaign].sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
       }
     });
     setIsCampaignDialogOpen(false);
@@ -224,9 +225,11 @@ export default function SettingsPage() {
       if (existingIndex > -1) {
         const updatedHolidays = [...prevHolidays];
         updatedHolidays[existingIndex] = submittedHoliday;
-        return updatedHolidays;
+        // Sort by date ascending when editing
+        return updatedHolidays.sort((a,b) => a.date.toMillis() - b.date.toMillis());
       } else {
-        return [submittedHoliday, ...prevHolidays].sort((a,b) => a.date.toMillis() - b.date.toMillis());
+        // Sort by date ascending when adding new
+        return [...prevHolidays, submittedHoliday].sort((a,b) => a.date.toMillis() - b.date.toMillis());
       }
     });
     setIsHolidayDialogOpen(false);
@@ -235,6 +238,56 @@ export default function SettingsPage() {
   const handleDeleteHoliday = (holidayId: string) => {
     setCustomHolidays(prevHolidays => prevHolidays.filter(h => h.id !== holidayId));
     toast({ title: "Festivo Eliminado", description: "El festivo ha sido eliminado (simulación).", variant: "destructive" });
+  };
+
+  const handleLoadExampleHolidays = () => {
+    const currentYear = getYear(new Date());
+    const exampleChileanHolidays: Omit<CustomHoliday, 'id' | 'createdAt' | 'updatedAt' | 'description'>[] = [
+      { name: "Año Nuevo", date: Timestamp.fromDate(new Date(currentYear, 0, 1)) }, // Jan 1
+      { name: "Viernes Santo", date: Timestamp.fromDate(new Date(currentYear, 2, 29)) }, // Example, will vary: March 29 for 2024
+      { name: "Sábado Santo", date: Timestamp.fromDate(new Date(currentYear, 2, 30)) }, // Example, will vary: March 30 for 2024
+      { name: "Día del Trabajo", date: Timestamp.fromDate(new Date(currentYear, 4, 1)) }, // May 1
+      { name: "Día de las Glorias Navales", date: Timestamp.fromDate(new Date(currentYear, 4, 21)) }, // May 21
+      { name: "Día Nacional de los Pueblos Indígenas", date: Timestamp.fromDate(new Date(currentYear, 5, 20))}, // June 20 (changes) -> fixed for 2024
+      { name: "San Pedro y San Pablo", date: Timestamp.fromDate(new Date(currentYear, 5, 29)) }, // June 29
+      { name: "Día de la Virgen del Carmen", date: Timestamp.fromDate(new Date(currentYear, 6, 16)) }, // July 16
+      { name: "Asunción de la Virgen", date: Timestamp.fromDate(new Date(currentYear, 7, 15)) }, // Aug 15
+      { name: "Independencia Nacional", date: Timestamp.fromDate(new Date(currentYear, 8, 18)) }, // Sep 18
+      { name: "Día de las Glorias del Ejército", date: Timestamp.fromDate(new Date(currentYear, 8, 19)) }, // Sep 19
+      { name: "Encuentro de Dos Mundos", date: Timestamp.fromDate(new Date(currentYear, 9, 12)) }, // Oct 12 (might be moved to a Monday)
+      { name: "Día de las Iglesias Evangélicas y Protestantes", date: Timestamp.fromDate(new Date(currentYear, 9, 31))}, // Oct 31 (might be moved)
+      { name: "Día de Todos los Santos", date: Timestamp.fromDate(new Date(currentYear, 10, 1)) }, // Nov 1
+      { name: "Inmaculada Concepción", date: Timestamp.fromDate(new Date(currentYear, 11, 8)) }, // Dec 8
+      { name: "Navidad", date: Timestamp.fromDate(new Date(currentYear, 11, 25)) }, // Dec 25
+    ];
+
+    const newHolidaysToAdd: CustomHoliday[] = [];
+    exampleChileanHolidays.forEach(exHoliday => {
+      const alreadyExists = customHolidays.some(
+        (ch) => ch.date.toDate().toDateString() === exHoliday.date.toDate().toDateString()
+      );
+      if (!alreadyExists) {
+        newHolidaysToAdd.push({
+          ...exHoliday,
+          id: crypto.randomUUID(),
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+      }
+    });
+
+    if (newHolidaysToAdd.length > 0) {
+      setCustomHolidays(prev => [...prev, ...newHolidaysToAdd].sort((a,b) => a.date.toMillis() - b.date.toMillis()));
+      toast({
+        title: "Festivos de Ejemplo Cargados",
+        description: `${newHolidaysToAdd.length} festivos de ejemplo para Chile han sido añadidos. Por favor, revísalos.`,
+      });
+    } else {
+      toast({
+        title: "Sin Cambios",
+        description: "Los festivos de ejemplo ya existen o no se añadieron nuevos.",
+      });
+    }
   };
 
 
@@ -358,9 +411,9 @@ export default function SettingsPage() {
             <DialogTitle>
               Añadir Nuevo Horario para {dayForNewSlot ? dayOfWeekLabels[dayForNewSlot] : ''}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescriptionComponent>
               Completa los detalles para el nuevo horario.
-            </DialogDescription>
+            </DialogDescriptionComponent>
           </DialogHeader>
           <Form {...slotForm}>
             <form onSubmit={slotForm.handleSubmit(onSubmitSlotDialog)} className="space-y-4 py-2">
@@ -543,13 +596,18 @@ export default function SettingsPage() {
             <CalendarDays className="mr-3 h-6 w-6 text-primary" /> 
             Días Festivos Personalizados
           </CardTitle>
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center pt-1">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center pt-1 gap-2">
             <CardDescription>
-              Añade días festivos específicos que la IA debe considerar para la programación.
+              Añade días festivos que la IA debe considerar. Puedes cargar ejemplos de festivos chilenos para revisarlos.
             </CardDescription>
-            <Button onClick={handleOpenAddHolidayDialog} size="sm" className="mt-2 sm:mt-0">
-              <PlusCircle className="mr-2 h-4 w-4" /> Añadir Festivo
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <Button onClick={handleLoadExampleHolidays} size="sm" variant="outline" className="w-full sm:w-auto">
+                    <Upload className="mr-2 h-4 w-4" /> Cargar Ejemplos (Chile)
+                </Button>
+                <Button onClick={handleOpenAddHolidayDialog} size="sm" className="w-full sm:w-auto">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Añadir Festivo Manual
+                </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -558,7 +616,7 @@ export default function SettingsPage() {
               <CalendarDays className="h-16 w-16 text-muted-foreground/70 mb-4" />
               <p className="text-lg font-medium text-muted-foreground mb-1">No hay festivos personalizados.</p>
               <p className="text-sm text-muted-foreground">
-                Haz clic en "Añadir Festivo" para crear el primero.
+                Haz clic en "Añadir Festivo Manual" o "Cargar Ejemplos".
               </p>
             </div>
           ) : (
@@ -676,3 +734,6 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+
+    
