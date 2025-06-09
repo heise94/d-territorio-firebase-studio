@@ -46,7 +46,7 @@ export interface Campaign {
   startDate: Timestamp;
   endDate: Timestamp;
   superintendentName?: string; // Only for 'superintendent_visit'
-  specialCampaignTerritoriesPerDay?: number; 
+  specialCampaignTerritoriesPerDay?: number;
   description?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -61,12 +61,23 @@ export interface CustomHoliday {
   updatedAt: Timestamp;
 }
 
+export interface Assembly {
+  id: string;
+  name: string; // e.g., "Asamblea de Circuito 'Amemos a Jehová'", "Asamblea Regional 2024"
+  startDate: Timestamp;
+  endDate: Timestamp;
+  description?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 export interface SettingsDoc {
   rolePermissions?: RoleConfiguration;
   programScheduleSlots?: ProgramScheduleSlot[];
   groupOrganizedDays?: DayOfWeek[];
   campaigns?: Campaign[];
   customHolidays?: CustomHoliday[];
+  assemblies?: Assembly[]; // Added assemblies
   lastRuralWeekendLeadingGroupId?: string; // ID of the last group that led weekend rural preaching
 }
 
@@ -148,4 +159,3 @@ export interface PreachingGroup {
   createdBy?: string; // User ID or name
   updatedBy?: string; // User ID or name
 }
-

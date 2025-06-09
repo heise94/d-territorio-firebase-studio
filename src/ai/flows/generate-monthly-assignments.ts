@@ -18,6 +18,13 @@ const PreachingGroupAISchema = z.object({
     superintendentId: z.string().optional().describe("Firebase Auth UID of the Superintendent of this Group (SG). This user will be assigned as captain for this group's rural weekend preaching.")
 });
 
+const AssemblyAISchema = z.object({
+    name: z.string().describe("Name or type of the assembly."),
+    startDate: z.string().describe("Assembly start date, YYYY-MM-DD or similar Firestore Timestamp representation"),
+    endDate: z.string().describe("Assembly end date, YYYY-MM-DD or similar Firestore Timestamp representation"),
+    description: z.string().optional().describe("Optional description of the assembly."),
+});
+
 const GenerateMonthlyAssignmentsInputSchema = z.object({
   year: z.number().describe('The year for which to generate the schedule.'),
   month: z.number().describe('The month (0-indexed) for which to generate the schedule.'),
@@ -41,20 +48,21 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
     .array(z.any())
     .describe('Predefined assignments for rural Sundays.'),
   groupPreachingDays: z.any().describe('Days when preaching is organized by groups.'),
-  configuredCampaigns: z.array(z.object({ 
+  configuredCampaigns: z.array(z.object({
     id: z.string(),
     name: z.string(),
-    type: z.string(), 
+    type: z.string(),
     startDate: z.string().describe("Campaign start date, YYYY-MM-DD or similar Firestore Timestamp representation"),
     endDate: z.string().describe("Campaign end date, YYYY-MM-DD or similar Firestore Timestamp representation"),
     superintendentName: z.string().optional(),
     specialCampaignTerritoriesPerDay: z.number().optional().describe("Number of specific territories for this campaign per day. If 0 or undefined, use standard logic or global default."),
     description: z.string().optional(),
   })).describe('Configured campaigns for the month. Each campaign can have its own specialCampaignTerritoriesPerDay. The AI should determine if a campaign is active based on its start/end dates relative to the current month being scheduled.'),
-  specialCampaignTerritoriesPerDay: z 
+  specialCampaignTerritoriesPerDay: z
     .number()
     .describe('Default number of territories to assign per day for special campaigns, if not specified in the campaign object itself.'),
   holidayDatesInMonth: z.array(z.string()).describe('Holiday dates in the month (YYYY-MM-DD format). The AI should consider these for potentially different scheduling patterns, guided by additional instructions.'),
+  assembliesInMonth: z.array(AssemblyAISchema).optional().describe('List of assemblies (Circuit, Regional, etc.) occurring in the scheduling month. No preaching should be scheduled on these dates.'),
   publisherDetailedAvailabilities: z
     .array(z.any())
     .describe('Detailed availability information for each publisher.'),
@@ -83,7 +91,7 @@ const ExtendedMonthlyCaptainAssignmentItemSchema = z.object({
 const GenerateMonthlyAssignmentsOutputSchema = z.object({
   captainAssignments: z.record(
     z.array(ExtendedMonthlyCaptainAssignmentItemSchema)
-  ).describe('Object, key \"YYYY-MM-DD\", value array of ExtendedMonthlyCaptainAssignmentItem'),
+  ).describe('Object, key \"YYYY-MM-DD\", value array of ExtendedMonthlyCaptainAssignmentItem. For days with assemblies, this array should be empty.'),
 });
 
 export type GenerateMonthlyAssignmentsOutput = z.infer<
@@ -137,17 +145,34 @@ const prompt = ai.definePrompt({
   {{/if}}
   Default Special Campaign Territories Per Day (use if a campaign doesn't specify its own, or if relevant for general special days): {{{specialCampaignTerritoriesPerDay}}}
 
+  Assemblies in Month:
+  {{#if assembliesInMonth}}
+    {{#each assembliesInMonth}}
+    - Assembly: {{this.name}}
+      Start Date: {{this.startDate}}
+      End Date: {{this.endDate}}
+      {{#if this.description}}Description: "{{this.description}}"{{/if}}
+    {{/each}}
+  {{else}}
+    No assemblies scheduled for this month.
+  {{/if}}
+
   Rural Preaching Rotation for Weekends:
   Last Rural Weekend Leading Group ID: {{{lastRuralWeekendLeadingGroupId}}}
   All Preaching Groups (with Superintendent IDs): {{{preachingGroups}}}
 
   Key Considerations for Scheduling:
-  1. Campaigns:
+  1. Assembly Days:
+     - For any date that falls within the range of an assembly listed in 'assembliesInMonth', NO preaching assignments should be made.
+     - The 'captainAssignments' for such dates should be an empty array.
+     - The AI should recognize these dates based on the 'startDate' and 'endDate' of each assembly relative to the 'year' and 'month' being scheduled.
+
+  2. Campaigns:
      - Determine active campaigns based on their start/end dates relative to the 'year' and 'month' being scheduled.
      - 'invitation' (Conmemoración/Asamblea) and 'special': Assign more territories as specified by 'specialCampaignTerritoriesPerDay' for that campaign (or the default if not set per campaign). Captain assignment follows normal logic.
      - 'superintendent_visit': On the days of this campaign, assign the specified 'specialCampaignTerritoriesPerDay' (for this campaign) to the 'superintendentName' as the captain. If 'specialCampaignTerritoriesPerDay' is not set for this campaign, use the default. Ensure other captain assignments are adjusted accordingly on these days.
 
-  2. Rural Preaching on Weekends (Saturdays/Sundays that are NOT 'Group Preaching Days' and are available in 'availableDaysWithTimeSlots'):
+  3. Rural Preaching on Weekends (Saturdays/Sundays that are NOT 'Group Preaching Days', 'Holiday Dates', or 'Assembly Days', and are available in 'availableDaysWithTimeSlots'):
      - For RURAL preaching slots on Saturdays or Sundays (including 'designatedRuralSundays' if they fall on a weekend and are available):
        a. Determine the preaching group that should lead. Use the 'preachingGroups' list and 'lastRuralWeekendLeadingGroupId' for rotation. If 'lastRuralWeekendLeadingGroupId' is not set or not found, start with the first group in 'preachingGroups'. The rotation is sequential.
        b. The CAPTAIN for this specific rural weekend assignment MUST be the 'superintendentId' of the selected group.
@@ -156,18 +181,21 @@ const prompt = ai.definePrompt({
        e. Include the 'assignedGroupId' in the output for this assignment.
      - Note: If 'predeterminedRuralSundayAssignments' are provided for specific dates, these take precedence over the rotation logic for those dates.
 
-  3. Rural Preaching on Weekdays (Monday-Friday):
+  4. Rural Preaching on Weekdays (Monday-Friday that are NOT 'Holiday Dates' or 'Assembly Days'):
      - Assignment of captains follows the general logic and 'numberOfCaptains' setting.
 
-  4. Holidays:
+  5. Holidays (that are NOT 'Assembly Days'):
      - For dates listed in 'holidayDatesInMonth', scheduling might need adjustment (e.g., different hours, more/less activity). Refer to 'Additional Instructions' for specific guidance. If no specific instructions, apply standard logic but be mindful they are special days.
 
-  5. Group Preaching Days:
+  6. Group Preaching Days (that are NOT 'Assembly Days'):
      - For any day listed in 'groupPreachingDays', do NOT generate centralized captain assignments. These days are self-organized by the groups.
 
-  Return the schedule in the following JSON format. Ensure 'status' is 'not_sent' for all new assignments. 'preachingType' should be 'publica', 'zoom', or 'rural'.
+  Return the schedule in the following JSON format. Ensure 'status' is 'not_sent' for all new assignments. 'preachingType' should be 'publica', 'zoom', or 'rural'. For assembly days, the array for that date must be empty.
   {
     "captainAssignments": {
+      "YYYY-MM-DD": [ 
+        // Empty array for assembly days, e.g., "2024-03-15": [] 
+      ],
       "YYYY-MM-DD": [
         {
           "id": "UUID",
@@ -175,7 +203,7 @@ const prompt = ai.definePrompt({
           "captain": "Publicador name",
           "time": "HH:MM",
           "status": "not_sent",
-          "preachingType": "publica", 
+          "preachingType": "publica",
           "casaName": "Optional casa name",
           "casaAddress": "Optional casa address",
           "territoryName": "Optional territory name",

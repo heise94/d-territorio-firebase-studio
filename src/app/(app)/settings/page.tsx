@@ -1,17 +1,17 @@
 
 "use client";
 
-import * as React from "react"; 
+import * as React from "react";
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound } from "lucide-react";
+import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck } from "lucide-react"; // Added BookOpenCheck
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup } from "@/types";
+import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly } from "@/types"; // Added Assembly
 import {
   Dialog,
   DialogContent,
@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { AddCampaignDialog } from "@/components/settings/campaigns/add-campaign-dialog";
 import { AddHolidayDialog } from "@/components/settings/holidays/add-holiday-dialog";
+import { AddAssemblyDialog } from "@/components/settings/assemblies/add-assembly-dialog"; // Added Assembly Dialog
 import { Timestamp } from "firebase/firestore";
 import {
   Table,
@@ -83,7 +84,7 @@ const dayOfWeekLabels: Record<DayOfWeek, string> = {
 const dayOrder: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingType, className?: string }) => {
-  const defaultClass = "mr-1 h-4 w-4 shrink-0"; 
+  const defaultClass = "mr-1 h-4 w-4 shrink-0";
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
@@ -112,7 +113,7 @@ export default function SettingsPage() {
   const [dayForNewSlot, setDayForNewSlot] = useState<DayOfWeek | null>(null);
   const { toast } = useToast();
   const [isSubmittingSlotDialog, setIsSubmittingSlotDialog] = useState(false);
-  
+
   const [groupOrganizedDays, setGroupOrganizedDays] = useState<DayOfWeek[]>([]);
   const [isSavingGroupOrganizedDays, setIsSavingGroupOrganizedDays] = useState(false);
 
@@ -123,6 +124,10 @@ export default function SettingsPage() {
   const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   const [isHolidayDialogOpen, setIsHolidayDialogOpen] = useState(false);
   const [holidayToEdit, setHolidayToEdit] = useState<CustomHoliday | null>(null);
+
+  const [assemblies, setAssemblies] = useState<Assembly[]>([]); // State for assemblies
+  const [isAssemblyDialogOpen, setIsAssemblyDialogOpen] = useState(false); // Dialog state for assemblies
+  const [assemblyToEdit, setAssemblyToEdit] = useState<Assembly | null>(null); // Assembly to edit
 
   const [selectedLastRuralGroupId, setSelectedLastRuralGroupId] = useState<string | undefined>(undefined);
   const [isSavingRuralRotation, setIsSavingRuralRotation] = useState(false);
@@ -139,7 +144,7 @@ export default function SettingsPage() {
 
   const handleOpenAddSlotDialog = (day: DayOfWeek) => {
     setDayForNewSlot(day);
-    slotForm.reset({startTime: "", type: undefined, status: "fixed"}); 
+    slotForm.reset({startTime: "", type: undefined, status: "fixed"});
     setIsAddSlotDialogOpen(true);
   };
 
@@ -163,7 +168,7 @@ export default function SettingsPage() {
         return a.startTime.localeCompare(b.startTime);
     }));
     toast({ title: "Horario Añadido", description: `Nuevo horario para ${dayOfWeekLabels[dayForNewSlot]} a las ${data.startTime} (simulación).` });
-    
+
     setIsSubmittingSlotDialog(false);
     setIsAddSlotDialogOpen(false);
     slotForm.reset();
@@ -175,7 +180,7 @@ export default function SettingsPage() {
   };
 
   const handleGroupOrganizedDayChange = (day: DayOfWeek, checked: boolean) => {
-    setGroupOrganizedDays(prev => 
+    setGroupOrganizedDays(prev =>
       checked ? [...prev, day] : prev.filter(d => d !== day)
     );
   };
@@ -201,21 +206,15 @@ export default function SettingsPage() {
     setIsCampaignDialogOpen(true);
   };
 
-  const handleCampaignSubmit = (submittedCampaign: Omit<Campaign, 'isActive'>) => {
-    const campaignWithIsActive = {
-        ...submittedCampaign,
-        // isActive will be determined by dates, so not needed here for storage if removed from type
-    } as Campaign;
-
-
+  const handleCampaignSubmit = (submittedCampaign: Campaign) => {
     setCampaigns(prevCampaigns => {
-      const existingIndex = prevCampaigns.findIndex(c => c.id === campaignWithIsActive.id);
+      const existingIndex = prevCampaigns.findIndex(c => c.id === submittedCampaign.id);
       if (existingIndex > -1) {
         const updatedCampaigns = [...prevCampaigns];
-        updatedCampaigns[existingIndex] = campaignWithIsActive;
+        updatedCampaigns[existingIndex] = submittedCampaign;
         return updatedCampaigns.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
       } else {
-        return [...prevCampaigns, campaignWithIsActive].sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
+        return [...prevCampaigns, submittedCampaign].sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
       }
     });
     setIsCampaignDialogOpen(false);
@@ -225,7 +224,38 @@ export default function SettingsPage() {
     setCampaigns(prevCampaigns => prevCampaigns.filter(c => c.id !== campaignId));
     toast({ title: "Campaña Eliminada", description: "La campaña ha sido eliminada (simulación).", variant: "destructive" });
   };
-  
+
+  // Assembly Handlers
+  const handleOpenAddAssemblyDialog = () => {
+    setAssemblyToEdit(null);
+    setIsAssemblyDialogOpen(true);
+  };
+
+  const handleOpenEditAssemblyDialog = (assembly: Assembly) => {
+    setAssemblyToEdit(assembly);
+    setIsAssemblyDialogOpen(true);
+  };
+
+  const handleAssemblySubmit = (submittedAssembly: Assembly) => {
+    setAssemblies(prevAssemblies => {
+      const existingIndex = prevAssemblies.findIndex(a => a.id === submittedAssembly.id);
+      if (existingIndex > -1) {
+        const updatedAssemblies = [...prevAssemblies];
+        updatedAssemblies[existingIndex] = submittedAssembly;
+        return updatedAssemblies.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
+      } else {
+        return [...prevAssemblies, submittedAssembly].sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
+      }
+    });
+    setIsAssemblyDialogOpen(false);
+  };
+
+  const handleDeleteAssembly = (assemblyId: string) => {
+    setAssemblies(prevAssemblies => prevAssemblies.filter(a => a.id !== assemblyId));
+    toast({ title: "Asamblea Eliminada", description: "La asamblea ha sido eliminada (simulación).", variant: "destructive" });
+  };
+
+
   const handleOpenAddHolidayDialog = () => {
     setHolidayToEdit(null);
     setIsHolidayDialogOpen(true);
@@ -257,36 +287,27 @@ export default function SettingsPage() {
 
   const handleLoadExampleHolidays = () => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); 
+    today.setHours(0, 0, 0, 0);
 
     const baseFixedHolidays: { day: number; month: number; name: string }[] = [
-      { day: 1, month: 0, name: "Año Nuevo" }, // month is 0-indexed
+      { day: 1, month: 0, name: "Año Nuevo" },
       { day: 1, month: 4, name: "Día del Trabajo" },
       { day: 21, month: 4, name: "Día de las Glorias Navales" },
-      // Junio
-      // { day: 9, month: 5, name: "Elecciones Primarias Alcaldes y Gobernadores (Irrenunciable)" }, // Variable, specific to 2024
       { day: 20, month: 5, name: "Día Nacional de los Pueblos Indígenas" },
-      { day: 29, month: 5, name: "San Pedro y San Pablo" }, // Usually moved to nearest Monday if on Tue/Wed/Thu
-      // Julio
+      { day: 29, month: 5, name: "San Pedro y San Pablo" },
       { day: 16, month: 6, name: "Día de la Virgen del Carmen" },
-      // Agosto
       { day: 15, month: 7, name: "Asunción de la Virgen" },
-      // Septiembre
       { day: 18, month: 8, name: "Independencia Nacional" },
       { day: 19, month: 8, name: "Día de las Glorias del Ejército" },
-      // { day: 20, month: 8, name: "Fiestas Patrias (Adicional 2023, check for current year)" }, // Variable, specific to some years
-      // Octubre
-      { day: 12, month: 9, name: "Encuentro de Dos Mundos" }, // Often moved
-      { day: 27, month: 9, name: "Día Nacional de las Iglesias Evangélicas y Protestantes" }, // (variable, usually Oct 31, moved to Fri if Oct 31 is Wed)
+      { day: 12, month: 9, name: "Encuentro de Dos Mundos" },
+      { day: 27, month: 9, name: "Día Nacional de las Iglesias Evangélicas y Protestantes" },
       { day: 31, month: 9, name: "Día Nacional de las Iglesias Evangélicas y Protestantes" },
-      // Noviembre
       { day: 1, month: 10, name: "Día de Todos los Santos" },
-      // Diciembre
       { day: 8, month: 11, name: "Inmaculada Concepción" },
       { day: 25, month: 11, name: "Navidad" },
     ];
-    
-    const easterExamples = [ // These need verification each year
+
+    const easterExamples = [
         { year: 2024, month: 2, day: 29, name: "Viernes Santo (Ej. 2024)"},
         { year: 2024, month: 2, day: 30, name: "Sábado Santo (Ej. 2024)"},
         { year: 2025, month: 3, day: 18, name: "Viernes Santo (Ej. 2025)"},
@@ -300,13 +321,13 @@ export default function SettingsPage() {
     const twelveMonthsFromTodayEnd = new Date(today.getFullYear(), today.getMonth() + 12, today.getDate());
 
 
-    for (let i = 0; i < 12; i++) { 
+    for (let i = 0; i < 12; i++) {
       const currentDateIter = new Date(today.getFullYear(), today.getMonth() + i, 1);
       const targetYear = currentDateIter.getFullYear();
       const targetMonth = currentDateIter.getMonth();
 
       baseFixedHolidays.forEach(bh => {
-        if (bh.month === targetMonth) { 
+        if (bh.month === targetMonth) {
           const potentialHolidayDate = new Date(targetYear, bh.month, bh.day);
           potentialHolidayDate.setHours(0,0,0,0);
 
@@ -318,7 +339,7 @@ export default function SettingsPage() {
               createdAt: Timestamp.now(),
               updatedAt: Timestamp.now(),
             });
-            existingDates.add(potentialHolidayDate.toDateString()); 
+            existingDates.add(potentialHolidayDate.toDateString());
           }
         }
       });
@@ -326,7 +347,7 @@ export default function SettingsPage() {
         if (ee.year === targetYear && ee.month === targetMonth) {
             const potentialHolidayDate = new Date(ee.year, ee.month, ee.day);
             potentialHolidayDate.setHours(0,0,0,0);
-            
+
             if (potentialHolidayDate >= today && potentialHolidayDate < twelveMonthsFromTodayEnd && !existingDates.has(potentialHolidayDate.toDateString())) {
                  newHolidaysToAdd.push({
                   id: crypto.randomUUID(),
@@ -340,7 +361,7 @@ export default function SettingsPage() {
         }
     });
     }
-    
+
 
     if (newHolidaysToAdd.length > 0) {
       setCustomHolidays(prev => [...prev, ...newHolidaysToAdd].sort((a,b) => a.date.toMillis() - b.date.toMillis()));
@@ -359,15 +380,15 @@ export default function SettingsPage() {
 
   const groupedHolidays = useMemo(() => {
     if (!customHolidays.length) return {};
-    
+
     const groups: Record<string, CustomHoliday[]> = {};
-    
+
     customHolidays.forEach(holiday => {
       const holidayDate = holiday.date.toDate();
-      const year = holidayDate.getUTCFullYear(); // Use UTC to avoid timezone shifts changing the date
-      const month = holidayDate.getUTCMonth(); 
-      const monthYearKey = `${year}-${String(month).padStart(2, '0')}`; // Pad month for correct sorting
-      
+      const year = holidayDate.getUTCFullYear();
+      const month = holidayDate.getUTCMonth();
+      const monthYearKey = `${year}-${String(month).padStart(2, '0')}`;
+
       if (!groups[monthYearKey]) {
         groups[monthYearKey] = [];
       }
@@ -380,7 +401,6 @@ export default function SettingsPage() {
 
   const handleSaveRuralRotation = async () => {
     setIsSavingRuralRotation(true);
-    // Simulate saving to Firestore
     await new Promise(resolve => setTimeout(resolve, 700));
     console.log("Configuración de rotación rural guardada (simulación):", selectedLastRuralGroupId);
     toast({
@@ -389,8 +409,6 @@ export default function SettingsPage() {
     });
     setIsSavingRuralRotation(false);
   };
-  
-  // TODO: Cargar `selectedLastRuralGroupId` desde Firestore en un useEffect
 
 
   return (
@@ -636,7 +654,7 @@ export default function SettingsPage() {
                       <TableCell>
                         {formatDate(campaign.startDate.toDate(), "dd/MM/yyyy")} - {formatDate(campaign.endDate.toDate(), "dd/MM/yyyy")}
                       </TableCell>
-                      <TableCell className="text-xs">
+                       <TableCell className="text-xs">
                         {campaign.type === 'superintendent_visit' && campaign.superintendentName && (
                           <div>Sup: {campaign.superintendentName}</div>
                         )}
@@ -692,6 +710,100 @@ export default function SettingsPage() {
         />
       )}
 
+
+      <Card className="hover:shadow-lg transition-shadow">
+        <CardHeader>
+          <CardTitle className="flex items-center text-xl">
+            <BookOpenCheck className="mr-3 h-6 w-6 text-primary" /> {/* Icon for Assemblies */}
+            Gestión de Asambleas
+          </CardTitle>
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center pt-1">
+            <CardDescription>
+              Define fechas de asambleas (Circuito, Regional, etc.). No se programará predicación en estos días.
+            </CardDescription>
+            <Button onClick={handleOpenAddAssemblyDialog} size="sm" className="mt-2 sm:mt-0">
+              <PlusCircle className="mr-2 h-4 w-4" /> Añadir Asamblea
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {assemblies.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center bg-muted/30 rounded-lg border border-dashed">
+              <BookOpenCheck className="h-16 w-16 text-muted-foreground/70 mb-4" />
+              <p className="text-lg font-medium text-muted-foreground mb-1">No hay asambleas configuradas.</p>
+              <p className="text-sm text-muted-foreground">
+                Haz clic en "Añadir Asamblea" para registrar la primera.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre/Tipo</TableHead>
+                    <TableHead>Fechas</TableHead>
+                    <TableHead>Descripción</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {assemblies.map((assembly) => (
+                    <TableRow key={assembly.id}>
+                      <TableCell className="font-medium">{assembly.name}</TableCell>
+                      <TableCell>
+                        {formatDate(assembly.startDate.toDate(), "dd/MM/yyyy")} - {formatDate(assembly.endDate.toDate(), "dd/MM/yyyy")}
+                      </TableCell>
+                      <TableCell className="text-xs italic text-muted-foreground truncate w-64" title={assembly.description}>
+                        {assembly.description || 'N/A'}
+                      </TableCell>
+                      <TableCell className="text-right space-x-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenEditAssemblyDialog(assembly)} className="h-8 w-8">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción eliminará permanentemente la asamblea "{assembly.name}".
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteAssembly(assembly.id)}
+                                className={buttonVariants({variant: "destructive"})}
+                              >
+                                Sí, eliminar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {isAssemblyDialogOpen && (
+        <AddAssemblyDialog
+            isOpen={isAssemblyDialogOpen}
+            onOpenChange={setIsAssemblyDialogOpen}
+            onAssemblySubmit={handleAssemblySubmit}
+            assemblyToEdit={assemblyToEdit}
+        />
+      )}
+
+
       <Card className="hover:shadow-lg transition-shadow">
         <CardHeader>
           <CardTitle className="flex items-center text-xl">
@@ -702,15 +814,14 @@ export default function SettingsPage() {
             Define el último grupo que se hizo cargo de la predicación rural de fin de semana para asegurar una rotación equitativa. La IA usará esta información para asignar al SG del siguiente grupo como capitán.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <div className="space-y-2">
             <Label htmlFor="ruralRotationSelect">Último grupo que dirigió el rural de fin de semana</Label>
             <Select
-              id="ruralRotationSelect"
               value={selectedLastRuralGroupId}
               onValueChange={setSelectedLastRuralGroupId}
             >
-              <SelectTrigger className="w-full sm:w-[300px]">
+              <SelectTrigger className="w-full sm:w-[300px]" id="ruralRotationSelect">
                 <SelectValue placeholder="Seleccionar grupo..." />
               </SelectTrigger>
               <SelectContent>
@@ -739,7 +850,7 @@ export default function SettingsPage() {
       <Card className="hover:shadow-lg transition-shadow">
         <CardHeader>
           <CardTitle className="flex items-center text-xl">
-            <CalendarDays className="mr-3 h-6 w-6 text-primary" /> 
+            <CalendarDays className="mr-3 h-6 w-6 text-primary" />
             Días Festivos Personalizados
           </CardTitle>
           <div className="flex flex-col sm:flex-row justify-between sm:items-center pt-1 gap-2">
@@ -781,14 +892,14 @@ export default function SettingsPage() {
                     const holidaysInMonth = groupedHolidays[monthYearKey];
                     const [yearStr, monthIndexStr] = monthYearKey.split('-');
                     const year = parseInt(yearStr, 10);
-                    const monthIndex = parseInt(monthIndexStr, 10); 
-                    const monthDate = new Date(Date.UTC(year, monthIndex, 1)); 
-                                        
+                    const monthIndex = parseInt(monthIndexStr, 10);
+                    const monthDate = new Date(Date.UTC(year, monthIndex, 1));
+
                     return (
                       <React.Fragment key={monthYearKey}>
                         <TableRow className="bg-muted/40 hover:bg-muted/40 sticky top-0 z-10">
-                          <TableCell 
-                            colSpan={4} 
+                          <TableCell
+                            colSpan={4}
                             className="font-semibold text-primary py-2.5 px-4 text-sm"
                           >
                             {formatDate(monthDate, "MMMM yyyy", { locale: es, timeZone: 'UTC' }).toUpperCase()}
@@ -850,7 +961,7 @@ export default function SettingsPage() {
             holidayToEdit={holidayToEdit}
         />
       )}
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
@@ -900,4 +1011,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
