@@ -7,8 +7,6 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-// Switch is no longer needed for campaigns
-// import { Switch } from "@/components/ui/switch"; 
 import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload } from "lucide-react";
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -59,7 +57,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { format as formatDate, getYear, getMonth, parseISO } from 'date-fns';
+import { format as formatDate, getYear, getMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 
@@ -210,20 +208,6 @@ export default function SettingsPage() {
     toast({ title: "Campaña Eliminada", description: "La campaña ha sido eliminada (simulación).", variant: "destructive" });
   };
   
-  // const handleToggleCampaignActive = (campaignId: string, isActive: boolean) => {
-  //   setCampaigns(prevCampaigns =>
-  //     prevCampaigns.map(c =>
-  //       c.id === campaignId ? { ...c, isActive, updatedAt: Timestamp.now() } : c
-  //     )
-  //   );
-  //   const campaign = campaigns.find(c => c.id === campaignId);
-  //   toast({
-  //     title: `Campaña ${isActive ? "Activada" : "Desactivada"}`,
-  //     description: `La campaña "${campaign?.name}" ha sido ${isActive ? 'activada' : 'desactivada'} (simulación).`,
-  //   });
-  // };
-
-
   const handleOpenAddHolidayDialog = () => {
     setHolidayToEdit(null);
     setIsHolidayDialogOpen(true);
@@ -254,53 +238,100 @@ export default function SettingsPage() {
   };
 
   const handleLoadExampleHolidays = () => {
-    const currentYear = getYear(new Date());
-    const exampleChileanHolidays: Omit<CustomHoliday, 'id' | 'createdAt' | 'updatedAt' | 'description'>[] = [
-      { name: "Año Nuevo", date: Timestamp.fromDate(new Date(currentYear, 0, 1)) },
-      // Dates for Easter can vary, using an example for 2024 - adjust as needed or use a library for accurate dates
-      { name: "Viernes Santo", date: Timestamp.fromDate(new Date(currentYear, 2, 29)) }, 
-      { name: "Sábado Santo", date: Timestamp.fromDate(new Date(currentYear, 2, 30)) }, 
-      { name: "Día del Trabajo", date: Timestamp.fromDate(new Date(currentYear, 4, 1)) }, 
-      { name: "Día de las Glorias Navales", date: Timestamp.fromDate(new Date(currentYear, 4, 21)) }, 
-      { name: "Día Nacional de los Pueblos Indígenas", date: Timestamp.fromDate(new Date(currentYear, 5, 20))}, // Date varies, e.g., June 20th in 2024
-      { name: "San Pedro y San Pablo", date: Timestamp.fromDate(new Date(currentYear, 5, 29)) }, 
-      { name: "Día de la Virgen del Carmen", date: Timestamp.fromDate(new Date(currentYear, 6, 16)) }, 
-      { name: "Asunción de la Virgen", date: Timestamp.fromDate(new Date(currentYear, 7, 15)) }, 
-      { name: "Independencia Nacional", date: Timestamp.fromDate(new Date(currentYear, 8, 18)) }, 
-      { name: "Día de las Glorias del Ejército", date: Timestamp.fromDate(new Date(currentYear, 8, 19)) }, 
-      // "Encuentro de Dos Mundos" might be Columbus Day, date can vary or be moved to nearest Monday
-      { name: "Encuentro de Dos Mundos", date: Timestamp.fromDate(new Date(currentYear, 9, 12)) }, 
-      { name: "Día de las Iglesias Evangélicas y Protestantes", date: Timestamp.fromDate(new Date(currentYear, 9, 31))}, // Can be Oct 31 or moved
-      { name: "Día de Todos los Santos", date: Timestamp.fromDate(new Date(currentYear, 10, 1)) }, 
-      { name: "Inmaculada Concepción", date: Timestamp.fromDate(new Date(currentYear, 11, 8)) }, 
-      { name: "Navidad", date: Timestamp.fromDate(new Date(currentYear, 11, 25)) }, 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalizar a inicio del día para comparaciones
+
+    // Festivos chilenos con fecha fija (día, mes 0-indexed)
+    // Omitimos festivos variables o que se trasladan frecuentemente para esta carga simple.
+    const baseFixedHolidays: { day: number; month: number; name: string }[] = [
+      { day: 1, month: 0, name: "Año Nuevo" },
+      { day: 1, month: 4, name: "Día del Trabajo" },
+      { day: 21, month: 4, name: "Día de las Glorias Navales" },
+      // San Pedro y San Pablo (29 Junio) se mueve a lunes si cae entre martes-viernes. Aquí lo dejamos fijo.
+      { day: 29, month: 5, name: "San Pedro y San Pablo" },
+      { day: 16, month: 6, name: "Día de la Virgen del Carmen" },
+      { day: 15, month: 7, name: "Asunción de la Virgen" },
+      { day: 18, month: 8, name: "Independencia Nacional" },
+      { day: 19, month: 8, name: "Día de las Glorias del Ejército" },
+      { day: 1, month: 10, name: "Día de Todos los Santos" },
+      { day: 8, month: 11, name: "Inmaculada Concepción" },
+      { day: 25, month: 11, name: "Navidad" },
     ];
 
     const newHolidaysToAdd: CustomHoliday[] = [];
-    exampleChileanHolidays.forEach(exHoliday => {
-      const alreadyExists = customHolidays.some(
-        (ch) => ch.date.toDate().toDateString() === exHoliday.date.toDate().toDateString()
-      );
-      if (!alreadyExists) {
-        newHolidaysToAdd.push({
-          ...exHoliday,
-          id: crypto.randomUUID(),
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-        });
-      }
+    const existingDates = new Set(customHolidays.map(h => h.date.toDate().toDateString()));
+
+    for (let i = 0; i < 12; i++) { // Iterar sobre los próximos 12 meses
+      const currentDateIter = new Date(today.getFullYear(), today.getMonth() + i, 1);
+      const targetYear = currentDateIter.getFullYear();
+      const targetMonth = currentDateIter.getMonth();
+
+      baseFixedHolidays.forEach(bh => {
+        if (bh.month === targetMonth) { // Si el festivo base es de este mes
+          const potentialHolidayDate = new Date(targetYear, bh.month, bh.day);
+          potentialHolidayDate.setHours(0,0,0,0);
+
+          // Solo añadir si es en o después de hoy y no existe ya
+          if (potentialHolidayDate >= today && !existingDates.has(potentialHolidayDate.toDateString())) {
+            newHolidaysToAdd.push({
+              id: crypto.randomUUID(),
+              name: bh.name,
+              date: Timestamp.fromDate(potentialHolidayDate),
+              createdAt: Timestamp.now(),
+              updatedAt: Timestamp.now(),
+            });
+            existingDates.add(potentialHolidayDate.toDateString()); // Para evitar duplicados en esta misma carga
+          }
+        }
+      });
+    }
+    
+    // Ejemplo de festivo variable (Semana Santa) - el usuario debería ajustar esto.
+    // Aquí, solo añadimos un ejemplo si cae en los próximos 12 meses para el año actual o el siguiente.
+    const currentYear = today.getFullYear();
+    const nextYear = currentYear + 1;
+    const easterExamples = [
+        // 2024 (si aplica)
+        { year: 2024, month: 2, day: 29, name: "Viernes Santo (Ej. 2024)"},
+        { year: 2024, month: 2, day: 30, name: "Sábado Santo (Ej. 2024)"},
+        // 2025 (si aplica)
+        { year: 2025, month: 3, day: 18, name: "Viernes Santo (Ej. 2025)"},
+        { year: 2025, month: 3, day: 19, name: "Sábado Santo (Ej. 2025)"},
+        // 2026 (si aplica)
+        { year: 2026, month: 3, day: 3, name: "Viernes Santo (Ej. 2026)"},
+        { year: 2026, month: 3, day: 4, name: "Sábado Santo (Ej. 2026)"},
+    ];
+
+    easterExamples.forEach(ee => {
+        const potentialHolidayDate = new Date(ee.year, ee.month, ee.day);
+        potentialHolidayDate.setHours(0,0,0,0);
+        const twelveMonthsFromToday = new Date(today);
+        twelveMonthsFromToday.setMonth(today.getMonth() + 12);
+
+        if (potentialHolidayDate >= today && potentialHolidayDate < twelveMonthsFromToday && !existingDates.has(potentialHolidayDate.toDateString())) {
+             newHolidaysToAdd.push({
+              id: crypto.randomUUID(),
+              name: ee.name,
+              date: Timestamp.fromDate(potentialHolidayDate),
+              createdAt: Timestamp.now(),
+              updatedAt: Timestamp.now(),
+            });
+            existingDates.add(potentialHolidayDate.toDateString());
+        }
     });
+
 
     if (newHolidaysToAdd.length > 0) {
       setCustomHolidays(prev => [...prev, ...newHolidaysToAdd].sort((a,b) => a.date.toMillis() - b.date.toMillis()));
       toast({
         title: "Festivos de Ejemplo Cargados",
-        description: `${newHolidaysToAdd.length} festivos de ejemplo para Chile han sido añadidos. Por favor, revísalos.`,
+        description: `${newHolidaysToAdd.length} festivos de ejemplo para Chile (próximos 12 meses) han sido añadidos. Los festivos variables como Semana Santa son ejemplos, por favor verifíquelos. Otros festivos móviles pueden necesitar ser añadidos manualmente.`,
+        duration: 7000,
       });
     } else {
       toast({
         title: "Sin Cambios",
-        description: "Los festivos de ejemplo ya existen o no se añadieron nuevos.",
+        description: "No se añadieron nuevos festivos de ejemplo (ya existen o no aplican para los próximos 12 meses).",
       });
     }
   };
@@ -312,10 +343,9 @@ export default function SettingsPage() {
     
     customHolidays.forEach(holiday => {
       const holidayDate = holiday.date.toDate();
-      // Use UTC methods to avoid timezone shifts when creating the key
       const year = holidayDate.getUTCFullYear();
-      const month = holidayDate.getUTCMonth(); // 0-indexed
-      const monthYearKey = `${year}-${String(month).padStart(2, '0')}`; // e.g., "2024-00" for Jan
+      const month = holidayDate.getUTCMonth(); 
+      const monthYearKey = `${year}-${String(month).padStart(2, '0')}`; 
       
       if (!groups[monthYearKey]) {
         groups[monthYearKey] = [];
@@ -559,7 +589,6 @@ export default function SettingsPage() {
                     <TableHead>Tipo</TableHead>
                     <TableHead>Fechas</TableHead>
                     <TableHead>Detalles Adic.</TableHead>
-                    {/* <TableHead>Activa</TableHead> */}{/* Removed */}
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -580,13 +609,6 @@ export default function SettingsPage() {
                         )}
                         {campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}
                       </TableCell>
-                      {/* <TableCell>
-                        <Switch
-                          checked={campaign.isActive}
-                          onCheckedChange={(checked) => handleToggleCampaignActive(campaign.id, checked)}
-                          aria-label={campaign.isActive ? "Desactivar campaña" : "Activar campaña"}
-                        />
-                      </TableCell> */}{/* Removed */}
                       <TableCell className="text-right space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenEditCampaignDialog(campaign)} className="h-8 w-8">
                           <Edit className="h-4 w-4" />
@@ -642,7 +664,7 @@ export default function SettingsPage() {
           </CardTitle>
           <div className="flex flex-col sm:flex-row justify-between sm:items-center pt-1 gap-2">
             <CardDescription>
-              Añade días festivos que la IA debe considerar. Puedes cargar ejemplos de festivos chilenos para revisarlos.
+              Añade días festivos que la IA debe considerar. Puedes cargar ejemplos de festivos fijos chilenos para los próximos 12 meses. Los festivos variables o móviles deben añadirse o ajustarse manualmente.
             </CardDescription>
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                 <Button onClick={handleLoadExampleHolidays} size="sm" variant="outline" className="w-full sm:w-auto">
@@ -679,8 +701,7 @@ export default function SettingsPage() {
                     const holidaysInMonth = groupedHolidays[monthYearKey];
                     const [yearStr, monthIndexStr] = monthYearKey.split('-');
                     const year = parseInt(yearStr, 10);
-                    const monthIndex = parseInt(monthIndexStr, 10); // 0-indexed
-                    // Create a date object for the first day of the month in UTC to avoid timezone issues for formatting.
+                    const monthIndex = parseInt(monthIndexStr, 10); 
                     const monthDate = new Date(Date.UTC(year, monthIndex, 1)); 
                                         
                     return (
@@ -799,4 +820,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
