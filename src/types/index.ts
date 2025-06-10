@@ -78,7 +78,7 @@ export interface SettingsDoc {
   campaigns?: Campaign[];
   customHolidays?: CustomHoliday[];
   assemblies?: Assembly[];
-  lastRuralWeekendLeadingGroupId?: string; 
+  lastRuralWeekendLeadingGroupId?: string;
 }
 
 
@@ -87,7 +87,7 @@ export interface DayAvailability {
   pm?: boolean;
 }
 
-export interface CasaAvailability { 
+export interface CasaAvailability {
   monday?: DayAvailability;
   tuesday?: DayAvailability;
   wednesday?: DayAvailability;
@@ -98,13 +98,13 @@ export interface CasaAvailability {
 }
 
 export interface UserAvailability {
-  availableSlotIds?: string[]; 
+  availableSlotIds?: string[];
   general?: CasaAvailability;
 }
 
 
 export interface Casa {
-  id: string; 
+  id: string;
   ownerName: string;
   address: string;
   phoneNumber?: string;
@@ -112,7 +112,7 @@ export interface Casa {
   isBlocked: boolean;
   notes?: string;
   isSuitableForRural?: boolean;
-  addedByGroupId?: string; 
+  addedByGroupId?: string;
 
   lastVisitedAt?: Timestamp;
   createdAt: Timestamp;
@@ -124,23 +124,23 @@ export interface Casa {
 export type TerritoryType = "urban" | "rural";
 
 export interface Territory {
-  id: string; 
-  number?: string; 
+  id: string;
+  number?: string;
   name: string;
   type: TerritoryType;
-  mapImageUrl?: string; 
+  mapImageUrl?: string;
   googleMapsLink?: string;
-  lastWorked?: string; 
+  lastWorked?: string;
   totalBlocks?: number;
-  blockHouseCounts?: number[]; 
-  approxHouseCount?: number; 
+  blockHouseCounts?: number[];
+  approxHouseCount?: number;
   doNotCallAddresses?: string[];
   warnings?: string[];
-  isBlocked: boolean; 
+  isBlocked: boolean;
   blockReason?: string;
   unblockDate?: Timestamp;
-  groupIds?: string[]; 
-  associatedCasaIds?: string[]; 
+  groupIds?: string[];
+  associatedCasaIds?: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
   createdBy?: string;
@@ -148,20 +148,20 @@ export interface Territory {
 }
 
 export interface PreachingGroup {
-  id: string; 
+  id: string;
   name: string;
   description?: string;
-  superintendentId?: string; 
-  auxiliaryId?: string; 
+  superintendentId?: string;
+  auxiliaryId?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  createdBy?: string; 
-  updatedBy?: string; 
+  createdBy?: string;
+  updatedBy?: string;
 }
 
 // Type for an assignment entry, generalized for both user view and admin view
 export type PreachingAssignedType = "publica" | "rural" | "zoom";
-export type AssignmentStatus = "pending" | "accepted" | "rejected" | "replacement_requested" | "replacement_covered" | "cancelled_by_admin";
+export type AssignmentStatus = "pending" | "accepted" | "rejected" | "replacement_requested" | "replacement_covered" | "cancelled_by_admin" | "needs_manual_replacement";
 
 export interface Assignment {
   id: string;
@@ -182,3 +182,12 @@ export interface Assignment {
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
+
+// For the findReplacementCaptain flow
+export interface PublisherDetail {
+  id: string;
+  name: string;
+  email: string;
+  availability: UserAvailability; // Assuming this structure holds slot IDs or similar
+}
+

@@ -2,10 +2,10 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -44,12 +44,17 @@ import {
   UserMinus,
   UserCheck2,
   ShieldAlert,
+  Bot, // Import Bot icon
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
-import type { Assignment, AssignmentStatus, PreachingAssignedType } from "@/types";
+import type { Assignment, AssignmentStatus, PreachingAssignedType, PublisherDetail, ProgramScheduleSlot } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp } from "firebase/firestore";
 import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
+import { findReplacementCaptain } from "@/ai/flows/find-replacement-captain";
+
 
 const MOCK_ADMIN_ASSIGNMENTS: Assignment[] = [
   { id: "A1", userId: "uidUser1", userName: "Ana Pérez", userEmail:"ana.perez@example.com", date: "2024-08-15", time: "09:00", type: "publica", locationName: "Plaza Central", status: "pending", assignedBy: "Admin IA" },
@@ -58,6 +63,25 @@ const MOCK_ADMIN_ASSIGNMENTS: Assignment[] = [
   { id: "A4", userId: "uidUser4", userName: "Carlos Díaz", userEmail:"carlos.diaz@example.com",date: "2024-08-17", time: "11:00", type: "publica", locationName: "Parque Las Acacias", status: "rejected", assignedBy: "Admin IA" },
   { id: "A5", userId: "uidUser1", userName: "Ana Pérez", userEmail:"ana.perez@example.com", date: "2024-08-18", time: "16:00", type: "zoom", locationName: "Sala Zoom #2", status: "replacement_covered", assignedBy: "Admin IA" },
   { id: "A6", userId: "uidUser2", userName: "Luis Gómez", userEmail:"luis.gomez@example.com", date: "2024-08-19", time: "14:00", type: "rural", locationName: "Camino Viejo", status: "cancelled_by_admin", assignedBy: "Admin IA" },
+];
+
+// Mock data for AI flow - replace with actual data fetching later
+const MOCK_AVAILABLE_PUBLISHERS: PublisherDetail[] = [
+    { id: "uidUser1", name: "Ana Pérez", email:"ana.perez@example.com", availability: { availableSlotIds: ["mon-0900-gen", "wed-0930-gen"] } },
+    { id: "uidUser2", name: "Luis Gómez", email:"luis.gomez@example.com", availability: { availableSlotIds: ["mon-1500-zoom", "thu-1400-zoom"] } },
+    { id: "uidUser3", name: "Sofía Castro", email:"sofia.castro@example.com", availability: { availableSlotIds: ["tue-1000-rur", "fri-1000-gen"] } },
+    { id: "uidUser4", name: "Carlos Díaz", email:"carlos.diaz@example.com", availability: { availableSlotIds: ["sat-1000-gen", "sun-1500-zoom"] } },
+    { id: "uidUser5", name: "Elena Jara", email:"elena.jara@example.com", availability: { availableSlotIds: ["mon-0900-gen", "fri-1700-rur"] } },
+];
+const MOCK_PROGRAM_SCHEDULE_SLOTS: ProgramScheduleSlot[] = [
+  { id: 'mon-0900-gen', dayOfWeek: 'monday', startTime: '09:00', type: 'general', status: 'fixed' },
+  { id: 'mon-1500-zoom', dayOfWeek: 'monday', startTime: '15:00', type: 'zoom', status: 'tentative' },
+  { id: 'tue-1000-rur', dayOfWeek: 'tuesday', startTime: '10:00', type: 'rural', status: 'fixed' },
+  { id: 'wed-0930-gen', dayOfWeek: 'wednesday', startTime: '09:30', type: 'general', status: 'fixed' },
+  { id: 'fri-1000-gen', dayOfWeek: 'friday', startTime: '10:00', type: 'general', status: 'fixed' },
+  { id: 'fri-1700-rur', dayOfWeek: 'friday', startTime: '17:00', type: 'rural', status: 'tentative' },
+  { id: 'sat-1000-gen', dayOfWeek: 'saturday', startTime: '10:00', type: 'general', status: 'fixed' },
+  { id: 'sun-1500-zoom', dayOfWeek: 'sunday', startTime: '15:00', type: 'zoom', status: 'fixed' },
 ];
 
 
@@ -84,6 +108,8 @@ const StatusBadge = ({ status }: { status: AssignmentStatus }) => {
       return <Badge variant="secondary"><UserCheck2 className="mr-1.5 h-3 w-3" />Cubierta</Badge>;
     case "cancelled_by_admin":
       return <Badge variant="outline" className="border-slate-500 text-slate-600"><ShieldAlert className="mr-1.5 h-3 w-3" />Cancelada (Admin)</Badge>;
+    case "needs_manual_replacement":
+      return <Badge variant="outline" className="border-red-500 text-red-600"><AlertTriangle className="mr-1.5 h-3 w-3" />Reemplazo Manual</Badge>;
     default:
       return <Badge variant="secondary">{status}</Badge>;
   }
@@ -103,10 +129,10 @@ export default function GestionAsignacionesPage() {
   const [assignments, setAssignments] = useState<Assignment[]>(MOCK_ADMIN_ASSIGNMENTS);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
+  const [isFindingReplacement, setIsFindingReplacement] = useState<string | null>(null); // Stores ID of assignment being processed by AI
 
   const handleEditAssignment = (assignmentId: string) => {
     toast({ title: "Próximamente", description: "La edición de asignaciones estará disponible pronto." });
-    console.log(`Editando asignación ${assignmentId}`);
   };
 
   const handleMarkCovered = (assignmentId: string) => {
@@ -121,7 +147,6 @@ export default function GestionAsignacionesPage() {
   const handleResendReminder = (assignmentId: string) => {
     const assignment = assignments.find(a => a.id === assignmentId);
     toast({ title: "Recordatorio Enviado", description: `Se ha reenviado un recordatorio a ${assignment?.userName || 'el usuario'} (simulación).` });
-    console.log(`Reenviando recordatorio para asignación ${assignmentId}`);
   };
 
   const handleCancelAssignment = (assignmentId: string) => {
@@ -133,6 +158,69 @@ export default function GestionAsignacionesPage() {
     const assignment = assignments.find(a => a.id === assignmentId);
     toast({ title: "Asignación Cancelada", description: `La asignación para ${assignment?.userName || 'el usuario'} ha sido cancelada por el administrador (simulación).`, variant: "destructive" });
   };
+
+  const handleFindReplacementWithAI = async (assignment: Assignment) => {
+    if (!assignment.userId) {
+        toast({title: "Error", description: "La asignación no tiene un capitán original asignado.", variant: "destructive"});
+        return;
+    }
+    setIsFindingReplacement(assignment.id);
+    try {
+        // TODO: Replace MOCK_AVAILABLE_PUBLISHERS and MOCK_PROGRAM_SCHEDULE_SLOTS with actual data fetched from Firestore
+        const replacementInput = {
+            originalAssignment: {
+                date: assignment.date,
+                time: assignment.time,
+                type: assignment.type,
+                locationName: assignment.locationName,
+            },
+            originalCaptainId: assignment.userId,
+            availablePublishers: MOCK_AVAILABLE_PUBLISHERS, // Pass actual data here
+            programScheduleSlots: MOCK_PROGRAM_SCHEDULE_SLOTS, // Pass actual data here
+            additionalInstructions: "Prioritize captains with good attendance if possible."
+        };
+
+        const result = await findReplacementCaptain(replacementInput);
+
+        if (result.newCaptainId && result.newCaptainName && result.newCaptainEmail) {
+            setAssignments(prev =>
+                prev.map(a =>
+                    a.id === assignment.id
+                    ? {
+                        ...a,
+                        userId: result.newCaptainId!,
+                        userName: result.newCaptainName!,
+                        userEmail: result.newCaptainEmail!,
+                        status: 'pending' as AssignmentStatus, // New captain needs to accept
+                        notes: `Reasignado por IA. Original: ${assignment.userName}. ${result.reasoning || ''}`.trim(),
+                        updatedAt: Timestamp.now(),
+                      }
+                    : a
+                )
+            );
+            toast({ title: "Reemplazo Encontrado por IA", description: `${result.newCaptainName} ha sido asignado. Esperando confirmación.`});
+        } else {
+            setAssignments(prev =>
+                prev.map(a =>
+                    a.id === assignment.id ? { ...a, status: 'needs_manual_replacement' as AssignmentStatus, notes: `IA no encontró reemplazo. ${result.reasoning || ''}`.trim() } : a
+                )
+            );
+            toast({ title: "IA no encontró reemplazo", description: result.reasoning || "No se encontró un capitán disponible.", variant: "default" });
+        }
+
+    } catch (error) {
+        console.error("Error finding replacement with AI:", error);
+        toast({ title: "Error con IA", description: "Hubo un problema al buscar reemplazo con la IA.", variant: "destructive" });
+        setAssignments(prev =>
+            prev.map(a =>
+                a.id === assignment.id ? { ...a, status: 'needs_manual_replacement' as AssignmentStatus, notes: "Error durante búsqueda de IA." } : a
+            )
+        );
+    } finally {
+        setIsFindingReplacement(null);
+    }
+  };
+
 
   const filteredAssignments = useMemo(() => {
     if (!searchTerm) return assignments;
@@ -157,7 +245,6 @@ export default function GestionAsignacionesPage() {
               Supervisa y administra todas las asignaciones de predicación.
             </p>
           </div>
-          {/* Placeholder for potential "Generate Month" or "New Manual Assignment" buttons */}
         </div>
 
         <Card className="shadow-lg">
@@ -182,7 +269,6 @@ export default function GestionAsignacionesPage() {
                 />
               </div>
             </div>
-             {/* Placeholder for filters */}
             <p className="text-xs text-muted-foreground pt-2">Filtros avanzados (por fecha, estado, etc.) estarán disponibles pronto.</p>
           </CardHeader>
           <CardContent>
@@ -221,7 +307,6 @@ export default function GestionAsignacionesPage() {
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9">
-                              {/* <AvatarImage src={(assign as any).avatarUrl || undefined} alt={assign.userName} /> */}
                               <AvatarFallback>{getInitials(assign.userName)}</AvatarFallback>
                             </Avatar>
                             <div>
@@ -245,41 +330,52 @@ export default function GestionAsignacionesPage() {
                           <div className="flex items-center justify-end gap-0.5">
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditAssignment(assign.id)}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditAssignment(assign.id)} disabled={isFindingReplacement === assign.id}>
                                   <Edit3 className="h-4 w-4" />
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>Editar Asignación</TooltipContent>
                             </Tooltip>
 
+                            {(assign.status === 'rejected' || assign.status === 'replacement_requested') && (
+                                <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleFindReplacementWithAI(assign)} disabled={isFindingReplacement === assign.id}>
+                                    {isFindingReplacement === assign.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Buscar Reemplazo (IA)</TooltipContent>
+                                </Tooltip>
+                            )}
+
                             {assign.status === 'replacement_requested' && (
                                 <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700" onClick={() => handleMarkCovered(assign.id)}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700" onClick={() => handleMarkCovered(assign.id)} disabled={isFindingReplacement === assign.id}>
                                     <MarkCoveredIcon className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Marcar como Cubierta</TooltipContent>
+                                <TooltipContent>Marcar como Cubierta Manualmente</TooltipContent>
                                 </Tooltip>
                             )}
 
                             {assign.status === 'pending' && (
                                 <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleResendReminder(assign.id)}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleResendReminder(assign.id)} disabled={isFindingReplacement === assign.id}>
                                     <Send className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>Reenviar Recordatorio</TooltipContent>
                                 </Tooltip>
                             )}
-                            
+
                             {(assign.status === 'pending' || assign.status === 'accepted' || assign.status === 'replacement_requested') && (
                                 <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isFindingReplacement === assign.id}>
                                         <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </TooltipTrigger>
@@ -316,3 +412,4 @@ export default function GestionAsignacionesPage() {
     </TooltipProvider>
   );
 }
+
