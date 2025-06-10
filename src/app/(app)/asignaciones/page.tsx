@@ -28,26 +28,26 @@ import {
 import { format, parse, differenceInHours, isBefore, addHours, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Territory, ReportedAssignmentData } from "@/types"; // Importar Territory y ReportedAssignmentData
-import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog"; // Importar el nuevo diálogo
+import type { Territory, ReportedAssignmentData, UserAssignment } from "@/types";
+import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
 import { Timestamp } from "firebase/firestore";
 import { usePermissions } from "@/hooks/use-permissions";
 
 
-type AssignmentStatus = "pending" | "accepted" | "rejected" | "replacement_requested" | "replacement_covered";
-type PreachingAssignedType = "publica" | "rural" | "zoom";
+// type AssignmentStatus = "pending" | "accepted" | "rejected" | "replacement_requested" | "replacement_covered";
+// type PreachingAssignedType = "publica" | "rural" | "zoom";
 
-interface UserAssignment {
-  id: string;
-  date: string; // "YYYY-MM-DD"
-  time: string; // "HH:MM"
-  type: PreachingAssignedType;
-  locationName: string; // Nombre del territorio o casa
-  locationId?: string; // ID del territorio o casa (para cargar detalles)
-  status: AssignmentStatus;
-  assignedBy?: string; // Admin or AI
-  notes?: string;
-}
+// interface UserAssignment {
+//   id: string;
+//   date: string; // "YYYY-MM-DD"
+//   time: string; // "HH:MM"
+//   type: PreachingAssignedType;
+//   locationName: string; // Nombre del territorio o casa
+//   locationId?: string; // ID del territorio o casa (para cargar detalles)
+//   status: AssignmentStatus;
+//   assignedBy?: string; // Admin or AI
+//   notes?: string;
+// }
 
 const MOCK_ASSIGNMENTS: UserAssignment[] = [
   { id: "1", date: format(addHours(new Date(), 20), "yyyy-MM-dd"), time: "09:00", type: "publica", locationName: "Plaza Central", locationId: "T001", status: "pending", assignedBy: "Admin IA" },
@@ -59,7 +59,6 @@ const MOCK_ASSIGNMENTS: UserAssignment[] = [
   { id: "7", date: format(addHours(new Date(), -2), "yyyy-MM-dd"), time: "17:00", type: "publica", locationName: "Metro Universidad", locationId: "T005", status: "accepted", assignedBy: "Admin IA" }, // Asignación recién pasada
 ];
 
-// Territorio mock para el diálogo de reporte
 const MOCK_TERRITORY_FOR_REPORT: Territory = {
   id: "T-Mock",
   name: "Territorio de Ejemplo",
@@ -76,7 +75,7 @@ const MOCK_TERRITORY_FOR_REPORT: Territory = {
 };
 
 
-const PreachingTypeIcon = ({ type, className }: { type: PreachingAssignedType; className?: string }) => {
+const PreachingTypeIcon = ({ type, className }: { type: UserAssignment["type"]; className?: string }) => {
   const defaultClass = "h-5 w-5 shrink-0";
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === "publica") return <Users className={combinedClass} />;
@@ -85,7 +84,7 @@ const PreachingTypeIcon = ({ type, className }: { type: PreachingAssignedType; c
   return null;
 };
 
-const StatusBadge = ({ status }: { status: AssignmentStatus }) => {
+const StatusBadge = ({ status }: { status: UserAssignment["status"] }) => {
   switch (status) {
     case "pending":
       return <Badge variant="outline" className="border-amber-500 text-amber-600"><HelpCircle className="mr-1.5 h-3.5 w-3.5" />Pendiente</Badge>;
@@ -113,7 +112,7 @@ export default function MisAsignacionesPage() {
   const [territoryForReport, setTerritoryForReport] = useState<Territory | null>(null);
 
 
-  const handleUpdateStatus = (assignmentId: string, newStatus: AssignmentStatus) => {
+  const handleUpdateStatus = (assignmentId: string, newStatus: UserAssignment["status"]) => {
     setAssignments(prev =>
       prev.map(assign =>
         assign.id === assignmentId ? { ...assign, status: newStatus } : assign
@@ -174,7 +173,7 @@ export default function MisAsignacionesPage() {
     const reportData: ReportedAssignmentData = {
         assignmentId: assignmentToReport.id,
         territoryNotWorked: data.territoryNotWorked,
-        workedBlocksIds: data.workedBlocksIds || [],
+        workedBlocksIds: data.territoryNotWorked ? [] : (data.workedBlocksIds || []),
         notes: data.notes,
         reportedAt: Timestamp.now(),
         reportedByUserId: userProfile.firebaseAuthUid || "unknown-user",
@@ -199,7 +198,10 @@ export default function MisAsignacionesPage() {
 
 
   const activeAssignments = assignments.filter(a => a.status === 'pending' || a.status === 'accepted' || a.status === 'replacement_requested');
-  const pastAssignments = assignments.filter(a => a.status === 'rejected' || a.status === 'replacement_covered' || isBefore(parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date()), new Date()));
+  const pastAssignments = assignments.filter(a => {
+      const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
+      return a.status === 'rejected' || a.status === 'replacement_covered' || isBefore(assignmentDateTime, new Date());
+  });
 
 
   return (
@@ -238,12 +240,11 @@ export default function MisAsignacionesPage() {
                   const assignmentDateTime = parse(`${assign.date} ${assign.time}`, "yyyy-MM-dd HH:mm", new Date());
                   const isPastAssignment = isBefore(assignmentDateTime, new Date());
                   
-                  const isPastAssignmentForReportActions = isBefore(assignmentDateTime, new Date());
-
+                  const isPastAndAcceptedOrPending = isPastAssignment && (assign.status === 'pending' || assign.status === 'accepted');
 
                   return (
-                    <Card key={assign.id} className={`shadow-md hover:shadow-lg transition-shadow ${isPastAssignment && (assign.status === 'pending' || assign.status === 'accepted') ? 'opacity-60 bg-muted/40' : ''}`}>
-                      <CardHeader className="pb-3">
+                    <Card key={assign.id} className={`shadow-md hover:shadow-lg transition-shadow ${isPastAndAcceptedOrPending ? 'bg-muted/40' : ''}`}>
+                      <CardHeader className={`pb-3 ${isPastAndAcceptedOrPending ? 'opacity-60' : ''}`}>
                         <div className="flex justify-between items-start">
                           <CardTitle className="text-lg font-semibold flex items-center">
                             <PreachingTypeIcon type={assign.type} className="mr-2 text-primary" />
@@ -255,11 +256,11 @@ export default function MisAsignacionesPage() {
                           {format(assignmentDateTime, "EEEE, dd 'de' MMMM 'de' yyyy 'a las' HH:mm 'hrs.'", { locale: es })}
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className="space-y-1 text-xs text-muted-foreground pt-1 pb-3">
+                      <CardContent className={`space-y-1 text-xs text-muted-foreground pt-1 pb-3 ${isPastAndAcceptedOrPending ? 'opacity-60' : ''}`}>
                          <p><span className="font-medium">Tipo:</span> <span className="capitalize">{assign.type}</span></p>
                         {assign.assignedBy && <p><span className="font-medium">Asignado por:</span> {assign.assignedBy}</p>}
                         {assign.notes && <p><span className="font-medium">Notas:</span> <em className="text-foreground/80">{assign.notes}</em></p>}
-                         {isPastAssignment && (assign.status === 'pending' || assign.status === 'accepted') && (
+                         {isPastAndAcceptedOrPending && (
                             <p className="text-amber-600 font-medium flex items-center mt-2">
                                 <Clock className="h-3.5 w-3.5 mr-1" /> Esta asignación ya pasó.
                             </p>
@@ -303,11 +304,10 @@ export default function MisAsignacionesPage() {
                             )}
                           </Tooltip>
                         )}
-                        {isPastAssignmentForReportActions && (assign.type === 'publica' || assign.type === 'rural') && assign.status === 'accepted' && (
+                        {isPastAssignment && (assign.type === 'publica' || assign.type === 'rural') && assign.status === 'accepted' && (
                             <Button
                                 size="sm"
-                                variant="default"
-                                className="col-span-2"
+                                className="col-span-2 bg-sky-600 hover:bg-sky-700 text-white"
                                 onClick={() => handleOpenReportDialog(assign)}
                             >
                                 <FileText className="mr-2 h-4 w-4" /> Reportar Predicación
@@ -328,9 +328,15 @@ export default function MisAsignacionesPage() {
                     {pastAssignments.map((assign) => {
                        const assignmentDateTime = parse(`${assign.date} ${assign.time}`, "yyyy-MM-dd HH:mm", new Date());
                        const isReportableAndPassed = isBefore(assignmentDateTime, new Date()) && (assign.type === 'publica' || assign.type === 'rural') && assign.status === 'accepted';
+                       
+                       const cardBaseClass = "shadow-sm";
+                       const cardBgClass = isReportableAndPassed ? 'bg-card' : 'bg-muted/50'; // Normal bg if reportable, else dimmed
+                       const contentOpacityClass = !isReportableAndPassed ? 'opacity-80' : '';
+
+
                        return (
-                         <Card key={assign.id} className="shadow-sm bg-muted/50 opacity-80">
-                            <CardHeader className="pb-2">
+                         <Card key={assign.id} className={`${cardBaseClass} ${cardBgClass}`}>
+                            <CardHeader className={`pb-2 ${contentOpacityClass}`}>
                                 <div className="flex justify-between items-start">
                                 <CardTitle className="text-base font-semibold flex items-center">
                                     <PreachingTypeIcon type={assign.type} className="mr-2 text-muted-foreground" />
@@ -339,10 +345,10 @@ export default function MisAsignacionesPage() {
                                 <StatusBadge status={assign.status} />
                                 </div>
                                 <CardDescription className="text-xs pt-1">
-                                {format(parse(`${assign.date} ${assign.time}`, "yyyy-MM-dd HH:mm", new Date()), "dd/MM/yy HH:mm 'hrs.'", { locale: es })}
+                                {format(assignmentDateTime, "dd/MM/yy HH:mm 'hrs.'", { locale: es })}
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="text-xs text-muted-foreground pt-0 pb-3 space-y-1">
+                            <CardContent className={`text-xs text-muted-foreground pt-0 pb-3 space-y-1 ${contentOpacityClass}`}>
                                  <p><span className="font-medium">Tipo:</span> <span className="capitalize">{assign.type}</span></p>
                                 {assign.assignedBy && <p><span className="font-medium">Asignado por:</span> {assign.assignedBy}</p>}
                                 {assign.notes && <p><span className="font-medium">Notas:</span> <em className="text-foreground/80">{assign.notes}</em></p>}
@@ -381,4 +387,3 @@ export default function MisAsignacionesPage() {
     </TooltipProvider>
   );
 }
-
