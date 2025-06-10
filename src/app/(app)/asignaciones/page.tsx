@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ import {
   Clock,
   FileText, 
   Edit,
+  FileWarning, // Added FileWarning
 } from "lucide-react";
 import { format, parse, differenceInHours, isBefore, addHours, startOfDay, differenceInMinutes } from "date-fns";
 import { es } from "date-fns/locale";
@@ -38,11 +39,12 @@ import { usePermissions } from "@/hooks/use-permissions";
 const MOCK_ASSIGNMENTS: UserAssignment[] = [
   { id: "1", date: format(addHours(new Date(), 20), "yyyy-MM-dd"), time: "09:00", type: "publica", locationName: "Plaza Central", locationId: "T001", status: "pending", assignedBy: "Admin IA" },
   { id: "2", date: format(addHours(new Date(), 48), "yyyy-MM-dd"), time: "15:00", type: "zoom", locationName: "Sala Zoom #1", status: "accepted", assignedBy: "Admin IA", notes: "Recuerda tener buena iluminación." },
-  { id: "3", date: format(addHours(new Date(), -5), "yyyy-MM-dd"), time: "10:30", type: "rural", locationName: "Sector El Peral", locationId: "T002", status: "accepted", assignedBy: "Admin IA" }, // Asignación pasada
+  { id: "3", date: format(addHours(new Date(), -5), "yyyy-MM-dd"), time: "10:30", type: "rural", locationName: "Sector El Peral", locationId: "T002", status: "accepted", assignedBy: "Admin IA", lastReportData: { assignmentId: "3", territoryNotWorked: false, workedBlocksIds: ["block-0"], notes: "Reporte de prueba para Sector El Peral.", reportedAt: Timestamp.fromDate(addHours(new Date(), -4)), reportedByUserId: "testUser"} }, // Asignación pasada con reporte
   { id: "4", date: format(addHours(new Date(), 72), "yyyy-MM-dd"), time: "11:00", type: "publica", locationName: "Parque Las Acacias", locationId: "T003", status: "rejected", assignedBy: "Admin IA" },
   { id: "5", date: format(addHours(new Date(), 2), "yyyy-MM-dd"), time: "16:00", type: "zoom", locationName: "Sala Zoom #2", status: "replacement_requested", assignedBy: "Admin IA" },
   { id: "6", date: format(addHours(new Date(), -24), "yyyy-MM-dd"), time: "14:00", type: "rural", locationName: "Camino Viejo", locationId: "T004", status: "replacement_covered", assignedBy: "Admin IA" }, 
-  { id: "7", date: format(addHours(new Date(), -2), "yyyy-MM-dd"), time: "17:00", type: "publica", locationName: "Metro Universidad", locationId: "T005", status: "accepted", assignedBy: "Admin IA" }, 
+  { id: "7", date: format(addHours(new Date(), -2), "yyyy-MM-dd"), time: "17:00", type: "publica", locationName: "Metro Universidad", locationId: "T005", status: "accepted", assignedBy: "Admin IA", lastReportData: { assignmentId: "7", territoryNotWorked: true, workedBlocksIds: [], notes: "No se pudo trabajar por lluvia.", reportedAt: Timestamp.fromDate(addHours(new Date(), -1)), reportedByUserId: "testUser"} }, 
+  { id: "8", date: format(addHours(new Date(), -26), "yyyy-MM-dd"), time: "11:00", type: "publica", locationName: "Mercado Modelo", locationId: "T006", status: "accepted", assignedBy: "Admin IA" }, // Past, accepted, NO REPORT
 ];
 
 const MOCK_TERRITORY_FOR_REPORT: Territory = {
@@ -202,8 +204,32 @@ export default function MisAsignacionesPage() {
     return minutesDifference < 60; 
   };
 
+  const activeAssignments = useMemo(() => {
+    return assignments
+      .filter(a => a.status === 'pending' || a.status === 'accepted' || a.status === 'replacement_requested')
+      .sort((a, b) => {
+        const aAssignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
+        const bAssignmentDateTime = parse(`${b.date} ${b.time}`, "yyyy-MM-dd HH:mm", new Date());
+        
+        const aIsPastAndAccepted = isBefore(aAssignmentDateTime, new Date()) && a.status === 'accepted';
+        const bIsPastAndAccepted = isBefore(bAssignmentDateTime, new Date()) && b.status === 'accepted';
 
-  const activeAssignments = assignments.filter(a => a.status === 'pending' || a.status === 'accepted' || a.status === 'replacement_requested');
+        const aIsReportableType = a.type === 'publica' || a.type === 'rural';
+        const bIsReportableType = b.type === 'publica' || b.type === 'rural';
+
+        const aIsPendingReport = aIsPastAndAccepted && aIsReportableType && !a.lastReportData;
+        const bIsPendingReport = bIsPastAndAccepted && bIsReportableType && !b.lastReportData;
+
+        if (aIsPendingReport && !bIsPendingReport) return -1;
+        if (!aIsPendingReport && bIsPendingReport) return 1;
+        
+        // Default sort by date and time
+        if (aAssignmentDateTime < bAssignmentDateTime) return -1;
+        if (aAssignmentDateTime > bAssignmentDateTime) return 1;
+        return 0;
+      });
+  }, [assignments]);
+
   const pastAssignments = assignments.filter(a => {
       const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
       return a.status === 'rejected' || a.status === 'replacement_covered' || a.status === 'cancelled_by_admin' || (isBefore(assignmentDateTime, new Date()) && (a.status === 'accepted' || a.status === 'pending'));
@@ -246,16 +272,19 @@ export default function MisAsignacionesPage() {
                   const assignmentDateTime = parse(`${assign.date} ${assign.time}`, "yyyy-MM-dd HH:mm", new Date());
                   const isPastAssignment = isBefore(assignmentDateTime, new Date());
                   
-                  const isReportableAndPassed = isPastAssignment && (assign.type === 'publica' || assign.type === 'rural') && assign.status === 'accepted';
-                  const cardBaseClass = "shadow-md hover:shadow-lg transition-shadow";
+                  const isReportableType = assign.type === 'publica' || assign.type === 'rural';
+                  const isReportableAndPassed = isPastAssignment && isReportableType && assign.status === 'accepted';
                   
-                  const cardBgClass = isReportableAndPassed && !assign.lastReportData ? 'bg-muted/40' : 'bg-card';
-                  const contentOpacityClass = isReportableAndPassed && !assign.lastReportData ? 'opacity-60' : '';
+                  const cardBaseClass = "shadow-md hover:shadow-lg transition-shadow";
+                  let cardBgClass = 'bg-card';
+                  if (isReportableAndPassed && !assign.lastReportData) {
+                    cardBgClass = 'bg-amber-50 border-amber-400 dark:bg-amber-900/20 dark:border-amber-700/40';
+                  }
 
 
                   return (
                     <Card key={assign.id} className={`${cardBaseClass} ${cardBgClass}`}>
-                      <CardHeader className={`pb-3 ${contentOpacityClass}`}>
+                      <CardHeader className="pb-3">
                         <div className="flex justify-between items-start">
                           <CardTitle className="text-lg font-semibold flex items-center">
                             <PreachingTypeIcon type={assign.type} className="mr-2 text-primary" />
@@ -267,13 +296,13 @@ export default function MisAsignacionesPage() {
                           {format(assignmentDateTime, "EEEE, dd 'de' MMMM 'de' yyyy 'a las' HH:mm 'hrs.'", { locale: es })}
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className={`space-y-1 text-xs text-muted-foreground pt-1 pb-3 ${contentOpacityClass}`}>
+                      <CardContent className="space-y-1 text-xs text-muted-foreground pt-1 pb-3">
                          <p><span className="font-medium">Tipo:</span> <span className="capitalize">{assign.type}</span></p>
                         {assign.assignedBy && <p><span className="font-medium">Asignado por:</span> {assign.assignedBy}</p>}
                         {assign.notes && <p><span className="font-medium">Notas:</span> <em className="text-foreground/80">{assign.notes}</em></p>}
                          {isReportableAndPassed && !assign.lastReportData && (
-                            <p className="text-amber-600 font-medium flex items-center mt-2">
-                                <Clock className="h-3.5 w-3.5 mr-1" /> Esta asignación ya pasó y está pendiente de reporte.
+                            <p className="text-amber-700 dark:text-amber-300 font-semibold flex items-center mt-2">
+                                <AlertTriangle className="h-4 w-4 mr-1.5" /> ¡Esta asignación está pendiente de reporte!
                             </p>
                         )}
                         {assign.lastReportData && (
@@ -365,14 +394,19 @@ export default function MisAsignacionesPage() {
                        const isPast = isBefore(assignmentDateTime, new Date());
                        
                        const showReportActions = isReportableType && wasAccepted && isPast;
+                       const isUnreported = showReportActions && !assign.lastReportData;
 
-                       const cardBaseClass = "shadow-sm";
-                       const cardBgClass = !showReportActions && (assign.status !== 'rejected' && assign.status !== 'cancelled_by_admin') ? 'bg-muted/50' : 'bg-card'; 
-                       const contentOpacityClass = !showReportActions && (assign.status !== 'rejected' && assign.status !== 'cancelled_by_admin') ? 'opacity-80' : '';
-
+                       let cardBgClass = 'bg-card';
+                       let contentOpacityClass = '';
+                       if (isUnreported) {
+                           cardBgClass = 'bg-orange-50 border-orange-400 dark:bg-orange-900/20 dark:border-orange-700/40';
+                       } else if (!showReportActions && (assign.status !== 'rejected' && assign.status !== 'cancelled_by_admin')) {
+                           cardBgClass = 'bg-muted/50';
+                           contentOpacityClass = 'opacity-80';
+                       }
 
                        return (
-                         <Card key={assign.id} className={`${cardBaseClass} ${cardBgClass}`}>
+                         <Card key={assign.id} className={`shadow-sm ${cardBgClass}`}>
                             <CardHeader className={`pb-2 ${contentOpacityClass}`}>
                                 <div className="flex justify-between items-start">
                                 <CardTitle className="text-base font-semibold flex items-center">
@@ -391,7 +425,12 @@ export default function MisAsignacionesPage() {
                                 {assign.notes && <p><span className="font-medium">Notas:</span> <em className="text-foreground/80">{assign.notes}</em></p>}
                                 {assign.lastReportData && (
                                     <p className="text-xs text-green-700 dark:text-green-500 mt-1">
-                                        Reporte enviado el {format(assign.lastReportData.reportedAt.toDate(), "dd/MM HH:mm", { locale: es })}.
+                                        <CheckCircle2 className="inline-block mr-1 h-3 w-3" /> Reporte enviado el {format(assign.lastReportData.reportedAt.toDate(), "dd/MM HH:mm", { locale: es })}.
+                                    </p>
+                                )}
+                                {isUnreported && (
+                                    <p className="text-xs text-orange-700 dark:text-orange-400 font-medium flex items-center mt-1">
+                                        <FileWarning className="mr-1.5 h-3.5 w-3.5" /> Esta asignación no fue reportada.
                                     </p>
                                 )}
                             </CardContent>
