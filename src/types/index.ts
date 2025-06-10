@@ -197,8 +197,10 @@ export interface PublisherDetail {
 // For reporting worked assignments
 export interface ReportedAssignmentData {
   assignmentId: string; // Links back to the original Assignment
-  workedBlocksIds: string[]; // Array of block identifiers that were worked (e.g., ["block-0", "block-1"])
+  territoryNotWorked?: boolean; // True if territory was not worked (e.g. bad weather)
+  workedBlocksIds: string[]; // Array of block identifiers that were worked (e.g., ["block-0", "block-1"]). Empty if territoryNotWorked is true.
   notes?: string;
   reportedAt: Timestamp;
   reportedByUserId: string; // Firebase Auth UID of the user who submitted the report
 }
+

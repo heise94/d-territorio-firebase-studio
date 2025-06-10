@@ -151,8 +151,6 @@ export default function MisAsignacionesPage() {
   };
 
   const handleOpenReportDialog = (assignment: UserAssignment) => {
-    // TODO: En una implementación real, aquí se buscaría el territorio por assignment.locationId
-    // Por ahora, usamos un mock si locationName coincide o si es un tipo reportable
     if (assignment.type === 'publica' || assignment.type === 'rural') {
         const mockTerritory = {
             ...MOCK_TERRITORY_FOR_REPORT,
@@ -162,7 +160,7 @@ export default function MisAsignacionesPage() {
         };
         setTerritoryForReport(mockTerritory);
     } else {
-        setTerritoryForReport(null); // No se reportan otros tipos
+        setTerritoryForReport(null); 
     }
     setAssignmentToReport(assignment);
     setIsReportDialogOpen(true);
@@ -175,16 +173,26 @@ export default function MisAsignacionesPage() {
     }
     const reportData: ReportedAssignmentData = {
         assignmentId: assignmentToReport.id,
+        territoryNotWorked: data.territoryNotWorked,
         workedBlocksIds: data.workedBlocksIds,
         notes: data.notes,
         reportedAt: Timestamp.now(),
         reportedByUserId: userProfile.firebaseAuthUid || "unknown-user",
     };
     console.log("Reporte a enviar (simulación):", reportData);
-    // TODO: Aquí iría la lógica para guardar `reportData` en Firestore
+    
+    let reportSummary = `Reporte para "${assignmentToReport.locationName}" enviado.`;
+    if (reportData.territoryNotWorked) {
+        reportSummary += " Se indicó que el territorio no fue trabajado.";
+        if(reportData.notes) reportSummary += ` Motivo: ${reportData.notes}`;
+    } else {
+        reportSummary += ` Manzanas trabajadas: ${reportData.workedBlocksIds.length > 0 ? reportData.workedBlocksIds.join(', ') : 'Ninguna'}.`;
+    }
+
     toast({
       title: "Reporte Enviado (Simulación)",
-      description: `Reporte para "${assignmentToReport.locationName}" enviado.`,
+      description: reportSummary,
+      duration: 7000,
     });
     setIsReportDialogOpen(false);
   };
@@ -229,10 +237,7 @@ export default function MisAsignacionesPage() {
                   const { canRequest, deadline, tooLate } = canRequestReplacement(assign.date, assign.time);
                   const assignmentDateTime = parse(`${assign.date} ${assign.time}`, "yyyy-MM-dd HH:mm", new Date());
                   const isPastAssignment = isBefore(assignmentDateTime, new Date());
-                  // Condición para mostrar el botón de reporte:
-                  // - Asignación es 'publica' o 'rural'
-                  // - Asignación ha sido aceptada
-                  // - La fecha y hora de la asignación ya pasó
+                  
                   const isPastAssignmentForReportActions = isBefore(assignmentDateTime, new Date());
 
 
@@ -376,3 +381,4 @@ export default function MisAsignacionesPage() {
     </TooltipProvider>
   );
 }
+
