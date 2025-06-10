@@ -26,7 +26,7 @@ export interface RoleConfiguration {
 
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
-export type PreachingType = 'general' | 'rural' | 'zoom';
+export type PreachingType = 'general' | 'rural' | 'zoom'; // Consistent with disponibilidad page
 export type ScheduleSlotStatus = 'fixed' | 'tentative';
 
 export interface ProgramScheduleSlot {
@@ -77,8 +77,8 @@ export interface SettingsDoc {
   groupOrganizedDays?: DayOfWeek[];
   campaigns?: Campaign[];
   customHolidays?: CustomHoliday[];
-  assemblies?: Assembly[]; // Added assemblies
-  lastRuralWeekendLeadingGroupId?: string; // ID of the last group that led weekend rural preaching
+  assemblies?: Assembly[];
+  lastRuralWeekendLeadingGroupId?: string; 
 }
 
 
@@ -87,7 +87,7 @@ export interface DayAvailability {
   pm?: boolean;
 }
 
-export interface CasaAvailability { // Also used for UserAvailability at a high level if not using specific slots
+export interface CasaAvailability { 
   monday?: DayAvailability;
   tuesday?: DayAvailability;
   wednesday?: DayAvailability;
@@ -97,15 +97,14 @@ export interface CasaAvailability { // Also used for UserAvailability at a high 
   sunday?: DayAvailability;
 }
 
-// More granular availability for users, pointing to specific schedule slots
 export interface UserAvailability {
-  availableSlotIds?: string[]; // Array of ProgramScheduleSlot IDs
+  availableSlotIds?: string[]; 
   general?: CasaAvailability;
 }
 
 
 export interface Casa {
-  id: string; // Firestore document ID
+  id: string; 
   ownerName: string;
   address: string;
   phoneNumber?: string;
@@ -113,7 +112,7 @@ export interface Casa {
   isBlocked: boolean;
   notes?: string;
   isSuitableForRural?: boolean;
-  addedByGroupId?: string; // Optional FK to preachingGroups
+  addedByGroupId?: string; 
 
   lastVisitedAt?: Timestamp;
   createdAt: Timestamp;
@@ -125,23 +124,23 @@ export interface Casa {
 export type TerritoryType = "urban" | "rural";
 
 export interface Territory {
-  id: string; // Firestore document ID
-  number?: string; // For urban territories
+  id: string; 
+  number?: string; 
   name: string;
   type: TerritoryType;
-  mapImageUrl?: string; // Data URI or URL to image
+  mapImageUrl?: string; 
   googleMapsLink?: string;
-  lastWorked?: string; // "dd/MM/yyyy" format, updated from reports
+  lastWorked?: string; 
   totalBlocks?: number;
-  blockHouseCounts?: number[]; // Array with house count per block
-  approxHouseCount?: number; // Calculated from blockHouseCounts
+  blockHouseCounts?: number[]; 
+  approxHouseCount?: number; 
   doNotCallAddresses?: string[];
   warnings?: string[];
-  isBlocked: boolean; // Default false
+  isBlocked: boolean; 
   blockReason?: string;
   unblockDate?: Timestamp;
-  groupIds?: string[]; // IDs of preachingGroups assigned (this is the territory being assigned to groups)
-  associatedCasaIds?: string[]; // IDs/Names of nearby houses
+  groupIds?: string[]; 
+  associatedCasaIds?: string[]; 
   createdAt: Timestamp;
   updatedAt: Timestamp;
   createdBy?: string;
@@ -149,13 +148,37 @@ export interface Territory {
 }
 
 export interface PreachingGroup {
-  id: string; // Firestore document ID
+  id: string; 
   name: string;
   description?: string;
-  superintendentId?: string; // User ID of the superintendent (SG)
-  auxiliaryId?: string; // User ID of the auxiliary
+  superintendentId?: string; 
+  auxiliaryId?: string; 
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  createdBy?: string; // User ID or name
-  updatedBy?: string; // User ID or name
+  createdBy?: string; 
+  updatedBy?: string; 
+}
+
+// Type for an assignment entry, generalized for both user view and admin view
+export type PreachingAssignedType = "publica" | "rural" | "zoom";
+export type AssignmentStatus = "pending" | "accepted" | "rejected" | "replacement_requested" | "replacement_covered" | "cancelled_by_admin";
+
+export interface Assignment {
+  id: string;
+  userId?: string; // Firebase Auth UID of the assigned user
+  userName?: string; // Name of the assigned user
+  userEmail?: string; // Email of the assigned user
+  date: string; // "YYYY-MM-DD"
+  time: string; // "HH:MM"
+  type: PreachingAssignedType;
+  locationName: string; // Name of the territory or casa
+  status: AssignmentStatus;
+  assignedBy?: string; // Admin, AI, or system
+  notes?: string;
+  captainId?: string; // User ID of the captain
+  assignedGroupId?: string; // Optional group ID for rural weekend assignments, etc.
+  casaAddress?: string; // Optional casa address
+  territoryName?: string; // Optional territory name (can be same as locationName or more specific)
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }

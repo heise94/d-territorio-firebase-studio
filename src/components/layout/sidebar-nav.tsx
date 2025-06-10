@@ -24,7 +24,7 @@ export interface NavItemConfig {
   icon: React.ElementType;
   permission?: PermissionId;
   children?: NavItemConfig[];
-  segment?: string; // For more precise active state matching
+  segment?: string; 
 }
 
 const navItems: NavItemConfig[] = [
@@ -43,6 +43,7 @@ const navItems: NavItemConfig[] = [
       { title: "Semanal", href: "/programa/semanal", icon: GanttChartSquare, permission: PERMISSIONS.VIEW_WEEKLY_PROGRAM, segment: "semanal" },
     ]
   },
+  { title: "Gestión Asignaciones", href: "/gestion-asignaciones", icon: ListChecks, permission: PERMISSIONS.VIEW_ALL_ASSIGNMENTS, segment: "gestion-asignaciones" },
   { title: "Mis Asignaciones", href: "/asignaciones", icon: CheckSquare, permission: PERMISSIONS.VIEW_OWN_ASSIGNMENTS, segment: "asignaciones" },
   { title: "Mi Disponibilidad", href: "/disponibilidad", icon: UserCog, permission: PERMISSIONS.MANAGE_OWN_AVAILABILITY, segment: "disponibilidad" },
   {
@@ -73,36 +74,19 @@ export function SidebarNav() {
       const pathSegments = cleanPathname.split('/');
       
       if(isParent) {
-        // For parent accordion items, it's active if its base segment is in the path.
-        // e.g., if path is /mi-actividad/asignaciones, and itemSegment is "mi-actividad", it's active.
         return pathSegments.includes(itemSegment);
       }
-      // For child items, check if its own segment is the *last relevant* segment in the path
-      // AND the parent's segment is also present.
-      // Example: path="/mi-actividad/asignaciones", child segment="asignaciones", parent segment="mi-actividad"
-      // Needs to ensure both parent and child segments are matched appropriately.
-      // A simple approach for children: exact href match or path ends with its segment and starts with parent's href.
+      
       if (cleanPathname === cleanItemHref) return true;
       
-      // More robust check for child active state:
-      // Path should start with parent's base href (e.g. /mi-actividad)
-      // And the current item's segment should be present (e.g. "asignaciones")
-      // For child: /mi-actividad/asignaciones, itemHref: /mi-actividad/asignaciones, itemSegment: asignaciones
-      // Parent: /mi-actividad, parentSegment: mi-actividad
-      // Ensure parentSegment is correctly derived if itemHref doesn't have children.
       const lastSlashIndex = itemHref.lastIndexOf('/');
-      const parentPath = lastSlashIndex > 0 ? itemHref.substring(0, lastSlashIndex) : itemHref; // if no slash, or root, use full href
+      const parentPath = lastSlashIndex > 0 ? itemHref.substring(0, lastSlashIndex) : itemHref; 
       
       if (cleanPathname === cleanItemHref) return true;
-      // If itemHref is like /parent/child and itemSegment is child
-      // path should be /parent/child
       if (cleanPathname.startsWith(parentPath) && pathSegments.includes(itemSegment) && cleanPathname.endsWith(itemSegment)) return true;
-      // If itemHref is like /parent and itemSegment is parent (not an accordion parent)
-      // path should be /parent
       if(cleanItemHref === cleanPathname && pathSegments.includes(itemSegment)) return true;
       
-      return false;
-
+      return cleanPathname === cleanItemHref || (itemSegment && cleanPathname.includes(itemSegment) && cleanPathname.startsWith(cleanItemHref));
     }
     return cleanPathname === cleanItemHref;
   };
@@ -113,14 +97,13 @@ export function SidebarNav() {
     }
 
     const Icon = item.icon;
-    // For parent accordion triggers, active state might depend on if any child is active or if path starts with parent href
     const isParentAccordion = !!(item.children && item.children.length > 0);
     const isActive = checkActive(item.href, item.segment, isParentAccordion);
     
     const commonLinkClasses = cn(
       "flex items-center w-full px-3 rounded-md text-sm font-medium transition-colors",
        isActive && !isParentAccordion ? "bg-primary text-primary-foreground" 
-       : isActive && isParentAccordion ? "bg-sidebar-accent text-sidebar-accent-foreground" // Special style for active parent accordion
+       : isActive && isParentAccordion ? "bg-sidebar-accent text-sidebar-accent-foreground" 
        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
        isSubmenu ? "pl-8 text-[0.9rem] py-1.5" : "py-2.5" 
     );
@@ -163,7 +146,7 @@ export function SidebarNav() {
   if (isLoadingPermissions) {
     return (
       <div className="p-4 space-y-3">
-        {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}
+        {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}
       </div>
     );
   }
