@@ -43,16 +43,7 @@ const navItems: NavItemConfig[] = [
       { title: "Semanal", href: "/programa/semanal", icon: GanttChartSquare, permission: PERMISSIONS.VIEW_WEEKLY_PROGRAM, segment: "semanal" },
     ]
   },
-  {
-    title: "Mi Actividad",
-    href: "/mi-actividad",
-    icon: Activity, // Changed Icon
-    segment: "mi-actividad", // Parent segment
-    children: [
-      { title: "Asignaciones", href: "/mi-actividad/asignaciones", icon: ListChecks, permission: PERMISSIONS.VIEW_OWN_ASSIGNMENTS, segment: "asignaciones" },
-      { title: "Mis Asignaciones (Calendario)", href: "/mi-actividad/calendario-asignaciones", icon: CalendarDays, permission: PERMISSIONS.VIEW_OWN_ASSIGNMENTS, segment: "calendario-asignaciones" },
-    ]
-  },
+  { title: "Mis Asignaciones", href: "/asignaciones", icon: CheckSquare, permission: PERMISSIONS.VIEW_OWN_ASSIGNMENTS, segment: "asignaciones" },
   { title: "Mi Disponibilidad", href: "/disponibilidad", icon: UserCog, permission: PERMISSIONS.MANAGE_OWN_AVAILABILITY, segment: "disponibilidad" },
   {
     title: "Mi Grupo",
@@ -98,8 +89,19 @@ export function SidebarNav() {
       // And the current item's segment should be present (e.g. "asignaciones")
       // For child: /mi-actividad/asignaciones, itemHref: /mi-actividad/asignaciones, itemSegment: asignaciones
       // Parent: /mi-actividad, parentSegment: mi-actividad
-      const parentSegment = itemHref.substring(0, itemHref.lastIndexOf('/')); // e.g. /mi-actividad
-      return cleanPathname.startsWith(parentSegment) && pathSegments.includes(itemSegment) && cleanPathname.endsWith(itemSegment);
+      // Ensure parentSegment is correctly derived if itemHref doesn't have children.
+      const lastSlashIndex = itemHref.lastIndexOf('/');
+      const parentPath = lastSlashIndex > 0 ? itemHref.substring(0, lastSlashIndex) : itemHref; // if no slash, or root, use full href
+      
+      if (cleanPathname === cleanItemHref) return true;
+      // If itemHref is like /parent/child and itemSegment is child
+      // path should be /parent/child
+      if (cleanPathname.startsWith(parentPath) && pathSegments.includes(itemSegment) && cleanPathname.endsWith(itemSegment)) return true;
+      // If itemHref is like /parent and itemSegment is parent (not an accordion parent)
+      // path should be /parent
+      if(cleanItemHref === cleanPathname && pathSegments.includes(itemSegment)) return true;
+      
+      return false;
 
     }
     return cleanPathname === cleanItemHref;
