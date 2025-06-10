@@ -28,7 +28,7 @@ import {
   FileWarning,
   Info, // Added Info icon
 } from "lucide-react";
-import { format, parse, differenceInHours, isBefore, addHours, startOfDay, differenceInMinutes, subDays, subHours, addMinutes, getMonth, getYear } from "date-fns";
+import { format, parse, differenceInHours, isBefore, addHours, startOfDay, differenceInMinutes, subDays, subHours, addMinutes, getMonth, getYear, addDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Territory, ReportedAssignmentData, UserAssignment } from "@/types";
@@ -549,7 +549,7 @@ export default function MisAsignacionesPage() {
                        const isUnreported = showReportActions && !assign.lastReportData;
 
                        let cardBgClass = 'bg-card';
-                       if (isUnreported) { // This case (unreported accepted past assignment) will likely be in "activas", but keeping styling consistent if it does appear here.
+                       if (isUnreported) { 
                            cardBgClass = 'bg-orange-50 border-orange-400 dark:bg-orange-900/20 dark:border-orange-700/40';
                        } else if (assign.status === 'rejected' || assign.status === 'cancelled_by_admin') {
                            cardBgClass = 'bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700/40';
@@ -588,7 +588,6 @@ export default function MisAsignacionesPage() {
                                     </p>
                                 )}
                             </CardContent>
-                            {/* No actions (like report button) in history for now, unless specifically requested */}
                          </Card>
                        );
                     })}
