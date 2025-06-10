@@ -180,6 +180,9 @@ export interface ReportedAssignmentData {
   generalNotes?: string; // General notes for the overall preaching activity
   reportedAt: Timestamp;
   reportedByUserId: string;
+  // Optional: To indicate if an additional territory was *selected* during the report submission process
+  // This is different from assignment.additionalTerritorySelected which is set *before* opening report dialog
+  additionalTerritorySelected?: boolean; 
 }
 
 export interface AdditionalTerritoryInfo {
@@ -189,6 +192,7 @@ export interface AdditionalTerritoryInfo {
   type: TerritoryType;
   mapImageUrl?: string;
   totalBlocks?: number; // Crucial for generating report checkboxes
+  dataAiHint?: string;
   // blockHouseCounts?: number[]; // Optional, if needed for report dialog later
 }
 
@@ -226,4 +230,3 @@ export interface PublisherDetail {
   email: string;
   availability: UserAvailability; // Assuming this structure holds slot IDs or similar
 }
-

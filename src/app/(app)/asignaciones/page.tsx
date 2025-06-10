@@ -28,7 +28,7 @@ import {
   FileWarning,
   Info, 
   PlusCircle, // For "Solicitar + Territorio"
-  Map, // For "Solicitar + Territorio" dialog
+  Map as MapIconLucide, // For "Solicitar + Territorio" dialog
 } from "lucide-react";
 import { format, parse, differenceInHours, isBefore, addHours, startOfDay, differenceInMinutes, subDays, subHours, addMinutes, getMonth, getYear, addDays, isSameDay } from "date-fns";
 import { es } from "date-fns/locale";
@@ -237,14 +237,17 @@ export default function MisAsignacionesPage() {
 
   const handleOpenReportDialog = (assignment: UserAssignment, existingReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null) => {
     if (assignment.type === 'publica' || assignment.type === 'rural') {
-        const mockTerritory = { 
+        const mockTerritory: Territory = { 
             ...MOCK_TERRITORY_FOR_REPORT,
             id: assignment.locationId || `mock-main-${assignment.id}`,
             name: assignment.locationName,
-            type: assignment.type === 'publica' ? 'urban' : 'rural', // Pass type for correct handling
-            number: assignment.type === 'publica' ? (MOCK_TERRITORY_FOR_REPORT.number || 'N/A') : undefined, // Pass number if urban
+            type: assignment.type === 'publica' ? 'urban' : 'rural', 
+            number: assignment.type === 'publica' ? (MOCK_TERRITORY_FOR_REPORT.number || 'N/A') : undefined,
+            mapImageUrl: assignment.type === 'publica' ? MOCK_TERRITORY_FOR_REPORT.mapImageUrl : 'https://placehold.co/600x400.png?text=Mapa+Rural',
+            dataAiHint: assignment.type === 'publica' ? MOCK_TERRITORY_FOR_REPORT.dataAiHint : 'rural map',
+            totalBlocks: assignment.type === 'publica' ? MOCK_TERRITORY_FOR_REPORT.totalBlocks : 5, // Example for rural
         };
-        setTerritoryForReport(mockTerritory); // This could be an array if we handle multiple territories in MOCK_TERRITORY
+        setTerritoryForReport(mockTerritory);
     } else {
         setTerritoryForReport(null); 
     }
@@ -266,6 +269,7 @@ export default function MisAsignacionesPage() {
         generalNotes: data.generalNotes,
         reportedAt: Timestamp.now(), 
         reportedByUserId: userProfile.firebaseAuthUid || "unknown-user",
+        additionalTerritorySelected: !!assignmentToReport.additionalTerritorySelected,
     };
     
     setAssignments(prev => prev.map(assign => 
@@ -277,12 +281,19 @@ export default function MisAsignacionesPage() {
     console.log("Reporte a enviar (simulación):", fullReportData);
     
     let reportSummary = `${isEditing ? 'Reporte modificado' : 'Reporte enviado'} para "${assignmentToReport.locationName}".`;
-    if (fullReportData.reports[0]?.territoryNotWorked) {
+    
+    const mainReport = fullReportData.reports.find(r => r.territoryId === (territoryForReport?.id || assignmentToReport.locationId));
+    if (mainReport?.territoryNotWorked) {
         reportSummary += " Se indicó que el territorio principal no fue trabajado.";
     }
-    if(fullReportData.additionalTerritorySelected && fullReportData.reports[1]?.territoryNotWorked) {
-        reportSummary += " Se indicó que el territorio adicional no fue trabajado.";
+
+    if(assignmentToReport.additionalTerritorySelected) {
+        const additionalReport = fullReportData.reports.find(r => r.territoryId === assignmentToReport.additionalTerritorySelected!.id);
+        if (additionalReport?.territoryNotWorked) {
+             reportSummary += " Se indicó que el territorio adicional no fue trabajado.";
+        }
     }
+
     if(fullReportData.generalNotes) reportSummary += ` Notas: ${fullReportData.generalNotes}`;
 
 
@@ -461,13 +472,13 @@ export default function MisAsignacionesPage() {
                   const isTodayAssignment = isSameDay(assignmentDateTime, new Date());
                   
                   const isReportableType = assign.type === 'publica' || assign.type === 'rural';
-                  const isReportableAndPassedAndAccepted = isPastAssignment && isReportableType && assign.status === 'accepted';
+                  const isPendingReport = isPastAssignment && isReportableType && assign.status === 'accepted' && !assign.lastReportData;
                   const canSolicitarTerritorio = assign.status === 'accepted' && isTodayAssignment && isReportableType && !assign.lastReportData && !assign.additionalTerritorySelected;
 
                   
                   const cardBaseClass = "shadow-md hover:shadow-lg transition-shadow";
                   let cardBgClass = 'bg-card';
-                  if (isReportableAndPassedAndAccepted && !assign.lastReportData) {
+                  if (isPendingReport) {
                     cardBgClass = 'bg-amber-50 border-amber-400 dark:bg-amber-900/20 dark:border-amber-700/40';
                   }
 
@@ -491,7 +502,7 @@ export default function MisAsignacionesPage() {
                          {assign.additionalTerritorySelected && <p><span className="font-medium">Terr. Adicional:</span> {assign.additionalTerritorySelected.name}</p>}
                         {assign.assignedBy && <p><span className="font-medium">Asignado por:</span> {assign.assignedBy}</p>}
                         {assign.notes && <p><span className="font-medium">Notas:</span> <em className="text-foreground/80">{assign.notes}</em></p>}
-                         {isReportableAndPassedAndAccepted && !assign.lastReportData && (
+                         {isPendingReport && (
                             <p className="text-amber-700 dark:text-amber-300 font-semibold flex items-center mt-2">
                                 <AlertTriangle className="h-4 w-4 mr-1.5" /> ¡Esta asignación está pendiente de reporte!
                             </p>
@@ -666,8 +677,7 @@ export default function MisAsignacionesPage() {
                                 {assign.lastReportData && (
                                     <p className="text-xs text-green-700 dark:text-green-500 mt-1">
                                         <CheckCircle2 className="inline-block mr-1 h-3 w-3" /> Reporte enviado el {format(assign.lastReportData.reportedAt.toDate(), "dd/MM HH:mm", { locale: es })}.
-                                        {assign.lastReportData.reports[0]?.territoryNotWorked && <span className="ml-1 font-medium text-amber-700 dark:text-amber-500">(Terr. Principal No trabajado)</span>}
-                                        {assign.lastReportData.reports[1]?.territoryNotWorked && <span className="ml-1 font-medium text-amber-700 dark:text-amber-500">(Terr. Adicional No trabajado)</span>}
+                                        {assign.lastReportData.reports.map(r => r.territoryNotWorked ? ` (${r.territoryName} No trabajado)` : '').join('')}
                                     </p>
                                 )}
                                 {isUnreported && (
@@ -692,8 +702,6 @@ export default function MisAsignacionesPage() {
             isOpen={isReportDialogOpen}
             onOpenChange={setIsReportDialogOpen}
             assignment={assignmentToReport}
-            // Pass territoryForReport (main territory details)
-            // The dialog will internally handle additionalTerritorySelected from the assignment object
             territory={territoryForReport} 
             onReportSubmit={handleReportSubmit}
             initialReportData={initialReportDataForDialog}
@@ -715,3 +723,4 @@ export default function MisAsignacionesPage() {
     
 
     
+
