@@ -166,26 +166,44 @@ export type PreachingAssignedType = "publica" | "rural" | "zoom";
 export type AssignmentStatus = "pending" | "accepted" | "rejected" | "replacement_requested" | "replacement_covered" | "cancelled_by_admin" | "needs_manual_replacement";
 
 // For reporting worked assignments
-export interface ReportedAssignmentData {
-  assignmentId: string; // Links back to the original Assignment
-  territoryNotWorked?: boolean; // True if territory was not worked (e.g. bad weather)
-  workedBlocksIds: string[]; // Array of block identifiers that were worked (e.g., ["block-0", "block-1"]). Empty if territoryNotWorked is true.
-  notes?: string;
-  reportedAt: Timestamp;
-  reportedByUserId: string; // Firebase Auth UID of the user who submitted the report
+
+export interface SingleTerritoryReportDetails {
+  territoryId: string;
+  territoryName: string; // To display in summary/history
+  territoryNotWorked?: boolean;
+  workedBlocksIds: string[];
 }
 
-export interface UserAssignment { // This was the type used in MisAsignacionesPage, let's ensure it's consistent
+export interface ReportedAssignmentData {
+  assignmentId: string;
+  reports: SingleTerritoryReportDetails[]; // Array to hold report for main and additional territory
+  generalNotes?: string; // General notes for the overall preaching activity
+  reportedAt: Timestamp;
+  reportedByUserId: string;
+}
+
+export interface AdditionalTerritoryInfo {
+  id: string;
+  name: string;
+  number?: string; // Useful for display, e.g., "U-102"
+  type: TerritoryType;
+  mapImageUrl?: string;
+  totalBlocks?: number; // Crucial for generating report checkboxes
+  // blockHouseCounts?: number[]; // Optional, if needed for report dialog later
+}
+
+export interface UserAssignment {
   id: string;
   date: string; // "YYYY-MM-DD"
   time: string; // "HH:MM"
   type: PreachingAssignedType;
-  locationName: string; // Nombre del territorio o casa
-  locationId?: string; // ID del territorio o casa (para cargar detalles)
+  locationName: string; // Nombre del territorio o casa principal
+  locationId?: string; // ID del territorio o casa principal (para cargar detalles)
   status: AssignmentStatus;
   assignedBy?: string; // Admin or AI
   notes?: string;
-  lastReportData?: ReportedAssignmentData; // Stores the last submitted report for this assignment
+  additionalTerritorySelected?: AdditionalTerritoryInfo; // Info about the selected additional territory
+  lastReportData?: ReportedAssignmentData;
 }
 
 export interface Assignment extends UserAssignment { // Keep Assignment type for admin views if it differs, for now extend UserAssignment
