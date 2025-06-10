@@ -198,7 +198,7 @@ export default function MisAsignacionesPage() {
                         <CardFooter className="border-t pt-4 grid grid-cols-2 gap-2">
                           {assign.status === 'pending' && (
                             <>
-                              <Button size="sm" variant="outline" className="hover:bg-green-500/10 hover:border-green-500 hover:text-green-600" onClick={() => handleUpdateStatus(assign.id, 'accepted')}>
+                              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleUpdateStatus(assign.id, 'accepted')}>
                                 <ThumbsUp className="mr-2 h-4 w-4" /> Aceptar
                               </Button>
                               <Button size="sm" variant="destructive" className="hover:bg-red-700/90" onClick={() => handleUpdateStatus(assign.id, 'rejected')}>
