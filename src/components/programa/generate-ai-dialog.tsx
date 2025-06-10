@@ -32,7 +32,6 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 const generateAIDialogSchema = z.object({
-  numberOfCaptains: z.coerce.number().int().min(1, "Debe haber al menos 1 capitán.").max(5, "Máximo 5 capitanes."),
   additionalInstructions: z.string().max(1000, "Máximo 1000 caracteres.").optional().or(z.literal('')),
 });
 
@@ -41,7 +40,7 @@ type GenerateAIDialogValues = z.infer<typeof generateAIDialogSchema>;
 interface GenerateAIDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSubmitGeneration: (data: { numberOfCaptains: number; additionalInstructions: string; }) => Promise<void>;
+  onSubmitGeneration: (data: { additionalInstructions: string; }) => Promise<void>;
   year: number;
   month: number; // 0-indexed
 }
@@ -53,14 +52,13 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
   const form = useForm<GenerateAIDialogValues>({
     resolver: zodResolver(generateAIDialogSchema),
     defaultValues: {
-      numberOfCaptains: 2,
       additionalInstructions: "",
     },
   });
 
   useEffect(() => {
     if (!isOpen) {
-      form.reset({ numberOfCaptains: 2, additionalInstructions: "" });
+      form.reset({ additionalInstructions: "" });
     }
   }, [isOpen, form]);
 
@@ -68,7 +66,6 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
     setIsSubmitting(true);
     try {
       await onSubmitGeneration({
-        numberOfCaptains: values.numberOfCaptains,
         additionalInstructions: values.additionalInstructions || "",
       });
       // Toast for success will be handled by the parent component after successful generation
@@ -87,7 +84,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
   
   const handleDialogClose = (open: boolean) => {
     if (!open && !isSubmitting) { // Only reset if not submitting, parent handles close on submit
-        form.reset({ numberOfCaptains: 2, additionalInstructions: "" });
+        form.reset({ additionalInstructions: "" });
     }
     onOpenChange(open);
   };
@@ -103,28 +100,11 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
             Generar Programa con IA para {monthName} {year}
           </DialogTitle>
           <DialogDescription>
-            Configura los parámetros para que la IA genere el programa mensual.
-            La IA considerará las campañas, festivos, y disponibilidad configurada.
+            La IA considerará las campañas, festivos, y disponibilidad configurada para asignar un capitán por cada horario de predicación.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-2">
-            <FormField
-              control={form.control}
-              name="numberOfCaptains"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Capitanes por Día Regular</FormLabel>
-                  <FormControl>
-                    <Input type="number" min="1" max="5" placeholder="Ej: 2" {...field} />
-                  </FormControl>
-                  <FormFieldDescription>
-                    Número de capitanes a asignar para los días de semana que no sean festivos o especiales.
-                  </FormFieldDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             <FormField
               control={form.control}
               name="additionalInstructions"

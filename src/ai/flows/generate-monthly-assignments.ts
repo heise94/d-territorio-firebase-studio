@@ -1,5 +1,5 @@
 
-// use server'
+// use server';
 'use server';
 /**
  * @fileOverview AI-powered monthly preaching schedule generation flow.
@@ -28,10 +28,10 @@ const AssemblyAISchema = z.object({
 const GenerateMonthlyAssignmentsInputSchema = z.object({
   year: z.number().describe('The year for which to generate the schedule.'),
   month: z.number().describe('The month (0-indexed) for which to generate the schedule.'),
-  numberOfCaptains: z.number().describe('The number of captains to assign for regular days.'),
+  // numberOfCaptains: z.number().describe('The number of captains to assign for regular days.'), // Removed
   availableDaysWithTimeSlots: z
     .any()
-    .describe('Available days and time slots for preaching.'),
+    .describe('Available days and time slots for preaching. For each day and slot, one captain should be assigned, trying to use different ones if multiple slots on the same day.'),
   assignCasas: z.boolean().describe('Whether to assign houses to the schedule.'),
   availableCasas: z.array(z.any()).describe('Available houses for assignment.'),
   assignTerritories: z.boolean().describe('Whether to assign territories to the schedule.'),
@@ -114,8 +114,7 @@ const prompt = ai.definePrompt({
 
   Year: {{{year}}}
   Month: {{{month}}}
-  Number of Captains Needed per Regular Day: {{{numberOfCaptains}}}
-  Available Days with Time Slots: {{{availableDaysWithTimeSlots}}}
+  Available Days with Time Slots: {{{availableDaysWithTimeSlots}}} (For each day and each slot within that day, you should assign ONE captain. If a day has multiple slots, try to assign different captains to each slot if publisher availability permits.)
   Assign Houses: {{{assignCasas}}}
   Available Houses: {{{availableCasas}}}
   Assign Territories: {{{assignTerritories}}}
@@ -162,32 +161,37 @@ const prompt = ai.definePrompt({
   All Preaching Groups (with Superintendent IDs): {{{preachingGroups}}}
 
   Key Considerations for Scheduling:
-  1. Assembly Days:
+  1. General Captain Assignment:
+     - For each time slot in 'availableDaysWithTimeSlots' on a given day, assign ONE captain.
+     - If a day has multiple time slots (e.g., morning and afternoon), aim to assign a DIFFERENT captain to each slot, based on their availability.
+     - If no specific instructions are given for holidays, apply this general logic.
+
+  2. Assembly Days:
      - For any date that falls within the range of an assembly listed in 'assembliesInMonth', NO preaching assignments should be made.
      - The 'captainAssignments' for such dates should be an empty array.
      - The AI should recognize these dates based on the 'startDate' and 'endDate' of each assembly relative to the 'year' and 'month' being scheduled.
 
-  2. Campaigns:
+  3. Campaigns:
      - Determine active campaigns based on their start/end dates relative to the 'year' and 'month' being scheduled.
-     - 'invitation' (Conmemoración/Asamblea) and 'special': Assign more territories as specified by 'specialCampaignTerritoriesPerDay' for that campaign (or the default if not set per campaign). Captain assignment follows normal logic.
-     - 'superintendent_visit': On the days of this campaign, assign the specified 'specialCampaignTerritoriesPerDay' (for this campaign) to the 'superintendentName' as the captain. If 'specialCampaignTerritoriesPerDay' is not set for this campaign, use the default. Ensure other captain assignments are adjusted accordingly on these days.
+     - 'invitation' (Conmemoración/Asamblea) and 'special': Assign more territories as specified by 'specialCampaignTerritoriesPerDay' for that campaign (or the default if not set per campaign). Captain assignment for each slot follows general logic (one captain per slot).
+     - 'superintendent_visit': On the days of this campaign, assign the specified 'specialCampaignTerritoriesPerDay' (for this campaign) to the 'superintendentName' as the captain for one of the slots. If 'specialCampaignTerritoriesPerDay' is not set for this campaign, use the default. Ensure other captain assignments for other slots on these days are adjusted accordingly.
 
-  3. Rural Preaching on Weekends (Saturdays/Sundays that are NOT 'Group Preaching Days', 'Holiday Dates', or 'Assembly Days', and are available in 'availableDaysWithTimeSlots'):
+  4. Rural Preaching on Weekends (Saturdays/Sundays that are NOT 'Group Preaching Days', 'Holiday Dates', or 'Assembly Days', and are available in 'availableDaysWithTimeSlots'):
      - For RURAL preaching slots on Saturdays or Sundays (including 'designatedRuralSundays' if they fall on a weekend and are available):
        a. Determine the preaching group that should lead. Use the 'preachingGroups' list and 'lastRuralWeekendLeadingGroupId' for rotation. If 'lastRuralWeekendLeadingGroupId' is not set or not found, start with the first group in 'preachingGroups'. The rotation is sequential.
        b. The CAPTAIN for this specific rural weekend assignment MUST be the 'superintendentId' of the selected group.
        c. If the selected group does not have a 'superintendentId', skip that group in the rotation and move to the next one that does. If no groups with SGs are available, log this as an issue or refer to 'additionalInstructions'.
-       d. Only ONE captain (the SG) should be assigned for this rural weekend slot, regardless of 'numberOfCaptains'.
+       d. Only ONE captain (the SG) should be assigned for this rural weekend slot, regardless of the number of slots available on that day. Other slots (e.g. Publica, Zoom) on the same day follow general captain assignment logic.
        e. Include the 'assignedGroupId' in the output for this assignment.
      - Note: If 'predeterminedRuralSundayAssignments' are provided for specific dates, these take precedence over the rotation logic for those dates.
 
-  4. Rural Preaching on Weekdays (Monday-Friday that are NOT 'Holiday Dates' or 'Assembly Days'):
-     - Assignment of captains follows the general logic and 'numberOfCaptains' setting.
+  5. Rural Preaching on Weekdays (Monday-Friday that are NOT 'Holiday Dates' or 'Assembly Days'):
+     - Assignment of captains follows the general logic (one captain per slot).
 
-  5. Holidays (that are NOT 'Assembly Days'):
-     - For dates listed in 'holidayDatesInMonth', scheduling might need adjustment (e.g., different hours, more/less activity). Refer to 'Additional Instructions' for specific guidance. If no specific instructions, apply standard logic but be mindful they are special days.
+  6. Holidays (that are NOT 'Assembly Days'):
+     - For dates listed in 'holidayDatesInMonth', scheduling might need adjustment (e.g., different hours, more/less activity). Refer to 'Additional Instructions' for specific guidance. If no specific instructions, apply standard logic (one captain per slot) but be mindful they are special days.
 
-  6. Group Preaching Days (that are NOT 'Assembly Days'):
+  7. Group Preaching Days (that are NOT 'Assembly Days'):
      - For any day listed in 'groupPreachingDays', do NOT generate centralized captain assignments. These days are self-organized by the groups.
 
   Return the schedule in the following JSON format. Ensure 'status' is 'not_sent' for all new assignments. 'preachingType' should be 'publica', 'zoom', or 'rural'. For assembly days, the array for that date must be empty.
@@ -225,4 +229,3 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
     return output!;
   }
 );
-

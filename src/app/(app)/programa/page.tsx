@@ -32,14 +32,13 @@ export default function ProgramaMensualPage() {
     setIsGenerationDialogOpen(true);
   };
 
-  const handleGenerateAssignments = async (dialogData: { numberOfCaptains: number; additionalInstructions: string; }) => {
+  const handleGenerateAssignments = async (dialogData: { additionalInstructions: string; }) => {
     setIsLoading(true);
     setGeneratedAssignments(null);
 
     const input: GenerateMonthlyAssignmentsInput = {
       year: selectedYear,
       month: selectedMonth, // 0-indexed month
-      numberOfCaptains: dialogData.numberOfCaptains,
       additionalInstructions: dialogData.additionalInstructions,
       // --- Start of placeholder/simulated data for complex inputs ---
       availableDaysWithTimeSlots: { // Example, replace with actual data from settings
@@ -223,4 +222,3 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
-
