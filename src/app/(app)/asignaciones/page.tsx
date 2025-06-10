@@ -138,7 +138,7 @@ export default function MisAsignacionesPage() {
 
   const handleOpenReportDialog = (assignment: UserAssignment, existingReport?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null) => {
     if (assignment.type === 'publica' || assignment.type === 'rural') {
-        const mockTerritory = { // Simulate fetching territory details
+        const mockTerritory = { 
             ...MOCK_TERRITORY_FOR_REPORT,
             id: assignment.locationId || `mock-${assignment.id}`,
             name: assignment.locationName,
@@ -165,7 +165,7 @@ export default function MisAsignacionesPage() {
         territoryNotWorked: data.territoryNotWorked,
         workedBlocksIds: data.territoryNotWorked ? [] : (data.workedBlocksIds || []),
         notes: data.notes,
-        reportedAt: Timestamp.now(), // Always use current time for report submission/update
+        reportedAt: Timestamp.now(), 
         reportedByUserId: userProfile.firebaseAuthUid || "unknown-user",
     };
     
@@ -191,7 +191,7 @@ export default function MisAsignacionesPage() {
       duration: 7000,
     });
     setIsReportDialogOpen(false);
-    setInitialReportDataForDialog(null); // Reset for next time
+    setInitialReportDataForDialog(null); 
   };
 
   const canEditReport = (reportedAtTimestamp?: Timestamp): boolean => {
@@ -199,14 +199,14 @@ export default function MisAsignacionesPage() {
     const reportedAtDate = reportedAtTimestamp.toDate();
     const now = new Date();
     const minutesDifference = differenceInMinutes(now, reportedAtDate);
-    return minutesDifference < 60; // 60 minutes = 1 hour
+    return minutesDifference < 60; 
   };
 
 
   const activeAssignments = assignments.filter(a => a.status === 'pending' || a.status === 'accepted' || a.status === 'replacement_requested');
   const pastAssignments = assignments.filter(a => {
       const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
-      return a.status === 'rejected' || a.status === 'replacement_covered' || isBefore(assignmentDateTime, new Date());
+      return a.status === 'rejected' || a.status === 'replacement_covered' || a.status === 'cancelled_by_admin' || (isBefore(assignmentDateTime, new Date()) && (a.status === 'accepted' || a.status === 'pending'));
   });
 
 
@@ -248,8 +248,10 @@ export default function MisAsignacionesPage() {
                   
                   const isReportableAndPassed = isPastAssignment && (assign.type === 'publica' || assign.type === 'rural') && assign.status === 'accepted';
                   const cardBaseClass = "shadow-md hover:shadow-lg transition-shadow";
-                  const cardBgClass = isReportableAndPassed && !assign.lastReportData ? 'bg-muted/40' : 'bg-card'; // Dim if past & reportable & not yet reported
+                  
+                  const cardBgClass = isReportableAndPassed && !assign.lastReportData ? 'bg-muted/40' : 'bg-card';
                   const contentOpacityClass = isReportableAndPassed && !assign.lastReportData ? 'opacity-60' : '';
+
 
                   return (
                     <Card key={assign.id} className={`${cardBaseClass} ${cardBgClass}`}>
@@ -337,8 +339,7 @@ export default function MisAsignacionesPage() {
                           ) : (
                             <Button
                                 size="sm"
-                                variant="default"
-                                className="col-span-2"
+                                className="col-span-2 bg-sky-600 hover:bg-sky-700 text-white"
                                 onClick={() => handleOpenReportDialog(assign)}
                             >
                                 <FileText className="mr-2 h-4 w-4" /> Reportar Predicación
@@ -414,8 +415,7 @@ export default function MisAsignacionesPage() {
                                     ) : (
                                         <Button
                                             size="sm"
-                                            variant="default" 
-                                            className="w-full"
+                                            className="w-full bg-sky-600 hover:bg-sky-700 text-white"
                                             onClick={() => handleOpenReportDialog(assign)}
                                         >
                                             <FileText className="mr-2 h-4 w-4" /> Reportar Predicación
@@ -447,3 +447,4 @@ export default function MisAsignacionesPage() {
   );
 }
 
+    
