@@ -165,35 +165,6 @@ export interface PreachingGroup {
 export type PreachingAssignedType = "publica" | "rural" | "zoom";
 export type AssignmentStatus = "pending" | "accepted" | "rejected" | "replacement_requested" | "replacement_covered" | "cancelled_by_admin" | "needs_manual_replacement";
 
-export interface Assignment {
-  id: string;
-  userId?: string; // Firebase Auth UID of the assigned user
-  userName?: string; // Name of the assigned user
-  userEmail?: string; // Email of the assigned user
-  date: string; // "YYYY-MM-DD"
-  time: string; // "HH:MM"
-  type: PreachingAssignedType;
-  locationName: string; // Name of the territory or casa
-  locationId?: string; // ID of the territory or casa
-  status: AssignmentStatus;
-  assignedBy?: string; // Admin, AI, or system
-  notes?: string;
-  captainId?: string; // User ID of the captain
-  assignedGroupId?: string; // Optional group ID for rural weekend assignments, etc.
-  casaAddress?: string; // Optional casa address
-  territoryName?: string; // Optional territory name (can be same as locationName or more specific)
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
-}
-
-// For the findReplacementCaptain flow
-export interface PublisherDetail {
-  id: string;
-  name: string;
-  email: string;
-  availability: UserAvailability; // Assuming this structure holds slot IDs or similar
-}
-
 // For reporting worked assignments
 export interface ReportedAssignmentData {
   assignmentId: string; // Links back to the original Assignment
@@ -202,5 +173,39 @@ export interface ReportedAssignmentData {
   notes?: string;
   reportedAt: Timestamp;
   reportedByUserId: string; // Firebase Auth UID of the user who submitted the report
+}
+
+export interface UserAssignment { // This was the type used in MisAsignacionesPage, let's ensure it's consistent
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  time: string; // "HH:MM"
+  type: PreachingAssignedType;
+  locationName: string; // Nombre del territorio o casa
+  locationId?: string; // ID del territorio o casa (para cargar detalles)
+  status: AssignmentStatus;
+  assignedBy?: string; // Admin or AI
+  notes?: string;
+  lastReportData?: ReportedAssignmentData; // Stores the last submitted report for this assignment
+}
+
+export interface Assignment extends UserAssignment { // Keep Assignment type for admin views if it differs, for now extend UserAssignment
+  userId?: string; // Firebase Auth UID of the assigned user
+  userName?: string; // Name of the assigned user
+  userEmail?: string; // Email of the assigned user
+  captainId?: string; // User ID of the captain
+  assignedGroupId?: string; // Optional group ID for rural weekend assignments, etc.
+  casaAddress?: string; // Optional casa address
+  territoryName?: string; // Optional territory name (can be same as locationName or more specific)
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+
+// For the findReplacementCaptain flow
+export interface PublisherDetail {
+  id: string;
+  name: string;
+  email: string;
+  availability: UserAvailability; // Assuming this structure holds slot IDs or similar
 }
 

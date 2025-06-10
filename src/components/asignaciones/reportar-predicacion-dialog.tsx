@@ -2,7 +2,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,19 +35,9 @@ import { es } from "date-fns/locale";
 
 const reportFormSchema = z.object({
   territoryNotWorked: z.boolean().optional().default(false),
-  workedBlocksIds: z.array(z.string()).optional().default([]), // Ahora opcional por defecto
+  workedBlocksIds: z.array(z.string()).optional().default([]),
   notes: z.string().max(1000, "Máximo 1000 caracteres.").optional().or(z.literal('')),
-}).superRefine((data, ctx) => {
-    if (!data.territoryNotWorked && (!data.workedBlocksIds || data.workedBlocksIds.length === 0)) {
-        // Comentamos esta validación temporalmente para permitir enviar reporte vacío si no se trabajó
-        // ctx.addIssue({
-        //   code: z.ZodIssueCode.custom,
-        //   message: "Debes seleccionar al menos una manzana si el territorio fue trabajado.",
-        //   path: ["workedBlocksIds"],
-        // });
-    }
 });
-
 
 type ReportFormValues = z.infer<typeof reportFormSchema>;
 
@@ -57,6 +47,7 @@ interface ReportarPredicacionDialogProps {
   assignment: UserAssignment | null;
   territory: Territory | null;
   onReportSubmit: (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => void;
+  initialReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null;
 }
 
 export function ReportarPredicacionDialog({
@@ -65,9 +56,11 @@ export function ReportarPredicacionDialog({
   assignment,
   territory,
   onReportSubmit,
+  initialReportData,
 }: ReportarPredicacionDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditMode = !!initialReportData;
 
   const form = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
@@ -81,10 +74,22 @@ export function ReportarPredicacionDialog({
   const territoryNotWorked = form.watch("territoryNotWorked");
 
   useEffect(() => {
-    if (!isOpen) {
-      form.reset({ territoryNotWorked: false, workedBlocksIds: [], notes: "" });
+    if (isOpen) {
+      if (initialReportData) {
+        form.reset({
+          territoryNotWorked: initialReportData.territoryNotWorked || false,
+          workedBlocksIds: initialReportData.workedBlocksIds || [],
+          notes: initialReportData.notes || "",
+        });
+      } else {
+        form.reset({
+          territoryNotWorked: false,
+          workedBlocksIds: [],
+          notes: "",
+        });
+      }
     }
-  }, [isOpen, form]);
+  }, [isOpen, initialReportData, form]);
 
   useEffect(() => {
     if (territoryNotWorked) {
@@ -115,6 +120,8 @@ export function ReportarPredicacionDialog({
   if (!assignment) return null;
 
   const assignmentDateTime = parse(`${assignment.date} ${assignment.time}`, "yyyy-MM-dd HH:mm", new Date());
+  const dialogTitleText = isEditMode ? "Modificar Reporte de Predicación" : "Reportar Predicación";
+  const submitButtonText = isEditMode ? "Guardar Cambios" : "Enviar Reporte";
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -122,10 +129,10 @@ export function ReportarPredicacionDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center">
             <FileText className="mr-2 h-6 w-6 text-primary" />
-            Reportar Predicación
+            {dialogTitleText}
           </DialogTitle>
           <DialogDescription>
-            Informa sobre la predicación en el territorio asignado.
+            {isEditMode ? "Actualiza la información del reporte." : "Informa sobre la predicación en el territorio asignado."}
           </DialogDescription>
         </DialogHeader>
         <div className="py-2 space-y-3 text-sm border-b pb-4 mb-4">
@@ -261,7 +268,7 @@ export function ReportarPredicacionDialog({
               </DialogClose>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Enviar Reporte
+                {submitButtonText}
               </Button>
             </DialogFooter>
           </form>
