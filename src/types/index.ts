@@ -129,8 +129,9 @@ export interface Territory {
   name: string;
   type: TerritoryType;
   mapImageUrl?: string;
+  dataAiHint?: string; // For Unsplash hints if mapImageUrl is a placeholder
   googleMapsLink?: string;
-  lastWorked?: string;
+  lastWorked?: string; // Consider making this a Timestamp for easier querying
   totalBlocks?: number;
   blockHouseCounts?: number[];
   approxHouseCount?: number;
@@ -141,6 +142,7 @@ export interface Territory {
   unblockDate?: Timestamp;
   groupIds?: string[];
   associatedCasaIds?: string[];
+  blockIds?: string[]; // Optional: if blocks have specific IDs
   createdAt: Timestamp;
   updatedAt: Timestamp;
   createdBy?: string;
@@ -172,6 +174,7 @@ export interface Assignment {
   time: string; // "HH:MM"
   type: PreachingAssignedType;
   locationName: string; // Name of the territory or casa
+  locationId?: string; // ID of the territory or casa
   status: AssignmentStatus;
   assignedBy?: string; // Admin, AI, or system
   notes?: string;
@@ -191,3 +194,11 @@ export interface PublisherDetail {
   availability: UserAvailability; // Assuming this structure holds slot IDs or similar
 }
 
+// For reporting worked assignments
+export interface ReportedAssignmentData {
+  assignmentId: string; // Links back to the original Assignment
+  workedBlocksIds: string[]; // Array of block identifiers that were worked (e.g., ["block-0", "block-1"])
+  notes?: string;
+  reportedAt: Timestamp;
+  reportedByUserId: string; // Firebase Auth UID of the user who submitted the report
+}

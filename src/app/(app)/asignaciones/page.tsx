@@ -23,10 +23,15 @@ import {
   XCircle,
   CalendarX2,
   Clock,
+  FileText, // Icono para reportar
 } from "lucide-react";
-import { format, parse, differenceInHours, isBefore, addHours } from "date-fns";
+import { format, parse, differenceInHours, isBefore, addHours, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { Territory, ReportedAssignmentData } from "@/types"; // Importar Territory y ReportedAssignmentData
+import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog"; // Importar el nuevo diálogo
+import { Timestamp } from "firebase/firestore";
+import { usePermissions } from "@/hooks/use-permissions";
 
 
 type AssignmentStatus = "pending" | "accepted" | "rejected" | "replacement_requested" | "replacement_covered";
@@ -38,20 +43,37 @@ interface UserAssignment {
   time: string; // "HH:MM"
   type: PreachingAssignedType;
   locationName: string; // Nombre del territorio o casa
+  locationId?: string; // ID del territorio o casa (para cargar detalles)
   status: AssignmentStatus;
   assignedBy?: string; // Admin or AI
   notes?: string;
 }
 
 const MOCK_ASSIGNMENTS: UserAssignment[] = [
-  { id: "1", date: format(addHours(new Date(), 20), "yyyy-MM-dd"), time: "09:00", type: "publica", locationName: "Plaza Central", status: "pending", assignedBy: "Admin IA" },
+  { id: "1", date: format(addHours(new Date(), 20), "yyyy-MM-dd"), time: "09:00", type: "publica", locationName: "Plaza Central", locationId: "T001", status: "pending", assignedBy: "Admin IA" },
   { id: "2", date: format(addHours(new Date(), 48), "yyyy-MM-dd"), time: "15:00", type: "zoom", locationName: "Sala Zoom #1", status: "accepted", assignedBy: "Admin IA", notes: "Recuerda tener buena iluminación." },
-  { id: "3", date: format(addHours(new Date(), 5), "yyyy-MM-dd"), time: "10:30", type: "rural", locationName: "Sector El Peral", status: "accepted", assignedBy: "Admin IA" },
-  { id: "4", date: format(addHours(new Date(), 72), "yyyy-MM-dd"), time: "11:00", type: "publica", locationName: "Parque Las Acacias", status: "rejected", assignedBy: "Admin IA" },
+  { id: "3", date: format(addHours(new Date(), -5), "yyyy-MM-dd"), time: "10:30", type: "rural", locationName: "Sector El Peral", locationId: "T002", status: "accepted", assignedBy: "Admin IA" }, // Asignación pasada
+  { id: "4", date: format(addHours(new Date(), 72), "yyyy-MM-dd"), time: "11:00", type: "publica", locationName: "Parque Las Acacias", locationId: "T003", status: "rejected", assignedBy: "Admin IA" },
   { id: "5", date: format(addHours(new Date(), 2), "yyyy-MM-dd"), time: "16:00", type: "zoom", locationName: "Sala Zoom #2", status: "replacement_requested", assignedBy: "Admin IA" },
-  { id: "6", date: format(addHours(new Date(), -24), "yyyy-MM-dd"), time: "14:00", type: "rural", locationName: "Camino Viejo", status: "replacement_covered", assignedBy: "Admin IA" },
-  { id: "7", date: format(addHours(new Date(), 10), "yyyy-MM-dd"), time: "17:00", type: "publica", locationName: "Metro Universidad", status: "pending", assignedBy: "Admin IA" },
+  { id: "6", date: format(addHours(new Date(), -24), "yyyy-MM-dd"), time: "14:00", type: "rural", locationName: "Camino Viejo", locationId: "T004", status: "replacement_covered", assignedBy: "Admin IA" }, // Asignación pasada, ya cubierta
+  { id: "7", date: format(addHours(new Date(), -2), "yyyy-MM-dd"), time: "17:00", type: "publica", locationName: "Metro Universidad", locationId: "T005", status: "accepted", assignedBy: "Admin IA" }, // Asignación recién pasada
 ];
+
+// Territorio mock para el diálogo de reporte
+const MOCK_TERRITORY_FOR_REPORT: Territory = {
+  id: "T-Mock",
+  name: "Territorio de Ejemplo",
+  type: "urban",
+  number: "101X",
+  mapImageUrl: "https://placehold.co/600x400.png?text=Mapa+Territorio",
+  dataAiHint: "map sketch",
+  totalBlocks: 4,
+  blockHouseCounts: [10, 12, 8, 15],
+  approxHouseCount: 45,
+  isBlocked: false,
+  createdAt: Timestamp.now(),
+  updatedAt: Timestamp.now(),
+};
 
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingAssignedType; className?: string }) => {
@@ -84,6 +106,12 @@ const StatusBadge = ({ status }: { status: AssignmentStatus }) => {
 export default function MisAsignacionesPage() {
   const [assignments, setAssignments] = useState<UserAssignment[]>(MOCK_ASSIGNMENTS);
   const { toast } = useToast();
+  const { userProfile } = usePermissions();
+
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [assignmentToReport, setAssignmentToReport] = useState<UserAssignment | null>(null);
+  const [territoryForReport, setTerritoryForReport] = useState<Territory | null>(null);
+
 
   const handleUpdateStatus = (assignmentId: string, newStatus: AssignmentStatus) => {
     setAssignments(prev =>
@@ -99,9 +127,7 @@ export default function MisAsignacionesPage() {
   };
   
   const handleRequestReplacement = (assignmentId: string) => {
-    // This function would just change status in this simulation
     handleUpdateStatus(assignmentId, 'replacement_requested');
-    // In a real scenario, this might trigger notifications, etc.
   };
 
   const canRequestReplacement = (assignmentDate: string, assignmentTime: string): {canRequest: boolean; deadline: Date | null; tooLate: boolean } => {
@@ -111,17 +137,56 @@ export default function MisAsignacionesPage() {
       
       const now = new Date();
       const hoursUntilAssignment = differenceInHours(assignmentDateTime, now);
-      const deadlineForRequest = addHours(assignmentDateTime, -16); // 16 hours before
+      const deadlineForRequest = addHours(assignmentDateTime, -16);
 
       return {
-        canRequest: hoursUntilAssignment >= 16, // Can request if 16 or more hours away
+        canRequest: hoursUntilAssignment >= 16,
         deadline: deadlineForRequest,
-        tooLate: isBefore(assignmentDateTime, now) || hoursUntilAssignment < 16 // Also too late if event passed or less than 16h away
+        tooLate: isBefore(assignmentDateTime, now) || hoursUntilAssignment < 16
       };
     } catch (error) {
       console.error("Error parsing date/time for replacement check:", error);
       return { canRequest: false, deadline: null, tooLate: false };
     }
+  };
+
+  const handleOpenReportDialog = (assignment: UserAssignment) => {
+    // TODO: En una implementación real, aquí se buscaría el territorio por assignment.locationId
+    // Por ahora, usamos un mock si locationName coincide o si es un tipo reportable
+    if (assignment.type === 'publica' || assignment.type === 'rural') {
+        const mockTerritory = {
+            ...MOCK_TERRITORY_FOR_REPORT,
+            id: assignment.locationId || `mock-${assignment.id}`,
+            name: assignment.locationName,
+            type: assignment.type === 'publica' ? 'urban' : 'rural',
+        };
+        setTerritoryForReport(mockTerritory);
+    } else {
+        setTerritoryForReport(null); // No se reportan otros tipos
+    }
+    setAssignmentToReport(assignment);
+    setIsReportDialogOpen(true);
+  };
+
+  const handleReportSubmit = (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => {
+    if (!assignmentToReport || !userProfile) {
+        toast({ title: "Error", description: "No se pudo enviar el reporte.", variant: "destructive"});
+        return;
+    }
+    const reportData: ReportedAssignmentData = {
+        assignmentId: assignmentToReport.id,
+        workedBlocksIds: data.workedBlocksIds,
+        notes: data.notes,
+        reportedAt: Timestamp.now(),
+        reportedByUserId: userProfile.firebaseAuthUid || "unknown-user",
+    };
+    console.log("Reporte a enviar (simulación):", reportData);
+    // TODO: Aquí iría la lógica para guardar `reportData` en Firestore
+    toast({
+      title: "Reporte Enviado (Simulación)",
+      description: `Reporte para "${assignmentToReport.locationName}" enviado.`,
+    });
+    setIsReportDialogOpen(false);
   };
 
 
@@ -164,11 +229,12 @@ export default function MisAsignacionesPage() {
                   const { canRequest, deadline, tooLate } = canRequestReplacement(assign.date, assign.time);
                   const assignmentDateTime = parse(`${assign.date} ${assign.time}`, "yyyy-MM-dd HH:mm", new Date());
                   const isPastAssignment = isBefore(assignmentDateTime, new Date());
+                  // Condición para mostrar el botón de reporte:
+                  // - Asignación es 'publica' o 'rural'
+                  // - Asignación ha sido aceptada
+                  // - La fecha y hora de la asignación ya pasó
+                  const isPastAssignmentForReportActions = isBefore(assignmentDateTime, new Date());
 
-                  if (isPastAssignment && (assign.status === 'pending' || assign.status === 'accepted')) {
-                    // Don't show actions for past pending/accepted assignments
-                    // but still list them if they weren't explicitly rejected or covered
-                  }
 
                   return (
                     <Card key={assign.id} className={`shadow-md hover:shadow-lg transition-shadow ${isPastAssignment && (assign.status === 'pending' || assign.status === 'accepted') ? 'opacity-60 bg-muted/40' : ''}`}>
@@ -194,47 +260,55 @@ export default function MisAsignacionesPage() {
                             </p>
                         )}
                       </CardContent>
-                      {!isPastAssignment && (assign.status === 'pending' || assign.status === 'accepted') && (
-                        <CardFooter className="border-t pt-4 grid grid-cols-2 gap-2">
-                          {assign.status === 'pending' && (
-                            <>
-                              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleUpdateStatus(assign.id, 'accepted')}>
-                                <ThumbsUp className="mr-2 h-4 w-4" /> Aceptar
-                              </Button>
-                              <Button size="sm" variant="destructive" className="hover:bg-red-700/90" onClick={() => handleUpdateStatus(assign.id, 'rejected')}>
-                                <ThumbsDown className="mr-2 h-4 w-4" /> Rechazar
-                              </Button>
-                            </>
-                          )}
-                          {assign.status === 'accepted' && (
-                            <Tooltip delayDuration={100}>
-                              <TooltipTrigger asChild>
-                                <div className="col-span-2"> {/* Wrapper for tooltip when button is disabled */}
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="w-full hover:bg-blue-500/10 hover:border-blue-500 hover:text-blue-600 disabled:opacity-70"
-                                    onClick={() => handleRequestReplacement(assign.id)}
-                                    disabled={!canRequest || tooLate}
-                                  >
-                                    <UserMinus className="mr-2 h-4 w-4" /> Solicitar Reemplazo
-                                  </Button>
-                                </div>
-                              </TooltipTrigger>
-                              {(!canRequest && deadline && !tooLate) && (
-                                <TooltipContent side="bottom">
-                                  <p className="text-xs">Puedes solicitar hasta el {format(deadline, "dd/MM HH:mm", { locale: es })} hrs.</p>
-                                </TooltipContent>
-                              )}
-                              {tooLate && (
-                                <TooltipContent side="bottom" className="bg-destructive text-destructive-foreground">
-                                  <p className="text-xs">El plazo para solicitar reemplazo ha expirado.</p>
-                                </TooltipContent>
-                              )}
-                            </Tooltip>
-                          )}
-                        </CardFooter>
-                      )}
+                      <CardFooter className="border-t pt-4 grid grid-cols-2 gap-2">
+                        {assign.status === 'pending' && !isPastAssignment && (
+                          <>
+                            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleUpdateStatus(assign.id, 'accepted')}>
+                              <ThumbsUp className="mr-2 h-4 w-4" /> Aceptar
+                            </Button>
+                            <Button size="sm" variant="destructive" className="hover:bg-red-700/90" onClick={() => handleUpdateStatus(assign.id, 'rejected')}>
+                              <ThumbsDown className="mr-2 h-4 w-4" /> Rechazar
+                            </Button>
+                          </>
+                        )}
+                        {assign.status === 'accepted' && !isPastAssignment && (
+                          <Tooltip delayDuration={100}>
+                            <TooltipTrigger asChild>
+                              <div className="col-span-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="w-full hover:bg-blue-500/10 hover:border-blue-500 hover:text-blue-600 disabled:opacity-70"
+                                  onClick={() => handleRequestReplacement(assign.id)}
+                                  disabled={!canRequest || tooLate}
+                                >
+                                  <UserMinus className="mr-2 h-4 w-4" /> Solicitar Reemplazo
+                                </Button>
+                              </div>
+                            </TooltipTrigger>
+                            {(!canRequest && deadline && !tooLate) && (
+                              <TooltipContent side="bottom">
+                                <p className="text-xs">Puedes solicitar hasta el {format(deadline, "dd/MM HH:mm", { locale: es })} hrs.</p>
+                              </TooltipContent>
+                            )}
+                            {tooLate && (
+                              <TooltipContent side="bottom" className="bg-destructive text-destructive-foreground">
+                                <p className="text-xs">El plazo para solicitar reemplazo ha expirado.</p>
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        )}
+                        {isPastAssignmentForReportActions && (assign.type === 'publica' || assign.type === 'rural') && assign.status === 'accepted' && (
+                            <Button 
+                                size="sm" 
+                                variant="default" 
+                                className="col-span-2 bg-sky-600 hover:bg-sky-700 text-white"
+                                onClick={() => handleOpenReportDialog(assign)}
+                            >
+                                <FileText className="mr-2 h-4 w-4" /> Reportar Predicación
+                            </Button>
+                        )}
+                      </CardFooter>
                     </Card>
                   );
                 })}
@@ -246,7 +320,10 @@ export default function MisAsignacionesPage() {
              <section className="mt-12">
               <h2 className="text-2xl font-semibold font-headline mb-4">Historial de Asignaciones</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {pastAssignments.map((assign) => (
+                    {pastAssignments.map((assign) => {
+                       const assignmentDateTime = parse(`${assign.date} ${assign.time}`, "yyyy-MM-dd HH:mm", new Date());
+                       const isReportableAndPassed = isBefore(assignmentDateTime, new Date()) && (assign.type === 'publica' || assign.type === 'rural') && assign.status === 'accepted';
+                       return (
                          <Card key={assign.id} className="shadow-sm bg-muted/50 opacity-80">
                             <CardHeader className="pb-2">
                                 <div className="flex justify-between items-start">
@@ -260,20 +337,42 @@ export default function MisAsignacionesPage() {
                                 {format(parse(`${assign.date} ${assign.time}`, "yyyy-MM-dd HH:mm", new Date()), "dd/MM/yy HH:mm 'hrs.'", { locale: es })}
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="text-xs text-muted-foreground pt-0 pb-3">
+                            <CardContent className="text-xs text-muted-foreground pt-0 pb-3 space-y-1">
                                  <p><span className="font-medium">Tipo:</span> <span className="capitalize">{assign.type}</span></p>
                                 {assign.assignedBy && <p><span className="font-medium">Asignado por:</span> {assign.assignedBy}</p>}
+                                {assign.notes && <p><span className="font-medium">Notas:</span> <em className="text-foreground/80">{assign.notes}</em></p>}
                             </CardContent>
+                            {isReportableAndPassed && (
+                                <CardFooter className="border-t pt-3 pb-3">
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline" 
+                                        className="w-full text-sky-700 border-sky-500 hover:bg-sky-500/10"
+                                        onClick={() => handleOpenReportDialog(assign)}
+                                    >
+                                        <FileText className="mr-2 h-4 w-4" /> Reportar Nuevamente
+                                    </Button>
+                                </CardFooter>
+                            )}
                          </Card>
-                    ))}
+                       );
+                    })}
                 </div>
              </section>
           )}
         </>
       )}
     </div>
+
+    {assignmentToReport && (
+        <ReportarPredicacionDialog
+            isOpen={isReportDialogOpen}
+            onOpenChange={setIsReportDialogOpen}
+            assignment={assignmentToReport}
+            territory={territoryForReport}
+            onReportSubmit={handleReportSubmit}
+        />
+    )}
     </TooltipProvider>
   );
 }
-
-    
