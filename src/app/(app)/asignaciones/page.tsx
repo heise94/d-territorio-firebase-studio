@@ -174,7 +174,7 @@ export default function MisAsignacionesPage() {
     const reportData: ReportedAssignmentData = {
         assignmentId: assignmentToReport.id,
         territoryNotWorked: data.territoryNotWorked,
-        workedBlocksIds: data.workedBlocksIds,
+        workedBlocksIds: data.workedBlocksIds || [],
         notes: data.notes,
         reportedAt: Timestamp.now(),
         reportedByUserId: userProfile.firebaseAuthUid || "unknown-user",
@@ -304,10 +304,10 @@ export default function MisAsignacionesPage() {
                           </Tooltip>
                         )}
                         {isPastAssignmentForReportActions && (assign.type === 'publica' || assign.type === 'rural') && assign.status === 'accepted' && (
-                            <Button 
-                                size="sm" 
-                                variant="default" 
-                                className="col-span-2 bg-sky-600 hover:bg-sky-700 text-white"
+                            <Button
+                                size="sm"
+                                variant="default"
+                                className="col-span-2"
                                 onClick={() => handleOpenReportDialog(assign)}
                             >
                                 <FileText className="mr-2 h-4 w-4" /> Reportar Predicación
@@ -349,9 +349,9 @@ export default function MisAsignacionesPage() {
                             </CardContent>
                             {isReportableAndPassed && (
                                 <CardFooter className="border-t pt-3 pb-3">
-                                    <Button 
-                                        size="sm" 
-                                        variant="outline" 
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
                                         className="w-full text-sky-700 border-sky-500 hover:bg-sky-500/10"
                                         onClick={() => handleOpenReportDialog(assign)}
                                     >
