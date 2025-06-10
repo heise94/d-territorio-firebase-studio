@@ -26,7 +26,7 @@ import {
   FileText, 
   Edit,
   FileWarning,
-  Info, // Added Info icon
+  Info, 
 } from "lucide-react";
 import { format, parse, differenceInHours, isBefore, addHours, startOfDay, differenceInMinutes, subDays, subHours, addMinutes, getMonth, getYear, addDays } from "date-fns";
 import { es } from "date-fns/locale";
@@ -35,9 +35,9 @@ import type { Territory, ReportedAssignmentData, UserAssignment } from "@/types"
 import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
 import { Timestamp } from "firebase/firestore";
 import { usePermissions } from "@/hooks/use-permissions";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Added Tabs
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Added Select
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"; // Added Alert
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; 
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"; 
 
 
 const MOCK_ASSIGNMENTS: UserAssignment[] = [
@@ -280,7 +280,6 @@ export default function MisAsignacionesPage() {
             // Incluir si no tiene reporte, o si tiene reporte y es editable
             return !a.lastReportData || (a.lastReportData && canEditReport(a.lastReportData.reportedAt));
           }
-          // No incluir 'pending' pasadas ni 'replacement_requested' pasadas aquí, irán al historial
           return false;
         }
       })
@@ -341,6 +340,15 @@ export default function MisAsignacionesPage() {
     }).length;
   }, [activeAssignments]);
 
+  const pendingReportCount = useMemo(() => {
+    return activeAssignments.filter(a => {
+      const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
+      const isPastAssignment = isBefore(assignmentDateTime, new Date());
+      const isReportableType = a.type === 'publica' || a.type === 'rural';
+      return isPastAssignment && isReportableType && a.status === 'accepted' && !a.lastReportData;
+    }).length;
+  }, [activeAssignments]);
+
 
   return (
     <TooltipProvider>
@@ -362,12 +370,22 @@ export default function MisAsignacionesPage() {
         </TabsList>
 
         <TabsContent value="activas">
-          {pendingAcceptanceCount > 0 && (
+          {(pendingAcceptanceCount > 0 || pendingReportCount > 0) && (
             <Alert variant="default" className="mb-6 bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700/40 dark:text-blue-300">
                 <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 <AlertTitle className="font-semibold">Atención</AlertTitle>
                 <AlertDescription>
-                    Tienes {pendingAcceptanceCount} asignación(es) pendiente(s) de aceptar o rechazar.
+                    {pendingAcceptanceCount > 0 && (
+                        <p>
+                        Tienes {pendingAcceptanceCount} asignación{pendingAcceptanceCount === 1 ? '' : 'es'} pendiente{pendingAcceptanceCount === 1 ? '' : 's'} de aceptar o rechazar.
+                        </p>
+                    )}
+                    {pendingReportCount > 0 && (
+                        <p className={pendingAcceptanceCount > 0 ? "mt-1" : ""}> 
+                        {pendingAcceptanceCount === 0 ? 'Tienes ' : 'Además, tienes '}
+                        {pendingReportCount} asignación{pendingReportCount === 1 ? '' : 'es'} pendiente{pendingReportCount === 1 ? '' : 's'} de reportar.
+                        </p>
+                    )}
                 </AlertDescription>
             </Alert>
           )}
@@ -612,6 +630,8 @@ export default function MisAsignacionesPage() {
     </TooltipProvider>
   );
 }
+    
+
     
 
     
