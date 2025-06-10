@@ -27,7 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import type { UserAssignment, Territory, ReportedAssignmentData, SingleTerritoryReportDetails, AdditionalTerritoryInfo } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, FileText, MapPin, CalendarDays, Clock, Edit3, CloudOff, Map as MapIcon, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, FileText, MapPin, CalendarDays, Clock, Edit3, CloudOff, Map as MapIcon, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import Image from 'next/image';
 import { format, parse } from "date-fns";
@@ -74,6 +74,7 @@ export function ReportarPredicacionDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = !!initialReportData;
   const [openTerritorySections, setOpenTerritorySections] = useState<Record<string, boolean>>({});
+  const [visibleMaps, setVisibleMaps] = useState<Record<string, boolean>>({});
 
 
   const form = useForm<ReportFormValues>({
@@ -117,6 +118,7 @@ export function ReportarPredicacionDialog({
     if (isOpen) {
       const initialReportsForForm: SingleTerritoryReportDetails[] = [];
       const initialOpenSections: Record<string, boolean> = {};
+      const initialVisibleMaps: Record<string, boolean> = {};
 
       territoriesToReportForForm.forEach((terrInfo, index) => {
         const existingReportForThisTerritory = initialReportData?.reports?.find(r => r.territoryId === terrInfo.id);
@@ -127,6 +129,7 @@ export function ReportarPredicacionDialog({
           workedBlocksIds: existingReportForThisTerritory?.workedBlocksIds || [],
         });
         initialOpenSections[terrInfo.id] = index === 0; // Open first territory by default
+        initialVisibleMaps[terrInfo.id] = false; // Maps are hidden by default
       });
       
       form.reset({
@@ -134,10 +137,12 @@ export function ReportarPredicacionDialog({
         generalNotes: initialReportData?.generalNotes || "",
       });
       setOpenTerritorySections(initialOpenSections);
+      setVisibleMaps(initialVisibleMaps);
 
     } else {
        form.reset({ reports: [], generalNotes: "" });
        setOpenTerritorySections({});
+       setVisibleMaps({});
     }
   }, [isOpen, initialReportData, form, territoriesToReportForForm]);
 
@@ -150,12 +155,20 @@ export function ReportarPredicacionDialog({
         if (currentWorkedBlocks && currentWorkedBlocks.length > 0) {
             form.setValue(`reports.${index}.workedBlocksIds`, [], { shouldDirty: true });
         }
+        // If territory not worked, also hide its map if it was visible
+        if (visibleMaps[report.territoryId]) {
+            setVisibleMaps(prev => ({ ...prev, [report.territoryId]: false }));
+        }
       }
     });
-  }, [watchedReports, form]);
+  }, [watchedReports, form, visibleMaps]);
 
   const toggleTerritorySection = (territoryId: string) => {
     setOpenTerritorySections(prev => ({ ...prev, [territoryId]: !prev[territoryId] }));
+  };
+
+  const toggleMapVisibility = (territoryId: string) => {
+    setVisibleMaps(prev => ({ ...prev, [territoryId]: !prev[territoryId] }));
   };
 
 
@@ -216,6 +229,7 @@ export function ReportarPredicacionDialog({
 
               const isSectionOpen = openTerritorySections[fieldItem.territoryId] ?? index === 0;
               const territoryNotWorked = form.watch(`reports.${index}.territoryNotWorked`);
+              const isMapVisible = visibleMaps[fieldItem.territoryId] ?? false;
 
               return (
                 <div key={fieldItem.id} className="rounded-md border shadow-sm">
@@ -260,19 +274,32 @@ export function ReportarPredicacionDialog({
                         />
 
                         {currentTerritoryInfo.mapImageUrl && (
-                        <div className={`mb-4 ${territoryNotWorked ? 'opacity-50' : ''}`}>
-                            <FormLabel className="text-sm font-medium">Mapa de {currentTerritoryInfo.name}</FormLabel>
-                            <div className="mt-1 relative w-full aspect-[4/3] rounded-md overflow-hidden border shadow-sm">
-                            <Image
-                                src={currentTerritoryInfo.mapImageUrl}
-                                alt={`Mapa de ${currentTerritoryInfo.name}`}
-                                layout="fill"
-                                objectFit="contain"
-                                data-ai-hint={currentTerritoryInfo.dataAiHint || "map sketch"}
-                            />
-                            </div>
-                        </div>
+                          <div className="mb-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => toggleMapVisibility(fieldItem.territoryId)}
+                              disabled={territoryNotWorked}
+                              className="text-xs"
+                            >
+                              <Eye className="mr-1.5 h-3.5 w-3.5" />
+                              {isMapVisible ? "Ocultar Mapa" : "Ver Mapa"} de {currentTerritoryInfo.name}
+                            </Button>
+                            {isMapVisible && !territoryNotWorked && (
+                              <div className="mt-2 relative w-full aspect-[4/3] rounded-md overflow-hidden border shadow-sm">
+                                <Image
+                                  src={currentTerritoryInfo.mapImageUrl}
+                                  alt={`Mapa de ${currentTerritoryInfo.name}`}
+                                  layout="fill"
+                                  objectFit="contain"
+                                  data-ai-hint={currentTerritoryInfo.dataAiHint || "map sketch"}
+                                />
+                              </div>
+                            )}
+                          </div>
                         )}
+
 
                         {(currentTerritoryInfo.totalBlocks ?? 0) > 0 && (
                         <FormField
@@ -375,3 +402,4 @@ export function ReportarPredicacionDialog({
     </Dialog>
   );
 }
+
