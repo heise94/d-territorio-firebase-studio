@@ -12,6 +12,7 @@ import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth } from 'date-fns';
 import { Timestamp } from "firebase/firestore"; // For placeholder data
+import type { ProgramScheduleSlot } from "@/types"; // Import ProgramScheduleSlot
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 6 }, (_, i) => currentYear + i);
@@ -19,6 +20,19 @@ const months = Array.from({ length: 12 }, (_, i) => ({
   value: i,
   label: format(new Date(currentYear, i), "MMMM", { locale: es }),
 }));
+
+// MOCK data for program schedule slots - replace with actual data fetching from settings later
+// This will be passed to the GenerateAIDialog
+const MOCK_PROGRAM_SCHEDULE_SLOTS_FOR_DIALOG: ProgramScheduleSlot[] = [
+  { id: 'mon-0900-gen', dayOfWeek: 'monday', startTime: '09:00', type: 'general', status: 'fixed' },
+  { id: 'tue-1000-rur', dayOfWeek: 'tuesday', startTime: '10:00', type: 'rural', status: 'fixed' },
+  { id: 'wed-0930-gen', dayOfWeek: 'wednesday', startTime: '09:30', type: 'general', status: 'fixed' },
+  { id: 'sat-1000-gen', dayOfWeek: 'saturday', startTime: '10:00', type: 'general', status: 'fixed' },
+  { id: 'sat-1100-rur', dayOfWeek: 'saturday', startTime: '11:00', type: 'rural', status: 'fixed' }, // Rural Saturday
+  { id: 'sun-1500-zoom', dayOfWeek: 'sunday', startTime: '15:00', type: 'zoom', status: 'fixed' },
+  { id: 'sun-1000-rur', dayOfWeek: 'sunday', startTime: '10:00', type: 'rural', status: 'fixed' }, // Rural Sunday
+];
+
 
 export default function ProgramaMensualPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
@@ -32,7 +46,7 @@ export default function ProgramaMensualPage() {
     setIsGenerationDialogOpen(true);
   };
 
-  const handleGenerateAssignments = async (dialogData: { additionalInstructions: string; }) => {
+  const handleGenerateAssignments = async (dialogData: { additionalInstructions: string; designatedRuralWeekendDays: string[] }) => {
     setIsLoading(true);
     setGeneratedAssignments(null);
 
@@ -40,31 +54,29 @@ export default function ProgramaMensualPage() {
       year: selectedYear,
       month: selectedMonth, // 0-indexed month
       additionalInstructions: dialogData.additionalInstructions,
+      designatedRuralSundays: dialogData.designatedRuralWeekendDays, // Changed from designatedRuralSundays
       // --- Start of placeholder/simulated data for complex inputs ---
-      availableDaysWithTimeSlots: { // Example, replace with actual data from settings
-        monday: [{ startTime: "09:00", type: "publica" }, { startTime: "15:00", type: "zoom" }],
-        tuesday: [{ startTime: "10:00", type: "rural" }],
-        wednesday: [{ startTime: "09:30", type: "publica" }, { startTime: "16:00", type: "publica" }],
-        thursday: [{ startTime: "14:00", type: "zoom" }],
-        friday: [{ startTime: "10:00", type: "publica" }, { startTime: "17:00", type: "rural" }],
+      // Pass the MOCK_PROGRAM_SCHEDULE_SLOTS_FOR_DIALOG to availableDaysWithTimeSlots if needed, or ensure the IA flow uses it from a central source.
+      // For now, the IA flow's 'availableDaysWithTimeSlots' is a simple example structure.
+      availableDaysWithTimeSlots: { // Example, replace with actual data from settings (ProgramScheduleSlot[])
+        monday: [{ startTime: "09:00", type: "publica" }],
         saturday: [{ startTime: "10:00", type: "publica" }, { startTime: "11:00", type: "rural" }],
-        sunday: [{ startTime: "15:00", type: "zoom" }],
+        sunday: [{ startTime: "10:00", type: "rural" }, { startTime: "15:00", type: "zoom" }],
       },
       assignCasas: true,
-      availableCasas: [], // Firestore data
+      availableCasas: [], 
       assignTerritories: true,
-      availableTerritories: [], // Firestore data
-      detailedTerritoryReports: [], // Firestore data
-      designatedRuralSundays: [], // Example: ["2024-08-04", "2024-08-18"] -> from settings or logic
-      predeterminedRuralSundayAssignments: [], // Firestore data for overrides
-      groupPreachingDays: { monday: false, tuesday: false, wednesday: true, thursday: false, friday: false, saturday: false, sunday: false }, // from settings
-      configuredCampaigns: [], // from settings
-      specialCampaignTerritoriesPerDay: 1, // from settings
-      holidayDatesInMonth: [], // from settings/logic based on selectedMonth/Year
-      assembliesInMonth: [], // from settings/logic
-      publisherDetailedAvailabilities: [], // Firestore data
-      lastRuralWeekendLeadingGroupId: undefined, // from settings
-      preachingGroups: [], // from Firestore
+      availableTerritories: [], 
+      detailedTerritoryReports: [], 
+      predeterminedRuralSundayAssignments: [], 
+      groupPreachingDays: { wednesday: true }, 
+      configuredCampaigns: [], 
+      specialCampaignTerritoriesPerDay: 1, 
+      holidayDatesInMonth: [], 
+      assembliesInMonth: [], 
+      publisherDetailedAvailabilities: [], 
+      lastRuralWeekendLeadingGroupId: undefined, 
+      preachingGroups: [], 
       // --- End of placeholder/simulated data ---
     };
 
@@ -217,8 +229,11 @@ export default function ProgramaMensualPage() {
           onSubmitGeneration={handleGenerateAssignments}
           year={selectedYear}
           month={selectedMonth}
+          programScheduleSlots={MOCK_PROGRAM_SCHEDULE_SLOTS_FOR_DIALOG} // Pass mock slots
         />
       )}
     </div>
   );
 }
+
+    
