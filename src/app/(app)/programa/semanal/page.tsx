@@ -1,26 +1,29 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import type { Assignment, PreachingAssignedType } from "@/types";
-import { format, startOfWeek, addDays, parseISO, isSameDay, startOfDay } from "date-fns";
+import { format, startOfWeek, addDays, parseISO, isSameDay, startOfDay, subWeeks, addWeeks } from "date-fns";
 import { es } from "date-fns/locale";
-import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle } from "lucide-react";
-import { usePermissions } from "@/hooks/use-permissions"; // Para obtener el usuario actual
+import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle, ChevronLeft, CalendarClock as CalendarClockIcon } from "lucide-react";
+import { usePermissions } from "@/hooks/use-permissions";
 
 // Mock data for assignments - replace with actual data fetching
 const MOCK_ASSIGNMENTS_FOR_WEEKLY_VIEW: Assignment[] = [
+  // Current Week Examples (assuming today is around the start of a week)
   { id: "W1", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 0), "yyyy-MM-dd"), time: "09:00", type: "publica", locationName: "Plaza Mayor", status: "accepted", userName: "Ana Pérez", captainId: "userAna" },
   { id: "W2", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 0), "yyyy-MM-dd"), time: "15:00", type: "zoom", locationName: "Sala Zoom A", status: "accepted", userName: "Luis Gómez", captainId: "userLuis" },
-  { id: "W3", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 1), "yyyy-MM-dd"), time: "10:30", type: "rural", locationName: "Vereda El Rosal", status: "accepted", userName: "Sofía Castro", captainId: "userSofia" }, // Example for tomorrow
+  { id: "W3", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 1), "yyyy-MM-dd"), time: "10:30", type: "rural", locationName: "Vereda El Rosal", status: "accepted", userName: "Sofía Castro", captainId: "userSofia" },
   { id: "W4", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 2), "yyyy-MM-dd"), time: "16:00", type: "publica", locationName: "Parque Central", status: "accepted", userName: "Carlos Díaz", captainId: "userCarlos" },
-  { id: "W5", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 4), "yyyy-MM-dd"), time: "17:00", type: "zoom", locationName: "Sala Zoom B", status: "accepted", userName: "Elena Jara", captainId: "userElena" },
-  { id: "W6", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 5), "yyyy-MM-dd"), time: "10:00", type: "publica", locationName: "Mercado Principal", status: "accepted", userName: "Pedro Velez", captainId: "userPedro" },
-  { id: "W7", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 5), "yyyy-MM-dd"), time: "11:00", type: "rural", locationName: "Finca La Esperanza", status: "accepted", userName: "Laura Méndez", captainId: "userLaura" },
+  // Next Week Examples
+  { id: "W5", date: format(addDays(startOfWeek(addWeeks(new Date(),1), { weekStartsOn: 1 }), 0), "yyyy-MM-dd"), time: "17:00", type: "zoom", locationName: "Sala Zoom B (Próx. Semana)", status: "accepted", userName: "Elena Jara", captainId: "userElena" },
+  // Previous Week Examples
+  { id: "W6", date: format(addDays(startOfWeek(subWeeks(new Date(),1), { weekStartsOn: 1 }), 5), "yyyy-MM-dd"), time: "10:00", type: "publica", locationName: "Mercado Principal (Sem. Ant.)", status: "accepted", userName: "Pedro Velez", captainId: "userPedro" },
+  { id: "W7", date: format(addDays(startOfWeek(subWeeks(new Date(),1), { weekStartsOn: 1 }), 5), "yyyy-MM-dd"), time: "11:00", type: "rural", locationName: "Finca La Esperanza (Sem. Ant.)", status: "accepted", userName: "Laura Méndez", captainId: "userLaura" },
   { id: "W8", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 6), "yyyy-MM-dd"), time: "15:00", type: "zoom", locationName: "Sala Zoom C (Domingo)", status: "accepted", userName: "Jorge Solis", captainId: "userJorge" },
 ];
 
@@ -39,14 +42,28 @@ export default function ProgramaSemanalPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedAssignmentToLead, setSelectedAssignmentToLead] = useState<Assignment | null>(null);
   const { toast } = useToast();
-  const { userProfile } = usePermissions(); // Get current user's profile
+  const { userProfile } = usePermissions();
 
-  const today = startOfDay(new Date()); // Get today's date without time component
+  const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date());
+  const today = startOfDay(new Date());
 
-  // TODO: Implement week navigation and fetching assignments for the selected week
-  const currentWeekDays = Array.from({ length: 7 }).map((_, i) =>
-    addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), i)
-  );
+  const currentWeekDays = useMemo(() => {
+    const start = startOfWeek(currentDisplayDate, { weekStartsOn: 1 });
+    return Array.from({ length: 7 }).map((_, i) => addDays(start, i));
+  }, [currentDisplayDate]);
+
+  const goToPreviousWeek = () => {
+    setCurrentDisplayDate(prev => subWeeks(prev, 1));
+  };
+
+  const goToNextWeek = () => {
+    setCurrentDisplayDate(prev => addWeeks(prev, 1));
+  };
+
+  const goToCurrentWeek = () => {
+    setCurrentDisplayDate(new Date());
+  };
+
 
   const handleRequestToLead = (assignment: Assignment) => {
     if (assignment.captainId === userProfile?.firebaseAuthUid) {
@@ -70,7 +87,7 @@ export default function ProgramaSemanalPage() {
     setAssignments(prev =>
       prev.map(assign =>
         assign.id === selectedAssignmentToLead.id
-          ? { ...assign, captainId: userProfile.firebaseAuthUid, userName: userProfile.name }
+          ? { ...assign, captainId: userProfile.firebaseAuthUid, userName: userProfile.name, updatedAt: new Date().toISOString() as any } // Simulating Timestamp
           : assign
       )
     );
@@ -92,72 +109,85 @@ export default function ProgramaSemanalPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
-          <CalendarDays className="mr-3 h-8 w-8 text-primary" />
-          Programa Semanal de Predicación
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Visualiza las asignaciones de la semana actual. Si el encargado no puede, puedes solicitar dirigir las del día de hoy.
-        </p>
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+            <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
+                <CalendarDays className="mr-3 h-8 w-8 text-primary" />
+                Programa Semanal
+            </h1>
+            <p className="text-muted-foreground mt-1 text-sm md:text-base">
+                Visualiza las asignaciones de la semana. Si el encargado no puede, puedes solicitar dirigir las del día de hoy.
+            </p>
+        </div>
+         <div className="flex items-center gap-2 w-full md:w-auto">
+            <Button variant="outline" onClick={goToPreviousWeek} size="icon" aria-label="Semana anterior">
+                <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <Button variant="outline" onClick={goToCurrentWeek} className="px-3 text-xs md:text-sm whitespace-nowrap">
+                <CalendarClockIcon className="mr-2 h-4 w-4" /> Volver a Hoy
+            </Button>
+            <Button variant="outline" onClick={goToNextWeek} size="icon" aria-label="Semana siguiente">
+                <ChevronRight className="h-5 w-5" />
+            </Button>
+        </div>
+      </div>
+      
+      <div className="text-center mb-6">
+        <h2 className="text-xl md:text-2xl font-semibold font-headline text-primary">
+            Semana del {format(currentWeekDays[0], "d 'de' MMMM", { locale: es })} al {format(currentWeekDays[6], "d 'de' MMMM 'de' yyyy", { locale: es })}
+        </h2>
       </div>
 
-      {/* Week Navigation Placeholder */}
-      {/* <div className="flex justify-between items-center">
-        <Button variant="outline">Semana Anterior</Button>
-        <h2 className="text-xl font-semibold">Semana del {format(currentWeekDays[0], "dd 'de' MMMM", { locale: es })}</h2>
-        <Button variant="outline">Semana Siguiente</Button>
-      </div> */}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {currentWeekDays.map(day => {
           const assignmentsForDay = assignments.filter(assign =>
-            isSameDay(parseISO(assign.date), day) && assign.status === 'accepted' // Only show accepted assignments
+            isSameDay(parseISO(assign.date), day) && assign.status === 'accepted'
           ).sort((a,b) => a.time.localeCompare(b.time));
 
-          const isCurrentDay = isSameDay(day, today);
+          const isActualCurrentDay = isSameDay(day, today); // Check if the day being rendered is actually 'today'
 
           return (
-            <Card key={day.toISOString()} className="shadow-md hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3 bg-muted/30 rounded-t-md">
-                <CardTitle className="text-lg font-semibold">
+            <Card key={day.toISOString()} className={`shadow-md hover:shadow-lg transition-shadow ${isActualCurrentDay ? 'border-primary border-2' : 'border-border'}`}>
+              <CardHeader className={`pb-3 rounded-t-md ${isActualCurrentDay ? 'bg-primary/10' : 'bg-muted/30'}`}>
+                <CardTitle className="text-base md:text-lg font-semibold">
                   {format(day, "EEEE, dd 'de' MMMM", { locale: es })}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-4 space-y-4">
+              <CardContent className="pt-4 space-y-3 min-h-[100px]">
                 {assignmentsForDay.length > 0 ? (
                   assignmentsForDay.map(assign => (
-                    <div key={assign.id} className="p-3 border rounded-md shadow-sm bg-card hover:bg-muted/10 transition-colors">
+                    <div key={assign.id} className="p-2.5 border rounded-md shadow-sm bg-card hover:bg-muted/20 transition-colors">
                       <div className="flex justify-between items-center mb-1">
-                        <span className="font-medium text-base">{assign.time}</span>
-                        <div className="flex items-center text-sm text-muted-foreground capitalize">
-                          <PreachingTypeIcon type={assign.type} className="mr-1.5 text-primary" />
+                        <span className="font-medium text-sm md:text-base">{assign.time}</span>
+                        <div className="flex items-center text-xs md:text-sm text-muted-foreground capitalize">
+                          <PreachingTypeIcon type={assign.type} className="mr-1.5 text-primary h-4 w-4 md:h-5 md:w-5" />
                           {assign.type}
                         </div>
                       </div>
-                      <p className="text-sm font-semibold text-primary">{assign.locationName}</p>
+                      <p className="text-xs md:text-sm font-semibold text-primary">{assign.locationName}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Encargado: <span className="font-medium text-foreground">{assign.userName || "No asignado"}</span>
                       </p>
-                      {isCurrentDay && assign.captainId !== userProfile?.firebaseAuthUid && (
+                      {isActualCurrentDay && assign.captainId !== userProfile?.firebaseAuthUid && (
                         <Button
                             variant="outline"
                             size="sm"
-                            className="w-full mt-3 text-xs hover:bg-primary/10 hover:border-primary hover:text-primary"
+                            className="w-full mt-2.5 text-xs hover:bg-primary/10 hover:border-primary hover:text-primary"
                             onClick={() => handleRequestToLead(assign)}
                         >
-                            <ChevronRight className="mr-1.5 h-4 w-4" /> Solicitar Dirigir
+                            <ChevronRight className="mr-1.5 h-3.5 w-3.5" /> Solicitar Dirigir
                         </Button>
                       )}
                        {assign.captainId === userProfile?.firebaseAuthUid && (
-                        <p className="mt-2 text-xs text-green-600 font-medium bg-green-500/10 p-1.5 rounded-md text-center">
+                        <p className="mt-1.5 text-xs text-green-600 font-medium bg-green-500/10 p-1 rounded-md text-center">
                             Tú eres el encargado actual.
                         </p>
                        )}
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">No hay asignaciones para este día.</p>
+                  <p className="text-xs md:text-sm text-muted-foreground text-center py-4">No hay asignaciones para este día.</p>
                 )}
               </CardContent>
             </Card>
@@ -193,3 +223,6 @@ export default function ProgramaSemanalPage() {
     </div>
   );
 }
+
+
+    
