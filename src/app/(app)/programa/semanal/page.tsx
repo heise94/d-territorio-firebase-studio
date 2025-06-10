@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import type { Assignment, PreachingAssignedType } from "@/types";
-import { format, startOfWeek, addDays, parseISO, isSameDay } from "date-fns";
+import { format, startOfWeek, addDays, parseISO, isSameDay, startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions"; // Para obtener el usuario actual
@@ -16,7 +16,7 @@ import { usePermissions } from "@/hooks/use-permissions"; // Para obtener el usu
 const MOCK_ASSIGNMENTS_FOR_WEEKLY_VIEW: Assignment[] = [
   { id: "W1", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 0), "yyyy-MM-dd"), time: "09:00", type: "publica", locationName: "Plaza Mayor", status: "accepted", userName: "Ana Pérez", captainId: "userAna" },
   { id: "W2", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 0), "yyyy-MM-dd"), time: "15:00", type: "zoom", locationName: "Sala Zoom A", status: "accepted", userName: "Luis Gómez", captainId: "userLuis" },
-  { id: "W3", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 2), "yyyy-MM-dd"), time: "10:30", type: "rural", locationName: "Vereda El Rosal", status: "accepted", userName: "Sofía Castro", captainId: "userSofia" },
+  { id: "W3", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 1), "yyyy-MM-dd"), time: "10:30", type: "rural", locationName: "Vereda El Rosal", status: "accepted", userName: "Sofía Castro", captainId: "userSofia" }, // Example for tomorrow
   { id: "W4", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 2), "yyyy-MM-dd"), time: "16:00", type: "publica", locationName: "Parque Central", status: "accepted", userName: "Carlos Díaz", captainId: "userCarlos" },
   { id: "W5", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 4), "yyyy-MM-dd"), time: "17:00", type: "zoom", locationName: "Sala Zoom B", status: "accepted", userName: "Elena Jara", captainId: "userElena" },
   { id: "W6", date: format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 5), "yyyy-MM-dd"), time: "10:00", type: "publica", locationName: "Mercado Principal", status: "accepted", userName: "Pedro Velez", captainId: "userPedro" },
@@ -40,6 +40,8 @@ export default function ProgramaSemanalPage() {
   const [selectedAssignmentToLead, setSelectedAssignmentToLead] = useState<Assignment | null>(null);
   const { toast } = useToast();
   const { userProfile } = usePermissions(); // Get current user's profile
+
+  const today = startOfDay(new Date()); // Get today's date without time component
 
   // TODO: Implement week navigation and fetching assignments for the selected week
   const currentWeekDays = Array.from({ length: 7 }).map((_, i) =>
@@ -96,7 +98,7 @@ export default function ProgramaSemanalPage() {
           Programa Semanal de Predicación
         </h1>
         <p className="text-muted-foreground mt-1">
-          Visualiza las asignaciones de la semana actual. Si el encargado no puede, puedes solicitar dirigir.
+          Visualiza las asignaciones de la semana actual. Si el encargado no puede, puedes solicitar dirigir las del día de hoy.
         </p>
       </div>
 
@@ -112,6 +114,8 @@ export default function ProgramaSemanalPage() {
           const assignmentsForDay = assignments.filter(assign =>
             isSameDay(parseISO(assign.date), day) && assign.status === 'accepted' // Only show accepted assignments
           ).sort((a,b) => a.time.localeCompare(b.time));
+
+          const isCurrentDay = isSameDay(day, today);
 
           return (
             <Card key={day.toISOString()} className="shadow-md hover:shadow-lg transition-shadow">
@@ -135,7 +139,7 @@ export default function ProgramaSemanalPage() {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Encargado: <span className="font-medium text-foreground">{assign.userName || "No asignado"}</span>
                       </p>
-                      {assign.captainId !== userProfile?.firebaseAuthUid && (
+                      {isCurrentDay && assign.captainId !== userProfile?.firebaseAuthUid && (
                         <Button
                             variant="outline"
                             size="sm"
