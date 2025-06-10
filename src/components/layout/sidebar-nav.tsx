@@ -37,9 +37,9 @@ const navItems: NavItemConfig[] = [
     title: "Programa",
     href: "/programa", 
     icon: CalendarDays,
-    segment: "programa",
+    segment: "programa", // Segment for the parent accordion item
     children: [
-      { title: "Mensual", href: "/programa", icon: CircleDot, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM, segment: "programa" }, 
+      { title: "Mensual", href: "/programa", icon: CircleDot, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM, segment: "programa" }, // Child segment should match exact sub-path or be unique if needed
       { title: "Semanal", href: "/programa/semanal", icon: GanttChartSquare, permission: PERMISSIONS.VIEW_WEEKLY_PROGRAM, segment: "semanal" },
     ]
   },
@@ -66,40 +66,71 @@ export function SidebarNav() {
   const pathname = usePathname() ?? "";
   const { hasPermission, isLoadingPermissions } = usePermissions();
 
-  const checkActive = (itemHref: string, itemSegment?: string, isParent?: boolean) => {
+  const checkActive = (itemHref: string, itemSegment?: string, isParentAccordion?: boolean) => {
     const cleanPathname = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
     const cleanItemHref = itemHref.endsWith('/') && itemHref.length > 1 ? itemHref.slice(0, -1) : itemHref;
 
+    if (isParentAccordion && itemSegment) {
+      // For parent accordion, active if any part of the path matches its primary segment
+      return cleanPathname.startsWith(`/${itemSegment}`);
+    }
+    
     if (itemSegment) {
-      const pathSegments = cleanPathname.split('/');
-      
-      if(isParent) {
-        return pathSegments.includes(itemSegment);
+      // For children, check if the path ends with their segment and starts with parent's base href
+      // or if it's an exact match to their href
+      if (cleanPathname === cleanItemHref) return true;
+
+      // Special handling for /programa which is both a parent and a direct link
+      if (itemHref === "/programa" && cleanPathname === "/programa") return true;
+
+      // For nested children like /programa/semanal
+      // The parent's segment is "programa", child's is "semanal"
+      // Pathname could be /programa/semanal
+      const pathSegments = cleanPathname.split('/'); // ['', 'programa', 'semanal']
+      if (pathSegments.length > 2 && pathSegments[1] === itemSegment && pathSegments[2] === itemHref.split('/').pop()) {
+         return true;
       }
-      
-      if (cleanPathname === cleanItemHref) return true;
-      
-      const lastSlashIndex = itemHref.lastIndexOf('/');
-      const parentPath = lastSlashIndex > 0 ? itemHref.substring(0, lastSlashIndex) : itemHref; 
-      
-      if (cleanPathname === cleanItemHref) return true;
-      if (cleanPathname.startsWith(parentPath) && pathSegments.includes(itemSegment) && cleanPathname.endsWith(itemSegment)) return true;
-      if(cleanItemHref === cleanPathname && pathSegments.includes(itemSegment)) return true;
-      
-      return cleanPathname === cleanItemHref || (itemSegment && cleanPathname.includes(itemSegment) && cleanPathname.startsWith(cleanItemHref));
+      if (cleanPathname.startsWith(itemHref.substring(0, itemHref.lastIndexOf('/'))) && cleanPathname.endsWith(itemSegment) ) {
+          return true;
+      }
     }
     return cleanPathname === cleanItemHref;
   };
   
-  const renderNavItem = (item: NavItemConfig, isSubmenu = false): JSX.Element | null => {
+  const renderNavItem = (item: NavItemConfig, isSubmenu = false, parentSegment?: string): JSX.Element | null => {
     if (item.permission && !hasPermission(item.permission)) {
       return null;
     }
 
     const Icon = item.icon;
     const isParentAccordion = !!(item.children && item.children.length > 0);
-    const isActive = checkActive(item.href, item.segment, isParentAccordion);
     
+    // Adjust isActive check for children:
+    let isActive;
+    if (isParentAccordion) {
+      // A parent accordion is active if the current path starts with its base href (e.g., /programa for /programa/semanal)
+      isActive = cleanPathname.startsWith(item.href);
+    } else if (isSubmenu && parentSegment) {
+        // A submenu item is active if the current path is exactly its href
+        // OR if the path is /parentSegment/itemSegment
+        const cleanPathname = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
+        const cleanItemHref = item.href.endsWith('/') && item.href.length > 1 ? item.href.slice(0, -1) : item.href;
+        isActive = cleanPathname === cleanItemHref;
+        if (!isActive && item.segment) {
+            // Handle cases like /programa for "Mensual" link which has href /programa
+            if (parentSegment === item.segment && cleanPathname === `/${parentSegment}`) {
+                 isActive = item.href === `/${parentSegment}`;
+            } else {
+                 isActive = cleanPathname === `/${parentSegment}/${item.segment}`;
+            }
+        }
+
+    } else {
+      // Top-level non-accordion item
+      isActive = cleanPathname === item.href;
+    }
+
+
     const commonLinkClasses = cn(
       "flex items-center w-full px-3 rounded-md text-sm font-medium transition-colors",
        isActive && !isParentAccordion ? "bg-primary text-primary-foreground" 
@@ -125,18 +156,22 @@ export function SidebarNav() {
           <AccordionContent className="pt-1 pb-0 pl-5 border-l border-sidebar-border ml-[calc(0.75rem+10px)] mt-1"> 
             <ul className="space-y-0.5">
               {visibleChildren.map(child => (
-                <li key={child.href}>{renderNavItem(child, true)}</li>
+                <li key={child.href}>{renderNavItem(child, true, item.segment)}</li> // Pass parent segment
               ))}
             </ul>
           </AccordionContent>
         </AccordionItem>
       );
     }
+    
+    const cleanPathname = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
+    const cleanItemHref = item.href.endsWith('/') && item.href.length > 1 ? item.href.slice(0, -1) : item.href;
+
 
     return (
       <li className="list-none" key={item.href}>
         <Link href={item.href} className={commonLinkClasses}>
-          <Icon className={cn("mr-3 h-5 w-5 shrink-0", isActive && !isSubmenu ? "text-primary-foreground" : isActive && isSubmenu ? "text-primary" : "")} />
+          <Icon className={cn("mr-3 h-5 w-5 shrink-0", cleanPathname === cleanItemHref && !isSubmenu ? "text-primary-foreground" : cleanPathname === cleanItemHref && isSubmenu ? "text-primary" : "")} />
           {item.title}
         </Link>
       </li>
@@ -162,9 +197,10 @@ export function SidebarNav() {
 
   return (
     <ScrollArea className="h-full flex-1">
-      <Accordion type="multiple" className="w-full space-y-1 p-2">
+      <Accordion type="multiple" className="w-full space-y-1 p-2" defaultValue={navItems.filter(item => item.segment && pathname.includes(`/${item.segment}`)).map(item => item.title)}>
         {visibleNavItems.map(item => renderNavItem(item))}
       </Accordion>
     </ScrollArea>
   );
 }
+
