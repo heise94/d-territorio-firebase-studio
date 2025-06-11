@@ -119,7 +119,7 @@ export default function MiGrupoProgramaPage() {
 
   const handleOpenEditDialog = (assignment: GroupAssignment) => {
     setAssignmentToEdit(assignment);
-    setInitialDateForDialog(null); // Not needed for edit mode
+    setInitialDateForDialog(null); 
     setIsAddAssignmentDialogOpen(true);
   };
 
@@ -129,7 +129,7 @@ export default function MiGrupoProgramaPage() {
       return;
     }
 
-    if (submittedData.id) { // Editing existing assignment
+    if (submittedData.id) { 
       setGroupAssignments(prev =>
         prev.map(assign =>
           assign.id === submittedData.id
@@ -138,7 +138,7 @@ export default function MiGrupoProgramaPage() {
         ).sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time))
       );
       toast({ title: "Asignación Actualizada", description: "La asignación ha sido actualizada." });
-    } else { // Adding new assignment
+    } else { 
       const assignmentToAdd: GroupAssignment = {
         ...submittedData,
         id: crypto.randomUUID(),
@@ -221,8 +221,8 @@ export default function MiGrupoProgramaPage() {
 
   const firstDayOfMonth = startOfMonth(new Date(selectedYear, selectedMonth));
   const daysInMonth = getDaysInMonth(firstDayOfMonth);
-  const startingDayOfWeek = getDay(firstDayOfMonth); // 0 for Sunday, 1 for Monday...
-  const dayOffset = startingDayOfWeek === 0 ? 6 : startingDayOfWeek -1; // Adjust to make Monday the first day (0 = Mon, 6 = Sun)
+  const startingDayOfWeek = getDay(firstDayOfMonth); 
+  const dayOffset = startingDayOfWeek === 0 ? 6 : startingDayOfWeek -1; 
 
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => new Date(selectedYear, selectedMonth, i + 1));
 
@@ -285,7 +285,6 @@ export default function MiGrupoProgramaPage() {
                 </Select>
               </div>
             </div>
-            {/* Removed main add button */}
           </div>
            {isAdminView && !adminSelectedGroupId && (
                 <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 flex items-center"><AlertTriangle className="mr-2 h-4 w-4" />Por favor, selecciona un grupo para ver o añadir asignaciones.</p>
@@ -311,8 +310,7 @@ export default function MiGrupoProgramaPage() {
                 {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map(day => <div key={day}>{day}</div>)}
               </div>
               <div className="grid grid-cols-7 gap-1">
-                {/* Empty cells for offset */}
-                {Array.from({ length: dayOffset }).map((_, i) => <div key={`empty-${i}`} className="border rounded-md min-h-[120px] bg-muted/30"></div>)}
+                {Array.from({ length: dayOffset }).map((_, i) => <div key={`empty-${i}`} className="border rounded-md min-h-[160px] bg-muted/30"></div>)}
 
                 {calendarDays.map(day => {
                   const dayString = format(day, "yyyy-MM-dd");
@@ -322,50 +320,63 @@ export default function MiGrupoProgramaPage() {
                   const dayOfWeekKey = DAY_OF_WEEK_MAP_NUM_TO_KEY[getDay(day)];
                   const isAuthorizedDayForGroup = MOCK_GROUP_ORGANIZED_DAYS.includes(dayOfWeekKey);
                   const isPastDay = isBeforeDateFns(day, new Date()) && !isSameDay(day, new Date());
+                  const canAddAssignment = isAuthorizedDayForGroup && !isPastDay && currentGroupId;
 
                   return (
-                    <Card key={dayString} className={`min-h-[140px] flex flex-col rounded-md shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'} ${isPastDay ? 'opacity-70 bg-muted/40' : ''}`}>
+                    <Card key={dayString} className={`min-h-[160px] flex flex-col rounded-md shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'} ${isPastDay ? 'opacity-70 bg-muted/40' : ''}`}>
                       <CardHeader className="p-2 pb-1 flex flex-row justify-between items-center">
                         <CardTitle className={`text-xs font-medium ${isToday ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
                           {format(day, "d")}
                         </CardTitle>
-                        {isAuthorizedDayForGroup && !isPastDay && currentGroupId && (
+                      </CardHeader>
+                      <CardContent className={`p-1.5 space-y-1.5 overflow-y-auto flex-grow ${assignmentsForDay.length === 0 && canAddAssignment ? 'flex flex-col items-center justify-center' : ''}`}>
+                        {assignmentsForDay.length > 0 ? (
+                          <>
+                            {assignmentsForDay.map(assign => (
+                              <div key={assign.id} className="p-1.5 rounded-md bg-muted/50 hover:bg-muted/70 text-xs shadow-sm relative group">
+                                <div className="flex items-center font-semibold">
+                                  <PreachingTypeIcon type={assign.preachingType} className="text-primary shrink-0 h-3 w-3" />
+                                  <span className="ml-1">{assign.time}</span>
+                                </div>
+                                <p className="truncate text-foreground/90" title={assign.captainName}>{assign.captainName}</p>
+                                {assign.casaName && <p className="truncate text-muted-foreground text-[0.7rem]" title={assign.casaName}><HomeIcon size={10} className="inline mr-0.5"/>{assign.casaName}</p>}
+
+                                {!isPastDay && (
+                                  <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
+                                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenEditDialog(assign)}>
+                                      <Pencil className="h-3 w-3 text-blue-600" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenDeleteDialog(assign.id)}>
+                                      <Trash2 className="h-3 w-3 text-destructive" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {canAddAssignment && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full mt-2 text-xs"
+                                onClick={() => handleOpenAddDialog(day)}
+                                title={`Añadir otra asignación para ${format(day, "dd/MM")}`}
+                              >
+                                <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Añadir Otra
+                              </Button>
+                            )}
+                          </>
+                        ) : canAddAssignment ? (
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-primary hover:bg-primary/10"
+                            className="h-auto w-auto p-3 rounded-full aspect-square flex flex-col items-center justify-center text-primary hover:bg-primary/10"
                             onClick={() => handleOpenAddDialog(day)}
                             title={`Añadir asignación para ${format(day, "dd/MM")}`}
                           >
-                            <PlusCircle className="h-4 w-4" />
+                            <PlusCircle className="h-8 w-8" />
+                            <span className="mt-1 text-xs">Añadir</span>
                           </Button>
-                        )}
-                      </CardHeader>
-                      <CardContent className="p-1.5 space-y-1.5 overflow-y-auto flex-grow">
-                        {assignmentsForDay.length > 0 ? (
-                          assignmentsForDay.map(assign => (
-                            <div key={assign.id} className="p-1.5 rounded-md bg-muted/50 hover:bg-muted/70 text-xs shadow-sm relative group">
-                              <div className="flex items-center font-semibold">
-                                <PreachingTypeIcon type={assign.preachingType} className="text-primary shrink-0 h-3 w-3" />
-                                <span className="ml-1">{assign.time}</span>
-                              </div>
-                              <p className="truncate text-foreground/90" title={assign.captainName}>{assign.captainName}</p>
-                              {assign.casaName && <p className="truncate text-muted-foreground text-[0.7rem]" title={assign.casaName}><HomeIcon size={10} className="inline mr-0.5"/>{assign.casaName}</p>}
-
-                              {!isPastDay && (
-                                <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
-                                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenEditDialog(assign)}>
-                                    <Pencil className="h-3 w-3 text-blue-600" />
-                                  </Button>
-                                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenDeleteDialog(assign.id)}>
-                                    <Trash2 className="h-3 w-3 text-destructive" />
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          ))
                         ) : (
-                          <div className="h-full flex items-center justify-center">
+                           <div className="h-full flex items-center justify-center">
                              {/* Optionally, show a subtle plus icon or something to indicate addability */}
                           </div>
                         )}
@@ -418,5 +429,3 @@ export default function MiGrupoProgramaPage() {
     </div>
   );
 }
-
-    
