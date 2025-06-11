@@ -153,8 +153,8 @@ export interface PreachingGroup {
   id: string;
   name: string;
   description?: string;
-  superintendentId?: string;
-  auxiliaryId?: string;
+  superintendentId?: string; // Firebase Auth UID
+  auxiliaryId?: string; // Firebase Auth UID
   createdAt: Timestamp;
   updatedAt: Timestamp;
   createdBy?: string;
@@ -192,7 +192,7 @@ export interface AdditionalTerritoryInfo {
   totalBlocks?: number; 
   dataAiHint?: string;
   isPartial?: boolean; 
-  pendingBlocksDescription?: string; 
+  // pendingBlocksDescription?: string; // Replaced by pendingBlockNumbers for clarity
   blockHouseCounts?: number[]; 
   approxHouseCount?: number; 
   pendingBlockNumbers?: number[]; 
@@ -229,8 +229,26 @@ export interface Assignment extends UserAssignment {
 
 // For the findReplacementCaptain flow
 export interface PublisherDetail {
-  id: string;
+  id: string; // Firebase Auth UID
   name: string;
   email: string;
   availability: UserAvailability; 
+  assignedGroupId?: string; // Group the publisher belongs to
+}
+
+// For "Mi Grupo > Programa"
+export interface GroupAssignment {
+  id: string;
+  groupId: string;
+  date: string; // YYYY-MM-DD
+  programSlotId: string; // Refers to ProgramScheduleSlot.id
+  preachingType: PreachingType;
+  time: string; // HH:MM
+  captainUserId: string; // Firebase Auth UID of a publisher from the group
+  captainName?: string; // For display
+  casaId?: string; // ID of a Casa associated with the group
+  casaName?: string; // For display
+  notes?: string;
+  createdAt: Timestamp;
+  createdBy: string; // Firebase Auth UID of the SG who created it
 }
