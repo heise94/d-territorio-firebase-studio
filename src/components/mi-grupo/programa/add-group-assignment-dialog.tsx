@@ -226,7 +226,7 @@ export function AddGroupAssignmentDialog({
                 <FormItem>
                   <FormLabel>Hora de Inicio (Formato 24h)</FormLabel>
                   <FormControl>
-                    <Input type="time" {...field} />
+                    <Input type="text" placeholder="HH:mm" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
