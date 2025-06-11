@@ -49,6 +49,8 @@ const DAY_OF_WEEK_MAP: Record<number, ProgramScheduleSlot['dayOfWeek']> = {
   0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday',
 };
 
+const NO_CASA_SELECTED_VALUE = "__NO_CASA_SELECTED__"; // Value for "Ninguna" option
+
 interface AddGroupAssignmentDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
@@ -121,7 +123,8 @@ export function AddGroupAssignmentDialog({
     setIsSubmitting(true);
     const selectedSlot = availableSlots.find(s => s.id === values.programSlotId);
     const selectedPublisher = groupPublishers.find(p => p.id === values.captainUserId);
-    const selectedCasa = groupCasas.find(c => c.id === values.casaId);
+    // If values.casaId is an empty string (because "Ninguna" was selected), selectedCasa will be undefined.
+    const selectedCasa = values.casaId ? groupCasas.find(c => c.id === values.casaId) : undefined;
 
     if (!selectedSlot) {
       toast({ title: "Error", description: "Horario seleccionado no válido.", variant: "destructive" });
@@ -141,7 +144,7 @@ export function AddGroupAssignmentDialog({
       time: selectedSlot.startTime,
       captainUserId: values.captainUserId,
       captainName: selectedPublisher?.name || "Desconocido",
-      casaId: values.casaId || undefined,
+      casaId: values.casaId || undefined, // Empty string becomes undefined
       casaName: selectedCasa?.ownerName || undefined,
       notes: values.notes || undefined,
     };
@@ -270,14 +273,20 @@ export function AddGroupAssignmentDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Casa de Reunión (Opcional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={groupCasas.length === 0}>
+                  <Select
+                    onValueChange={(selectedValue) => {
+                      field.onChange(selectedValue === NO_CASA_SELECTED_VALUE ? "" : selectedValue);
+                    }}
+                    value={field.value || NO_CASA_SELECTED_VALUE}
+                    disabled={groupCasas.length === 0}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder={groupCasas.length === 0 ? "No hay casas en el grupo" : "Selecciona una casa"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                       <SelectItem value="">Ninguna</SelectItem>
+                       <SelectItem value={NO_CASA_SELECTED_VALUE}>Ninguna</SelectItem>
                       {groupCasas.map(casa => (
                         <SelectItem key={casa.id} value={casa.id}>
                           {casa.ownerName} ({casa.address})
