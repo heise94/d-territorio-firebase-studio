@@ -27,11 +27,10 @@ const MOCK_TERRITORY_SUGGESTIONS: AdditionalTerritoryInfo[] = [
     number: "105B", 
     type: "urban", 
     mapImageUrl: "https://placehold.co/300x200.png?text=Flores+Parcial", 
-    totalBlocks: 6, // Total blocks of the original territory
     dataAiHint: "residential map",
     isPartial: true,
-    pendingBlockNumbers: [3, 5], // Example: Manzanas 3 y 5 (1-indexed) son las pendientes
-    approxPendingHousesCount: (15 + 8), // Suma de casas en M3 (ej: 15) y M5 (ej: 8)
+    pendingBlockNumbers: [3, 5], 
+    approxPendingHousesCount: 23, // Example: sum of houses in blocks 3 and 5
     // blockHouseCounts: [10, 12, 15, 0, 8, 0] // Original counts for original 6 blocks (M4 & M6 worked)
   },
   { 
@@ -143,8 +142,8 @@ export function SolicitarTerritorioDialog({
                             {terr.type} {terr.number ? ` #${terr.number}`: ''}
                         </Badge>
                     </CardTitle>
-                     {terr.isPartial && terr.pendingBlockNumbers && terr.pendingBlockNumbers.length > 0 && (
-                        <CardDescription className="text-xs text-amber-600 pt-0.5">
+                     {terr.isPartial && (
+                        <CardDescription className="text-xs text-amber-600 pt-0.5 font-medium">
                             Territorio parcialmente trabajado
                         </CardDescription>
                     )}
@@ -161,7 +160,7 @@ export function SolicitarTerritorioDialog({
                                 <p><span className="font-medium flex items-center"><ListChecks size={12} className="mr-1.5 shrink-0"/> Manzanas pendientes:</span> {terr.pendingBlockNumbers.join(', ')}</p>
                             )}
                             {terr.approxPendingHousesCount !== undefined && (
-                                <p><span className="font-medium flex items-center"><HomeIcon size={12} className="mr-1.5 shrink-0"/> Casas en pendientes aprox:</span> {terr.approxPendingHousesCount}</p>
+                                <p><span className="font-medium flex items-center"><HomeIcon size={12} className="mr-1.5 shrink-0"/> Casas totales aprox. (pendientes):</span> {terr.approxPendingHousesCount}</p>
                             )}
                         </>
                     ) : (
