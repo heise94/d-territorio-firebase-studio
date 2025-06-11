@@ -23,11 +23,12 @@ import {
   FormMessage,
   FormDescription as FormFieldDescription,
 } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType } from "@/types";
+import type { GroupAssignment, PublisherDetail, Casa, PreachingType, DayOfWeek } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CalendarIcon as CalendarIconLucide } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
@@ -37,7 +38,8 @@ import { cn } from "@/lib/utils";
 
 const groupAssignmentFormSchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
-  programSlotId: z.string().min(1, "Debes seleccionar un horario."),
+  time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Debe ser formato HH:mm."}),
+  preachingType: z.enum(['general', 'rural', 'zoom'], { required_error: "Debes seleccionar un tipo."}),
   captainUserId: z.string().min(1, "Debes seleccionar un encargado."),
   casaId: z.string().optional(),
   notes: z.string().max(500).optional().or(z.literal('')),
@@ -45,11 +47,11 @@ const groupAssignmentFormSchema = z.object({
 
 type GroupAssignmentFormValues = z.infer<typeof groupAssignmentFormSchema>;
 
-const DAY_OF_WEEK_MAP: Record<number, ProgramScheduleSlot['dayOfWeek']> = {
+const DAY_OF_WEEK_MAP_NUM_TO_KEY: Record<number, DayOfWeek> = {
   0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday',
 };
 
-const NO_CASA_SELECTED_VALUE = "__NO_CASA_SELECTED__"; // Value for "Ninguna" option
+const NO_CASA_SELECTED_VALUE = "__NO_CASA_SELECTED__";
 
 interface AddGroupAssignmentDialogProps {
   isOpen: boolean;
@@ -57,9 +59,9 @@ interface AddGroupAssignmentDialogProps {
   onAssignmentSubmit: (data: Omit<GroupAssignment, 'id' | 'groupId' | 'createdAt' | 'createdBy'>) => void;
   currentMonth: number; // 0-indexed
   currentYear: number;
-  availableSlots: ProgramScheduleSlot[]; // Slots definidos por el admin
   groupPublishers: PublisherDetail[];
   groupCasas: Casa[];
+  groupOrganizedDays: DayOfWeek[]; // Days allowed by admin for group preaching
 }
 
 export function AddGroupAssignmentDialog({
@@ -68,9 +70,9 @@ export function AddGroupAssignmentDialog({
   onAssignmentSubmit,
   currentMonth,
   currentYear,
-  availableSlots,
   groupPublishers,
   groupCasas,
+  groupOrganizedDays,
 }: AddGroupAssignmentDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,58 +81,34 @@ export function AddGroupAssignmentDialog({
     resolver: zodResolver(groupAssignmentFormSchema),
     defaultValues: {
       date: undefined,
-      programSlotId: "",
+      time: "",
+      preachingType: undefined,
       captainUserId: "",
       casaId: "",
       notes: "",
     },
   });
 
-  const selectedDate = form.watch("date");
-
-  const slotsForSelectedDay = useMemo(() => {
-    if (!selectedDate) return [];
-    const dayOfWeekNumber = getDay(selectedDate);
-    const dayKey = DAY_OF_WEEK_MAP[dayOfWeekNumber];
-    return availableSlots.filter(slot => slot.dayOfWeek === dayKey).sort((a,b) => a.startTime.localeCompare(b.startTime));
-  }, [selectedDate, availableSlots]);
-
   useEffect(() => {
     if (!isOpen) {
-      form.reset({ date: undefined, programSlotId: "", captainUserId: "", casaId: "", notes: "" });
-    } else {
-      // Optionally set a default date when dialog opens, e.g., first day of currentMonth/currentYear
-      // const firstDay = startOfMonth(new Date(currentYear, currentMonth));
-      // if (isWithinInterval(firstDay, { start: startOfMonth(new Date(currentYear, currentMonth)), end: endOfMonth(new Date(currentYear, currentMonth)) })) {
-      //   form.setValue("date", firstDay);
-      // }
+      form.reset({ date: undefined, time: "", preachingType: undefined, captainUserId: "", casaId: "", notes: "" });
     }
-  }, [isOpen, form, currentMonth, currentYear]);
+  }, [isOpen, form]);
 
-  // Reset slot if selected day changes and chosen slot is no longer valid
-  useEffect(() => {
-    if (selectedDate && form.getValues("programSlotId")) {
-        const currentSlotId = form.getValues("programSlotId");
-        const isValidSlot = slotsForSelectedDay.some(s => s.id === currentSlotId);
-        if (!isValidSlot) {
-            form.setValue("programSlotId", "", { shouldValidate: true });
-        }
+  const isDateDisabled = (date: Date): boolean => {
+    if (!groupOrganizedDays || groupOrganizedDays.length === 0) {
+      return false; // If no specific days are set by admin, allow all (or handle as error in settings)
     }
-  }, [selectedDate, slotsForSelectedDay, form]);
-
+    const dayOfWeekNumber = getDay(date);
+    const dayKey = DAY_OF_WEEK_MAP_NUM_TO_KEY[dayOfWeekNumber];
+    return !groupOrganizedDays.includes(dayKey);
+  };
 
   async function onSubmit(values: GroupAssignmentFormValues) {
     setIsSubmitting(true);
-    const selectedSlot = availableSlots.find(s => s.id === values.programSlotId);
     const selectedPublisher = groupPublishers.find(p => p.id === values.captainUserId);
-    // If values.casaId is an empty string (because "Ninguna" was selected), selectedCasa will be undefined.
-    const selectedCasa = values.casaId ? groupCasas.find(c => c.id === values.casaId) : undefined;
+    const selectedCasa = values.casaId && values.casaId !== NO_CASA_SELECTED_VALUE ? groupCasas.find(c => c.id === values.casaId) : undefined;
 
-    if (!selectedSlot) {
-      toast({ title: "Error", description: "Horario seleccionado no válido.", variant: "destructive" });
-      setIsSubmitting(false);
-      return;
-    }
      if (!selectedPublisher) {
       toast({ title: "Error", description: "Encargado seleccionado no válido.", variant: "destructive" });
       setIsSubmitting(false);
@@ -139,19 +117,18 @@ export function AddGroupAssignmentDialog({
 
     const assignmentData: Omit<GroupAssignment, 'id' | 'groupId' | 'createdAt' | 'createdBy'> = {
       date: format(values.date, "yyyy-MM-dd"),
-      programSlotId: selectedSlot.id,
-      preachingType: selectedSlot.type,
-      time: selectedSlot.startTime,
+      preachingType: values.preachingType,
+      time: values.time,
       captainUserId: values.captainUserId,
       captainName: selectedPublisher?.name || "Desconocido",
-      casaId: values.casaId || undefined, // Empty string becomes undefined
+      casaId: selectedCasa?.id || undefined,
       casaName: selectedCasa?.ownerName || undefined,
       notes: values.notes || undefined,
     };
     
     await new Promise(resolve => setTimeout(resolve, 500));
     onAssignmentSubmit(assignmentData);
-    onOpenChange(false); // Close dialog after submit
+    onOpenChange(false); 
     setIsSubmitting(false);
   }
 
@@ -199,12 +176,19 @@ export function AddGroupAssignmentDialog({
                         mode="single"
                         selected={field.value}
                         onSelect={field.onChange}
-                        disabled={(date) => date < monthStart || date > monthEnd}
+                        disabled={(date) => 
+                            date < monthStart || 
+                            date > monthEnd ||
+                            isDateDisabled(date)
+                        }
                         initialFocus
-                        month={monthStart} // Ensure calendar opens to the selected month
+                        month={monthStart} 
                       />
                     </PopoverContent>
                   </Popover>
+                  <FormFieldDescription className="text-xs">
+                    Solo se pueden seleccionar días del mes actual que estén habilitados por el administrador para la predicación por grupos.
+                  </FormFieldDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -212,30 +196,36 @@ export function AddGroupAssignmentDialog({
 
             <FormField
               control={form.control}
-              name="programSlotId"
+              name="time"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Horario y Tipo de Predicación</FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
-                    value={field.value}
-                    disabled={!selectedDate || slotsForSelectedDay.length === 0}
-                  >
+                  <FormLabel>Hora de Inicio (HH:mm)</FormLabel>
+                  <FormControl>
+                    <Input type="time" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="preachingType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de Predicación</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder={!selectedDate ? "Selecciona una fecha primero" : slotsForSelectedDay.length === 0 ? "No hay horarios para este día" : "Selecciona un horario"} />
+                        <SelectValue placeholder="Selecciona un tipo" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {slotsForSelectedDay.map(slot => (
-                        <SelectItem key={slot.id} value={slot.id}>
-                          {slot.startTime} - {slot.type} ({slot.status === 'tentative' ? 'Tentativo' : 'Fijo'})
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="general">General (Pública)</SelectItem>
+                      <SelectItem value="rural">Rural</SelectItem>
+                      <SelectItem value="zoom">Zoom</SelectItem>
                     </SelectContent>
                   </Select>
-                  {!selectedDate && <FormFieldDescription className="text-xs">Debes seleccionar una fecha para ver los horarios disponibles.</FormFieldDescription>}
-                  {selectedDate && slotsForSelectedDay.length === 0 && <FormFieldDescription className="text-xs text-destructive">No hay horarios configurados por el administrador para este día de la semana.</FormFieldDescription>}
                   <FormMessage />
                 </FormItem>
               )}
@@ -331,4 +321,3 @@ export function AddGroupAssignmentDialog({
     </Dialog>
   );
 }
-

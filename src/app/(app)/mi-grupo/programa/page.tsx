@@ -7,9 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon, AlertTriangle, MountainSnow, Video, Users2 as GroupIconLucide, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format, getDaysInMonth, startOfMonth, parse } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, parse, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup } from "@/types";
+import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek } from "@/types";
 import { AddGroupAssignmentDialog } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Timestamp } from "firebase/firestore";
@@ -23,7 +23,7 @@ const months = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 // MOCK Data - Replace with Firestore fetching later
-const MOCK_PROGRAM_SCHEDULE_SLOTS: ProgramScheduleSlot[] = [
+const MOCK_PROGRAM_SCHEDULE_SLOTS: ProgramScheduleSlot[] = [ // Admin defined slots (still needed for reference if we re-introduce later, or for other features)
   { id: 'mon-0900-gen', dayOfWeek: 'monday', startTime: '09:00', type: 'general', status: 'fixed' },
   { id: 'mon-1500-zoom', dayOfWeek: 'monday', startTime: '15:00', type: 'zoom', status: 'tentative' },
   { id: 'tue-1000-rur', dayOfWeek: 'tuesday', startTime: '10:00', type: 'rural', status: 'fixed' },
@@ -48,12 +48,16 @@ const MOCK_GROUP_CASAS: Casa[] = [
     { id: "casaG2-A", ownerName: "Familia Díaz (G2)", address: "Pasaje Estrella 789, G2", isBlocked: false, createdAt: Timestamp.now(), updatedAt: Timestamp.now(), addedByGroupId: "G2" },
 ];
 
-// Mock list of all groups, similar to settings page
 const MOCK_ALL_GROUPS_FOR_ADMIN_SELECT: Pick<PreachingGroup, 'id' | 'name'>[] = [
     { id: 'G1', name: 'Grupo Los Pioneros' },
     { id: 'G2', name: 'Grupo Betel' },
     { id: 'G3', name: 'Grupo Emanuel' },
 ];
+
+// MOCK: Days of the week when groups organize their own preaching (defined by admin in settings)
+// This will eventually come from Firestore settings.
+const MOCK_GROUP_ORGANIZED_DAYS: DayOfWeek[] = ['saturday', 'sunday'];
+
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingType, className?: string }) => {
   const defaultClass = "mr-1.5 h-4 w-4 shrink-0";
@@ -70,7 +74,7 @@ export default function MiGrupoProgramaPage() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [groupAssignments, setGroupAssignments] = useState<GroupAssignment[]>([]);
   const [isAddAssignmentDialogOpen, setIsAddAssignmentDialogOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // For future data fetching
+  const [isLoading, setIsLoading] = useState(false); 
   const { toast } = useToast();
   const { userProfile, isLoadingPermissions } = usePermissions();
   const [adminSelectedGroupId, setAdminSelectedGroupId] = useState<string | null>(null);
@@ -94,7 +98,7 @@ export default function MiGrupoProgramaPage() {
 
   useEffect(() => {
     if (userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !adminSelectedGroupId && MOCK_ALL_GROUPS_FOR_ADMIN_SELECT.length > 0) {
-      // setAdminSelectedGroupId(MOCK_ALL_GROUPS_FOR_ADMIN_SELECT[0].id); // Optionally pre-select first group for admin
+      // setAdminSelectedGroupId(MOCK_ALL_GROUPS_FOR_ADMIN_SELECT[0].id); 
     }
   }, [userProfile?.role, adminSelectedGroupId]);
 
@@ -102,11 +106,9 @@ export default function MiGrupoProgramaPage() {
   useEffect(() => {
     if (currentGroupId) {
         console.log(`Fetching assignments for group ${currentGroupId}, month ${selectedMonth}, year ${selectedYear}`);
-        // Simulate fetching: clear previous assignments for this group
         setGroupAssignments(prev => prev.filter(a => a.groupId !== currentGroupId));
-        // In a real app, fetch from Firestore here and update setGroupAssignments
     } else {
-        setGroupAssignments([]); // Clear assignments if no group is selected/assigned
+        setGroupAssignments([]); 
     }
   }, [selectedMonth, selectedYear, currentGroupId]);
 
@@ -199,7 +201,7 @@ export default function MiGrupoProgramaPage() {
           {pageTitle}
         </h1>
         <p className="text-muted-foreground mt-1">
-          Planifica y visualiza las asignaciones de predicación para el grupo.
+          Planifica y visualiza las asignaciones de predicación para el grupo. Sólo se pueden crear asignaciones en los días de la semana permitidos por el administrador.
         </p>
       </div>
 
@@ -287,6 +289,10 @@ export default function MiGrupoProgramaPage() {
               {monthDays.map(dayString => {
                 const assignmentsForDay = filteredAssignments.filter(a => a.date === dayString);
                 if (assignmentsForDay.length === 0) return null;
+                
+                const dayOfWeekNumber = getDay(parse(dayString, 'yyyy-MM-dd', new Date()));
+                const dayOfWeekString = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][dayOfWeekNumber];
+
 
                 return (
                   <Card key={dayString} className="shadow-md">
@@ -320,20 +326,19 @@ export default function MiGrupoProgramaPage() {
         </CardContent>
       </Card>
 
-      {currentGroupId && ( // Only render dialog if a group context is established
+      {currentGroupId && ( 
         <AddGroupAssignmentDialog
             isOpen={isAddAssignmentDialogOpen}
             onOpenChange={setIsAddAssignmentDialogOpen}
             onAssignmentSubmit={handleAddAssignment}
             currentMonth={selectedMonth}
             currentYear={selectedYear}
-            availableSlots={MOCK_PROGRAM_SCHEDULE_SLOTS}
+            // availableSlots={MOCK_PROGRAM_SCHEDULE_SLOTS} // No longer needed for time/type
             groupPublishers={currentGroupPublishers}
             groupCasas={currentGroupCasas}
+            groupOrganizedDays={MOCK_GROUP_ORGANIZED_DAYS} // Pass the allowed days
         />
       )}
     </div>
   );
 }
-
-    

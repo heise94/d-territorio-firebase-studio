@@ -192,7 +192,6 @@ export interface AdditionalTerritoryInfo {
   totalBlocks?: number; 
   dataAiHint?: string;
   isPartial?: boolean; 
-  // pendingBlocksDescription?: string; // Replaced by pendingBlockNumbers for clarity
   blockHouseCounts?: number[]; 
   approxHouseCount?: number; 
   pendingBlockNumbers?: number[]; 
@@ -241,9 +240,9 @@ export interface GroupAssignment {
   id: string;
   groupId: string;
   date: string; // YYYY-MM-DD
-  programSlotId: string; // Refers to ProgramScheduleSlot.id
-  preachingType: PreachingType;
-  time: string; // HH:MM
+  // programSlotId: string; // Refers to ProgramScheduleSlot.id - REMOVED
+  preachingType: PreachingType; // Now directly set by SG
+  time: string; // HH:MM - Now directly set by SG
   captainUserId: string; // Firebase Auth UID of a publisher from the group
   captainName?: string; // For display
   casaId?: string; // ID of a Casa associated with the group
