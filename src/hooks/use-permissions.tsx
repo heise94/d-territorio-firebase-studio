@@ -1,3 +1,4 @@
+
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
@@ -25,9 +26,8 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
   const { toast } = useToast();
 
-  // Debug log to see when this component is rendered and with what authUser
   if (typeof window !== 'undefined') {
-    console.log('[PermissionsProvider] Rendering. AuthUser UID:', authUser?.uid, 'AuthLoading:', authLoading);
+    console.log('[PermissionsProvider] Rendering. AuthUser UID:', authUser?.uid, 'AuthLoading:', authLoading, 'AuthUser Email:', authUser?.email);
   }
 
   useEffect(() => {
@@ -37,24 +37,12 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     async function fetchInitialData() {
       setIsLoadingPermissions(true);
 
-      // Debug log
-      if (typeof window !== 'undefined') {
-        console.log('[PermissionsProvider:fetchInitialData] Start. AuthUser UID:', authUser?.uid, 'AuthLoading:', authLoading);
-      }
-
-
       if (authLoading) {
-        if (typeof window !== 'undefined') {
-            console.log('[PermissionsProvider:fetchInitialData] Auth is loading, returning early and setting isLoadingPermissions to false.');
-        }
-        setIsLoadingPermissions(false); // Ensure loading state is updated
+        setIsLoadingPermissions(false);
         return;
       }
 
       if (!authUser || !authUser.uid) {
-        if (typeof window !== 'undefined') {
-            console.warn('PermissionsProvider:fetchInitialData: authUser or authUser.uid is not available. User might be logged out or authUser is not yet fully loaded/propagated.', { authUserExists: !!authUser, authUserUid: authUser?.uid });
-        }
         setUserProfile(null);
         setRolePermissionsConfig(null);
         setIsLoadingPermissions(false);
@@ -68,6 +56,67 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // --- START SIMULATION BLOCK FOR DEVELOPMENT ---
+      if (process.env.NODE_ENV === 'development') {
+        if (authUser.email === 'javih.jw@gmail.com') {
+          console.log("[PermissionsProvider] DEV SIMULATION: Assigning ENCARGADO_TERRITORIO role to javih.jw@gmail.com");
+          setUserProfile({
+            id: 'dev-admin-javih',
+            name: 'Javier (Admin Dev)',
+            email: 'javih.jw@gmail.com',
+            role: USER_ROLES.ENCARGADO_TERRITORIO,
+            status: 'Activo',
+            firebaseAuthUid: authUser.uid,
+            // No assignedGroupId for admin, so they can select
+          });
+           // Fetch role permissions for admin, then set loading to false
+            const rolePermissionsDocRefAdmin = doc(db, "settings", "rolePermissions");
+            unsubscribeRolePermissions = onSnapshot(rolePermissionsDocRefAdmin, (docSnap) => {
+                if (docSnap.exists()) {
+                const data = docSnap.data() as SettingsDoc;
+                setRolePermissionsConfig(data.rolePermissions || DEFAULT_ROLE_PERMISSIONS);
+                } else {
+                setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
+                }
+                setIsLoadingPermissions(false);
+            }, (error) => {
+                console.error("Error fetching role permissions for dev admin:", error);
+                setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
+                setIsLoadingPermissions(false);
+            });
+          return; // Exit early after setting up simulated admin
+        } else if (authUser.uid === 'uidElena') { // Existing simulation for SG
+           console.log("[PermissionsProvider] DEV SIMULATION: Assigning SG role to uidElena");
+          setUserProfile({
+            id: 'dev-sg-elena',
+            name: 'Elena Campos (SG Dev)',
+            email: 'elena.campos.dev@example.com',
+            role: USER_ROLES.SG,
+            status: 'Activo',
+            firebaseAuthUid: authUser.uid,
+            assignedGroupId: 'G1', // Elena is SG of G1
+          });
+          // Fetch role permissions for SG, then set loading to false
+            const rolePermissionsDocRefSG = doc(db, "settings", "rolePermissions");
+            unsubscribeRolePermissions = onSnapshot(rolePermissionsDocRefSG, (docSnap) => {
+                if (docSnap.exists()) {
+                const data = docSnap.data() as SettingsDoc;
+                setRolePermissionsConfig(data.rolePermissions || DEFAULT_ROLE_PERMISSIONS);
+                } else {
+                setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
+                }
+                setIsLoadingPermissions(false);
+            }, (error) => {
+                console.error("Error fetching role permissions for dev SG:", error);
+                setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
+                setIsLoadingPermissions(false);
+            });
+          return; // Exit early after setting up simulated SG
+        }
+      }
+      // --- END SIMULATION BLOCK ---
+
+
       try {
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("firebaseAuthUid", "==", authUser.uid));
@@ -77,7 +126,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
             const userDoc = querySnapshot.docs[0];
             setUserProfile({ id: userDoc.id, ...userDoc.data() } as UserProfile);
           } else {
-            console.warn(`User profile not found in Firestore for auth UID: ${authUser.uid}`);
+            console.warn(`User profile not found in Firestore for auth UID: ${authUser.uid}.`);
             setUserProfile(null); 
           }
         }, (error) => {
@@ -125,16 +174,18 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   }, [authUser, authLoading, toast]);
 
   const hasPermission = useCallback((permissionId: PermissionId): boolean => {
+    if (isLoadingPermissions) return false; // Don't grant permissions while loading
     if (!userProfile || !userProfile.role || !rolePermissionsConfig) {
       return false; 
     }
+    // Super admin (Encargado Territorio) has all permissions implicitly
     if (userProfile.role === USER_ROLES.ENCARGADO_TERRITORIO) {
         return true; 
     }
 
     const permissionsForRole = rolePermissionsConfig[userProfile.role];
     return permissionsForRole ? permissionsForRole.includes(permissionId) : false;
-  }, [userProfile, rolePermissionsConfig]);
+  }, [userProfile, rolePermissionsConfig, isLoadingPermissions]);
 
   return (
     <PermissionsContext.Provider value={{ userProfile, rolePermissionsConfig, isLoadingPermissions, hasPermission }}>
@@ -150,3 +201,5 @@ export function usePermissions(): PermissionsContextType {
   }
   return context;
 }
+
+    
