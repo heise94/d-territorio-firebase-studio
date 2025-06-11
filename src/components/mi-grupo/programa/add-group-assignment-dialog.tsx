@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils";
 
 const groupAssignmentFormSchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
-  time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Debe ser formato HH:mm."}),
+  time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Formato 24h (ej: 09:00, 14:30)."}),
   preachingType: z.enum(['general', 'rural', 'zoom'], { required_error: "Debes seleccionar un tipo."}),
   captainUserId: z.string().min(1, "Debes seleccionar un encargado."),
   casaId: z.string().optional(),
@@ -63,7 +63,7 @@ interface AddGroupAssignmentDialogProps {
   groupCasas: Casa[];
   groupOrganizedDays: DayOfWeek[]; 
   assignmentToEdit?: GroupAssignment | null;
-  initialDate?: Date | null; // For pre-filling date when adding from calendar cell
+  initialDate?: Date | null;
 }
 
 export function AddGroupAssignmentDialog({
@@ -107,7 +107,7 @@ export function AddGroupAssignmentDialog({
         });
       } else {
         form.reset({
-          date: initialDate || undefined, // Use initialDate if provided for new assignment
+          date: initialDate || undefined,
           time: "",
           preachingType: undefined,
           captainUserId: "",
@@ -139,7 +139,7 @@ export function AddGroupAssignmentDialog({
     }
 
     const assignmentData: Omit<GroupAssignment, 'groupId' | 'createdAt' | 'createdBy'> & { id?: string } = {
-      id: isEditMode ? assignmentToEdit.id : undefined, 
+      id: isEditMode ? assignmentToEdit?.id : undefined, 
       date: format(values.date, "yyyy-MM-dd"),
       preachingType: values.preachingType,
       time: values.time,
@@ -224,7 +224,7 @@ export function AddGroupAssignmentDialog({
               name="time"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Hora de Inicio (HH:mm)</FormLabel>
+                  <FormLabel>Hora de Inicio (Formato 24h)</FormLabel>
                   <FormControl>
                     <Input type="time" {...field} />
                   </FormControl>
@@ -346,5 +346,3 @@ export function AddGroupAssignmentDialog({
     </Dialog>
   );
 }
-
-    
