@@ -40,10 +40,10 @@ export default function UsuariosPage() {
   const [isInviteUserDialogOpen, setIsInviteUserDialogOpen] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>([
     // Datos de ejemplo iniciales
-    { id: '1', name: 'Elena Campos', email: 'elena.campos@example.com', role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uidElena', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1' },
-    { id: '2', name: 'Carlos Rivas', email: 'carlos.rivas@example.com', role: USER_ROLES.PUBLICADOR, status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uidCarlos', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G2' },
+    { id: '1', name: 'Elena Campos', email: 'elena.campos@example.com', phoneNumber: '+56911111111', role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uidElena', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1' },
+    { id: '2', name: 'Carlos Rivas', email: 'carlos.rivas@example.com', phoneNumber: '+56922222222', role: USER_ROLES.PUBLICADOR, status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uidCarlos', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G2' },
     { id: '3', name: 'Laura Méndez', email: 'laura.mendez@example.com', role: USER_ROLES.SG, status: 'Bloqueado', invitationStatus: 'accepted', firebaseAuthUid: 'uidLaura', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1'},
-    { id: '4', name: 'Pedro Herrera', email: 'pedro.herrera@example.com', role: USER_ROLES.PUBLICADOR, status: 'Activo', invitationStatus: 'pending', firebaseAuthUid: 'uidPedro', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+    { id: '4', name: 'Pedro Herrera', email: 'pedro.herrera@example.com', phoneNumber: '56944444444', role: USER_ROLES.PUBLICADOR, status: 'Activo', invitationStatus: 'pending', firebaseAuthUid: 'uidPedro', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
   ]);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
@@ -117,6 +117,38 @@ export default function UsuariosPage() {
       description: "La visualización de disponibilidad de usuario estará disponible pronto.",
     });
     console.log(`Viendo disponibilidad del usuario ${userId}`);
+  };
+
+  const handleSendWhatsAppReminder = (userName?: string, userPhoneNumber?: string) => {
+    if (!userPhoneNumber || userPhoneNumber.trim() === "") {
+      toast({
+        title: "Sin Número de Teléfono",
+        description: `No se puede enviar un recordatorio por WhatsApp a ${userName || 'este usuario'} porque no tiene un número de teléfono registrado.`,
+        variant: "default",
+        duration: 5000,
+      });
+      return;
+    }
+
+    // Limpieza básica del número: quitar espacios, guiones, paréntesis.
+    // WhatsApp requiere el formato internacional, ej: +56912345678
+    // Esta limpieza es muy simple, para producción se recomienda una librería de validación/formateo.
+    let cleanedPhoneNumber = userPhoneNumber.replace(/[\s-()]/g, "");
+    if (!cleanedPhoneNumber.startsWith('+') && cleanedPhoneNumber.length > 8) { // Intenta añadir + si parece faltar (heurística simple)
+        // Podrías tener una lógica más compleja aquí para el código de país por defecto si es necesario
+        // Por ahora, si no tiene +, pero parece un número largo, lo dejamos tal cual.
+        // Si tiene un código de país sin el +, por ejemplo 569... lo dejamos.
+    }
+
+
+    const message = encodeURIComponent(`Hola ${userName || ''}, este es un recordatorio amistoso sobre tus próximas actividades. ¡Saludos!`);
+    const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${message}`;
+
+    window.open(whatsappUrl, '_blank');
+    toast({
+      title: "Abriendo WhatsApp",
+      description: `Intentando enviar recordatorio a ${userName || 'este usuario'} vía WhatsApp.`,
+    });
   };
 
 
@@ -225,6 +257,7 @@ export default function UsuariosPage() {
                             <div>
                               <div className="font-medium">{user.name}</div>
                               <div className="text-xs text-muted-foreground">{user.email}</div>
+                              {user.phoneNumber && <div className="text-xs text-muted-foreground/70 mt-0.5">{user.phoneNumber}</div>}
                             </div>
                           </div>
                         </TableCell>
@@ -241,7 +274,7 @@ export default function UsuariosPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-0.5"> {/* Reduced gap from gap-1 to gap-0.5 */}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user.id)}>
@@ -277,12 +310,28 @@ export default function UsuariosPage() {
                                 <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleResendInvitation(user.email)}>
                                     <Send className="h-4 w-4" />
-                                    <span className="sr-only">Reenviar Invitación</span>
+                                    <span className="sr-only">Reenviar Invitación por Email</span>
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Reenviar Invitación</TooltipContent>
+                                <TooltipContent>Reenviar Invitación por Email</TooltipContent>
                               </Tooltip>
                             )}
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8" 
+                                  onClick={() => handleSendWhatsAppReminder(user.name, user.phoneNumber)}
+                                  disabled={!user.phoneNumber || user.phoneNumber.trim() === ""}
+                                >
+                                  <Send className="h-4 w-4 text-green-600" /> {/* Using Send icon, styled green */}
+                                  <span className="sr-only">Recordatorio por WhatsApp</span>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Recordatorio por WhatsApp</TooltipContent>
+                            </Tooltip>
                             
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
