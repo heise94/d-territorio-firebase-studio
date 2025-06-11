@@ -16,6 +16,7 @@ import { Timestamp } from "firebase/firestore";
 import { USER_ROLES } from "@/lib/constants";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -336,7 +337,7 @@ export default function MiGrupoProgramaPage() {
                   
                   const holidayForDay = MOCK_CUSTOM_HOLIDAYS.find(h => isSameDay(h.date.toDate(), day));
                   
-                  const canAddAssignment = isAuthorizedDayForGroup && !isPastDay && currentGroupId && !holidayForDay; // Optionally prevent adding on holidays
+                  const canAddAssignment = isAuthorizedDayForGroup && !isPastDay && currentGroupId && !holidayForDay; 
 
                   let dayCardClasses = `min-h-[160px] flex flex-col rounded-md shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'} ${isPastDay ? 'opacity-70 bg-muted/40' : ''}`;
                   if (holidayForDay) {
