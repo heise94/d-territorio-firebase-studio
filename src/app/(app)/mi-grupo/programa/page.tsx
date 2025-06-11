@@ -5,35 +5,23 @@ import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon, AlertTriangle, MountainSnow, Video, Users2 as GroupIconLucide, Eye } from "lucide-react";
+import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon, AlertTriangle, MountainSnow, Video, Users2 as GroupIconLucide, Eye, Edit, Trash2, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format, getDaysInMonth, startOfMonth, parse, getDay } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek } from "@/types";
 import { AddGroupAssignmentDialog } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Timestamp } from "firebase/firestore";
 import { USER_ROLES } from "@/lib/constants";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i); 
+const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 const months = Array.from({ length: 12 }, (_, i) => ({
   value: i,
   label: format(new Date(currentYear, i), "MMMM", { locale: es }),
 }));
-
-// MOCK Data - Replace with Firestore fetching later
-const MOCK_PROGRAM_SCHEDULE_SLOTS: ProgramScheduleSlot[] = [ // Admin defined slots (still needed for reference if we re-introduce later, or for other features)
-  { id: 'mon-0900-gen', dayOfWeek: 'monday', startTime: '09:00', type: 'general', status: 'fixed' },
-  { id: 'mon-1500-zoom', dayOfWeek: 'monday', startTime: '15:00', type: 'zoom', status: 'tentative' },
-  { id: 'tue-1000-rur', dayOfWeek: 'tuesday', startTime: '10:00', type: 'rural', status: 'fixed' },
-  { id: 'wed-0930-gen', dayOfWeek: 'wednesday', startTime: '09:30', type: 'general', status: 'fixed' },
-  { id: 'thu-1400-zoom', dayOfWeek: 'thursday', startTime: '14:00', type: 'zoom', status: 'fixed' },
-  { id: 'fri-1000-gen', dayOfWeek: 'friday', startTime: '10:00', type: 'general', status: 'fixed' },
-  { id: 'sat-1000-gen', dayOfWeek: 'saturday', startTime: '10:00', type: 'general', status: 'fixed' },
-  { id: 'sat-1100-rur', dayOfWeek: 'saturday', startTime: '11:00', type: 'rural', status: 'fixed' },
-  { id: 'sun-1500-zoom', dayOfWeek: 'sunday', startTime: '15:00', type: 'zoom', status: 'fixed' },
-];
 
 const MOCK_GROUP_PUBLISHERS: PublisherDetail[] = [
     { id: "uidUser1", name: "Ana Pérez (G1)", email: "ana@example.com", availability: { availableSlotIds: [] }, assignedGroupId: "G1" },
@@ -54,18 +42,15 @@ const MOCK_ALL_GROUPS_FOR_ADMIN_SELECT: Pick<PreachingGroup, 'id' | 'name'>[] = 
     { id: 'G3', name: 'Grupo Emanuel' },
 ];
 
-// MOCK: Days of the week when groups organize their own preaching (defined by admin in settings)
-// This will eventually come from Firestore settings.
 const MOCK_GROUP_ORGANIZED_DAYS: DayOfWeek[] = ['saturday', 'sunday'];
 
-
 const PreachingTypeIcon = ({ type, className }: { type: PreachingType, className?: string }) => {
-  const defaultClass = "mr-1.5 h-4 w-4 shrink-0";
+  const defaultClass = "mr-1 h-4 w-4 shrink-0";
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === 'general') return <UsersIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
   if (type === 'zoom') return <Video className={combinedClass} />;
-  return <UsersIcon className={combinedClass} />; 
+  return <UsersIcon className={combinedClass} />;
 };
 
 
@@ -74,10 +59,15 @@ export default function MiGrupoProgramaPage() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [groupAssignments, setGroupAssignments] = useState<GroupAssignment[]>([]);
   const [isAddAssignmentDialogOpen, setIsAddAssignmentDialogOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); 
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { userProfile, isLoadingPermissions } = usePermissions();
   const [adminSelectedGroupId, setAdminSelectedGroupId] = useState<string | null>(null);
+
+  const [assignmentToEdit, setAssignmentToEdit] = useState<GroupAssignment | null>(null);
+  const [assignmentToDeleteId, setAssignmentToDeleteId] = useState<string | null>(null);
+  const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
+
 
   const currentGroupId = useMemo(() => {
     if (userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO) {
@@ -98,7 +88,8 @@ export default function MiGrupoProgramaPage() {
 
   useEffect(() => {
     if (userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !adminSelectedGroupId && MOCK_ALL_GROUPS_FOR_ADMIN_SELECT.length > 0) {
-      // setAdminSelectedGroupId(MOCK_ALL_GROUPS_FOR_ADMIN_SELECT[0].id); 
+      // Optional: auto-select first group for admin or leave as is to force selection
+      // setAdminSelectedGroupId(MOCK_ALL_GROUPS_FOR_ADMIN_SELECT[0].id);
     }
   }, [userProfile?.role, adminSelectedGroupId]);
 
@@ -106,29 +97,69 @@ export default function MiGrupoProgramaPage() {
   useEffect(() => {
     if (currentGroupId) {
         console.log(`Fetching assignments for group ${currentGroupId}, month ${selectedMonth}, year ${selectedYear}`);
-        setGroupAssignments(prev => prev.filter(a => a.groupId !== currentGroupId));
+        // Simulating fetch: filter existing assignments for the current group.
+        // In a real app, this would be a Firestore query.
+        const simulatedFetchedAssignments = groupAssignments.filter(a => a.groupId === currentGroupId);
+        // setGroupAssignments(simulatedFetchedAssignments); // Careful with this, might cause infinite loop if not handled well. For now, we manage all assignments in one state.
     } else {
-        setGroupAssignments([]); 
+        // setGroupAssignments([]); // Clear assignments if no group is selected (for admin view)
     }
   }, [selectedMonth, selectedYear, currentGroupId]);
 
-  const handleAddAssignment = (newAssignment: Omit<GroupAssignment, 'id' | 'groupId' | 'createdAt' | 'createdBy'>) => {
-    if (!currentGroupId || !userProfile?.firebaseAuthUid) {
-      toast({ title: "Error", description: "No se pudo identificar el grupo o usuario para crear la asignación.", variant: "destructive" });
-      return;
-    }
-    const assignmentToAdd: GroupAssignment = {
-      ...newAssignment,
-      id: crypto.randomUUID(),
-      groupId: currentGroupId,
-      createdAt: Timestamp.now(),
-      createdBy: userProfile.firebaseAuthUid,
-    };
-    setGroupAssignments(prev => [...prev, assignmentToAdd].sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time) ));
-    toast({ title: "Asignación Creada", description: "La asignación para el grupo ha sido creada manualmente." });
+  const handleOpenAddDialog = () => {
+    setAssignmentToEdit(null);
+    setIsAddAssignmentDialogOpen(true);
   };
 
-  const filteredAssignments = useMemo(() => {
+  const handleOpenEditDialog = (assignment: GroupAssignment) => {
+    setAssignmentToEdit(assignment);
+    setIsAddAssignmentDialogOpen(true);
+  };
+
+  const handleAssignmentSubmit = (submittedData: Omit<GroupAssignment, 'groupId' | 'createdAt' | 'createdBy'> & { id?: string }) => {
+    if (!currentGroupId || !userProfile?.firebaseAuthUid) {
+      toast({ title: "Error", description: "No se pudo identificar el grupo o usuario.", variant: "destructive" });
+      return;
+    }
+
+    if (submittedData.id) { // Editing existing assignment
+      setGroupAssignments(prev =>
+        prev.map(assign =>
+          assign.id === submittedData.id
+            ? { ...assign, ...submittedData, groupId: currentGroupId, updatedAt: Timestamp.now() } as GroupAssignment
+            : assign
+        ).sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time))
+      );
+      toast({ title: "Asignación Actualizada", description: "La asignación ha sido actualizada." });
+    } else { // Adding new assignment
+      const assignmentToAdd: GroupAssignment = {
+        ...submittedData,
+        id: crypto.randomUUID(),
+        groupId: currentGroupId,
+        createdAt: Timestamp.now(),
+        createdBy: userProfile.firebaseAuthUid,
+      };
+      setGroupAssignments(prev => [...prev, assignmentToAdd].sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time)));
+      toast({ title: "Asignación Creada", description: "La nueva asignación ha sido creada." });
+    }
+    setIsAddAssignmentDialogOpen(false);
+  };
+
+  const handleOpenDeleteDialog = (assignmentId: string) => {
+    setAssignmentToDeleteId(assignmentId);
+    setIsConfirmDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!assignmentToDeleteId) return;
+    setGroupAssignments(prev => prev.filter(assign => assign.id !== assignmentToDeleteId));
+    toast({ title: "Asignación Eliminada", description: "La asignación ha sido eliminada.", variant: "destructive" });
+    setIsConfirmDeleteDialogOpen(false);
+    setAssignmentToDeleteId(null);
+  };
+
+
+  const filteredAssignmentsForMonth = useMemo(() => {
     if (!currentGroupId) return [];
     return groupAssignments.filter(assign => {
       const assignDate = parse(assign.date, 'yyyy-MM-dd', new Date());
@@ -139,7 +170,7 @@ export default function MiGrupoProgramaPage() {
   if (isLoadingPermissions) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
-  
+
   const isAdminView = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
   const isSGView = userProfile?.role === USER_ROLES.SG;
 
@@ -180,15 +211,16 @@ export default function MiGrupoProgramaPage() {
       </div>
     )
   }
-  
-  const monthDays = useMemo(() => {
-    const date = new Date(selectedYear, selectedMonth);
-    const numDays = getDaysInMonth(date);
-    return Array.from({ length: numDays }, (_, i) => format(startOfMonth(date), `yyyy-MM-${String(i + 1).padStart(2, '0')}`));
-  }, [selectedMonth, selectedYear]);
+
+  const firstDayOfMonth = startOfMonth(new Date(selectedYear, selectedMonth));
+  const daysInMonth = getDaysInMonth(firstDayOfMonth);
+  const startingDayOfWeek = getDay(firstDayOfMonth); // 0 for Sunday, 1 for Monday...
+  const dayOffset = startingDayOfWeek === 0 ? 6 : startingDayOfWeek -1; // Adjust to make Monday the first day (0 = Mon, 6 = Sun)
+
+  const calendarDays = Array.from({ length: daysInMonth }, (_, i) => new Date(selectedYear, selectedMonth, i + 1));
 
   const selectedGroupName = MOCK_ALL_GROUPS_FOR_ADMIN_SELECT.find(g => g.id === currentGroupId)?.name;
-  const pageTitle = isAdminView 
+  const pageTitle = isAdminView
     ? `Programa del Grupo ${selectedGroupName ? `- ${selectedGroupName}` : '(Seleccione un grupo)'}`
     : `Programa de Mi Grupo ${userProfile?.assignedGroupId && !selectedGroupName ? `(${userProfile.assignedGroupId})` : selectedGroupName ? `(${selectedGroupName})` : ''}`;
 
@@ -216,7 +248,7 @@ export default function MiGrupoProgramaPage() {
                         <SelectValue placeholder="Seleccionar Grupo a Gestionar" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="NONE">Ninguno (Ver Todos)</SelectItem>
+                        <SelectItem value="NONE">Ninguno (Seleccione un grupo)</SelectItem>
                         {MOCK_ALL_GROUPS_FOR_ADMIN_SELECT.map(group => (
                         <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
                         ))}
@@ -246,9 +278,9 @@ export default function MiGrupoProgramaPage() {
                 </Select>
               </div>
             </div>
-            <Button 
-                onClick={() => setIsAddAssignmentDialogOpen(true)} 
-                size="lg" 
+            <Button
+                onClick={handleOpenAddDialog}
+                size="lg"
                 className="w-full sm:w-auto mt-2 sm:mt-0"
                 disabled={isLoading || (isAdminView && !adminSelectedGroupId)}
             >
@@ -273,72 +305,96 @@ export default function MiGrupoProgramaPage() {
                 Como administrador, elige un grupo de la lista de arriba para gestionar su programa.
               </p>
             </div>
-          ) : filteredAssignments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center bg-muted/20 rounded-lg border border-dashed">
-              <CalendarDays className="h-20 w-20 text-muted-foreground/70 mb-6" />
-              <p className="text-xl font-medium text-muted-foreground mb-2">Sin asignaciones para {selectedGroupName || 'el grupo'} en este mes.</p>
-              <p className="text-sm text-muted-foreground">
-                Haz clic en "Añadir Asignación Grupal" para crear la primera.
-              </p>
-            </div>
           ) : (
-             <div className="space-y-6">
-              <h2 className="text-2xl font-semibold font-headline text-center">
-                Asignaciones para {months.find(m => m.value === selectedMonth)?.label} de {selectedYear}
-              </h2>
-              {monthDays.map(dayString => {
-                const assignmentsForDay = filteredAssignments.filter(a => a.date === dayString);
-                if (assignmentsForDay.length === 0) return null;
-                
-                const dayOfWeekNumber = getDay(parse(dayString, 'yyyy-MM-dd', new Date()));
-                const dayOfWeekString = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][dayOfWeekNumber];
+            <div className="mt-6">
+              <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground pb-2 border-b">
+                {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map(day => <div key={day}>{day}</div>)}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {/* Empty cells for offset */}
+                {Array.from({ length: dayOffset }).map((_, i) => <div key={`empty-${i}`} className="border rounded-md min-h-[120px] bg-muted/30"></div>)}
 
+                {calendarDays.map(day => {
+                  const dayString = format(day, "yyyy-MM-dd");
+                  const assignmentsForDay = filteredAssignmentsForMonth.filter(a => a.date === dayString)
+                                          .sort((a,b) => a.time.localeCompare(b.time));
+                  const isToday = isSameDay(day, new Date());
 
-                return (
-                  <Card key={dayString} className="shadow-md">
-                    <CardHeader className="pb-2 bg-muted/30 rounded-t-md">
-                      <CardTitle className="text-lg font-semibold">
-                        {format(parse(dayString, 'yyyy-MM-dd', new Date()), "EEEE, dd 'de' MMMM", { locale: es })}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4">
-                      <ul className="space-y-3">
-                        {assignmentsForDay.map(assign => (
-                          <li key={assign.id} className="p-3 border rounded-md shadow-sm bg-card hover:bg-muted/10 transition-colors">
-                            <div className="flex justify-between items-center mb-1">
-                                <div className="flex items-center">
-                                    <PreachingTypeIcon type={assign.preachingType} className="text-primary h-5 w-5" />
-                                    <span className="font-medium text-primary ml-1">{assign.time} - {assign.captainName || "No asignado"}</span>
-                                </div>
-                                <span className="text-xs text-muted-foreground capitalize">{assign.preachingType}</span>
+                  return (
+                    <Card key={dayString} className={`min-h-[120px] flex flex-col rounded-md shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'}`}>
+                      <CardHeader className="p-2 pb-1 text-center">
+                        <CardTitle className={`text-xs font-medium ${isToday ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+                          {format(day, "d")}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-1.5 space-y-1.5 overflow-y-auto flex-grow">
+                        {assignmentsForDay.length > 0 ? (
+                          assignmentsForDay.map(assign => (
+                            <div key={assign.id} className="p-1.5 rounded-md bg-muted/50 hover:bg-muted/70 text-xs shadow-sm relative group">
+                              <div className="flex items-center font-semibold">
+                                <PreachingTypeIcon type={assign.preachingType} className="text-primary shrink-0 h-3 w-3" />
+                                <span className="ml-1">{assign.time}</span>
+                              </div>
+                              <p className="truncate text-foreground/90" title={assign.captainName}>{assign.captainName}</p>
+                              {assign.casaName && <p className="truncate text-muted-foreground text-[0.7rem]" title={assign.casaName}><HomeIcon size={10} className="inline mr-0.5"/>{assign.casaName}</p>}
+
+                              <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
+                                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenEditDialog(assign)}>
+                                  <Pencil className="h-3 w-3 text-blue-600" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenDeleteDialog(assign.id)}>
+                                  <Trash2 className="h-3 w-3 text-destructive" />
+                                </Button>
+                              </div>
                             </div>
-                            {assign.casaName && <p className="text-sm flex items-center"><HomeIcon size={14} className="mr-1.5 text-muted-foreground shrink-0"/> Casa: {assign.casaName}</p>}
-                            {assign.notes && <p className="text-xs italic text-muted-foreground mt-1">Notas: {assign.notes}</p>}
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                          ))
+                        ) : (
+                          <div className="h-full flex items-center justify-center">
+                             {/* Optionally, show a subtle plus icon or something to indicate addability */}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {currentGroupId && ( 
+      {currentGroupId && (
         <AddGroupAssignmentDialog
             isOpen={isAddAssignmentDialogOpen}
             onOpenChange={setIsAddAssignmentDialogOpen}
-            onAssignmentSubmit={handleAddAssignment}
+            onAssignmentSubmit={handleAssignmentSubmit}
             currentMonth={selectedMonth}
             currentYear={selectedYear}
-            // availableSlots={MOCK_PROGRAM_SCHEDULE_SLOTS} // No longer needed for time/type
             groupPublishers={currentGroupPublishers}
             groupCasas={currentGroupCasas}
-            groupOrganizedDays={MOCK_GROUP_ORGANIZED_DAYS} // Pass the allowed days
+            groupOrganizedDays={MOCK_GROUP_ORGANIZED_DAYS}
+            assignmentToEdit={assignmentToEdit}
         />
       )}
+
+       <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro de eliminar esta asignación?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. La asignación será eliminada permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setAssignmentToDeleteId(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
+
+    

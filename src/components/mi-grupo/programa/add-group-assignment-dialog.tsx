@@ -32,7 +32,7 @@ import type { GroupAssignment, PublisherDetail, Casa, PreachingType, DayOfWeek }
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CalendarIcon as CalendarIconLucide } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { format, parse, getDay, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
+import { format, parse, getDay, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
 import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 
@@ -56,12 +56,13 @@ const NO_CASA_SELECTED_VALUE = "__NO_CASA_SELECTED__";
 interface AddGroupAssignmentDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onAssignmentSubmit: (data: Omit<GroupAssignment, 'id' | 'groupId' | 'createdAt' | 'createdBy'>) => void;
+  onAssignmentSubmit: (data: Omit<GroupAssignment, 'groupId' | 'createdAt' | 'createdBy'> & { id?: string }) => void;
   currentMonth: number; // 0-indexed
   currentYear: number;
   groupPublishers: PublisherDetail[];
   groupCasas: Casa[];
   groupOrganizedDays: DayOfWeek[]; // Days allowed by admin for group preaching
+  assignmentToEdit?: GroupAssignment | null;
 }
 
 export function AddGroupAssignmentDialog({
@@ -73,9 +74,11 @@ export function AddGroupAssignmentDialog({
   groupPublishers,
   groupCasas,
   groupOrganizedDays,
+  assignmentToEdit,
 }: AddGroupAssignmentDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditMode = !!assignmentToEdit;
 
   const form = useForm<GroupAssignmentFormValues>({
     resolver: zodResolver(groupAssignmentFormSchema),
@@ -90,14 +93,25 @@ export function AddGroupAssignmentDialog({
   });
 
   useEffect(() => {
-    if (!isOpen) {
-      form.reset({ date: undefined, time: "", preachingType: undefined, captainUserId: "", casaId: "", notes: "" });
+    if (isOpen) {
+      if (assignmentToEdit) {
+        form.reset({
+          date: parse(assignmentToEdit.date, 'yyyy-MM-dd', new Date()),
+          time: assignmentToEdit.time,
+          preachingType: assignmentToEdit.preachingType,
+          captainUserId: assignmentToEdit.captainUserId,
+          casaId: assignmentToEdit.casaId || "",
+          notes: assignmentToEdit.notes || "",
+        });
+      } else {
+        form.reset({ date: undefined, time: "", preachingType: undefined, captainUserId: "", casaId: "", notes: "" });
+      }
     }
-  }, [isOpen, form]);
+  }, [isOpen, assignmentToEdit, form]);
 
   const isDateDisabled = (date: Date): boolean => {
     if (!groupOrganizedDays || groupOrganizedDays.length === 0) {
-      return false; // If no specific days are set by admin, allow all (or handle as error in settings)
+      return false; // If no specific days are set by admin, allow all
     }
     const dayOfWeekNumber = getDay(date);
     const dayKey = DAY_OF_WEEK_MAP_NUM_TO_KEY[dayOfWeekNumber];
@@ -115,7 +129,8 @@ export function AddGroupAssignmentDialog({
       return;
     }
 
-    const assignmentData: Omit<GroupAssignment, 'id' | 'groupId' | 'createdAt' | 'createdBy'> = {
+    const assignmentData: Omit<GroupAssignment, 'groupId' | 'createdAt' | 'createdBy'> & { id?: string } = {
+      id: isEditMode ? assignmentToEdit.id : undefined, // Include ID if editing
       date: format(values.date, "yyyy-MM-dd"),
       preachingType: values.preachingType,
       time: values.time,
@@ -125,23 +140,27 @@ export function AddGroupAssignmentDialog({
       casaName: selectedCasa?.ownerName || undefined,
       notes: values.notes || undefined,
     };
-    
+
     await new Promise(resolve => setTimeout(resolve, 500));
     onAssignmentSubmit(assignmentData);
-    onOpenChange(false); 
+    // Toast messages are handled in the parent component after successful submission
     setIsSubmitting(false);
+    // onOpenChange(false); // Parent will handle closing the dialog
   }
 
   const monthStart = startOfMonth(new Date(currentYear, currentMonth));
   const monthEnd = endOfMonth(new Date(currentYear, currentMonth));
+  const dialogTitle = isEditMode ? "Editar Asignación del Grupo" : "Añadir Nueva Asignación al Grupo";
+  const submitButtonText = isEditMode ? "Guardar Cambios" : "Añadir Asignación";
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Añadir Nueva Asignación al Grupo</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
-            Completa los detalles para la asignación manual de tu grupo.
+            {isEditMode ? "Modifica los detalles de la asignación." : "Completa los detalles para la asignación manual de tu grupo."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -176,13 +195,12 @@ export function AddGroupAssignmentDialog({
                         mode="single"
                         selected={field.value}
                         onSelect={field.onChange}
-                        disabled={(date) => 
-                            date < monthStart || 
-                            date > monthEnd ||
+                        disabled={(date) =>
+                            !isWithinInterval(date, { start: monthStart, end: monthEnd }) ||
                             isDateDisabled(date)
                         }
                         initialFocus
-                        month={monthStart} 
+                        month={monthStart}
                       />
                     </PopoverContent>
                   </Popover>
@@ -230,7 +248,7 @@ export function AddGroupAssignmentDialog({
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="captainUserId"
@@ -312,7 +330,7 @@ export function AddGroupAssignmentDialog({
               </DialogClose>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Añadir Asignación
+                {submitButtonText}
               </Button>
             </DialogFooter>
           </form>
@@ -321,3 +339,5 @@ export function AddGroupAssignmentDialog({
     </Dialog>
   );
 }
+
+    
