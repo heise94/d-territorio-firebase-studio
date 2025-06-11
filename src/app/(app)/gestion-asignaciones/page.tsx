@@ -51,7 +51,7 @@ import {
 import type { Assignment, AssignmentStatus, PreachingAssignedType, PublisherDetail, ProgramScheduleSlot } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp } from "firebase/firestore";
-import { format, parse } from "date-fns";
+import { format, parse, isBefore } from "date-fns";
 import { es } from "date-fns/locale";
 import { findReplacementCaptain } from "@/ai/flows/find-replacement-captain";
 
@@ -161,10 +161,26 @@ export default function GestionAsignacionesPage() {
     }
 
     let cleanedPhoneNumber = assign.userPhoneNumber.replace(/[\s-()]/g, "");
+    // Basic international format check (optional, adjust as needed)
+    // if (!cleanedPhoneNumber.startsWith('+')) {
+    //   cleanedPhoneNumber = `+${cleanedPhoneNumber}`; // Example: Assume it needs a +
+    // }
     
-    const assignmentDateFormatted = format(parse(assign.date, "yyyy-MM-dd", new Date()), "dd/MM/yy", { locale: es });
-    const message = encodeURIComponent(`Hola ${assign.userName || ''}, te recuerdo tu asignación de predicación ${assign.type} en "${assign.locationName}" el ${assignmentDateFormatted} a las ${assign.time}. ¡Saludos!`);
-    const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${message}`;
+    const assignmentDate = parse(assign.date, "yyyy-MM-dd", new Date());
+    const assignmentDateTime = parse(`${assign.date} ${assign.time}`, "yyyy-MM-dd HH:mm", new Date());
+    const assignmentDateFormatted = format(assignmentDate, "EEEE dd 'de' MMMM", { locale: es });
+
+    const appBaseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const misAsignacionesUrl = `${appBaseUrl}/asignaciones`;
+
+    let message = `Hola ${assign.userName || ''}, `;
+    if (assign.status === 'pending' && isBefore(assignmentDateTime, new Date())) {
+      message += `te recordamos tu asignación de predicación ${assign.type} en "${assign.locationName}" para el ${assignmentDateFormatted} a las ${assign.time}. Por favor, accede para aceptarla o rechazarla: ${misAsignacionesUrl} ¡Gracias!`;
+    } else {
+      message += `este es un recordatorio de tu asignación de predicación ${assign.type} en "${assign.locationName}" para el ${assignmentDateFormatted} a las ${assign.time}. Detalles en: ${misAsignacionesUrl} ¡Saludos!`;
+    }
+    
+    const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${encodeURIComponent(message)}`;
 
     window.open(whatsappUrl, '_blank');
     toast({
