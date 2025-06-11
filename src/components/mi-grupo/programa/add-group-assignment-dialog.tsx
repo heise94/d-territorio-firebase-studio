@@ -61,8 +61,9 @@ interface AddGroupAssignmentDialogProps {
   currentYear: number;
   groupPublishers: PublisherDetail[];
   groupCasas: Casa[];
-  groupOrganizedDays: DayOfWeek[]; // Days allowed by admin for group preaching
+  groupOrganizedDays: DayOfWeek[]; 
   assignmentToEdit?: GroupAssignment | null;
+  initialDate?: Date | null; // For pre-filling date when adding from calendar cell
 }
 
 export function AddGroupAssignmentDialog({
@@ -75,6 +76,7 @@ export function AddGroupAssignmentDialog({
   groupCasas,
   groupOrganizedDays,
   assignmentToEdit,
+  initialDate,
 }: AddGroupAssignmentDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -104,14 +106,21 @@ export function AddGroupAssignmentDialog({
           notes: assignmentToEdit.notes || "",
         });
       } else {
-        form.reset({ date: undefined, time: "", preachingType: undefined, captainUserId: "", casaId: "", notes: "" });
+        form.reset({
+          date: initialDate || undefined, // Use initialDate if provided for new assignment
+          time: "",
+          preachingType: undefined,
+          captainUserId: "",
+          casaId: "",
+          notes: ""
+        });
       }
     }
-  }, [isOpen, assignmentToEdit, form]);
+  }, [isOpen, assignmentToEdit, initialDate, form]);
 
   const isDateDisabled = (date: Date): boolean => {
     if (!groupOrganizedDays || groupOrganizedDays.length === 0) {
-      return false; // If no specific days are set by admin, allow all
+      return false; 
     }
     const dayOfWeekNumber = getDay(date);
     const dayKey = DAY_OF_WEEK_MAP_NUM_TO_KEY[dayOfWeekNumber];
@@ -130,7 +139,7 @@ export function AddGroupAssignmentDialog({
     }
 
     const assignmentData: Omit<GroupAssignment, 'groupId' | 'createdAt' | 'createdBy'> & { id?: string } = {
-      id: isEditMode ? assignmentToEdit.id : undefined, // Include ID if editing
+      id: isEditMode ? assignmentToEdit.id : undefined, 
       date: format(values.date, "yyyy-MM-dd"),
       preachingType: values.preachingType,
       time: values.time,
@@ -143,9 +152,7 @@ export function AddGroupAssignmentDialog({
 
     await new Promise(resolve => setTimeout(resolve, 500));
     onAssignmentSubmit(assignmentData);
-    // Toast messages are handled in the parent component after successful submission
     setIsSubmitting(false);
-    // onOpenChange(false); // Parent will handle closing the dialog
   }
 
   const monthStart = startOfMonth(new Date(currentYear, currentMonth));

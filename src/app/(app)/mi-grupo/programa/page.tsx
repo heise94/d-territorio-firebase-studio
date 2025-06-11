@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon, AlertTriangle, MountainSnow, Video, Users2 as GroupIconLucide, Eye, Edit, Trash2, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse, isAfter, isBefore as isBeforeDateFns } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek } from "@/types";
 import { AddGroupAssignmentDialog } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
@@ -43,6 +43,10 @@ const MOCK_ALL_GROUPS_FOR_ADMIN_SELECT: Pick<PreachingGroup, 'id' | 'name'>[] = 
 ];
 
 const MOCK_GROUP_ORGANIZED_DAYS: DayOfWeek[] = ['saturday', 'sunday'];
+const DAY_OF_WEEK_MAP_NUM_TO_KEY: Record<number, DayOfWeek> = {
+  0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday',
+};
+
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingType, className?: string }) => {
   const defaultClass = "mr-1 h-4 w-4 shrink-0";
@@ -67,6 +71,7 @@ export default function MiGrupoProgramaPage() {
   const [assignmentToEdit, setAssignmentToEdit] = useState<GroupAssignment | null>(null);
   const [assignmentToDeleteId, setAssignmentToDeleteId] = useState<string | null>(null);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
+  const [initialDateForDialog, setInitialDateForDialog] = useState<Date | null>(null);
 
 
   const currentGroupId = useMemo(() => {
@@ -106,13 +111,15 @@ export default function MiGrupoProgramaPage() {
     }
   }, [selectedMonth, selectedYear, currentGroupId]);
 
-  const handleOpenAddDialog = () => {
+  const handleOpenAddDialog = (dateForAssignment?: Date) => {
     setAssignmentToEdit(null);
+    setInitialDateForDialog(dateForAssignment || null);
     setIsAddAssignmentDialogOpen(true);
   };
 
   const handleOpenEditDialog = (assignment: GroupAssignment) => {
     setAssignmentToEdit(assignment);
+    setInitialDateForDialog(null); // Not needed for edit mode
     setIsAddAssignmentDialogOpen(true);
   };
 
@@ -278,14 +285,7 @@ export default function MiGrupoProgramaPage() {
                 </Select>
               </div>
             </div>
-            <Button
-                onClick={handleOpenAddDialog}
-                size="lg"
-                className="w-full sm:w-auto mt-2 sm:mt-0"
-                disabled={isLoading || (isAdminView && !adminSelectedGroupId)}
-            >
-              <PlusCircle className="mr-2 h-5 w-5" /> Añadir Asignación Grupal
-            </Button>
+            {/* Removed main add button */}
           </div>
            {isAdminView && !adminSelectedGroupId && (
                 <p className="text-sm text-amber-600 dark:text-amber-400 mt-3 flex items-center"><AlertTriangle className="mr-2 h-4 w-4" />Por favor, selecciona un grupo para ver o añadir asignaciones.</p>
@@ -319,13 +319,27 @@ export default function MiGrupoProgramaPage() {
                   const assignmentsForDay = filteredAssignmentsForMonth.filter(a => a.date === dayString)
                                           .sort((a,b) => a.time.localeCompare(b.time));
                   const isToday = isSameDay(day, new Date());
+                  const dayOfWeekKey = DAY_OF_WEEK_MAP_NUM_TO_KEY[getDay(day)];
+                  const isAuthorizedDayForGroup = MOCK_GROUP_ORGANIZED_DAYS.includes(dayOfWeekKey);
+                  const isPastDay = isBeforeDateFns(day, new Date()) && !isSameDay(day, new Date());
 
                   return (
-                    <Card key={dayString} className={`min-h-[120px] flex flex-col rounded-md shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'}`}>
-                      <CardHeader className="p-2 pb-1 text-center">
+                    <Card key={dayString} className={`min-h-[140px] flex flex-col rounded-md shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'} ${isPastDay ? 'opacity-70 bg-muted/40' : ''}`}>
+                      <CardHeader className="p-2 pb-1 flex flex-row justify-between items-center">
                         <CardTitle className={`text-xs font-medium ${isToday ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
                           {format(day, "d")}
                         </CardTitle>
+                        {isAuthorizedDayForGroup && !isPastDay && currentGroupId && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-primary hover:bg-primary/10"
+                            onClick={() => handleOpenAddDialog(day)}
+                            title={`Añadir asignación para ${format(day, "dd/MM")}`}
+                          >
+                            <PlusCircle className="h-4 w-4" />
+                          </Button>
+                        )}
                       </CardHeader>
                       <CardContent className="p-1.5 space-y-1.5 overflow-y-auto flex-grow">
                         {assignmentsForDay.length > 0 ? (
@@ -338,14 +352,16 @@ export default function MiGrupoProgramaPage() {
                               <p className="truncate text-foreground/90" title={assign.captainName}>{assign.captainName}</p>
                               {assign.casaName && <p className="truncate text-muted-foreground text-[0.7rem]" title={assign.casaName}><HomeIcon size={10} className="inline mr-0.5"/>{assign.casaName}</p>}
 
-                              <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
-                                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenEditDialog(assign)}>
-                                  <Pencil className="h-3 w-3 text-blue-600" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenDeleteDialog(assign.id)}>
-                                  <Trash2 className="h-3 w-3 text-destructive" />
-                                </Button>
-                              </div>
+                              {!isPastDay && (
+                                <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
+                                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenEditDialog(assign)}>
+                                    <Pencil className="h-3 w-3 text-blue-600" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenDeleteDialog(assign.id)}>
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           ))
                         ) : (
@@ -354,6 +370,11 @@ export default function MiGrupoProgramaPage() {
                           </div>
                         )}
                       </CardContent>
+                      {!isAuthorizedDayForGroup && (
+                        <CardFooter className="p-1 mt-auto border-t border-dashed">
+                            <p className="text-[0.65rem] text-muted-foreground/70 text-center w-full">No hab</p>
+                        </CardFooter>
+                      )}
                     </Card>
                   );
                 })}
@@ -374,6 +395,7 @@ export default function MiGrupoProgramaPage() {
             groupCasas={currentGroupCasas}
             groupOrganizedDays={MOCK_GROUP_ORGANIZED_DAYS}
             assignmentToEdit={assignmentToEdit}
+            initialDate={initialDateForDialog}
         />
       )}
 
