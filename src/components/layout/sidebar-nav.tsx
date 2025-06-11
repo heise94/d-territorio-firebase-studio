@@ -121,9 +121,7 @@ export function SidebarNav() {
           </AccordionTrigger>
           <AccordionContent className="pt-1 pb-0 pl-5 border-l border-sidebar-border ml-[calc(0.75rem+10px)] mt-1"> 
             <ul className="space-y-0.5">
-              {visibleChildren.map(child => (
-                <li key={child.href}>{renderNavItem(child, true, item.segment)}</li>
-              ))}
+              {visibleChildren.map(child => renderNavItem(child, true, item.segment))}
             </ul>
           </AccordionContent>
         </AccordionItem>
