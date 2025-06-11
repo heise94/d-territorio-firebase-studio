@@ -27,11 +27,12 @@ const MOCK_TERRITORY_SUGGESTIONS: AdditionalTerritoryInfo[] = [
     number: "105B", 
     type: "urban", 
     mapImageUrl: "https://placehold.co/300x200.png?text=Flores+Parcial", 
-    totalBlocks: 6, 
+    totalBlocks: 6, // Total blocks of the original territory
     dataAiHint: "residential map",
     isPartial: true,
-    pendingBlocksDescription: "Manzanas 3 y 5 pendientes.",
-    blockHouseCounts: [10, 12, 0, 15, 0, 8] // Example: M3 y M5 (0-indexed: 2 y 4) no trabajadas
+    pendingBlockNumbers: [3, 5], // Example: Manzanas 3 y 5 (1-indexed) son las pendientes
+    approxPendingHousesCount: (15 + 8), // Suma de casas en M3 (ej: 15) y M5 (ej: 8)
+    // blockHouseCounts: [10, 12, 15, 0, 8, 0] // Original counts for original 6 blocks (M4 & M6 worked)
   },
   { 
     id: "T-ADD2", 
@@ -40,7 +41,7 @@ const MOCK_TERRITORY_SUGGESTIONS: AdditionalTerritoryInfo[] = [
     mapImageUrl: "https://placehold.co/300x200.png?text=Encanto+Rural", 
     totalBlocks: 3, 
     dataAiHint: "rural road",
-    isPartial: false, // Assuming this is a complete territory suggestion
+    isPartial: false,
     approxHouseCount: 25 
   },
   { 
@@ -142,9 +143,9 @@ export function SolicitarTerritorioDialog({
                             {terr.type} {terr.number ? ` #${terr.number}`: ''}
                         </Badge>
                     </CardTitle>
-                    {terr.isPartial && terr.pendingBlocksDescription && (
+                     {terr.isPartial && terr.pendingBlockNumbers && terr.pendingBlockNumbers.length > 0 && (
                         <CardDescription className="text-xs text-amber-600 pt-0.5">
-                            {terr.pendingBlocksDescription}
+                            Territorio parcialmente trabajado
                         </CardDescription>
                     )}
                   </CardHeader>
@@ -156,18 +157,11 @@ export function SolicitarTerritorioDialog({
                     )}
                     {terr.isPartial ? (
                         <>
-                            {terr.blockHouseCounts && terr.blockHouseCounts.length > 0 && (
-                                <div>
-                                    <p className="font-medium flex items-center"><ListChecks size={12} className="mr-1.5 shrink-0"/> Casas por Manzana (pendientes):</p>
-                                    <ul className="list-disc list-inside pl-2">
-                                        {terr.blockHouseCounts.map((count, idx) => {
-                                            // Assuming 0 count means it's pending or needs to be specified for pending blocks
-                                            // This logic might need refinement based on how pending blocks are truly identified from data
-                                            if(count > 0) return <li key={idx}>Manzana {idx + 1}: {count} casas</li>;
-                                            return null; // Or display differently if it's a pending block with no specific count yet
-                                        }).filter(Boolean)}
-                                    </ul>
-                                </div>
+                            {terr.pendingBlockNumbers && terr.pendingBlockNumbers.length > 0 && (
+                                <p><span className="font-medium flex items-center"><ListChecks size={12} className="mr-1.5 shrink-0"/> Manzanas pendientes:</span> {terr.pendingBlockNumbers.join(', ')}</p>
+                            )}
+                            {terr.approxPendingHousesCount !== undefined && (
+                                <p><span className="font-medium flex items-center"><HomeIcon size={12} className="mr-1.5 shrink-0"/> Casas en pendientes aprox:</span> {terr.approxPendingHousesCount}</p>
                             )}
                         </>
                     ) : (
@@ -177,7 +171,7 @@ export function SolicitarTerritorioDialog({
                         </>
                     )}
                   </CardContent>
-                  <DialogFooter className="p-3 border-t mt-auto"> {/* Added mt-auto to push footer down */}
+                  <DialogFooter className="p-3 border-t mt-auto">
                     <Button 
                         size="sm" 
                         className="w-full bg-green-600 hover:bg-green-700 text-white"
@@ -205,3 +199,4 @@ export function SolicitarTerritorioDialog({
     </Dialog>
   );
 }
+

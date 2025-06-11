@@ -192,9 +192,11 @@ export interface AdditionalTerritoryInfo {
   totalBlocks?: number; 
   dataAiHint?: string;
   isPartial?: boolean; 
-  pendingBlocksDescription?: string; 
-  blockHouseCounts?: number[]; 
-  approxHouseCount?: number; 
+  pendingBlocksDescription?: string; // Kept for flexibility, but not primary display
+  blockHouseCounts?: number[]; // Kept for data source, not direct display in partial summary
+  approxHouseCount?: number; // For complete territories OR total for a partial one if needed
+  pendingBlockNumbers?: number[]; // e.g. [3, 5, 6]
+  approxPendingHousesCount?: number; // Sum of houses in pendingBlockNumbers
 }
 
 export interface UserAssignment {
@@ -231,3 +233,4 @@ export interface PublisherDetail {
   email: string;
   availability: UserAvailability; // Assuming this structure holds slot IDs or similar
 }
+
