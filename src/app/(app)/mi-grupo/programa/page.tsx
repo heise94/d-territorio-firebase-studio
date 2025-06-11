@@ -5,16 +5,17 @@ import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon, AlertTriangle, MountainSnow, Video, Users2 as GroupIconLucide, Eye, Edit, Trash2, Pencil } from "lucide-react";
+import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon, AlertTriangle, MountainSnow, Video, Users2 as GroupIconLucide, Eye, Edit, Trash2, Pencil, Gift } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse, isAfter, isBefore as isBeforeDateFns } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek } from "@/types";
+import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek, CustomHoliday } from "@/types";
 import { AddGroupAssignmentDialog } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Timestamp } from "firebase/firestore";
 import { USER_ROLES } from "@/lib/constants";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -43,6 +44,16 @@ const MOCK_ALL_GROUPS_FOR_ADMIN_SELECT: Pick<PreachingGroup, 'id' | 'name'>[] = 
 ];
 
 const MOCK_GROUP_ORGANIZED_DAYS: DayOfWeek[] = ['saturday', 'sunday'];
+
+const MOCK_CUSTOM_HOLIDAYS: CustomHoliday[] = [
+    { id: "h1", name: "Año Nuevo", date: Timestamp.fromDate(new Date(new Date().getFullYear(), 0, 1)), createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+    { id: "h2", name: "Día del Trabajo", date: Timestamp.fromDate(new Date(new Date().getFullYear(), 4, 1)), createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+    { id: "h3", name: "Navidad", date: Timestamp.fromDate(new Date(new Date().getFullYear(), 11, 25)), createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+    // Add a holiday in the current or next month for testing visibility
+    { id: "h4", name: "Festivo de Prueba", date: Timestamp.fromDate(new Date(new Date().getFullYear(), new Date().getMonth(), 15)), createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+];
+
+
 const DAY_OF_WEEK_MAP_NUM_TO_KEY: Record<number, DayOfWeek> = {
   0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday',
 };
@@ -63,7 +74,7 @@ export default function MiGrupoProgramaPage() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [groupAssignments, setGroupAssignments] = useState<GroupAssignment[]>([]);
   const [isAddAssignmentDialogOpen, setIsAddAssignmentDialogOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // Not used yet, but good for future Firestore integration
   const { toast } = useToast();
   const { userProfile, isLoadingPermissions } = usePermissions();
   const [adminSelectedGroupId, setAdminSelectedGroupId] = useState<string | null>(null);
@@ -83,11 +94,13 @@ export default function MiGrupoProgramaPage() {
 
   const currentGroupPublishers = useMemo(() => {
     if (!currentGroupId) return [];
+    // TODO: Replace with actual data fetching for the selected group
     return MOCK_GROUP_PUBLISHERS.filter(p => p.assignedGroupId === currentGroupId);
   }, [currentGroupId]);
 
   const currentGroupCasas = useMemo(() => {
     if (!currentGroupId) return [];
+    // TODO: Replace with actual data fetching for the selected group
     return MOCK_GROUP_CASAS.filter(c => c.addedByGroupId === currentGroupId);
   }, [currentGroupId]);
 
@@ -101,13 +114,10 @@ export default function MiGrupoProgramaPage() {
 
   useEffect(() => {
     if (currentGroupId) {
-        console.log(`Fetching assignments for group ${currentGroupId}, month ${selectedMonth}, year ${selectedYear}`);
-        // Simulating fetch: filter existing assignments for the current group.
-        // In a real app, this would be a Firestore query.
-        const simulatedFetchedAssignments = groupAssignments.filter(a => a.groupId === currentGroupId);
-        // setGroupAssignments(simulatedFetchedAssignments); // Careful with this, might cause infinite loop if not handled well. For now, we manage all assignments in one state.
-    } else {
-        // setGroupAssignments([]); // Clear assignments if no group is selected (for admin view)
+        console.log(`Displaying assignments for group ${currentGroupId}, month ${selectedMonth}, year ${selectedYear}`);
+        // This is where you would fetch assignments from Firestore based on currentGroupId, selectedMonth, selectedYear
+        // For now, it filters the local state, which means assignments are shared across groups if admin switches.
+        // This needs to be adjusted when Firestore is integrated.
     }
   }, [selectedMonth, selectedYear, currentGroupId]);
 
@@ -119,7 +129,7 @@ export default function MiGrupoProgramaPage() {
 
   const handleOpenEditDialog = (assignment: GroupAssignment) => {
     setAssignmentToEdit(assignment);
-    setInitialDateForDialog(null); 
+    setInitialDateForDialog(null); // No specific initial date needed when editing
     setIsAddAssignmentDialogOpen(true);
   };
 
@@ -129,22 +139,23 @@ export default function MiGrupoProgramaPage() {
       return;
     }
 
-    if (submittedData.id) { 
+    if (submittedData.id) { // Editing existing assignment
       setGroupAssignments(prev =>
         prev.map(assign =>
           assign.id === submittedData.id
-            ? { ...assign, ...submittedData, groupId: currentGroupId, updatedAt: Timestamp.now() } as GroupAssignment
+            ? { ...assign, ...submittedData, groupId: currentGroupId, updatedAt: Timestamp.now() } as GroupAssignment // Ensure groupId and updatedAt are set
             : assign
         ).sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time))
       );
       toast({ title: "Asignación Actualizada", description: "La asignación ha sido actualizada." });
-    } else { 
+    } else { // Adding new assignment
       const assignmentToAdd: GroupAssignment = {
         ...submittedData,
         id: crypto.randomUUID(),
         groupId: currentGroupId,
         createdAt: Timestamp.now(),
         createdBy: userProfile.firebaseAuthUid,
+        // 'updatedAt' will be set if/when it's edited. For creation, only createdAt is essential.
       };
       setGroupAssignments(prev => [...prev, assignmentToAdd].sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time)));
       toast({ title: "Asignación Creada", description: "La nueva asignación ha sido creada." });
@@ -221,15 +232,17 @@ export default function MiGrupoProgramaPage() {
 
   const firstDayOfMonth = startOfMonth(new Date(selectedYear, selectedMonth));
   const daysInMonth = getDaysInMonth(firstDayOfMonth);
-  const startingDayOfWeek = getDay(firstDayOfMonth); 
-  const dayOffset = startingDayOfWeek === 0 ? 6 : startingDayOfWeek -1; 
+  const startingDayOfWeek = getDay(firstDayOfMonth); // 0 for Sunday, 1 for Monday etc.
+  // Adjust offset: In many calendars, Monday is the first day (0), Sunday is last (6).
+  // getDay returns 0 for Sunday. If your grid starts Monday, Sunday (0) needs offset 6. Monday (1) needs 0.
+  const dayOffset = startingDayOfWeek === 0 ? 6 : startingDayOfWeek -1; // Assuming grid starts Monday.
 
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => new Date(selectedYear, selectedMonth, i + 1));
 
   const selectedGroupName = MOCK_ALL_GROUPS_FOR_ADMIN_SELECT.find(g => g.id === currentGroupId)?.name;
   const pageTitle = isAdminView
     ? `Programa del Grupo ${selectedGroupName ? `- ${selectedGroupName}` : '(Seleccione un grupo)'}`
-    : `Programa de Mi Grupo ${userProfile?.assignedGroupId && !selectedGroupName ? `(${userProfile.assignedGroupId})` : selectedGroupName ? `(${selectedGroupName})` : ''}`;
+    : `Programa de Mi Grupo ${userProfile?.assignedGroupId && !selectedGroupName ? `(${MOCK_ALL_GROUPS_FOR_ADMIN_SELECT.find(g => g.id === userProfile.assignedGroupId)?.name || userProfile.assignedGroupId})` : selectedGroupName ? `(${selectedGroupName})` : ''}`;
 
 
   return (
@@ -320,14 +333,37 @@ export default function MiGrupoProgramaPage() {
                   const dayOfWeekKey = DAY_OF_WEEK_MAP_NUM_TO_KEY[getDay(day)];
                   const isAuthorizedDayForGroup = MOCK_GROUP_ORGANIZED_DAYS.includes(dayOfWeekKey);
                   const isPastDay = isBeforeDateFns(day, new Date()) && !isSameDay(day, new Date());
-                  const canAddAssignment = isAuthorizedDayForGroup && !isPastDay && currentGroupId;
+                  
+                  const holidayForDay = MOCK_CUSTOM_HOLIDAYS.find(h => isSameDay(h.date.toDate(), day));
+                  
+                  const canAddAssignment = isAuthorizedDayForGroup && !isPastDay && currentGroupId && !holidayForDay; // Optionally prevent adding on holidays
+
+                  let dayCardClasses = `min-h-[160px] flex flex-col rounded-md shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'} ${isPastDay ? 'opacity-70 bg-muted/40' : ''}`;
+                  if (holidayForDay) {
+                    dayCardClasses += ' bg-teal-50 dark:bg-teal-900/20 border-teal-300 dark:border-teal-700/40';
+                  }
+
 
                   return (
-                    <Card key={dayString} className={`min-h-[160px] flex flex-col rounded-md shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'} ${isPastDay ? 'opacity-70 bg-muted/40' : ''}`}>
-                      <CardHeader className="p-2 pb-1 flex flex-row justify-between items-center">
+                    <Card key={dayString} className={dayCardClasses}>
+                      <CardHeader className="p-2 pb-1 flex flex-row justify-between items-start">
                         <CardTitle className={`text-xs font-medium ${isToday ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
                           {format(day, "d")}
                         </CardTitle>
+                        {holidayForDay && (
+                            <TooltipProvider delayDuration={100}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Badge variant="outline" className="text-xs px-1.5 py-0.5 border-teal-500 text-teal-700 bg-teal-100 dark:text-teal-300 dark:bg-teal-800/50 dark:border-teal-600">
+                                            <Gift size={10} className="mr-1"/> Festivo
+                                        </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{holidayForDay.name}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
                       </CardHeader>
                       <CardContent className={`p-1.5 space-y-1.5 overflow-y-auto flex-grow ${assignmentsForDay.length === 0 && canAddAssignment ? 'flex flex-col items-center justify-center' : ''}`}>
                         {assignmentsForDay.length > 0 ? (
@@ -377,13 +413,15 @@ export default function MiGrupoProgramaPage() {
                           </Button>
                         ) : (
                            <div className="h-full flex items-center justify-center">
-                             {/* Optionally, show a subtle plus icon or something to indicate addability */}
+                            {holidayForDay && !canAddAssignment && <p className="text-xs text-teal-700 dark:text-teal-400 text-center p-1">Día festivo: {holidayForDay.name}</p>}
                           </div>
                         )}
                       </CardContent>
-                      {!isAuthorizedDayForGroup && (
+                      {(!isAuthorizedDayForGroup || holidayForDay) && (
                         <CardFooter className="p-1 mt-auto border-t border-dashed">
-                            <p className="text-[0.65rem] text-muted-foreground/70 text-center w-full">No hab</p>
+                            <p className="text-[0.65rem] text-muted-foreground/70 text-center w-full">
+                                {holidayForDay ? "Festivo" : "No hab."}
+                            </p>
                         </CardFooter>
                       )}
                     </Card>
@@ -429,3 +467,4 @@ export default function MiGrupoProgramaPage() {
     </div>
   );
 }
+
