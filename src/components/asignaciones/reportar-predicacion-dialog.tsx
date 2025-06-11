@@ -44,10 +44,15 @@ const singleTerritoryReportSchema = z.object({
 const reportFormSchema = z.object({
   reports: z.array(singleTerritoryReportSchema),
   generalNotes: z.string().max(1000, "Máximo 1000 caracteres.").optional().or(z.literal('')),
-  additionalTerritorySelected: z.boolean().optional().default(false), // Keep track if an additional was part of this report context
+  additionalTerritorySelectedInAssignment: z.boolean().optional().default(false),
 });
 
 type ReportFormValues = z.infer<typeof reportFormSchema>;
+
+interface TerritoryToReportDisplayInternal extends AdditionalTerritoryInfo {
+    isMain: boolean;
+    displayableBlockNumbers: number[]; // Specific blocks to show for this report instance
+}
 
 interface ReportarPredicacionDialogProps {
   isOpen: boolean;
@@ -56,10 +61,6 @@ interface ReportarPredicacionDialogProps {
   territory: Territory | null; // Main territory details
   onReportSubmit: (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => void;
   initialReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null;
-}
-
-interface TerritoryToReportDisplay extends AdditionalTerritoryInfo {
-    isMain: boolean;
 }
 
 
@@ -77,24 +78,31 @@ export function ReportarPredicacionDialog({
   const [openTerritorySections, setOpenTerritorySections] = useState<Record<string, boolean>>({});
   const [visibleMaps, setVisibleMaps] = useState<Record<string, boolean>>({});
 
-
   const form = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
     defaultValues: {
       reports: [],
       generalNotes: "",
-      additionalTerritorySelected: false,
+      additionalTerritorySelectedInAssignment: false,
     },
   });
   
-  const { fields } = useFieldArray({
+  const { fields, replace } = useFieldArray({
     control: form.control,
     name: "reports",
   });
 
-  const territoriesToReportForForm = useMemo((): TerritoryToReportDisplay[] => {
-    const toReport: TerritoryToReportDisplay[] = [];
-    if (territory && assignment) { 
+  // Memoize the list of territories to report, including logic for displayable blocks
+  const territoriesToReportForDialog = useMemo((): TerritoryToReportDisplayInternal[] => {
+    if (!assignment) return [];
+    const toReport: TerritoryToReportDisplayInternal[] = [];
+
+    if (territory) { // Main territory
+      let mainDisplayableBlocks: number[];
+      // For main territory, we don't have `isPartial` or `pendingBlockNumbers` directly on `UserAssignment` or `Territory` yet
+      // So, for now, it will always show all blocks. This could be enhanced if assignment creation specifies partial blocks.
+      mainDisplayableBlocks = Array.from({ length: territory.totalBlocks || 0 }, (_, i) => i + 1);
+      
       toReport.push({
         id: territory.id,
         name: territory.name,
@@ -104,12 +112,28 @@ export function ReportarPredicacionDialog({
         dataAiHint: territory.dataAiHint,
         totalBlocks: territory.totalBlocks,
         isMain: true,
+        displayableBlockNumbers: mainDisplayableBlocks,
+        // approxHouseCount will come from the main territory object
+        approxHouseCount: territory.approxHouseCount,
+        blockHouseCounts: territory.blockHouseCounts,
+
       });
     }
-    if (assignment?.additionalTerritorySelected) {
+
+    if (assignment.additionalTerritorySelected) {
+      const additional = assignment.additionalTerritorySelected;
+      let additionalDisplayableBlocks: number[];
+
+      if (additional.isPartial && additional.pendingBlockNumbers && additional.pendingBlockNumbers.length > 0) {
+        additionalDisplayableBlocks = additional.pendingBlockNumbers;
+      } else {
+        additionalDisplayableBlocks = Array.from({ length: additional.totalBlocks || 0 }, (_, i) => i + 1);
+      }
+      
       toReport.push({
-        ...assignment.additionalTerritorySelected,
+        ...additional,
         isMain: false,
+        displayableBlockNumbers: additionalDisplayableBlocks,
       });
     }
     return toReport;
@@ -117,16 +141,16 @@ export function ReportarPredicacionDialog({
 
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && assignment) {
       const initialReportsForForm: SingleTerritoryReportDetails[] = [];
       const initialOpenSections: Record<string, boolean> = {};
       const initialVisibleMaps: Record<string, boolean> = {};
 
-      territoriesToReportForForm.forEach((terrInfo) => {
+      territoriesToReportForDialog.forEach((terrInfo) => {
         const existingReportForThisTerritory = initialReportData?.reports?.find(r => r.territoryId === terrInfo.id);
         initialReportsForForm.push({
           territoryId: terrInfo.id,
-          territoryName: terrInfo.name,
+          territoryName: terrInfo.name, // Ensure name is populated
           territoryNotWorked: existingReportForThisTerritory?.territoryNotWorked || false,
           workedBlocksIds: existingReportForThisTerritory?.workedBlocksIds || [],
         });
@@ -134,20 +158,21 @@ export function ReportarPredicacionDialog({
         initialVisibleMaps[terrInfo.id] = false; 
       });
       
-      form.reset({
-        reports: initialReportsForForm,
-        generalNotes: initialReportData?.generalNotes || "",
-        additionalTerritorySelected: !!assignment?.additionalTerritorySelected,
-      });
+      // Use replace from useFieldArray to set the form fields correctly
+      replace(initialReportsForForm); 
+      form.setValue("generalNotes", initialReportData?.generalNotes || "");
+      form.setValue("additionalTerritorySelectedInAssignment", !!assignment?.additionalTerritorySelected);
+      
       setOpenTerritorySections(initialOpenSections);
       setVisibleMaps(initialVisibleMaps);
 
-    } else {
-       form.reset({ reports: [], generalNotes: "", additionalTerritorySelected: false });
+    } else if (!isOpen) {
+       replace([]); // Clear the field array
+       form.reset({ reports: [], generalNotes: "", additionalTerritorySelectedInAssignment: false });
        setOpenTerritorySections({});
        setVisibleMaps({});
     }
-  }, [isOpen, initialReportData, form, territoriesToReportForForm, assignment]);
+  }, [isOpen, initialReportData, form, territoriesToReportForDialog, assignment, replace]);
 
 
   const watchedReports = form.watch("reports");
@@ -158,8 +183,9 @@ export function ReportarPredicacionDialog({
         if (currentWorkedBlocks && currentWorkedBlocks.length > 0) {
             form.setValue(`reports.${index}.workedBlocksIds`, [], { shouldDirty: true });
         }
-        if (visibleMaps[report.territoryId]) {
-            setVisibleMaps(prev => ({ ...prev, [report.territoryId]: false }));
+        const territoryId = form.getValues(`reports.${index}.territoryId`);
+        if (visibleMaps[territoryId]) {
+            setVisibleMaps(prev => ({ ...prev, [territoryId]: false }));
         }
       }
     });
@@ -183,10 +209,10 @@ export function ReportarPredicacionDialog({
       onReportSubmit({
         reports: values.reports.map(r => ({
             ...r,
-            workedBlocksIds: r.territoryNotWorked ? [] : r.workedBlocksIds
+            workedBlocksIds: r.territoryNotWorked ? [] : r.workedBlocksIds || [] // Ensure workedBlocksIds is an array
         })),
         generalNotes: values.generalNotes,
-        additionalTerritorySelected: values.additionalTerritorySelected,
+        additionalTerritorySelected: values.additionalTerritorySelectedInAssignment,
       });
     } catch (error) {
         toast({ title: "Error", description: "No se pudo enviar el reporte.", variant: "destructive"});
@@ -226,18 +252,23 @@ export function ReportarPredicacionDialog({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-5 py-1 pr-1">
             {fields.map((fieldItem, index) => {
-              const currentTerritoryInfo = territoriesToReportForForm.find(t => t.id === fieldItem.territoryId);
+              // fieldItem here is from useFieldArray, it has an `id` for React key, but values are at form.watch(`reports.${index}`)
+              // We need to find the corresponding full territory info from our memoized `territoriesToReportForDialog`
+              const currentTerritoryInfo = territoriesToReportForDialog.find(t => t.id === form.getValues(`reports.${index}.territoryId`));
+
               if (!currentTerritoryInfo) return null; 
 
-              const isSectionOpen = openTerritorySections[fieldItem.territoryId] ?? false; // Default to false if not found, though useEffect should set it
+              const isSectionOpen = openTerritorySections[currentTerritoryInfo.id] ?? true;
               const territoryNotWorked = form.watch(`reports.${index}.territoryNotWorked`);
-              const isMapVisible = visibleMaps[fieldItem.territoryId] ?? false;
+              const isMapVisible = visibleMaps[currentTerritoryInfo.id] ?? false;
+              const displayableBlockNumbersForThisTerritory = currentTerritoryInfo.displayableBlockNumbers;
+
 
               return (
                 <div key={fieldItem.id} className="rounded-md border shadow-sm">
                   <button
                     type="button"
-                    onClick={() => toggleTerritorySection(fieldItem.territoryId)}
+                    onClick={() => toggleTerritorySection(currentTerritoryInfo.id)}
                     className="flex items-center justify-between w-full p-3 bg-muted/50 hover:bg-muted/70 rounded-t-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <h3 className="text-base font-semibold text-primary">
@@ -259,11 +290,11 @@ export function ReportarPredicacionDialog({
                                 <Checkbox
                                 checked={checkboxField.value}
                                 onCheckedChange={checkboxField.onChange}
-                                id={`territoryNotWorked-${fieldItem.territoryId}`}
+                                id={`territoryNotWorked-${currentTerritoryInfo.id}`}
                                 />
                             </FormControl>
                             <div className="space-y-0.5">
-                                <FormLabel htmlFor={`territoryNotWorked-${fieldItem.territoryId}`} className="font-medium cursor-pointer text-amber-700 dark:text-amber-400 flex items-center">
+                                <FormLabel htmlFor={`territoryNotWorked-${currentTerritoryInfo.id}`} className="font-medium cursor-pointer text-amber-700 dark:text-amber-400 flex items-center">
                                 <CloudOff className="mr-2 h-4 w-4" />
                                 ¿No se pudo trabajar este territorio?
                                 </FormLabel>
@@ -281,7 +312,7 @@ export function ReportarPredicacionDialog({
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() => toggleMapVisibility(fieldItem.territoryId)}
+                              onClick={() => toggleMapVisibility(currentTerritoryInfo.id)}
                               disabled={territoryNotWorked}
                               className="text-xs"
                             >
@@ -302,22 +333,23 @@ export function ReportarPredicacionDialog({
                           </div>
                         )}
 
-
-                        {(currentTerritoryInfo.totalBlocks ?? 0) > 0 && (
+                        {(displayableBlockNumbersForThisTerritory.length > 0) && (
                         <FormField
                             control={form.control}
                             name={`reports.${index}.workedBlocksIds`}
                             render={({ field: blocksField }) => (
                             <FormItem className={`${territoryNotWorked ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                 <div className="mb-2">
-                                <FormLabel className="text-sm font-medium">Manzanas Trabajadas en {currentTerritoryInfo.name}</FormLabel>
+                                <FormLabel className="text-sm font-medium">
+                                    {currentTerritoryInfo.isPartial && currentTerritoryInfo.pendingBlockNumbers?.length ? 'Manzanas Pendientes Trabajadas' : 'Manzanas Trabajadas'} en {currentTerritoryInfo.name}
+                                </FormLabel>
                                 <FormFieldDescription className={`${territoryNotWorked ? 'text-muted-foreground/70' : ''}`}>
                                     Selecciona todas las manzanas predicadas. {territoryNotWorked ? "(Deshabilitado)" : ""}
                                 </FormFieldDescription>
                                 </div>
                                 <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-3 border rounded-md shadow-sm bg-muted/20 max-h-40 overflow-y-auto ${territoryNotWorked ? 'pointer-events-none' : ''}`}>
-                                {Array.from({ length: currentTerritoryInfo.totalBlocks! }, (_, blockIdx) => {
-                                    const blockId = `block-${fieldItem.territoryId}-${blockIdx}`;
+                                {displayableBlockNumbersForThisTerritory.map((blockNumber) => {
+                                    const blockId = `block-${currentTerritoryInfo.id}-${blockNumber}`;
                                     return (
                                     <FormField
                                         key={blockId}
@@ -340,7 +372,7 @@ export function ReportarPredicacionDialog({
                                             />
                                             </FormControl>
                                             <FormLabel htmlFor={blockId} className={`font-normal text-xs cursor-pointer select-none ${territoryNotWorked ? 'text-muted-foreground/70' : ''}`}>
-                                            Manzana {blockIdx + 1}
+                                            Manzana {blockNumber}
                                             </FormLabel>
                                         </FormItem>
                                         )}
@@ -353,9 +385,9 @@ export function ReportarPredicacionDialog({
                             )}
                         />
                         )}
-                         {(currentTerritoryInfo.totalBlocks ?? 0) === 0 && !territoryNotWorked && (
+                         {displayableBlockNumbersForThisTerritory.length === 0 && !territoryNotWorked && (
                             <p className="text-sm text-muted-foreground text-center py-3 border rounded-md bg-muted/30">
-                                Este territorio ({currentTerritoryInfo.name}) no tiene manzanas definidas para seleccionar.
+                                Este territorio ({currentTerritoryInfo.name}) no tiene manzanas definidas para seleccionar o pendientes.
                             </p>
                         )}
                     </div>
@@ -404,3 +436,6 @@ export function ReportarPredicacionDialog({
     </Dialog>
   );
 }
+
+    
+    
