@@ -13,46 +13,47 @@ import {
 } from "@/components/ui/dialog";
 import type { UserAssignment, AdditionalTerritoryInfo, Territory, TerritoryType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, MapPin, Users, MountainSnow, CheckCircle, PlusCircle, Compass, ListChecks, Home as HomeIcon } from "lucide-react";
+import { Loader2, MapPin, Users, MountainSnow, CheckCircle, PlusCircle, Compass, ListChecks, Home as HomeIcon, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link"; // Import Link for external URLs
 
 // MOCK SUGGESTIONS - Replace with actual AI flow call later
 const MOCK_TERRITORY_SUGGESTIONS: AdditionalTerritoryInfo[] = [
-  { 
-    id: "T-ADD1", 
-    name: "Residencial Las Flores", 
-    number: "105B", 
-    type: "urban", 
-    mapImageUrl: "https://placehold.co/300x200.png?text=Flores+Parcial", 
+  {
+    id: "T-ADD1",
+    name: "Residencial Las Flores",
+    number: "105B",
+    type: "urban",
+    mapImageUrl: "https://placehold.co/600x400.png?text=Flores+Parcial",
     dataAiHint: "residential map",
     isPartial: true,
-    pendingBlockNumbers: [3, 5], 
-    approxPendingHousesCount: 23, // Example: sum of houses in blocks 3 and 5
-    // blockHouseCounts: [10, 12, 15, 0, 8, 0] // Original counts for original 6 blocks (M4 & M6 worked)
+    pendingBlockNumbers: [3, 5],
+    approxPendingHousesCount: 23,
+    blockHouseCounts: [0,0,15,0,8,0] // Example: Original counts, M3 & M5 pending
   },
-  { 
-    id: "T-ADD2", 
-    name: "Vereda El Encanto", 
-    type: "rural", 
-    mapImageUrl: "https://placehold.co/300x200.png?text=Encanto+Rural", 
-    totalBlocks: 3, 
+  {
+    id: "T-ADD2",
+    name: "Vereda El Encanto",
+    type: "rural",
+    mapImageUrl: "https://placehold.co/600x400.png?text=Encanto+Rural",
+    totalBlocks: 3,
     dataAiHint: "rural road",
     isPartial: false,
-    approxHouseCount: 25 
+    approxHouseCount: 25
   },
-  { 
-    id: "T-ADD3", 
-    name: "Centro Comercial", 
-    number: "201A", 
-    type: "urban", 
-    mapImageUrl: "https://placehold.co/300x200.png?text=Centro+Comercial", 
-    totalBlocks: 2, 
+  {
+    id: "T-ADD3",
+    name: "Centro Comercial",
+    number: "201A",
+    type: "urban",
+    mapImageUrl: "https://placehold.co/600x400.png?text=Centro+Comercial",
+    totalBlocks: 2,
     dataAiHint: "city center",
     isPartial: false,
-    approxHouseCount: 30 
+    approxHouseCount: 30
   },
 ];
 
@@ -77,10 +78,8 @@ export function SolicitarTerritorioDialog({
 
   useEffect(() => {
     if (isOpen && assignment) {
-      // Simulate fetching suggestions
       setIsLoadingSuggestions(true);
       setTimeout(() => {
-        // TODO: Replace with actual call to AI flow: suggestAdditionalTerritory(assignment.locationId, assignment.type, ...)
         setSuggestedTerritories(MOCK_TERRITORY_SUGGESTIONS);
         setIsLoadingSuggestions(false);
       }, 1000);
@@ -91,7 +90,6 @@ export function SolicitarTerritorioDialog({
 
   const handleSelectTerritory = async (territory: AdditionalTerritoryInfo) => {
     setIsSubmitting(true);
-    // Simulate API call or processing
     await new Promise(resolve => setTimeout(resolve, 500));
     onTerritorySelected(territory);
     setIsSubmitting(false);
@@ -114,7 +112,7 @@ export function SolicitarTerritorioDialog({
             Selecciona un territorio adicional si necesitas cubrir más.
           </DialogDescription>
         </DialogHeader>
-        
+
         {isLoadingSuggestions ? (
           <div className="flex flex-col items-center justify-center h-64">
             <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -143,16 +141,31 @@ export function SolicitarTerritorioDialog({
                         </Badge>
                     </CardTitle>
                      {terr.isPartial && (
-                        <CardDescription className="text-xs text-amber-600 pt-0.5 font-medium">
+                        <CardDescription className="text-xs text-amber-600 pt-0.5 font-semibold">
                             Territorio parcialmente trabajado
                         </CardDescription>
                     )}
                   </CardHeader>
                   <CardContent className="flex-grow space-y-2 text-xs">
                     {terr.mapImageUrl && (
-                      <div className="relative aspect-video w-full rounded-md overflow-hidden border">
-                        <Image src={terr.mapImageUrl} alt={`Mapa de ${terr.name}`} layout="fill" objectFit="cover" data-ai-hint={terr.dataAiHint || "map"}/>
-                      </div>
+                      <a
+                        href={terr.mapImageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block relative aspect-video w-full rounded-md overflow-hidden border group cursor-pointer"
+                        title="Haz clic para agrandar el mapa"
+                      >
+                        <Image
+                            src={terr.mapImageUrl}
+                            alt={`Mapa de ${terr.name}`}
+                            layout="fill"
+                            objectFit="cover"
+                            data-ai-hint={terr.dataAiHint || "map"}
+                        />
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <ExternalLink className="h-8 w-8 text-white" />
+                        </div>
+                      </a>
                     )}
                     {terr.isPartial ? (
                         <>
@@ -171,8 +184,8 @@ export function SolicitarTerritorioDialog({
                     )}
                   </CardContent>
                   <DialogFooter className="p-3 border-t mt-auto">
-                    <Button 
-                        size="sm" 
+                    <Button
+                        size="sm"
                         className="w-full bg-green-600 hover:bg-green-700 text-white"
                         onClick={() => handleSelectTerritory(terr)}
                         disabled={isSubmitting}
@@ -198,4 +211,3 @@ export function SolicitarTerritorioDialog({
     </Dialog>
   );
 }
-
