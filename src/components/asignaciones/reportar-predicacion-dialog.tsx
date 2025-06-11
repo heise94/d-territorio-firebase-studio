@@ -44,6 +44,7 @@ const singleTerritoryReportSchema = z.object({
 const reportFormSchema = z.object({
   reports: z.array(singleTerritoryReportSchema),
   generalNotes: z.string().max(1000, "Máximo 1000 caracteres.").optional().or(z.literal('')),
+  additionalTerritorySelected: z.boolean().optional().default(false), // Keep track if an additional was part of this report context
 });
 
 type ReportFormValues = z.infer<typeof reportFormSchema>;
@@ -66,7 +67,7 @@ export function ReportarPredicacionDialog({
   isOpen,
   onOpenChange,
   assignment,
-  territory, // Main territory details
+  territory, 
   onReportSubmit,
   initialReportData,
 }: ReportarPredicacionDialogProps) {
@@ -82,10 +83,11 @@ export function ReportarPredicacionDialog({
     defaultValues: {
       reports: [],
       generalNotes: "",
+      additionalTerritorySelected: false,
     },
   });
   
-  const { fields, append, remove, replace } = useFieldArray({
+  const { fields } = useFieldArray({
     control: form.control,
     name: "reports",
   });
@@ -120,7 +122,7 @@ export function ReportarPredicacionDialog({
       const initialOpenSections: Record<string, boolean> = {};
       const initialVisibleMaps: Record<string, boolean> = {};
 
-      territoriesToReportForForm.forEach((terrInfo, index) => {
+      territoriesToReportForForm.forEach((terrInfo) => {
         const existingReportForThisTerritory = initialReportData?.reports?.find(r => r.territoryId === terrInfo.id);
         initialReportsForForm.push({
           territoryId: terrInfo.id,
@@ -128,23 +130,24 @@ export function ReportarPredicacionDialog({
           territoryNotWorked: existingReportForThisTerritory?.territoryNotWorked || false,
           workedBlocksIds: existingReportForThisTerritory?.workedBlocksIds || [],
         });
-        initialOpenSections[terrInfo.id] = index === 0; // Open first territory by default
-        initialVisibleMaps[terrInfo.id] = false; // Maps are hidden by default
+        initialOpenSections[terrInfo.id] = true; // Open all sections by default
+        initialVisibleMaps[terrInfo.id] = false; 
       });
       
       form.reset({
         reports: initialReportsForForm,
         generalNotes: initialReportData?.generalNotes || "",
+        additionalTerritorySelected: !!assignment?.additionalTerritorySelected,
       });
       setOpenTerritorySections(initialOpenSections);
       setVisibleMaps(initialVisibleMaps);
 
     } else {
-       form.reset({ reports: [], generalNotes: "" });
+       form.reset({ reports: [], generalNotes: "", additionalTerritorySelected: false });
        setOpenTerritorySections({});
        setVisibleMaps({});
     }
-  }, [isOpen, initialReportData, form, territoriesToReportForForm]);
+  }, [isOpen, initialReportData, form, territoriesToReportForForm, assignment]);
 
 
   const watchedReports = form.watch("reports");
@@ -155,7 +158,6 @@ export function ReportarPredicacionDialog({
         if (currentWorkedBlocks && currentWorkedBlocks.length > 0) {
             form.setValue(`reports.${index}.workedBlocksIds`, [], { shouldDirty: true });
         }
-        // If territory not worked, also hide its map if it was visible
         if (visibleMaps[report.territoryId]) {
             setVisibleMaps(prev => ({ ...prev, [report.territoryId]: false }));
         }
@@ -184,7 +186,7 @@ export function ReportarPredicacionDialog({
             workedBlocksIds: r.territoryNotWorked ? [] : r.workedBlocksIds
         })),
         generalNotes: values.generalNotes,
-        additionalTerritorySelected: !!assignment.additionalTerritorySelected,
+        additionalTerritorySelected: values.additionalTerritorySelected,
       });
     } catch (error) {
         toast({ title: "Error", description: "No se pudo enviar el reporte.", variant: "destructive"});
@@ -227,7 +229,7 @@ export function ReportarPredicacionDialog({
               const currentTerritoryInfo = territoriesToReportForForm.find(t => t.id === fieldItem.territoryId);
               if (!currentTerritoryInfo) return null; 
 
-              const isSectionOpen = openTerritorySections[fieldItem.territoryId] ?? index === 0;
+              const isSectionOpen = openTerritorySections[fieldItem.territoryId] ?? false; // Default to false if not found, though useEffect should set it
               const territoryNotWorked = form.watch(`reports.${index}.territoryNotWorked`);
               const isMapVisible = visibleMaps[fieldItem.territoryId] ?? false;
 
@@ -236,7 +238,7 @@ export function ReportarPredicacionDialog({
                   <button
                     type="button"
                     onClick={() => toggleTerritorySection(fieldItem.territoryId)}
-                    className="flex items-center justify-between w-full p-3 bg-muted/50 hover:bg-muted/70 rounded-t-md"
+                    className="flex items-center justify-between w-full p-3 bg-muted/50 hover:bg-muted/70 rounded-t-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <h3 className="text-base font-semibold text-primary">
                       Reporte para: {currentTerritoryInfo.name}
@@ -402,4 +404,3 @@ export function ReportarPredicacionDialog({
     </Dialog>
   );
 }
-
