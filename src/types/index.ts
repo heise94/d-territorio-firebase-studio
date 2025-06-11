@@ -192,11 +192,11 @@ export interface AdditionalTerritoryInfo {
   totalBlocks?: number; 
   dataAiHint?: string;
   isPartial?: boolean; 
-  pendingBlocksDescription?: string; // Kept for flexibility, but not primary display
-  blockHouseCounts?: number[]; // Kept for data source, not direct display in partial summary
-  approxHouseCount?: number; // For complete territories OR total for a partial one if needed
-  pendingBlockNumbers?: number[]; // e.g. [3, 5, 6]
-  approxPendingHousesCount?: number; // Sum of houses in pendingBlockNumbers
+  pendingBlocksDescription?: string; 
+  blockHouseCounts?: number[]; 
+  approxHouseCount?: number; 
+  pendingBlockNumbers?: number[]; 
+  approxPendingHousesCount?: number; 
 }
 
 export interface UserAssignment {
@@ -213,14 +213,15 @@ export interface UserAssignment {
   lastReportData?: ReportedAssignmentData;
 }
 
-export interface Assignment extends UserAssignment { // Keep Assignment type for admin views if it differs, for now extend UserAssignment
-  userId?: string; // Firebase Auth UID of the assigned user
-  userName?: string; // Name of the assigned user
-  userEmail?: string; // Email of the assigned user
-  captainId?: string; // User ID of the captain
-  assignedGroupId?: string; // Optional group ID for rural weekend assignments, etc.
-  casaAddress?: string; // Optional casa address
-  territoryName?: string; // Optional territory name (can be same as locationName or more specific)
+export interface Assignment extends UserAssignment { 
+  userId?: string; 
+  userName?: string; 
+  userEmail?: string; 
+  userPhoneNumber?: string; // Added for WhatsApp reminder
+  captainId?: string; 
+  assignedGroupId?: string; 
+  casaAddress?: string; 
+  territoryName?: string; 
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -231,6 +232,5 @@ export interface PublisherDetail {
   id: string;
   name: string;
   email: string;
-  availability: UserAvailability; // Assuming this structure holds slot IDs or similar
+  availability: UserAvailability; 
 }
-

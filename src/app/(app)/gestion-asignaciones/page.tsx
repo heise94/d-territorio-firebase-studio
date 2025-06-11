@@ -44,7 +44,7 @@ import {
   UserMinus,
   UserCheck2,
   ShieldAlert,
-  Bot, // Import Bot icon
+  Bot, 
   Loader2,
   AlertTriangle,
 } from "lucide-react";
@@ -57,12 +57,12 @@ import { findReplacementCaptain } from "@/ai/flows/find-replacement-captain";
 
 
 const MOCK_ADMIN_ASSIGNMENTS: Assignment[] = [
-  { id: "A1", userId: "uidUser1", userName: "Ana Pérez", userEmail:"ana.perez@example.com", date: "2024-08-15", time: "09:00", type: "publica", locationName: "Plaza Central", status: "pending", assignedBy: "Admin IA" },
-  { id: "A2", userId: "uidUser2", userName: "Luis Gómez", userEmail:"luis.gomez@example.com", date: "2024-08-15", time: "15:00", type: "zoom", locationName: "Sala Zoom #1", status: "accepted", assignedBy: "Admin IA", notes: "Recuerda tener buena iluminación." },
-  { id: "A3", userId: "uidUser3", userName: "Sofía Castro", userEmail:"sofia.castro@example.com",date: "2024-08-16", time: "10:30", type: "rural", locationName: "Sector El Peral", status: "replacement_requested", assignedBy: "Admin IA" },
-  { id: "A4", userId: "uidUser4", userName: "Carlos Díaz", userEmail:"carlos.diaz@example.com",date: "2024-08-17", time: "11:00", type: "publica", locationName: "Parque Las Acacias", status: "rejected", assignedBy: "Admin IA" },
-  { id: "A5", userId: "uidUser1", userName: "Ana Pérez", userEmail:"ana.perez@example.com", date: "2024-08-18", time: "16:00", type: "zoom", locationName: "Sala Zoom #2", status: "replacement_covered", assignedBy: "Admin IA" },
-  { id: "A6", userId: "uidUser2", userName: "Luis Gómez", userEmail:"luis.gomez@example.com", date: "2024-08-19", time: "14:00", type: "rural", locationName: "Camino Viejo", status: "cancelled_by_admin", assignedBy: "Admin IA" },
+  { id: "A1", userId: "uidUser1", userName: "Ana Pérez", userEmail:"ana.perez@example.com", userPhoneNumber: "+56912345671", date: "2024-08-15", time: "09:00", type: "publica", locationName: "Plaza Central", status: "pending", assignedBy: "Admin IA" },
+  { id: "A2", userId: "uidUser2", userName: "Luis Gómez", userEmail:"luis.gomez@example.com", userPhoneNumber: "+56912345672", date: "2024-08-15", time: "15:00", type: "zoom", locationName: "Sala Zoom #1", status: "accepted", assignedBy: "Admin IA", notes: "Recuerda tener buena iluminación." },
+  { id: "A3", userId: "uidUser3", userName: "Sofía Castro", userEmail:"sofia.castro@example.com", userPhoneNumber: "+56912345673", date: "2024-08-16", time: "10:30", type: "rural", locationName: "Sector El Peral", status: "replacement_requested", assignedBy: "Admin IA" },
+  { id: "A4", userId: "uidUser4", userName: "Carlos Díaz", userEmail:"carlos.diaz@example.com", date: "2024-08-17", time: "11:00", type: "publica", locationName: "Parque Las Acacias", status: "rejected", assignedBy: "Admin IA" }, // No phone
+  { id: "A5", userId: "uidUser1", userName: "Ana Pérez", userEmail:"ana.perez@example.com", userPhoneNumber: "+56912345671", date: "2024-08-18", time: "16:00", type: "zoom", locationName: "Sala Zoom #2", status: "replacement_covered", assignedBy: "Admin IA" },
+  { id: "A6", userId: "uidUser2", userName: "Luis Gómez", userEmail:"luis.gomez@example.com", userPhoneNumber: "+56912345672", date: "2024-08-19", time: "14:00", type: "rural", locationName: "Camino Viejo", status: "cancelled_by_admin", assignedBy: "Admin IA" },
 ];
 
 // Mock data for AI flow - replace with actual data fetching later
@@ -129,7 +129,7 @@ export default function GestionAsignacionesPage() {
   const [assignments, setAssignments] = useState<Assignment[]>(MOCK_ADMIN_ASSIGNMENTS);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
-  const [isFindingReplacement, setIsFindingReplacement] = useState<string | null>(null); // Stores ID of assignment being processed by AI
+  const [isFindingReplacement, setIsFindingReplacement] = useState<string | null>(null);
 
   const handleEditAssignment = (assignmentId: string) => {
     toast({ title: "Próximamente", description: "La edición de asignaciones estará disponible pronto." });
@@ -144,9 +144,33 @@ export default function GestionAsignacionesPage() {
     toast({ title: "Asignación Cubierta", description: "La asignación ha sido marcada como cubierta (simulación)." });
   };
 
-  const handleResendReminder = (assignmentId: string) => {
+  const handleResendReminderEmail = (assignmentId: string) => {
     const assignment = assignments.find(a => a.id === assignmentId);
-    toast({ title: "Recordatorio Enviado", description: `Se ha reenviado un recordatorio a ${assignment?.userName || 'el usuario'} (simulación).` });
+    toast({ title: "Recordatorio Enviado", description: `Se ha reenviado un recordatorio por email a ${assignment?.userName || 'el usuario'} (simulación).` });
+  };
+
+  const handleSendWhatsAppReminderToAssignee = (assign: Assignment) => {
+    if (!assign.userPhoneNumber || assign.userPhoneNumber.trim() === "") {
+      toast({
+        title: "Sin Número de Teléfono",
+        description: `No se puede enviar un recordatorio por WhatsApp a ${assign.userName || 'este usuario'} porque no tiene un número de teléfono registrado en esta asignación.`,
+        variant: "default",
+        duration: 5000,
+      });
+      return;
+    }
+
+    let cleanedPhoneNumber = assign.userPhoneNumber.replace(/[\s-()]/g, "");
+    
+    const assignmentDateFormatted = format(parse(assign.date, "yyyy-MM-dd", new Date()), "dd/MM/yy", { locale: es });
+    const message = encodeURIComponent(`Hola ${assign.userName || ''}, te recuerdo tu asignación de predicación ${assign.type} en "${assign.locationName}" el ${assignmentDateFormatted} a las ${assign.time}. ¡Saludos!`);
+    const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${message}`;
+
+    window.open(whatsappUrl, '_blank');
+    toast({
+      title: "Abriendo WhatsApp",
+      description: `Intentando enviar recordatorio a ${assign.userName || 'este usuario'} vía WhatsApp.`,
+    });
   };
 
   const handleCancelAssignment = (assignmentId: string) => {
@@ -166,7 +190,6 @@ export default function GestionAsignacionesPage() {
     }
     setIsFindingReplacement(assignment.id);
     try {
-        // TODO: Replace MOCK_AVAILABLE_PUBLISHERS and MOCK_PROGRAM_SCHEDULE_SLOTS with actual data fetched from Firestore
         const replacementInput = {
             originalAssignment: {
                 date: assignment.date,
@@ -175,14 +198,17 @@ export default function GestionAsignacionesPage() {
                 locationName: assignment.locationName,
             },
             originalCaptainId: assignment.userId,
-            availablePublishers: MOCK_AVAILABLE_PUBLISHERS, // Pass actual data here
-            programScheduleSlots: MOCK_PROGRAM_SCHEDULE_SLOTS, // Pass actual data here
+            availablePublishers: MOCK_AVAILABLE_PUBLISHERS, 
+            programScheduleSlots: MOCK_PROGRAM_SCHEDULE_SLOTS, 
             additionalInstructions: "Prioritize captains with good attendance if possible."
         };
 
         const result = await findReplacementCaptain(replacementInput);
 
         if (result.newCaptainId && result.newCaptainName && result.newCaptainEmail) {
+            // Find the phone number for the new captain from MOCK_AVAILABLE_PUBLISHERS
+            const newCaptainDetails = MOCK_AVAILABLE_PUBLISHERS.find(p => p.id === result.newCaptainId);
+            
             setAssignments(prev =>
                 prev.map(a =>
                     a.id === assignment.id
@@ -191,7 +217,8 @@ export default function GestionAsignacionesPage() {
                         userId: result.newCaptainId!,
                         userName: result.newCaptainName!,
                         userEmail: result.newCaptainEmail!,
-                        status: 'pending' as AssignmentStatus, // New captain needs to accept
+                        userPhoneNumber: newCaptainDetails?.email, // Placeholder, ideally phone number would be in PublisherDetail
+                        status: 'pending' as AssignmentStatus, 
                         notes: `Reasignado por IA. Original: ${assignment.userName}. ${result.reasoning || ''}`.trim(),
                         updatedAt: Timestamp.now(),
                       }
@@ -362,11 +389,28 @@ export default function GestionAsignacionesPage() {
                             {assign.status === 'pending' && (
                                 <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleResendReminder(assign.id)} disabled={isFindingReplacement === assign.id}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleResendReminderEmail(assign.id)} disabled={isFindingReplacement === assign.id}>
                                     <Send className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Reenviar Recordatorio</TooltipContent>
+                                <TooltipContent>Reenviar Recordatorio Email</TooltipContent>
+                                </Tooltip>
+                            )}
+                            
+                            {(assign.status === 'pending' || assign.status === 'accepted') && assign.userPhoneNumber && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-8 w-8" 
+                                      onClick={() => handleSendWhatsAppReminderToAssignee(assign)}
+                                      disabled={isFindingReplacement === assign.id || !assign.userPhoneNumber}
+                                    >
+                                      <Send className="h-4 w-4 text-green-600" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Recordatorio WhatsApp</TooltipContent>
                                 </Tooltip>
                             )}
 
@@ -412,4 +456,3 @@ export default function GestionAsignacionesPage() {
     </TooltipProvider>
   );
 }
-

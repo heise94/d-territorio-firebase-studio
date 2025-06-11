@@ -119,39 +119,6 @@ export default function UsuariosPage() {
     console.log(`Viendo disponibilidad del usuario ${userId}`);
   };
 
-  const handleSendWhatsAppReminder = (userName?: string, userPhoneNumber?: string) => {
-    if (!userPhoneNumber || userPhoneNumber.trim() === "") {
-      toast({
-        title: "Sin Número de Teléfono",
-        description: `No se puede enviar un recordatorio por WhatsApp a ${userName || 'este usuario'} porque no tiene un número de teléfono registrado.`,
-        variant: "default",
-        duration: 5000,
-      });
-      return;
-    }
-
-    // Limpieza básica del número: quitar espacios, guiones, paréntesis.
-    // WhatsApp requiere el formato internacional, ej: +56912345678
-    // Esta limpieza es muy simple, para producción se recomienda una librería de validación/formateo.
-    let cleanedPhoneNumber = userPhoneNumber.replace(/[\s-()]/g, "");
-    if (!cleanedPhoneNumber.startsWith('+') && cleanedPhoneNumber.length > 8) { // Intenta añadir + si parece faltar (heurística simple)
-        // Podrías tener una lógica más compleja aquí para el código de país por defecto si es necesario
-        // Por ahora, si no tiene +, pero parece un número largo, lo dejamos tal cual.
-        // Si tiene un código de país sin el +, por ejemplo 569... lo dejamos.
-    }
-
-
-    const message = encodeURIComponent(`Hola ${userName || ''}, este es un recordatorio amistoso sobre tus próximas actividades. ¡Saludos!`);
-    const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${message}`;
-
-    window.open(whatsappUrl, '_blank');
-    toast({
-      title: "Abriendo WhatsApp",
-      description: `Intentando enviar recordatorio a ${userName || 'este usuario'} vía WhatsApp.`,
-    });
-  };
-
-
   const getInitials = (name?: string) => {
     if (!name) return "??";
     const nameParts = name.split(" ");
@@ -316,22 +283,6 @@ export default function UsuariosPage() {
                                 <TooltipContent>Reenviar Invitación por Email</TooltipContent>
                               </Tooltip>
                             )}
-
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-8 w-8" 
-                                  onClick={() => handleSendWhatsAppReminder(user.name, user.phoneNumber)}
-                                  disabled={!user.phoneNumber || user.phoneNumber.trim() === ""}
-                                >
-                                  <Send className="h-4 w-4 text-green-600" /> {/* Using Send icon, styled green */}
-                                  <span className="sr-only">Recordatorio por WhatsApp</span>
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Recordatorio por WhatsApp</TooltipContent>
-                            </Tooltip>
                             
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
