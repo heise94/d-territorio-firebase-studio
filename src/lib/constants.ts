@@ -1,3 +1,4 @@
+
 export const USER_ROLES = {
   ENCARGADO_TERRITORIO: "Encargado Territorio",
   PUBLICADOR: "Publicador",
@@ -52,6 +53,7 @@ export const PERMISSIONS = {
   MANAGE_PROGRAM_SETTINGS: "manage_program_settings", // Preaching schedules, group days, rural rotation
   MANAGE_CAMPAIGNS: "manage_campaigns",
   MANAGE_CUSTOM_HOLIDAYS: "manage_custom_holidays",
+  MANAGE_ASSEMBLIES: "manage_assemblies", // New permission for assemblies
 
   // Reports
   VIEW_REPORTS: "view_reports",
@@ -77,36 +79,127 @@ export const PERMISSION_MODULES = {
 
 export type PermissionModule = typeof PERMISSION_MODULES[keyof typeof PERMISSION_MODULES];
 
-// Default role permissions to be stored/managed in Firestore `settings/rolePermissions`
-// This is a more comprehensive example based on potential needs.
+export interface PermissionDetail {
+  id: PermissionId;
+  description: string;
+}
+
+export interface ModulePermissions {
+  moduleName: PermissionModule;
+  moduleDescription: string;
+  permissions: PermissionDetail[];
+}
+
+export const PERMISSIONS_BY_MODULE: ModulePermissions[] = [
+  {
+    moduleName: PERMISSION_MODULES.DASHBOARD,
+    moduleDescription: "Acceso y visualización del dashboard principal.",
+    permissions: [
+      { id: PERMISSIONS.VIEW_DASHBOARD, description: "Ver el dashboard" },
+    ],
+  },
+  {
+    moduleName: PERMISSION_MODULES.USERS,
+    moduleDescription: "Gestión de usuarios, roles e invitaciones.",
+    permissions: [
+      { id: PERMISSIONS.VIEW_USERS, description: "Ver lista de usuarios" },
+      { id: PERMISSIONS.MANAGE_USERS, description: "Crear, editar, eliminar, bloquear/desbloquear usuarios y reenviar invitaciones" },
+      { id: PERMISSIONS.MANAGE_ROLE_PERMISSIONS, description: "Gestionar permisos para cada rol de usuario (Página de Configuración)" },
+      { id: PERMISSIONS.VIEW_USER_AVAILABILITY, description: "Ver la disponibilidad de otros usuarios" },
+    ],
+  },
+  {
+    moduleName: PERMISSION_MODULES.TERRITORIES,
+    moduleDescription: "Administración de territorios de predicación.",
+    permissions: [
+      { id: PERMISSIONS.VIEW_TERRITORIES, description: "Ver lista de territorios" },
+      { id: PERMISSIONS.MANAGE_TERRITORIES, description: "Crear, editar, eliminar y bloquear/desbloquear territorios" },
+    ],
+  },
+  {
+    moduleName: PERMISSION_MODULES.CASAS,
+    moduleDescription: "Administración de casas de reunión.",
+    permissions: [
+      { id: PERMISSIONS.VIEW_CASAS, description: "Ver lista de casas de reunión" },
+      { id: PERMISSIONS.MANAGE_CASAS, description: "Crear, editar, eliminar y bloquear/desbloquear casas" },
+    ],
+  },
+  {
+    moduleName: PERMISSION_MODULES.GROUPS,
+    moduleDescription: "Administración de grupos de predicación.",
+    permissions: [
+      { id: PERMISSIONS.VIEW_GROUPS, description: "Ver lista de grupos de predicación" },
+      { id: PERMISSIONS.MANAGE_GROUPS, description: "Crear, editar y eliminar grupos de predicación" },
+    ],
+  },
+  {
+    moduleName: PERMISSION_MODULES.PROGRAM,
+    moduleDescription: "Gestión y visualización del programa de predicación general.",
+    permissions: [
+      { id: PERMISSIONS.VIEW_MONTHLY_PROGRAM, description: "Ver programa mensual general" },
+      { id: PERMISSIONS.GENERATE_MONTHLY_PROGRAM, description: "Generar programa mensual con IA" },
+      { id: PERMISSIONS.MANAGE_MONTHLY_PROGRAM, description: "Editar, guardar y publicar programa mensual" },
+      { id: PERMISSIONS.VIEW_WEEKLY_PROGRAM, description: "Ver programa semanal general" },
+      { id: PERMISSIONS.ASSUME_DIRECTION_PROGRAM, description: "Solicitar dirigir una predicación del programa semanal si el encargado no puede" },
+    ],
+  },
+  {
+    moduleName: PERMISSION_MODULES.ASSIGNMENTS,
+    moduleDescription: "Gestión y visualización de asignaciones individuales y generales.",
+    permissions: [
+      { id: PERMISSIONS.VIEW_OWN_ASSIGNMENTS, description: "Ver mis propias asignaciones" },
+      { id: PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, description: "Aceptar o rechazar mis asignaciones" },
+      { id: PERMISSIONS.VIEW_ALL_ASSIGNMENTS, description: "Ver todas las asignaciones de todos los usuarios (Admin)" },
+      { id: PERMISSIONS.MANAGE_OWN_AVAILABILITY, description: "Gestionar mi propia disponibilidad horaria" },
+    ],
+  },
+  {
+    moduleName: PERMISSION_MODULES.MY_GROUP,
+    moduleDescription: "Herramientas específicas para Superintendentes de Grupo (SG).",
+    permissions: [
+      { id: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM, description: "Gestionar el programa de predicación de mi grupo" },
+      { id: PERMISSIONS.ASSIGN_TERRITORIES_GROUP, description: "Asignar territorios específicos a las salidas de mi grupo"},
+      { id: PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS, description: "Invitar y ver publicadores de mi grupo" },
+      { id: PERMISSIONS.MANAGE_OWN_GROUP_CASAS, description: "Gestionar casas de reunión para mi grupo" },
+    ],
+  },
+  {
+    moduleName: PERMISSION_MODULES.REPORTS,
+    moduleDescription: "Visualización y exportación de reportes de actividad.",
+    permissions: [
+      { id: PERMISSIONS.VIEW_REPORTS, description: "Ver reportes de actividad de territorios (S-13 y detallado)" },
+      { id: PERMISSIONS.EXPORT_REPORTS, description: "Exportar reportes S-13 a CSV" },
+    ],
+  },
+  {
+    moduleName: PERMISSION_MODULES.SETTINGS,
+    moduleDescription: "Configuraciones generales de la aplicación.",
+    permissions: [
+      { id: PERMISSIONS.MANAGE_PROGRAM_SETTINGS, description: "Ajustar horarios del programa semanal y días de grupo" },
+      { id: PERMISSIONS.MANAGE_CAMPAIGNS, description: "Gestionar campañas especiales de predicación" },
+      { id: PERMISSIONS.MANAGE_CUSTOM_HOLIDAYS, description: "Gestionar días festivos personalizados" },
+      { id: PERMISSIONS.MANAGE_ASSEMBLIES, description: "Gestionar fechas de asambleas (Circuito, Regional, etc.)" },
+      // Nota: MANAGE_ROLE_PERMISSIONS está aquí porque es una config global, pero afecta "Usuarios".
+    ],
+  },
+];
+
+
 export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = {
-  [USER_ROLES.ENCARGADO_TERRITORIO]: [
-    PERMISSIONS.VIEW_DASHBOARD,
-    PERMISSIONS.MANAGE_USERS, PERMISSIONS.VIEW_USERS, PERMISSIONS.MANAGE_ROLE_PERMISSIONS, PERMISSIONS.VIEW_USER_AVAILABILITY,
-    PERMISSIONS.MANAGE_TERRITORIES, PERMISSIONS.VIEW_TERRITORIES,
-    PERMISSIONS.MANAGE_CASAS, PERMISSIONS.VIEW_CASAS,
-    PERMISSIONS.MANAGE_GROUPS, PERMISSIONS.VIEW_GROUPS,
-    PERMISSIONS.GENERATE_MONTHLY_PROGRAM, PERMISSIONS.MANAGE_MONTHLY_PROGRAM, PERMISSIONS.VIEW_MONTHLY_PROGRAM,
-    PERMISSIONS.VIEW_WEEKLY_PROGRAM, PERMISSIONS.ASSUME_DIRECTION_PROGRAM,
-    PERMISSIONS.VIEW_ALL_ASSIGNMENTS, PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
-    PERMISSIONS.MANAGE_OWN_AVAILABILITY,
-    PERMISSIONS.MANAGE_PROGRAM_SETTINGS, PERMISSIONS.MANAGE_CAMPAIGNS, PERMISSIONS.MANAGE_CUSTOM_HOLIDAYS,
-    PERMISSIONS.VIEW_REPORTS, PERMISSIONS.EXPORT_REPORTS,
-    PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM, PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS, PERMISSIONS.MANAGE_OWN_GROUP_CASAS, // Can manage ANY group
-  ],
+  [USER_ROLES.ENCARGADO_TERRITORIO]: PERMISSION_LIST, // Admin has all permissions
   [USER_ROLES.AUXILIAR_TERRITORIO]: [
     PERMISSIONS.VIEW_DASHBOARD,
     PERMISSIONS.VIEW_USERS, PERMISSIONS.VIEW_USER_AVAILABILITY,
-    PERMISSIONS.MANAGE_TERRITORIES, PERMISSIONS.VIEW_TERRITORIES, // Can assist with territories
-    PERMISSIONS.MANAGE_CASAS, PERMISSIONS.VIEW_CASAS, // Can assist with casas
+    PERMISSIONS.MANAGE_TERRITORIES, PERMISSIONS.VIEW_TERRITORIES,
+    PERMISSIONS.MANAGE_CASAS, PERMISSIONS.VIEW_CASAS,
     PERMISSIONS.VIEW_GROUPS,
-    PERMISSIONS.MANAGE_MONTHLY_PROGRAM, PERMISSIONS.VIEW_MONTHLY_PROGRAM, // Can assist with program
+    PERMISSIONS.MANAGE_MONTHLY_PROGRAM, PERMISSIONS.VIEW_MONTHLY_PROGRAM,
     PERMISSIONS.VIEW_WEEKLY_PROGRAM, PERMISSIONS.ASSUME_DIRECTION_PROGRAM,
     PERMISSIONS.VIEW_ALL_ASSIGNMENTS, PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
     PERMISSIONS.VIEW_REPORTS,
   ],
-  [USER_ROLES.SS]: [ // Superintendente de Servicio
+  [USER_ROLES.SS]: [ 
     PERMISSIONS.VIEW_DASHBOARD,
     PERMISSIONS.VIEW_USERS, PERMISSIONS.VIEW_USER_AVAILABILITY,
     PERMISSIONS.VIEW_TERRITORIES,
@@ -117,12 +210,11 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
     PERMISSIONS.VIEW_REPORTS,
   ],
-  [USER_ROLES.SG]: [ // Superintendente de Grupo
+  [USER_ROLES.SG]: [ 
     PERMISSIONS.VIEW_DASHBOARD,
-    PERMISSIONS.VIEW_USERS, // View users in their group?
-    PERMISSIONS.VIEW_TERRITORIES, // View territories assigned to their group
-    PERMISSIONS.VIEW_CASAS, // View casas relevant to their group
-    PERMISSIONS.VIEW_GROUPS, // View their own group details
+    PERMISSIONS.VIEW_TERRITORIES, 
+    PERMISSIONS.VIEW_CASAS, 
+    PERMISSIONS.VIEW_GROUPS, 
     PERMISSIONS.VIEW_MONTHLY_PROGRAM, PERMISSIONS.VIEW_WEEKLY_PROGRAM,
     PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
@@ -130,11 +222,11 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS,
     PERMISSIONS.MANAGE_OWN_GROUP_CASAS,
     PERMISSIONS.ASSIGN_TERRITORIES_GROUP,
-    PERMISSIONS.VIEW_REPORTS, // View reports for their group
+    PERMISSIONS.VIEW_REPORTS, 
   ],
   [USER_ROLES.PUBLICADOR]: [
-    PERMISSIONS.VIEW_DASHBOARD, // Limited dashboard view
-    PERMISSIONS.VIEW_WEEKLY_PROGRAM, // To see their assignments
+    PERMISSIONS.VIEW_DASHBOARD, 
+    PERMISSIONS.VIEW_WEEKLY_PROGRAM, 
     PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
   ],

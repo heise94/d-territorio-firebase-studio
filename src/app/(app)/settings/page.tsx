@@ -7,11 +7,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck } from "lucide-react"; // Added BookOpenCheck
+import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck, KeyRound } from "lucide-react"; // Added BookOpenCheck, KeyRound
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly } from "@/types"; // Added Assembly
+import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration } from "@/types"; // Added Assembly, RoleConfiguration
+import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, PermissionModule } from "@/lib/constants"; // Added USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"; // Added Accordion
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -61,6 +68,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format as formatDate, getYear, getMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { DEFAULT_ROLE_PERMISSIONS } from "@/lib/constants";
 
 
 const scheduleSlotFormSchema = z.object({
@@ -125,13 +133,17 @@ export default function SettingsPage() {
   const [isHolidayDialogOpen, setIsHolidayDialogOpen] = useState(false);
   const [holidayToEdit, setHolidayToEdit] = useState<CustomHoliday | null>(null);
 
-  const [assemblies, setAssemblies] = useState<Assembly[]>([]); // State for assemblies
-  const [isAssemblyDialogOpen, setIsAssemblyDialogOpen] = useState(false); // Dialog state for assemblies
-  const [assemblyToEdit, setAssemblyToEdit] = useState<Assembly | null>(null); // Assembly to edit
+  const [assemblies, setAssemblies] = useState<Assembly[]>([]);
+  const [isAssemblyDialogOpen, setIsAssemblyDialogOpen] = useState(false);
+  const [assemblyToEdit, setAssemblyToEdit] = useState<Assembly | null>(null);
 
   const [selectedLastRuralGroupId, setSelectedLastRuralGroupId] = useState<string | undefined>(undefined);
   const [isSavingRuralRotation, setIsSavingRuralRotation] = useState(false);
 
+  // State for role permissions
+  const [editableRolePermissions, setEditableRolePermissions] = useState<RoleConfiguration>(DEFAULT_ROLE_PERMISSIONS);
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(true); // For future Firestore loading
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false);
 
   const slotForm = useForm<ScheduleSlotFormValues>({
     resolver: zodResolver(scheduleSlotFormSchema),
@@ -141,6 +153,44 @@ export default function SettingsPage() {
       status: "fixed",
     },
   });
+
+  // Effect to load role permissions (simulated for now)
+  useEffect(() => {
+    setIsLoadingPermissions(true);
+    // In a real app, fetch from Firestore: doc(db, "settings", "rolePermissions")
+    // For now, use default or previously saved state if available (e.g., from localStorage or Redux for advanced cases)
+    setEditableRolePermissions(DEFAULT_ROLE_PERMISSIONS); // Initialize with defaults
+    setIsLoadingPermissions(false);
+  }, []);
+
+  const handlePermissionChange = (role: UserRole, permissionId: PermissionId, checked: boolean) => {
+    setEditableRolePermissions(prevConfig => {
+      const currentPermissions = prevConfig[role] || [];
+      let updatedPermissions;
+      if (checked) {
+        updatedPermissions = [...new Set([...currentPermissions, permissionId])];
+      } else {
+        updatedPermissions = currentPermissions.filter(pId => pId !== permissionId);
+      }
+      return {
+        ...prevConfig,
+        [role]: updatedPermissions,
+      };
+    });
+  };
+
+  const handleSavePermissions = async () => {
+    setIsSavingPermissions(true);
+    // In a real app, save to Firestore: await setDoc(doc(db, "settings", "rolePermissions"), { rolePermissions: editableRolePermissions });
+    console.log("Permisos a guardar (simulación):", editableRolePermissions);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    toast({
+      title: "Permisos Guardados (Simulación)",
+      description: "La configuración de permisos de roles ha sido actualizada.",
+    });
+    setIsSavingPermissions(false);
+  };
+
 
   const handleOpenAddSlotDialog = (day: DayOfWeek) => {
     setDayForNewSlot(day);
@@ -422,6 +472,86 @@ export default function SettingsPage() {
 
       <Separator />
 
+      {/* Sección de Gestión de Roles y Permisos */}
+      <Card className="hover:shadow-lg transition-shadow">
+        <CardHeader>
+          <CardTitle className="flex items-center text-xl">
+            <KeyRound className="mr-3 h-6 w-6 text-primary" />
+            Gestión de Roles y Permisos
+          </CardTitle>
+          <CardDescription>
+            Define qué puede hacer cada rol de usuario en la aplicación. El rol "Encargado Territorio" siempre tiene todos los permisos.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingPermissions ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="ml-3 text-muted-foreground">Cargando configuración de permisos...</p>
+            </div>
+          ) : (
+            <Accordion type="multiple" className="w-full space-y-2" defaultValue={PERMISSIONS_BY_MODULE.map(m => m.moduleName)}>
+              {PERMISSIONS_BY_MODULE.map((moduleItem) => (
+                <AccordionItem value={moduleItem.moduleName} key={moduleItem.moduleName} className="border rounded-md shadow-sm bg-muted/20">
+                  <AccordionTrigger className="px-4 py-3 text-base hover:no-underline hover:bg-muted/30 rounded-t-md">
+                    <div className="flex items-center">
+                       {/* Podríamos añadir iconos por módulo aquí si los definimos en PERMISSIONS_BY_MODULE */}
+                      <span className="font-semibold">{moduleItem.moduleName}</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-1 pt-0 pb-2">
+                    <p className="text-xs text-muted-foreground px-4 pb-2 pt-1">{moduleItem.moduleDescription}</p>
+                    <div className="overflow-x-auto">
+                      <Table className="min-w-full">
+                        <TableHeader>
+                          <TableRow className="bg-muted/30">
+                            <TableHead className="w-[300px] px-4 py-2.5 text-xs font-medium text-muted-foreground">Permiso Específico</TableHead>
+                            {USER_ROLES_LIST.map(role => (
+                              <TableHead key={role} className="px-3 py-2.5 text-center text-xs font-medium text-muted-foreground whitespace-nowrap">{role}</TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {moduleItem.permissions.map(permission => (
+                            <TableRow key={permission.id} className="hover:bg-muted/10">
+                              <TableCell className="px-4 py-2.5 text-sm">
+                                {permission.description}
+                                <p className="text-xs text-muted-foreground/80">({permission.id})</p>
+                              </TableCell>
+                              {USER_ROLES_LIST.map(role => (
+                                <TableCell key={`${permission.id}-${role}`} className="px-3 py-2.5 text-center">
+                                  <Checkbox
+                                    checked={
+                                      role === USER_ROLES.ENCARGADO_TERRITORIO ||
+                                      (editableRolePermissions[role]?.includes(permission.id) ?? false)
+                                    }
+                                    onCheckedChange={(checked) => handlePermissionChange(role, permission.id, !!checked)}
+                                    disabled={role === USER_ROLES.ENCARGADO_TERRITORIO}
+                                    aria-label={`Permiso ${permission.description} para rol ${role}`}
+                                  />
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          )}
+        </CardContent>
+        <CardFooter className="border-t pt-4">
+          <Button onClick={handleSavePermissions} disabled={isSavingPermissions || isLoadingPermissions}>
+            {isSavingPermissions && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Save className="mr-2 h-4 w-4" />
+            Guardar Permisos
+          </Button>
+        </CardFooter>
+      </Card>
+
+
       <Card className="hover:shadow-lg transition-shadow">
         <CardHeader>
           <CardTitle className="flex items-center text-xl">
@@ -676,9 +806,9 @@ export default function SettingsPage() {
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                              <AlertDialogDescription>
+                              <AlertDialogDescriptionComponent>
                                 Esta acción eliminará permanentemente la campaña "{campaign.name}".
-                              </AlertDialogDescription>
+                              </AlertDialogDescriptionComponent>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -769,9 +899,9 @@ export default function SettingsPage() {
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                              <AlertDialogDescription>
+                              <AlertDialogDescriptionComponent>
                                 Esta acción eliminará permanentemente la asamblea "{assembly.name}".
-                              </AlertDialogDescription>
+                              </AlertDialogDescriptionComponent>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -925,9 +1055,9 @@ export default function SettingsPage() {
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                    <AlertDialogDescription>
+                                    <AlertDialogDescriptionComponent>
                                       Esta acción eliminará permanentemente el festivo "{holiday.name}".
-                                    </AlertDialogDescription>
+                                    </AlertDialogDescriptionComponent>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -962,23 +1092,8 @@ export default function SettingsPage() {
         />
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center text-xl">
-              <ShieldAlert className="mr-3 h-6 w-6 text-primary" />
-              Roles y Permisos
-            </CardTitle>
-            <CardDescription>
-              Administra los roles de usuario y sus permisos detallados.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Próximamente...</p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
+      {/* Placeholder Cards for other settings */}
+      <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <CardTitle className="flex items-center text-xl">
               <Palette className="mr-3 h-6 w-6 text-primary" />
@@ -1007,7 +1122,6 @@ export default function SettingsPage() {
             <p className="text-sm text-muted-foreground">Próximamente...</p>
           </CardContent>
         </Card>
-      </div>
     </div>
   );
 }
