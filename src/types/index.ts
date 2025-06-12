@@ -8,14 +8,15 @@ export interface UserProfile {
   email: string; // unique
   phoneNumber?: string;
   role: UserRole;
-  status: 'Activo' | 'Bloqueado'; // Enum for status
+  status: 'Activo' | 'Bloqueado' | 'Pendiente Aprobación Admin'; // Enum for status, added new status
   assignedGroupId?: string; // FK to preachingGroups
   invitationToken?: string | null; // Can be null after acceptance
   invitationStatus?: 'pending' | 'accepted'; // Enum for invitation status
   firebaseAuthUid?: string; // UID from Firebase Auth
   isBlockedForGeneralAI?: boolean; // Optional, for AI considerations
   availability?: UserAvailability;
-  addedByGroupId?: string; // Optional FK to preachingGroups, if user was added via a group context
+  addedByGroupId?: string; // FK to preachingGroups, to know which group added this user
+  adminApprovalStatus?: 'pending' | 'approved'; // Status for admin approval
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -112,7 +113,7 @@ export interface Casa {
   isBlocked: boolean;
   notes?: string;
   isSuitableForRural?: boolean;
-  addedByGroupId?: string;
+  addedByGroupId?: string; // FK to preachingGroups, to know which group added this casa
 
   lastVisitedAt?: Timestamp;
   createdAt: Timestamp;
@@ -180,22 +181,22 @@ export interface ReportedAssignmentData {
   generalNotes?: string; // General notes for the overall preaching activity
   reportedAt: Timestamp;
   reportedByUserId: string;
-  additionalTerritorySelected?: boolean; 
+  additionalTerritorySelected?: boolean;
 }
 
 export interface AdditionalTerritoryInfo {
   id: string;
   name: string;
-  number?: string; 
+  number?: string;
   type: TerritoryType;
   mapImageUrl?: string;
-  totalBlocks?: number; 
+  totalBlocks?: number;
   dataAiHint?: string;
-  isPartial?: boolean; 
-  blockHouseCounts?: number[]; 
-  approxHouseCount?: number; 
-  pendingBlockNumbers?: number[]; 
-  approxPendingHousesCount?: number; 
+  isPartial?: boolean;
+  blockHouseCounts?: number[];
+  approxHouseCount?: number;
+  pendingBlockNumbers?: number[];
+  approxPendingHousesCount?: number;
 }
 
 export interface UserAssignment {
@@ -212,15 +213,15 @@ export interface UserAssignment {
   lastReportData?: ReportedAssignmentData;
 }
 
-export interface Assignment extends UserAssignment { 
-  userId?: string; 
-  userName?: string; 
-  userEmail?: string; 
+export interface Assignment extends UserAssignment {
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
   userPhoneNumber?: string; // Added for WhatsApp reminder
-  captainId?: string; 
-  assignedGroupId?: string; 
-  casaAddress?: string; 
-  territoryName?: string; 
+  captainId?: string;
+  assignedGroupId?: string;
+  casaAddress?: string;
+  territoryName?: string;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -231,7 +232,7 @@ export interface PublisherDetail {
   id: string; // Firebase Auth UID
   name: string;
   email: string;
-  availability: UserAvailability; 
+  availability: UserAvailability;
   assignedGroupId?: string; // Group the publisher belongs to
 }
 
@@ -240,7 +241,6 @@ export interface GroupAssignment {
   id: string;
   groupId: string;
   date: string; // YYYY-MM-DD
-  // programSlotId: string; // Refers to ProgramScheduleSlot.id - REMOVED
   preachingType: PreachingType; // Now directly set by SG
   time: string; // HH:MM - Now directly set by SG
   captainUserId: string; // Firebase Auth UID of a publisher from the group

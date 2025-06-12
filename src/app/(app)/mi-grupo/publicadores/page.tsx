@@ -6,25 +6,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, UserX, AlertTriangle, CalendarCheck2, CalendarX2, Phone, Mail, Loader2, PlusCircle } from "lucide-react";
+import { Users, UserX, AlertTriangle, CalendarCheck2, CalendarX2, Phone, Mail, Loader2, PlusCircle, UserPlus2 } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import type { UserProfile } from "@/types";
-import { USER_ROLES, PERMISSIONS } from "@/lib/constants"; // Import PERMISSIONS
+import { USER_ROLES, PERMISSIONS } from "@/lib/constants";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { AddPublishersToGroupDialog } from "@/components/mi-grupo/publicadores/add-publishers-to-group-dialog";
+import { AddPublishersToGroupDialog } from "@/components/mi-grupo/publicadores/add-publishers-to-group-dialog"; // Updated import name if dialog is reused/renamed
 import { useToast } from "@/hooks/use-toast";
+import { Timestamp } from "firebase/firestore";
 
 // MOCK DATA - En una aplicación real, estos datos vendrían de Firestore
 const MOCK_ALL_PUBLISHERS_COPY: UserProfile[] = [
-    { id: "uidUser1", name: "Ana Pérez", email: "ana@example.com", availability: { availableSlotIds: ["mon-0900-gen", "wed-0930-gen"] }, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser1" },
-    { id: "uidUser2", name: "Luis Gómez", email: "luis@example.com", availability: { availableSlotIds: [] }, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser2" },
-    { id: "uidUser3", name: "Carlos Díaz", email: "carlos@example.com", availability: { availableSlotIds: ["tue-1000-rur"] }, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser3" },
-    { id: "uidUser4", name: "Elena Jara", email: "elena@example.com", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser4" },
-    { id: "uidUser5", name: "Pedro Velez (Sin Grupo)", email: "pedro@example.com", availability: { availableSlotIds: ["sat-1000-gen"] }, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser5" },
-    { id: "uidUser6", name: "Sofía Castro (SG)", email: "sofia.castro.sg@example.com", availability: { availableSlotIds: ["fri-1000-gen", "sun-1500-zoom"] }, assignedGroupId: "G1", role: USER_ROLES.SG, status: "Activo", firebaseAuthUid: "uidUser6" },
-    { id: "uidUser7", name: "Marcos Solis (Sin Grupo)", email: "marcos@example.com", availability: { availableSlotIds: ["mon-0900-gen"] }, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser7" },
-    { id: "uidUser8", name: "Laura Nuñez (Auxiliar)", email: "laura.nunez.aux@example.com", availability: { availableSlotIds: ["wed-0930-gen"] }, assignedGroupId: "G2", role: USER_ROLES.AUXILIAR_TERRITORIO, status: "Activo", firebaseAuthUid: "uidUser8" },
+    { id: "uidUser1", name: "Ana Pérez", email: "ana@example.com", phoneNumber: "+56911111111", availability: { availableSlotIds: ["mon-0900-gen", "wed-0930-gen"] }, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser1", adminApprovalStatus: "approved" },
+    { id: "uidUser2", name: "Luis Gómez", email: "luis@example.com", phoneNumber: "+56922222222", availability: { availableSlotIds: [] }, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser2", adminApprovalStatus: "approved" },
+    { id: "uidUser3", name: "Carlos Díaz", email: "carlos@example.com", availability: { availableSlotIds: ["tue-1000-rur"] }, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser3", adminApprovalStatus: "approved" },
+    { id: "uidUser4", name: "Elena Jara", email: "elena@example.com", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser4", adminApprovalStatus: "approved" },
+    { id: "uidUser5", name: "Pedro Velez (Admin)", email: "pedro@example.com", availability: { availableSlotIds: ["sat-1000-gen"] }, role: USER_ROLES.ENCARGADO_TERRITORIO, status: "Activo", firebaseAuthUid: "uidUser5", adminApprovalStatus: "approved" },
+    { id: "uidUser6", name: "Sofía Castro (SG G1)", email: "sofia.castro.sg@example.com", availability: { availableSlotIds: ["fri-1000-gen", "sun-1500-zoom"] }, assignedGroupId: "G1", role: USER_ROLES.SG, status: "Activo", firebaseAuthUid: "uidUser6", adminApprovalStatus: "approved" },
+    { id: "uidUser7", name: "Marcos Solis (Sin Grupo)", email: "marcos@example.com", availability: { availableSlotIds: ["mon-0900-gen"] }, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser7", adminApprovalStatus: "approved" },
+    { id: "uidUser8", name: "Laura Nuñez (Auxiliar G2)", email: "laura.nunez.aux@example.com", availability: { availableSlotIds: ["wed-0930-gen"] }, assignedGroupId: "G2", role: USER_ROLES.AUXILIAR_TERRITORIO, status: "Activo", firebaseAuthUid: "uidUser8", adminApprovalStatus: "approved" },
 ];
 
 
@@ -40,23 +41,19 @@ const getInitials = (name?: string) => {
 export default function MiGrupoPublicadoresPage() {
   const { userProfile, isLoadingPermissions, hasPermission } = usePermissions();
   const { toast } = useToast();
-  
-  const [allPublishersData, setAllPublishersData] = useState<UserProfile[]>(() => 
-    JSON.parse(JSON.stringify(MOCK_ALL_PUBLISHERS_COPY))
-  );
-  const [isAddPublisherDialogOpen, setIsAddPublisherDialogOpen] = useState(false);
 
-  // 1. Loading Check
+  const [allPublishersData, setAllPublishersData] = useState<UserProfile[]>(() =>
+    JSON.parse(JSON.stringify(MOCK_ALL_PUBLISHERS_COPY)) // Use a deep copy for mutable state
+  );
+  const [isInviteUserFromGroupDialogOpen, setIsInviteUserFromGroupDialogOpen] = useState(false);
+
   if (isLoadingPermissions) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
 
-  // 2. Permission Check
-  // userProfile here IS the effective profile (actual or impersonated)
-  // PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS should be granted to SG and Encargado Territorio
-  const canAccessPage = hasPermission(PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS);
+  const canManageGroupPublishers = hasPermission(PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS);
 
-  if (!canAccessPage) {
+  if (!canManageGroupPublishers) {
      return (
       <div className="space-y-8">
         <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
@@ -75,9 +72,21 @@ export default function MiGrupoPublicadoresPage() {
     );
   }
 
-  // 3. Group Assignment Check (specifically for SG role, Admins/Encargados might not have an "assignedGroupId" themselves)
-  // userProfile is the effective profile. If impersonating an SG, userProfile.role will be SG.
-  if (userProfile?.role === USER_ROLES.SG && !userProfile?.assignedGroupId) {
+  const currentGroupIdForManagement = userProfile?.assignedGroupId;
+  // Mock group name lookup for display
+  const currentGroupName = useMemo(() => {
+      if (currentGroupIdForManagement) {
+          const sgOfGroup = MOCK_ALL_PUBLISHERS_COPY.find(p => p.assignedGroupId === currentGroupIdForManagement && p.role === USER_ROLES.SG);
+          if (sgOfGroup) return `Grupo de ${sgOfGroup.name.split(' ')[0]}`; // Example: "Grupo de Sofía"
+          const groupInfo = MOCK_ALL_PUBLISHERS_COPY.find(p => p.assignedGroupId === currentGroupIdForManagement);
+          if (groupInfo) return `Grupo ${currentGroupIdForManagement}`; // Fallback to ID if no SG found for name
+          return `Grupo ${currentGroupIdForManagement}`;
+      }
+      return "Tu Grupo";
+  }, [currentGroupIdForManagement]);
+
+
+  if (userProfile?.role === USER_ROLES.SG && !currentGroupIdForManagement) {
     return (
       <div className="space-y-8">
         <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
@@ -95,13 +104,7 @@ export default function MiGrupoPublicadoresPage() {
       </div>
     );
   }
-  
-  // Determine the group ID to manage. For SGs, it's their assigned group.
-  // For Encargado Territorio, they don't have an "own" group in this context, so this might be null or handled differently if they could select a group.
-  // For "Mi Grupo" page, an Encargado Territorio impersonating an SG will use the SG's group.
-  // If an Encargado Territorio lands here *not* impersonating, assignedGroupId would be null.
-  const currentGroupIdForManagement = userProfile?.assignedGroupId;
-  
+
   const groupPublishers = useMemo(() => {
     if (currentGroupIdForManagement) {
       return allPublishersData.filter(p => p.assignedGroupId === currentGroupIdForManagement);
@@ -109,37 +112,36 @@ export default function MiGrupoPublicadoresPage() {
     return [];
   }, [allPublishersData, currentGroupIdForManagement]);
 
-  const currentGroupName = useMemo(() => {
-    if (currentGroupIdForManagement) {
-      // In a real app, fetch group name from groups collection. For mock:
-      const groupInfo = MOCK_ALL_PUBLISHERS_COPY.find(p => p.assignedGroupId === currentGroupIdForManagement && p.role === USER_ROLES.SG); // Crude way to get a group context
-      return `Grupo ${groupInfo?.assignedGroupId || currentGroupIdForManagement}`;
-    }
-    // If an Encargado Territorio (not impersonating) lands here, they don't have a "Mi Grupo".
-    // However, the permission check should ideally prevent this state or guide them.
-    return "Tu Grupo";
-  }, [currentGroupIdForManagement]);
-
-
-  const handleAddPublishersToGroup = (selectedUserIds: string[]) => {
+  const handleUserInvitedFromGroup = (newUserData: { name: string, email: string, phoneNumber?: string }) => {
     if (!currentGroupIdForManagement) {
-      toast({ title: "Error", description: "No se pudo identificar el grupo actual para añadir publicadores.", variant: "destructive"});
-      return;
+        toast({ title: "Error", description: "No se pudo identificar el grupo actual para añadir al publicador.", variant: "destructive"});
+        return;
     }
-    setAllPublishersData(prevAllUsers => {
-      return prevAllUsers.map(user => {
-        if (selectedUserIds.includes(user.id)) {
-          return { ...user, assignedGroupId: currentGroupIdForManagement };
-        }
-        return user;
-      });
-    });
+
+    const newUserProfile: UserProfile = {
+        id: crypto.randomUUID(),
+        name: newUserData.name,
+        email: newUserData.email,
+        phoneNumber: newUserData.phoneNumber,
+        role: USER_ROLES.PUBLICADOR, // Users invited by SG are initially Publicadores
+        assignedGroupId: currentGroupIdForManagement,
+        status: 'Pendiente Aprobación Admin', // New status indicating admin needs to approve
+        adminApprovalStatus: 'pending',
+        invitationStatus: 'pending', // They will need to accept an invitation
+        addedByGroupId: currentGroupIdForManagement,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        // firebaseAuthUid will be set after they accept invitation
+    };
+
+    setAllPublishersData(prevAllUsers => [newUserProfile, ...prevAllUsers]);
     toast({
-      title: "Publicadores Añadidos",
-      description: `${selectedUserIds.length} publicador(es) ${selectedUserIds.length === 1 ? 'ha' : 'han'} sido añadido(s) al ${currentGroupName} (simulación).`
+      title: "Invitación de Publicador Enviada",
+      description: `${newUserData.name} ha sido invitado al ${currentGroupName}. Quedará pendiente de aprobación por el administrador. (Simulación)`
     });
-    setIsAddPublisherDialogOpen(false);
+    setIsInviteUserFromGroupDialogOpen(false);
   };
+
 
   return (
     <TooltipProvider>
@@ -150,7 +152,7 @@ export default function MiGrupoPublicadoresPage() {
             Publicadores {userProfile?.role === USER_ROLES.SG ? `del ${currentGroupName}` : '(Gestión de Grupo)'}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Consulta y gestiona la información de los publicadores asignados.
+            Consulta y gestiona la información de los publicadores asignados e invita nuevos miembros a tu grupo.
           </p>
         </div>
 
@@ -159,15 +161,15 @@ export default function MiGrupoPublicadoresPage() {
             <div>
                 <CardTitle>Lista de Publicadores ({groupPublishers.length})</CardTitle>
                 <CardDescription>
-                {currentGroupIdForManagement 
+                {currentGroupIdForManagement
                     ? `Publicadores actualmente en ${currentGroupName}.`
-                    : "Selecciona un grupo o accede como SG para ver publicadores."
+                    : "Como administrador, suplanta a un SG para ver los publicadores de su grupo."
                 }
                 </CardDescription>
             </div>
-            {currentGroupIdForManagement && ( // Button only makes sense if there's a group context
-                 <Button onClick={() => setIsAddPublisherDialogOpen(true)} size="sm" className="mt-2 sm:mt-0">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Añadir Publicador al Grupo
+            {currentGroupIdForManagement && (
+                 <Button onClick={() => setIsInviteUserFromGroupDialogOpen(true)} size="sm" className="mt-2 sm:mt-0">
+                    <UserPlus2 className="mr-2 h-4 w-4" /> Invitar Nuevo Publicador
                 </Button>
             )}
           </CardHeader>
@@ -188,7 +190,7 @@ export default function MiGrupoPublicadoresPage() {
                 </p>
                 {currentGroupIdForManagement && (
                     <p className="text-sm text-muted-foreground text-center">
-                    Utiliza el botón "Añadir Publicador al Grupo" para agregar miembros.
+                    Utiliza el botón "Invitar Nuevo Publicador" para agregar miembros.
                     </p>
                 )}
               </div>
@@ -201,13 +203,14 @@ export default function MiGrupoPublicadoresPage() {
                       <TableHead>Email</TableHead>
                       <TableHead>Teléfono</TableHead>
                       <TableHead className="text-center">Disponibilidad</TableHead>
+                      <TableHead className="text-center">Estado General</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {groupPublishers.map((publisher) => {
                       const hasAvailabilitySet = publisher.availability?.availableSlotIds && publisher.availability.availableSlotIds.length > 0;
                       return (
-                        <TableRow key={publisher.id}>
+                        <TableRow key={publisher.id} className={publisher.adminApprovalStatus === 'pending' ? 'bg-amber-500/5' : ''}>
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="h-9 w-9">
@@ -215,6 +218,7 @@ export default function MiGrupoPublicadoresPage() {
                               </Avatar>
                               <div>
                                 <div className="font-medium">{publisher.name}</div>
+                                {publisher.role !== USER_ROLES.PUBLICADOR && <Badge variant="outline" className="text-xs mt-0.5">{publisher.role}</Badge>}
                               </div>
                             </div>
                           </TableCell>
@@ -245,6 +249,19 @@ export default function MiGrupoPublicadoresPage() {
                                 </TooltipContent>
                             </Tooltip>
                           </TableCell>
+                          <TableCell className="text-center">
+                             <Badge variant={
+                                publisher.status === 'Activo' ? 'default'
+                                : publisher.status === 'Pendiente Aprobación Admin' ? 'outline'
+                                : 'destructive'
+                              }
+                              className={
+                                publisher.status === 'Pendiente Aprobación Admin' ? 'border-blue-500 text-blue-600 bg-blue-500/10' : ''
+                              }
+                             >
+                                {publisher.status}
+                              </Badge>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -257,17 +274,12 @@ export default function MiGrupoPublicadoresPage() {
       </div>
       {currentGroupIdForManagement && (
         <AddPublishersToGroupDialog
-            isOpen={isAddPublisherDialogOpen}
-            onOpenChange={setIsAddPublisherDialogOpen}
-            onPublishersSelected={handleAddPublishersToGroup}
-            currentGroupId={currentGroupIdForManagement}
-            allUsers={allPublishersData} // Pass all users from the system for selection
-            publishersInCurrentGroup={groupPublishers} // Pass users already in this group to filter them out or mark them
+            isOpen={isInviteUserFromGroupDialogOpen}
+            onOpenChange={setIsInviteUserFromGroupDialogOpen}
+            onUserInvitedFromGroup={handleUserInvitedFromGroup}
+            currentGroupName={currentGroupName}
         />
       )}
     </TooltipProvider>
   );
 }
-    
-
-    
