@@ -8,15 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Users, UserX, AlertTriangle, CalendarCheck2, CalendarX2, Phone, Mail, Loader2, PlusCircle } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
-import type { PublisherDetail, UserAvailability, UserProfile } from "@/types";
-import { USER_ROLES } from "@/lib/constants";
+import type { UserProfile } from "@/types";
+import { USER_ROLES, PERMISSIONS } from "@/lib/constants"; // Import PERMISSIONS
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { AddPublishersToGroupDialog } from "@/components/mi-grupo/publicadores/add-publishers-to-group-dialog";
 import { useToast } from "@/hooks/use-toast";
 
 // MOCK DATA - En una aplicación real, estos datos vendrían de Firestore
-// Hacemos una copia para poder modificarla localmente sin afectar otros usos del mock
 const MOCK_ALL_PUBLISHERS_COPY: UserProfile[] = [
     { id: "uidUser1", name: "Ana Pérez", email: "ana@example.com", availability: { availableSlotIds: ["mon-0900-gen", "wed-0930-gen"] }, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser1" },
     { id: "uidUser2", name: "Luis Gómez", email: "luis@example.com", availability: { availableSlotIds: [] }, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser2" },
@@ -42,29 +41,22 @@ export default function MiGrupoPublicadoresPage() {
   const { userProfile, isLoadingPermissions, hasPermission } = usePermissions();
   const { toast } = useToast();
   
-  // State to hold all publishers data, initialized with a copy of MOCK_ALL_PUBLISHERS_COPY
-  // This allows local modifications for simulation purposes without affecting the original mock.
   const [allPublishersData, setAllPublishersData] = useState<UserProfile[]>(() => 
-    JSON.parse(JSON.stringify(MOCK_ALL_PUBLISHERS_COPY)) // Deep copy
+    JSON.parse(JSON.stringify(MOCK_ALL_PUBLISHERS_COPY))
   );
-
   const [isAddPublisherDialogOpen, setIsAddPublisherDialogOpen] = useState(false);
 
-  const groupPublishers = useMemo(() => {
-    if (userProfile?.assignedGroupId && !isLoadingPermissions) {
-      return allPublishersData.filter(p => p.assignedGroupId === userProfile.assignedGroupId);
-    }
-    return [];
-  }, [userProfile, isLoadingPermissions, allPublishersData]);
-
-
+  // 1. Loading Check
   if (isLoadingPermissions) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
   }
 
-  const canManageGroupPublishers = hasPermission(USER_ROLES.SG) || hasPermission(USER_ROLES.ENCARGADO_TERRITORIO);
-  
-  if (!canManageGroupPublishers) {
+  // 2. Permission Check
+  // userProfile here IS the effective profile (actual or impersonated)
+  // PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS should be granted to SG and Encargado Territorio
+  const canAccessPage = hasPermission(PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS);
+
+  if (!canAccessPage) {
      return (
       <div className="space-y-8">
         <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
@@ -80,10 +72,12 @@ export default function MiGrupoPublicadoresPage() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
-  if (!userProfile?.assignedGroupId && userProfile?.role === USER_ROLES.SG) {
+  // 3. Group Assignment Check (specifically for SG role, Admins/Encargados might not have an "assignedGroupId" themselves)
+  // userProfile is the effective profile. If impersonating an SG, userProfile.role will be SG.
+  if (userProfile?.role === USER_ROLES.SG && !userProfile?.assignedGroupId) {
     return (
       <div className="space-y-8">
         <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
@@ -99,19 +93,37 @@ export default function MiGrupoPublicadoresPage() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
   
-  // This logic needs to be adapted if an Encargado Territorio is viewing and hasn't selected a group to "act as"
-  const currentGroupIdForManagement = userProfile?.assignedGroupId; 
-  // TODO: If Encargado Territorio, might need a group selector, or this page might be under a different context.
-  // For now, it assumes the userProfile.assignedGroupId is the one being managed.
+  // Determine the group ID to manage. For SGs, it's their assigned group.
+  // For Encargado Territorio, they don't have an "own" group in this context, so this might be null or handled differently if they could select a group.
+  // For "Mi Grupo" page, an Encargado Territorio impersonating an SG will use the SG's group.
+  // If an Encargado Territorio lands here *not* impersonating, assignedGroupId would be null.
+  const currentGroupIdForManagement = userProfile?.assignedGroupId;
   
-  const currentGroupName = currentGroupIdForManagement || "Grupo Desconocido"; 
+  const groupPublishers = useMemo(() => {
+    if (currentGroupIdForManagement) {
+      return allPublishersData.filter(p => p.assignedGroupId === currentGroupIdForManagement);
+    }
+    return [];
+  }, [allPublishersData, currentGroupIdForManagement]);
+
+  const currentGroupName = useMemo(() => {
+    if (currentGroupIdForManagement) {
+      // In a real app, fetch group name from groups collection. For mock:
+      const groupInfo = MOCK_ALL_PUBLISHERS_COPY.find(p => p.assignedGroupId === currentGroupIdForManagement && p.role === USER_ROLES.SG); // Crude way to get a group context
+      return `Grupo ${groupInfo?.assignedGroupId || currentGroupIdForManagement}`;
+    }
+    // If an Encargado Territorio (not impersonating) lands here, they don't have a "Mi Grupo".
+    // However, the permission check should ideally prevent this state or guide them.
+    return "Tu Grupo";
+  }, [currentGroupIdForManagement]);
+
 
   const handleAddPublishersToGroup = (selectedUserIds: string[]) => {
     if (!currentGroupIdForManagement) {
-      toast({ title: "Error", description: "No se pudo identificar el grupo actual.", variant: "destructive"});
+      toast({ title: "Error", description: "No se pudo identificar el grupo actual para añadir publicadores.", variant: "destructive"});
       return;
     }
     setAllPublishersData(prevAllUsers => {
@@ -124,7 +136,7 @@ export default function MiGrupoPublicadoresPage() {
     });
     toast({
       title: "Publicadores Añadidos",
-      description: `${selectedUserIds.length} publicador(es) ${selectedUserIds.length === 1 ? 'ha' : 'han'} sido añadido(s) al grupo ${currentGroupName} (simulación).`
+      description: `${selectedUserIds.length} publicador(es) ${selectedUserIds.length === 1 ? 'ha' : 'han'} sido añadido(s) al ${currentGroupName} (simulación).`
     });
     setIsAddPublisherDialogOpen(false);
   };
@@ -135,10 +147,10 @@ export default function MiGrupoPublicadoresPage() {
         <div>
           <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
             <Users className="mr-3 h-8 w-8 text-primary" />
-            Publicadores del Grupo {currentGroupName}
+            Publicadores {userProfile?.role === USER_ROLES.SG ? `del ${currentGroupName}` : '(Gestión de Grupo)'}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Consulta y gestiona la información de los publicadores asignados a tu grupo.
+            Consulta y gestiona la información de los publicadores asignados.
           </p>
         </div>
 
@@ -147,23 +159,38 @@ export default function MiGrupoPublicadoresPage() {
             <div>
                 <CardTitle>Lista de Publicadores ({groupPublishers.length})</CardTitle>
                 <CardDescription>
-                Publicadores actualmente en el grupo {currentGroupName}.
+                {currentGroupIdForManagement 
+                    ? `Publicadores actualmente en ${currentGroupName}.`
+                    : "Selecciona un grupo o accede como SG para ver publicadores."
+                }
                 </CardDescription>
             </div>
-            {currentGroupIdForManagement && (
+            {currentGroupIdForManagement && ( // Button only makes sense if there's a group context
                  <Button onClick={() => setIsAddPublisherDialogOpen(true)} size="sm" className="mt-2 sm:mt-0">
                     <PlusCircle className="mr-2 h-4 w-4" /> Añadir Publicador al Grupo
                 </Button>
             )}
           </CardHeader>
           <CardContent>
-            {groupPublishers.length === 0 ? (
+            {!currentGroupIdForManagement && userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !userProfile.isImpersonating ? (
+                <div className="flex flex-col items-center justify-center h-64 bg-muted/30 rounded-md border border-dashed">
+                    <Users className="h-20 w-20 text-muted-foreground/70 mb-6" />
+                    <p className="text-xl font-medium text-muted-foreground mb-2">Página "Mi Grupo"</p>
+                    <p className="text-sm text-muted-foreground text-center">
+                        Como Encargado de Territorio, esta sección está orientada a la gestión del grupo que supervisarías si fueses SG. <br/> Para gestionar publicadores de forma global, usa la sección "Usuarios". <br/> O suplanta a un SG para ver esta página desde su perspectiva.
+                    </p>
+                </div>
+            ) : groupPublishers.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 bg-muted/30 rounded-md border border-dashed">
                 <UserX className="h-20 w-20 text-muted-foreground/70 mb-6" />
-                <p className="text-xl font-medium text-muted-foreground mb-2">No hay publicadores en este grupo.</p>
-                <p className="text-sm text-muted-foreground text-center">
-                  Utiliza el botón "Añadir Publicador al Grupo" para agregar miembros.
+                <p className="text-xl font-medium text-muted-foreground mb-2">
+                    {currentGroupIdForManagement ? "No hay publicadores en este grupo." : "No se ha especificado un grupo."}
                 </p>
+                {currentGroupIdForManagement && (
+                    <p className="text-sm text-muted-foreground text-center">
+                    Utiliza el botón "Añadir Publicador al Grupo" para agregar miembros.
+                    </p>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -174,7 +201,6 @@ export default function MiGrupoPublicadoresPage() {
                       <TableHead>Email</TableHead>
                       <TableHead>Teléfono</TableHead>
                       <TableHead className="text-center">Disponibilidad</TableHead>
-                      {/* <TableHead className="text-right">Acciones</TableHead> */}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -185,7 +211,6 @@ export default function MiGrupoPublicadoresPage() {
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="h-9 w-9">
-                                {/* <AvatarImage src={publisher.avatarUrl} alt={publisher.name} /> */}
                                 <AvatarFallback>{getInitials(publisher.name)}</AvatarFallback>
                               </Avatar>
                               <div>
@@ -220,12 +245,6 @@ export default function MiGrupoPublicadoresPage() {
                                 </TooltipContent>
                             </Tooltip>
                           </TableCell>
-                          {/* <TableCell className="text-right">
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Más acciones</span>
-                            </Button>
-                          </TableCell> */}
                         </TableRow>
                       );
                     })}
@@ -242,11 +261,13 @@ export default function MiGrupoPublicadoresPage() {
             onOpenChange={setIsAddPublisherDialogOpen}
             onPublishersSelected={handleAddPublishersToGroup}
             currentGroupId={currentGroupIdForManagement}
-            allUsers={allPublishersData}
-            publishersInCurrentGroup={groupPublishers}
+            allUsers={allPublishersData} // Pass all users from the system for selection
+            publishersInCurrentGroup={groupPublishers} // Pass users already in this group to filter them out or mark them
         />
       )}
     </TooltipProvider>
   );
 }
+    
+
     
