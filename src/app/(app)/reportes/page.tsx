@@ -33,24 +33,18 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
   SheetFooter,
   SheetClose,
 } from "@/components/ui/sheet";
 import {
   Dialog,
   DialogContent,
-  // DialogHeader as ShadDialogHeader, // Renombrado para evitar colisión con DialogHeader de HTML
-  // DialogTitle as ShadDialogTitle,   // Renombrado para evitar colisión
-  // DialogDescription as ShadDialogDescription, // Renombrado para evitar colisión
-  DialogFooter as ShadDialogFooter, // Renombrado para ShadCN
-  DialogClose as ShadDialogClose, // Renombrado para ShadCN
+  DialogHeader, // Using direct import
+  DialogTitle,   // Using direct import
+  DialogDescription, // Using direct import
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
-// Uso DialogHeader, DialogTitle, DialogDescription directamente de ShadCN, ya que no hay conflicto si no se importa explícitamente el de HTML.
-// Si hubiera, usaría los alias como estaban.
-import { DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-
-
 import {
   Select,
   SelectContent,
@@ -211,7 +205,7 @@ export default function ReportesPage() {
       const sortedEntries = [...territoryEntries].sort((a, b) => {
         const dateA = a.completedCurrentCycle !== "En curso" && a.completedCurrentCycle ? parse(a.completedCurrentCycle, "dd/MM/yyyy", new Date()) : (a.campaigns[a.campaigns.length -1]?.assignedDate ? parse(a.campaigns[a.campaigns.length -1].assignedDate!, "dd/MM/yyyy", new Date()) : new Date(0));
         const dateB = b.completedCurrentCycle !== "En curso" && b.completedCurrentCycle ? parse(b.completedCurrentCycle, "dd/MM/yyyy", new Date()) : (b.campaigns[b.campaigns.length -1]?.assignedDate ? parse(b.campaigns[b.campaigns.length -1].assignedDate!, "dd/MM/yyyy", new Date()) : new Date(0));
-        if (!isDateValid(dateA)) return 1; // Push invalid dates to the end
+        if (!isDateValid(dateA)) return 1; 
         if (!isDateValid(dateB)) return -1;
         if (a.completedCurrentCycle === "En curso" && b.completedCurrentCycle !== "En curso") return -1;
         if (b.completedCurrentCycle === "En curso" && a.completedCurrentCycle !== "En curso") return 1;
@@ -306,7 +300,6 @@ export default function ReportesPage() {
       toast({ title: "Sin Datos", description: "No hay datos S-13 para exportar con los filtros actuales.", variant: "destructive" });
       return;
     }
-    // TODO: Implementar lógica de conversión a CSV y descarga
     toast({ title: "Exportar S-13", description: "Funcionalidad de exportación CSV S-13 pendiente de implementar." });
   };
 
@@ -325,71 +318,68 @@ export default function ReportesPage() {
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Reporte de Actividad de Territorios</h1>
           <p className="text-sm text-muted-foreground">Consulta y exporta el historial de actividad de los territorios.</p>
         </div>
-        <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
-          <SheetTrigger asChild>
-            <Button variant="outline">
-              <Filter className="mr-2 h-4 w-4" /> Mostrar Filtros
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-full sm:max-w-md">
-            <SheetHeader>
-              <SheetTitle>Filtros de Reportes</SheetTitle>
-              <SheetDescription>Define los criterios para tu consulta.</SheetDescription>
-            </SheetHeader>
-            <div className="py-4 space-y-4">
-              <div className="space-y-1">
-                <Label htmlFor="serviceYearFilter" className="text-sm font-medium">Año de Servicio (para S-13)</Label>
-                <Select value={filterServiceYear} onValueChange={setFilterServiceYear}>
-                  <SelectTrigger id="serviceYearFilter">
-                    <SelectValue placeholder="Selecciona año" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {serviceYears.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="fromDate" className="text-sm font-medium">Desde Fecha</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button id="fromDate" variant="outline" className={cn("w-full justify-start text-left font-normal", !filterFromDate && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {filterFromDate ? format(filterFromDate, "PPP", { locale: es }) : <span>dd-mm-aaaa</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterFromDate} onSelect={setFilterFromDate} initialFocus locale={es} /></PopoverContent>
-                </Popover>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="toDate" className="text-sm font-medium">Hasta Fecha</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button id="toDate" variant="outline" className={cn("w-full justify-start text-left font-normal", !filterToDate && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {filterToDate ? format(filterToDate, "PPP", { locale: es }) : <span>dd-mm-aaaa</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterToDate} onSelect={setFilterToDate} disabled={(date) => filterFromDate ? date < filterFromDate : false} initialFocus locale={es} /></PopoverContent>
-                </Popover>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="territoryNumberFilter" className="text-sm font-medium">Núm. de Territorio</Label>
-                <Input id="territoryNumberFilter" placeholder="Ej: 001" value={filterTerritoryNumber} onChange={(e) => setFilterTerritoryNumber(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="assignedToFilter" className="text-sm font-medium">Asignado a</Label>
-                <Input id="assignedToFilter" placeholder="Nombre del publicador" value={filterAssignedTo} onChange={(e) => setFilterAssignedTo(e.target.value)} />
-              </div>
-            </div>
-            <SheetFooter>
-              <Button type="button" variant="outline" onClick={handleClearFilters}>Limpiar Filtros</Button>
-              <Button onClick={handleApplyFilters} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                <Filter className="mr-2 h-4 w-4" /> Aplicar Filtros
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
+        {/* SheetTrigger for filters has been removed as requested */}
       </header>
+
+      <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Filtros de Reportes</SheetTitle>
+            <SheetDescription>Define los criterios para tu consulta.</SheetDescription>
+          </SheetHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-1">
+              <Label htmlFor="serviceYearFilter" className="text-sm font-medium">Año de Servicio (para S-13)</Label>
+              <Select value={filterServiceYear} onValueChange={setFilterServiceYear}>
+                <SelectTrigger id="serviceYearFilter">
+                  <SelectValue placeholder="Selecciona año" />
+                </SelectTrigger>
+                <SelectContent>
+                  {serviceYears.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="fromDate" className="text-sm font-medium">Desde Fecha</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button id="fromDate" variant="outline" className={cn("w-full justify-start text-left font-normal", !filterFromDate && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filterFromDate ? format(filterFromDate, "PPP", { locale: es }) : <span>dd-mm-aaaa</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterFromDate} onSelect={setFilterFromDate} initialFocus locale={es} /></PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="toDate" className="text-sm font-medium">Hasta Fecha</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button id="toDate" variant="outline" className={cn("w-full justify-start text-left font-normal", !filterToDate && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filterToDate ? format(filterToDate, "PPP", { locale: es }) : <span>dd-mm-aaaa</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterToDate} onSelect={setFilterToDate} disabled={(date) => filterFromDate ? date < filterFromDate : false} initialFocus locale={es} /></PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="territoryNumberFilter" className="text-sm font-medium">Núm. de Territorio</Label>
+              <Input id="territoryNumberFilter" placeholder="Ej: 001" value={filterTerritoryNumber} onChange={(e) => setFilterTerritoryNumber(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="assignedToFilter" className="text-sm font-medium">Asignado a</Label>
+              <Input id="assignedToFilter" placeholder="Nombre del publicador" value={filterAssignedTo} onChange={(e) => setFilterAssignedTo(e.target.value)} />
+            </div>
+          </div>
+          <SheetFooter>
+            <Button type="button" variant="outline" onClick={handleClearFilters}>Limpiar Filtros</Button>
+            <Button onClick={handleApplyFilters} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Filter className="mr-2 h-4 w-4" /> Aplicar Filtros
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <Tabs value={activeView} onValueChange={(value) => setActiveView(value as 'detailedReports' | 's13Log')} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -496,7 +486,7 @@ export default function ReportesPage() {
       {selectedReportForCampaignHistory && (
         <Dialog open={isCampaignHistoryModalOpen} onOpenChange={setIsCampaignHistoryModalOpen}>
           <DialogContent className="sm:max-w-xl">
-            <DialogHeader> {/* Usar DialogHeader de ShadCN */}
+            <DialogHeader> {/* Using direct DialogHeader */}
               <DialogTitle>Historial de Campañas del Ciclo: {selectedReportForCampaignHistory.territoryNumber}</DialogTitle>
             </DialogHeader>
             <div className="max-h-[60vh] overflow-y-auto py-4">
@@ -510,7 +500,7 @@ export default function ReportesPage() {
                 </TableBody>
               </Table>
             </div>
-            <ShadDialogFooter><ShadDialogClose asChild><Button type="button" variant="outline">Cerrar</Button></ShadDialogClose></ShadDialogFooter>
+            <DialogFooter><DialogClose asChild><Button type="button" variant="outline">Cerrar</Button></DialogClose></DialogFooter>
           </DialogContent>
         </Dialog>
       )}
@@ -519,7 +509,7 @@ export default function ReportesPage() {
       {selectedTerritoryS13History && (
         <Dialog open={isS13HistoryModalOpen} onOpenChange={setIsS13HistoryModalOpen}>
           <DialogContent className="sm:max-w-2xl">
-            <DialogHeader> {/* Usar DialogHeader de ShadCN */}
+            <DialogHeader> {/* Using direct DialogHeader */}
               <DialogTitle>Historial S-13 de Ciclos Completados: {selectedTerritoryS13History.territoryNumber}</DialogTitle>
                <div className="pt-2">
                     <Label htmlFor="s13HistoryYearFilterModal" className="text-xs">Filtrar por Año de Servicio:</Label>
@@ -546,12 +536,10 @@ export default function ReportesPage() {
                 </TableBody>
               </Table>
             </div>
-            <ShadDialogFooter><ShadDialogClose asChild><Button type="button" variant="outline">Cerrar</Button></ShadDialogClose></ShadDialogFooter>
+            <DialogFooter><DialogClose asChild><Button type="button" variant="outline">Cerrar</Button></DialogClose></DialogFooter>
           </DialogContent>
         </Dialog>
       )}
     </div>
   );
 }
-
-    
