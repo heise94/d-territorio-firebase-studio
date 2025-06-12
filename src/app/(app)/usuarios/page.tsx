@@ -5,12 +5,14 @@ import { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, Send, CalendarClock } from "lucide-react";
+import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, Send, CalendarClock, UserCog } from "lucide-react"; // Added UserCog
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import type { UserProfile } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp } from "firebase/firestore";
 import { USER_ROLES, USER_ROLES_LIST } from "@/lib/constants";
+import { useRouter } from "next/navigation"; // Added useRouter
+import { usePermissions } from "@/hooks/use-permissions"; // Added usePermissions
 
 import {
   Table,
@@ -47,6 +49,8 @@ export default function UsuariosPage() {
   ]);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
+  const router = useRouter(); // For navigation
+  const { startImpersonation, actualUserRole } = usePermissions(); // Get impersonation functions and actual role
 
   const handleOpenInviteDialog = () => {
     setIsInviteUserDialogOpen(true);
@@ -119,6 +123,19 @@ export default function UsuariosPage() {
     console.log(`Viendo disponibilidad del usuario ${userId}`);
   };
 
+  const handleImpersonateUser = (userToImpersonate: UserProfile) => {
+    if (actualUserRole !== USER_ROLES.ENCARGADO_TERRITORIO) {
+      toast({title: "Acción no permitida", description: "Solo los administradores pueden suplantar usuarios.", variant: "destructive"});
+      return;
+    }
+    if (userToImpersonate.firebaseAuthUid === users.find(u => u.role === USER_ROLES.ENCARGADO_TERRITORIO)?.firebaseAuthUid) { // Check if trying to impersonate self (or another admin)
+      toast({title: "Acción no permitida", description: "No puedes suplantar a otro administrador o a ti mismo.", variant: "destructive"});
+      return;
+    }
+    startImpersonation(userToImpersonate);
+    router.push('/dashboard');
+  };
+
   const getInitials = (name?: string) => {
     if (!name) return "??";
     const nameParts = name.split(" ");
@@ -136,6 +153,8 @@ export default function UsuariosPage() {
         (user.role?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
   }, [users, searchTerm]);
+
+  const canImpersonate = actualUserRole === USER_ROLES.ENCARGADO_TERRITORIO;
 
   return (
     <TooltipProvider>
@@ -241,7 +260,7 @@ export default function UsuariosPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-0.5"> {/* Reduced gap from gap-1 to gap-0.5 */}
+                          <div className="flex items-center justify-end gap-0.5">
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user.id)}>
@@ -271,6 +290,18 @@ export default function UsuariosPage() {
                               </TooltipTrigger>
                               <TooltipContent>Ver Disponibilidad</TooltipContent>
                             </Tooltip>
+                            
+                            {canImpersonate && user.role !== USER_ROLES.ENCARGADO_TERRITORIO && user.status === 'Activo' && (
+                                <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleImpersonateUser(user)}>
+                                    <UserCog className="h-4 w-4" />
+                                    <span className="sr-only">Suplantar Usuario</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Suplantar Usuario</TooltipContent>
+                                </Tooltip>
+                            )}
 
                             {user.invitationStatus === 'pending' && (
                               <Tooltip>
@@ -288,28 +319,31 @@ export default function UsuariosPage() {
                               <AlertDialogTrigger asChild>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" 
+                                    disabled={user.role === USER_ROLES.ENCARGADO_TERRITORIO} /* Prevent deleting admin */ >
                                       <Trash2 className="h-4 w-4" />
                                       <span className="sr-only">Eliminar</span>
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>Eliminar Usuario</TooltipContent>
+                                  <TooltipContent>{user.role === USER_ROLES.ENCARGADO_TERRITORIO ? "No se puede eliminar al administrador" : "Eliminar Usuario"}</TooltipContent>
                                 </Tooltip>
                               </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario '{user.name}' de tus registros (simulación).
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className={buttonVariants({variant: "destructive"})}>
-                                    Sí, eliminar
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
+                              {user.role !== USER_ROLES.ENCARGADO_TERRITORIO && (
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario '{user.name}' de tus registros (simulación).
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className={buttonVariants({variant: "destructive"})}>
+                                        Sí, eliminar
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                              )}
                             </AlertDialog>
                           </div>
                         </TableCell>

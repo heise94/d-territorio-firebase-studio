@@ -11,39 +11,49 @@ import { useToast } from './use-toast';
 
 
 interface PermissionsContextType {
-  userProfile: UserProfile | null;
+  userProfile: UserProfile | null; // This will be the effective profile (original or impersonated)
   rolePermissionsConfig: RoleConfiguration | null;
   isLoadingPermissions: boolean;
   hasPermission: (permissionId: PermissionId) => boolean;
+  isImpersonating: boolean;
+  startImpersonation: (targetProfile: UserProfile) => void;
+  stopImpersonation: () => void;
+  actualUserRole: UserRole | null; // Role of the genuinely authenticated user
 }
 
 const PermissionsContext = createContext<PermissionsContextType | undefined>(undefined);
 
 export function PermissionsProvider({ children }: { children: ReactNode }) {
   const { user: authUser, loading: authLoading } = useAuth();
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [actualUserProfile, setActualUserProfile] = useState<UserProfile | null>(null); // Profile of the logged-in user
+  const [impersonatedUserProfile, setImpersonatedUserProfile] = useState<UserProfile | null>(null); // Profile of the user being impersonated
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [originalAdminProfile, setOriginalAdminProfile] = useState<UserProfile | null>(null); // Store admin's profile during impersonation
+
   const [rolePermissionsConfig, setRolePermissionsConfig] = useState<RoleConfiguration | null>(null);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
   const { toast } = useToast();
-
-  if (typeof window !== 'undefined') {
-    console.log('[PermissionsProvider] Rendering. AuthUser UID:', authUser?.uid, 'AuthLoading:', authLoading, 'AuthUser Email:', authUser?.email);
-  }
 
   useEffect(() => {
     let unsubscribeUserProfile: (() => void) | undefined;
     let unsubscribeRolePermissions: (() => void) | undefined;
 
     async function fetchInitialData() {
-      setIsLoadingPermissions(true);
-
-      if (authLoading) {
+      // If impersonation is active, don't re-fetch based on authUser, keep impersonated profile
+      if (isImpersonating) {
         setIsLoadingPermissions(false);
         return;
       }
 
+      setIsLoadingPermissions(true);
+
+      if (authLoading) {
+        setIsLoadingPermissions(false); // Ensure loading is false if auth is still loading
+        return;
+      }
+
       if (!authUser || !authUser.uid) {
-        setUserProfile(null);
+        setActualUserProfile(null);
         setRolePermissionsConfig(null);
         setIsLoadingPermissions(false);
         return;
@@ -55,67 +65,55 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
         setIsLoadingPermissions(false);
         return;
       }
-
+      
       // --- START SIMULATION BLOCK FOR DEVELOPMENT ---
       if (process.env.NODE_ENV === 'development') {
         if (authUser.email === 'javih.jw@gmail.com') {
-          console.log("[PermissionsProvider] DEV SIMULATION: Assigning ENCARGADO_TERRITORIO role to javih.jw@gmail.com");
-          setUserProfile({
-            id: 'dev-admin-javih',
-            name: 'Javier (Admin Dev)',
-            email: 'javih.jw@gmail.com',
-            role: USER_ROLES.ENCARGADO_TERRITORIO,
-            status: 'Activo',
-            firebaseAuthUid: authUser.uid,
-            // No assignedGroupId for admin, so they can select
+          const devAdminProfile = {
+            id: 'dev-admin-javih', name: 'Javier (Admin Dev)', email: 'javih.jw@gmail.com',
+            role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo', firebaseAuthUid: authUser.uid,
+          };
+          setActualUserProfile(devAdminProfile);
+          // Fetch role permissions for admin, then set loading to false
+          const rolePermissionsDocRefAdmin = doc(db, "settings", "rolePermissions");
+          unsubscribeRolePermissions = onSnapshot(rolePermissionsDocRefAdmin, (docSnap) => {
+              if (docSnap.exists()) {
+              const data = docSnap.data() as SettingsDoc;
+              setRolePermissionsConfig(data.rolePermissions || DEFAULT_ROLE_PERMISSIONS);
+              } else {
+              setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
+              }
+              setIsLoadingPermissions(false);
+          }, (error) => {
+              console.error("Error fetching role permissions for dev admin:", error);
+              setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
+              setIsLoadingPermissions(false);
           });
-           // Fetch role permissions for admin, then set loading to false
-            const rolePermissionsDocRefAdmin = doc(db, "settings", "rolePermissions");
-            unsubscribeRolePermissions = onSnapshot(rolePermissionsDocRefAdmin, (docSnap) => {
-                if (docSnap.exists()) {
-                const data = docSnap.data() as SettingsDoc;
-                setRolePermissionsConfig(data.rolePermissions || DEFAULT_ROLE_PERMISSIONS);
-                } else {
-                setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
-                }
-                setIsLoadingPermissions(false);
-            }, (error) => {
-                console.error("Error fetching role permissions for dev admin:", error);
-                setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
-                setIsLoadingPermissions(false);
-            });
-          return; // Exit early after setting up simulated admin
-        } else if (authUser.uid === 'uidElena') { // Existing simulation for SG
-           console.log("[PermissionsProvider] DEV SIMULATION: Assigning SG role to uidElena");
-          setUserProfile({
-            id: 'dev-sg-elena',
-            name: 'Elena Campos (SG Dev)',
-            email: 'elena.campos.dev@example.com',
-            role: USER_ROLES.SG,
-            status: 'Activo',
-            firebaseAuthUid: authUser.uid,
-            assignedGroupId: 'G1', // Elena is SG of G1
+          return;
+        } else if (authUser.uid === 'uidElena') {
+          const devSgProfile = {
+            id: 'dev-sg-elena', name: 'Elena Campos (SG Dev)', email: 'elena.campos.dev@example.com',
+            role: USER_ROLES.SG, status: 'Activo', firebaseAuthUid: authUser.uid, assignedGroupId: 'G1',
+          };
+          setActualUserProfile(devSgProfile);
+          const rolePermissionsDocRefSG = doc(db, "settings", "rolePermissions");
+          unsubscribeRolePermissions = onSnapshot(rolePermissionsDocRefSG, (docSnap) => {
+              if (docSnap.exists()) {
+              const data = docSnap.data() as SettingsDoc;
+              setRolePermissionsConfig(data.rolePermissions || DEFAULT_ROLE_PERMISSIONS);
+              } else {
+              setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
+              }
+              setIsLoadingPermissions(false);
+          }, (error) => {
+              console.error("Error fetching role permissions for dev SG:", error);
+              setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
+              setIsLoadingPermissions(false);
           });
-          // Fetch role permissions for SG, then set loading to false
-            const rolePermissionsDocRefSG = doc(db, "settings", "rolePermissions");
-            unsubscribeRolePermissions = onSnapshot(rolePermissionsDocRefSG, (docSnap) => {
-                if (docSnap.exists()) {
-                const data = docSnap.data() as SettingsDoc;
-                setRolePermissionsConfig(data.rolePermissions || DEFAULT_ROLE_PERMISSIONS);
-                } else {
-                setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
-                }
-                setIsLoadingPermissions(false);
-            }, (error) => {
-                console.error("Error fetching role permissions for dev SG:", error);
-                setRolePermissionsConfig(DEFAULT_ROLE_PERMISSIONS);
-                setIsLoadingPermissions(false);
-            });
-          return; // Exit early after setting up simulated SG
+          return;
         }
       }
       // --- END SIMULATION BLOCK ---
-
 
       try {
         const usersRef = collection(db, "users");
@@ -124,20 +122,21 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
         unsubscribeUserProfile = onSnapshot(q, (querySnapshot) => {
           if (!querySnapshot.empty) {
             const userDoc = querySnapshot.docs[0];
-            setUserProfile({ id: userDoc.id, ...userDoc.data() } as UserProfile);
+            setActualUserProfile({ id: userDoc.id, ...userDoc.data() } as UserProfile);
           } else {
-            console.warn(`User profile not found in Firestore for auth UID: ${authUser.uid}.`);
-            setUserProfile(null); 
+            console.warn(`User profile not found in Firestore for auth UID: ${authUser.uid}. Logging out potentially.`);
+            setActualUserProfile(null);
+            // Consider calling signOut from useAuth here if profile is mandatory
           }
         }, (error) => {
           console.error("Error fetching user profile:", error);
-          setUserProfile(null);
+          setActualUserProfile(null);
           toast({ title: "Error de Perfil", description: "No se pudo cargar tu perfil de usuario.", variant: "destructive" });
         });
 
       } catch (error) {
           console.error("Error setting up user profile listener:", error);
-          setUserProfile(null);
+          setActualUserProfile(null);
       }
 
       try {
@@ -171,24 +170,53 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       if (unsubscribeRolePermissions) unsubscribeRolePermissions();
     };
 
-  }, [authUser, authLoading, toast]);
+  }, [authUser, authLoading, toast, isImpersonating]); // Added isImpersonating to dependencies
+
+  const startImpersonation = useCallback((targetProfile: UserProfile) => {
+    if (actualUserProfile?.role !== USER_ROLES.ENCARGADO_TERRITORIO) {
+      toast({ title: "Acción no permitida", description: "Solo los administradores pueden suplantar usuarios.", variant: "destructive" });
+      return;
+    }
+    setOriginalAdminProfile(actualUserProfile);
+    setImpersonatedUserProfile(targetProfile);
+    setIsImpersonating(true);
+    toast({ title: "Suplantación Iniciada", description: `Ahora estás viendo como ${targetProfile.name}.`, variant: "default" });
+  }, [actualUserProfile, toast]);
+
+  const stopImpersonation = useCallback(() => {
+    setImpersonatedUserProfile(null);
+    setOriginalAdminProfile(null); // Clear stored admin profile
+    setIsImpersonating(false);
+    toast({ title: "Suplantación Finalizada", description: "Has vuelto a tu sesión de administrador.", variant: "default" });
+  }, [toast]);
+
+  const effectiveUserProfile = isImpersonating ? impersonatedUserProfile : actualUserProfile;
 
   const hasPermission = useCallback((permissionId: PermissionId): boolean => {
-    if (isLoadingPermissions) return false; // Don't grant permissions while loading
-    if (!userProfile || !userProfile.role || !rolePermissionsConfig) {
+    if (isLoadingPermissions && !isImpersonating) return false;
+    if (!effectiveUserProfile || !effectiveUserProfile.role || !rolePermissionsConfig) {
       return false; 
     }
-    // Super admin (Encargado Territorio) has all permissions implicitly
-    if (userProfile.role === USER_ROLES.ENCARGADO_TERRITORIO) {
+    if (effectiveUserProfile.role === USER_ROLES.ENCARGADO_TERRITORIO) {
         return true; 
     }
-
-    const permissionsForRole = rolePermissionsConfig[userProfile.role];
+    const permissionsForRole = rolePermissionsConfig[effectiveUserProfile.role];
     return permissionsForRole ? permissionsForRole.includes(permissionId) : false;
-  }, [userProfile, rolePermissionsConfig, isLoadingPermissions]);
+  }, [effectiveUserProfile, rolePermissionsConfig, isLoadingPermissions, isImpersonating]);
+  
+  const actualUserRole = actualUserProfile?.role || null;
 
   return (
-    <PermissionsContext.Provider value={{ userProfile, rolePermissionsConfig, isLoadingPermissions, hasPermission }}>
+    <PermissionsContext.Provider value={{ 
+        userProfile: effectiveUserProfile, 
+        rolePermissionsConfig, 
+        isLoadingPermissions, 
+        hasPermission,
+        isImpersonating,
+        startImpersonation,
+        stopImpersonation,
+        actualUserRole
+    }}>
       {children}
     </PermissionsContext.Provider>
   );
@@ -201,5 +229,3 @@ export function usePermissions(): PermissionsContextType {
   }
   return context;
 }
-
-    
