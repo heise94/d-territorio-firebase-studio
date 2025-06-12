@@ -2,17 +2,17 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck, KeyRound, Settings as SettingsIcon } from "lucide-react"; // Added SettingsIcon
+import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette, Hourglass, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck, KeyRound, Settings as SettingsIcon } from "lucide-react";
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration } from "@/types";
-import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, PermissionModule, DEFAULT_ROLE_PERMISSIONS } from "@/lib/constants";
+import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, UserRole } from "@/types";
+import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS, PERMISSION_MODULES } from "@/lib/constants";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +40,8 @@ import { Loader2 } from "lucide-react";
 import { AddCampaignDialog } from "@/components/settings/campaigns/add-campaign-dialog";
 import { AddHolidayDialog } from "@/components/settings/holidays/add-holiday-dialog";
 import { AddAssemblyDialog } from "@/components/settings/assemblies/add-assembly-dialog";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import {
   Table,
   TableBody,
@@ -60,15 +61,16 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription as AlertDialogDescriptionComponentInner, // Renamed to avoid conflict
+  AlertDialogDescription as AlertDialogDescriptionComponentInner, 
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle as AlertDialogTitleComponentInner, // Renamed to avoid conflict
+  AlertDialogTitle as AlertDialogTitleComponentInner, 
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { format as formatDate, getYear, getMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 
 const scheduleSlotFormSchema = z.object({
@@ -116,14 +118,14 @@ const MOCK_GROUPS_FOR_ROTATION_SELECT: Pick<PreachingGroup, 'id' | 'name' | 'sup
 
 type SettingsSectionId = "permissions" | "weeklyProgram" | "specialEvents" | "ruralRotation" | "appearance" | "timings";
 
-interface SettingsSection {
+interface SettingsSectionInfo {
   id: SettingsSectionId;
   title: string;
   icon: React.ElementType;
   description: string;
 }
 
-const settingsSections: SettingsSection[] = [
+const settingsSections: SettingsSectionInfo[] = [
   { id: "permissions", title: "Roles y Permisos", icon: KeyRound, description: "Define qué puede hacer cada rol de usuario en la aplicación." },
   { id: "weeklyProgram", title: "Programa Semanal", icon: CalendarCog, description: "Define los horarios fijos y tentativos para la predicación y qué días son organizados por grupos." },
   { id: "specialEvents", title: "Eventos Especiales", icon: Briefcase, description: "Gestiona campañas, asambleas y días festivos personalizados." },
@@ -161,7 +163,7 @@ export default function SettingsPage() {
   const [isSavingRuralRotation, setIsSavingRuralRotation] = useState(false);
 
   const [editableRolePermissions, setEditableRolePermissions] = useState<RoleConfiguration>(DEFAULT_ROLE_PERMISSIONS);
-  const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
+  const [isLoadingPermissionsSettings, setIsLoadingPermissionsSettings] = useState(true);
   const [isSavingPermissions, setIsSavingPermissions] = useState(false);
 
   const slotForm = useForm<ScheduleSlotFormValues>({
@@ -173,11 +175,47 @@ export default function SettingsPage() {
     },
   });
 
+  const loadPermissionsConfiguration = useCallback(async () => {
+    if (!db || Object.keys(db).length === 0) {
+      console.error("Firestore is not initialized.");
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      setEditableRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+      setIsLoadingPermissionsSettings(false);
+      return;
+    }
+    setIsLoadingPermissionsSettings(true);
+    try {
+      const docRef = doc(db, "settings", "rolePermissions");
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists() && docSnap.data()?.rolePermissions) {
+        setEditableRolePermissions(docSnap.data().rolePermissions as RoleConfiguration);
+      } else {
+        setEditableRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+        // Optional: inform user that defaults are being used, or create the doc with defaults
+        // await setDoc(docRef, { rolePermissions: DEFAULT_ROLE_PERMISSIONS, updatedAt: serverTimestamp() });
+      }
+    } catch (error) {
+      console.error("Error fetching role permissions from Firestore:", error);
+      toast({
+        title: "Error al Cargar Permisos",
+        description: "No se pudo cargar la configuración de permisos. Se usarán los valores por defecto.",
+        variant: "destructive",
+      });
+      setEditableRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+    } finally {
+      setIsLoadingPermissionsSettings(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
-    setIsLoadingPermissions(true);
-    setEditableRolePermissions(DEFAULT_ROLE_PERMISSIONS);
-    setIsLoadingPermissions(false);
-  }, []);
+    if (activeSectionId === "permissions") {
+      loadPermissionsConfiguration();
+    }
+    // TODO: Add similar loading logic for other sections (scheduleSlots, groupOrganizedDays, etc.)
+    // when they are connected to Firebase. For now, they use local state.
+  }, [activeSectionId, loadPermissionsConfiguration]);
+
 
   const handlePermissionChange = (role: UserRole, permissionId: PermissionId, checked: boolean) => {
     setEditableRolePermissions(prevConfig => {
@@ -196,14 +234,31 @@ export default function SettingsPage() {
   };
 
   const handleSavePermissions = async () => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      return;
+    }
     setIsSavingPermissions(true);
-    console.log("Permisos a guardar (simulación):", editableRolePermissions);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    toast({
-      title: "Permisos Guardados (Simulación)",
-      description: "La configuración de permisos de roles ha sido actualizada.",
-    });
-    setIsSavingPermissions(false);
+    try {
+      const docRef = doc(db, "settings", "rolePermissions");
+      await setDoc(docRef, { 
+        rolePermissions: editableRolePermissions,
+        updatedAt: serverTimestamp() 
+      });
+      toast({
+        title: "Permisos Guardados",
+        description: "La configuración de permisos de roles ha sido actualizada en Firebase.",
+      });
+    } catch (error) {
+      console.error("Error saving role permissions to Firestore:", error);
+      toast({
+        title: "Error al Guardar",
+        description: "No se pudo guardar la configuración de permisos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingPermissions(false);
+    }
   };
 
   const handleOpenAddSlotDialog = (day: DayOfWeek) => {
@@ -436,13 +491,14 @@ export default function SettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {isLoadingPermissions ? (
-                  <div className="flex items-center justify-center py-10">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="ml-3 text-muted-foreground">Cargando configuración de permisos...</p>
+                {isLoadingPermissionsSettings ? (
+                  <div className="space-y-4 py-10">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
                   </div>
                 ) : (
-                  <Accordion type="multiple" className="w-full space-y-2" defaultValue={PERMISSIONS_BY_MODULE.map(m => m.moduleName)}>
+                  <Accordion type="multiple" className="w-full space-y-2" defaultValue={PERMISSION_MODULES_ORDERED_FOR_ACCORDION}>
                     {PERMISSIONS_BY_MODULE.map((moduleItem) => (
                       <AccordionItem value={moduleItem.moduleName} key={moduleItem.moduleName} className="border rounded-md shadow-sm bg-muted/20">
                         <AccordionTrigger className="px-4 py-3 text-base hover:no-underline hover:bg-muted/30 rounded-t-md">
@@ -476,7 +532,7 @@ export default function SettingsPage() {
                                             role === USER_ROLES.ENCARGADO_TERRITORIO ||
                                             (editableRolePermissions[role]?.includes(permission.id) ?? false)
                                           }
-                                          onCheckedChange={(checked) => handlePermissionChange(role, permission.id, !!checked)}
+                                          onCheckedChange={(checked) => handlePermissionChange(role as UserRole, permission.id, !!checked)}
                                           disabled={role === USER_ROLES.ENCARGADO_TERRITORIO}
                                           aria-label={`Permiso ${permission.description} para rol ${role}`}
                                         />
@@ -494,7 +550,7 @@ export default function SettingsPage() {
                 )}
               </CardContent>
               <CardFooter className="border-t pt-4">
-                <Button onClick={handleSavePermissions} disabled={isSavingPermissions || isLoadingPermissions}>
+                <Button onClick={handleSavePermissions} disabled={isSavingPermissions || isLoadingPermissionsSettings}>
                   {isSavingPermissions && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Save className="mr-2 h-4 w-4" />
                   Guardar Permisos
@@ -727,5 +783,9 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+// Helper to ensure consistent order of modules in accordion
+const PERMISSION_MODULES_ORDERED_FOR_ACCORDION = PERMISSIONS_BY_MODULE.map(m => m.moduleName);
+    
 
     
