@@ -5,12 +5,13 @@ import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon, AlertTriangle, MountainSnow, Video, Users2 as GroupIconLucide, Eye, Edit, Trash2, Pencil, Gift } from "lucide-react";
+import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon, AlertTriangle, MountainSnow, Video, Users2 as GroupIconLucide, Eye, Edit, Trash2, Pencil, Gift, MapPin as MapPinIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse, isAfter, isBefore as isBeforeDateFns } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek, CustomHoliday } from "@/types";
+import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek, CustomHoliday, TerritoryType, AdditionalTerritoryInfo } from "@/types";
 import { AddGroupAssignmentDialog } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
+import { SuggestTerritoryForGroupAssignmentDialog } from "@/components/mi-grupo/programa/suggest-territory-for-group-assignment-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Timestamp } from "firebase/firestore";
 import { USER_ROLES } from "@/lib/constants";
@@ -44,13 +45,10 @@ const MOCK_ALL_GROUPS_FOR_ADMIN_SELECT: Pick<PreachingGroup, 'id' | 'name'>[] = 
     { id: 'G3', name: 'Grupo Emanuel' },
 ];
 
-const MOCK_GROUP_ORGANIZED_DAYS: DayOfWeek[] = ['saturday', 'sunday']; // Example
+const MOCK_GROUP_ORGANIZED_DAYS: DayOfWeek[] = ['saturday', 'sunday']; 
 
 const MOCK_CUSTOM_HOLIDAYS: CustomHoliday[] = [
     { id: "h1", name: "Año Nuevo", date: Timestamp.fromDate(new Date(new Date().getFullYear(), 0, 1)), createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-    { id: "h2", name: "Día del Trabajo", date: Timestamp.fromDate(new Date(new Date().getFullYear(), 4, 1)), createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-    { id: "h3", name: "Navidad", date: Timestamp.fromDate(new Date(new Date().getFullYear(), 11, 25)), createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-    // Add a holiday in the current or next month for testing visibility
     { id: "h4", name: "Festivo de Prueba", date: Timestamp.fromDate(new Date(new Date().getFullYear(), new Date().getMonth(), 15)), createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
 ];
 
@@ -84,6 +82,9 @@ export default function MiGrupoProgramaPage() {
   const [assignmentToDeleteId, setAssignmentToDeleteId] = useState<string | null>(null);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
   const [initialDateForDialog, setInitialDateForDialog] = useState<Date | null>(null);
+  
+  const [isSuggestTerritoryDialogOpen, setIsSuggestTerritoryDialogOpen] = useState(false);
+  const [assignmentForTerritorySuggestion, setAssignmentForTerritorySuggestion] = useState<GroupAssignment | null>(null);
 
 
   const currentGroupId = useMemo(() => {
@@ -171,6 +172,50 @@ export default function MiGrupoProgramaPage() {
     setAssignmentToDeleteId(null);
   };
 
+  const handleOpenSuggestTerritoryDialog = (groupAssignment: GroupAssignment) => {
+    setAssignmentForTerritorySuggestion(groupAssignment);
+    setIsSuggestTerritoryDialogOpen(true);
+  };
+
+  const handleTerritorySelectedForAssignment = (
+    selectedTerritory: AdditionalTerritoryInfo,
+    groupAssignmentContext: GroupAssignment
+  ) => {
+    setGroupAssignments(prev =>
+      prev.map(ga =>
+        ga.id === groupAssignmentContext.id
+          ? { ...ga, assignedTerritoryId: selectedTerritory.id, assignedTerritoryName: selectedTerritory.name }
+          : ga
+      )
+    );
+
+    const newUserAssignment = {
+      id: crypto.randomUUID(),
+      date: groupAssignmentContext.date,
+      time: groupAssignmentContext.time,
+      type: selectedTerritory.type === 'urban' ? 'publica' : 'rural' as PreachingType,
+      locationName: selectedTerritory.name,
+      locationId: selectedTerritory.id,
+      status: 'accepted' as const,
+      assignedBy: `SG: ${userProfile?.name || 'Desconocido'}`,
+      userId: groupAssignmentContext.captainUserId,
+      userName: groupAssignmentContext.captainName,
+      notes: `Territorio asignado por SG para la salida de grupo. ${groupAssignmentContext.notes || ''}`.trim(),
+    };
+
+    // En un escenario real, aquí se guardaría newUserAssignment en Firestore.
+    // Por ahora, solo mostraremos un toast.
+    console.log("Simulando creación de UserAssignment:", newUserAssignment);
+    toast({
+      title: "Territorio Asignado al Grupo",
+      description: `El territorio "${selectedTerritory.name}" ha sido asignado a ${groupAssignmentContext.captainName} para la salida del ${groupAssignmentContext.date} a las ${groupAssignmentContext.time}. Se creó una asignación individual para el reporte.`,
+      duration: 7000,
+    });
+
+    setIsSuggestTerritoryDialogOpen(false);
+    setAssignmentForTerritorySuggestion(null);
+  };
+
 
   const filteredAssignmentsForMonth = useMemo(() => {
     if (!currentGroupId) return [];
@@ -247,13 +292,13 @@ export default function MiGrupoProgramaPage() {
           {pageTitle}
         </h1>
         <p className="text-muted-foreground mt-1">
-          Planifica y visualiza las asignaciones de predicación para el grupo. Sólo se pueden crear asignaciones en los días de la semana permitidos por el administrador.
+          Planifica las asignaciones de predicación para el grupo (días, horarios, encargados y lugar de reunión). Los territorios se asignan dinámicamente el día de la predicación.
         </p>
       </div>
 
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>Planificación Manual del Grupo</CardTitle>
+          <CardTitle>Planificación del Grupo</CardTitle>
           <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pt-2">
             <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center w-full sm:w-auto">
               {isAdminView && (
@@ -368,6 +413,13 @@ export default function MiGrupoProgramaPage() {
                                 </div>
                                 <p className="truncate text-foreground/90" title={assign.captainName}>{assign.captainName}</p>
                                 {assign.casaName && <p className="truncate text-muted-foreground text-[0.7rem]" title={assign.casaName}><HomeIcon size={10} className="inline mr-0.5"/>{assign.casaName}</p>}
+                                {assign.assignedTerritoryName ? (
+                                    <p className="truncate text-green-700 dark:text-green-400 text-[0.7rem] font-medium" title={assign.assignedTerritoryName}><MapPinIcon size={10} className="inline mr-0.5"/>{assign.assignedTerritoryName}</p>
+                                ) : !isPastDay && (
+                                    <Button variant="outline" size="sm" className="w-full mt-1.5 text-xs h-7" onClick={() => handleOpenSuggestTerritoryDialog(assign)}>
+                                      <MapPinIcon className="mr-1.5 h-3 w-3" /> Asignar Terr.
+                                    </Button>
+                                )}
 
                                 {!isPastDay && (
                                   <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
@@ -409,7 +461,7 @@ export default function MiGrupoProgramaPage() {
                           </div>
                         )}
                       </CardContent>
-                      {(!isAuthorizedDayForGroup || (holidayForDay && !canAddAssignment) ) && ( // If it's a holiday but we can still add, don't show "No hab"
+                      {(!isAuthorizedDayForGroup || (holidayForDay && !canAddAssignment) ) && ( 
                         <CardFooter className="p-1 mt-auto border-t border-dashed">
                             <p className="text-[0.65rem] text-muted-foreground/70 text-center w-full">
                                 {!isAuthorizedDayForGroup ? "No hab." : holidayForDay ? "Festivo" : ""}
@@ -437,6 +489,16 @@ export default function MiGrupoProgramaPage() {
             groupOrganizedDays={MOCK_GROUP_ORGANIZED_DAYS}
             assignmentToEdit={assignmentToEdit}
             initialDate={initialDateForDialog}
+        />
+      )}
+
+      {assignmentForTerritorySuggestion && currentGroupId && (
+        <SuggestTerritoryForGroupAssignmentDialog
+          isOpen={isSuggestTerritoryDialogOpen}
+          onOpenChange={setIsSuggestTerritoryDialogOpen}
+          groupAssignment={assignmentForTerritorySuggestion}
+          currentGroupId={currentGroupId}
+          onTerritorySelected={handleTerritorySelectedForAssignment}
         />
       )}
 

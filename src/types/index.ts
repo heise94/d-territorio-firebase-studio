@@ -227,15 +227,6 @@ export interface Assignment extends UserAssignment {
 }
 
 
-// For the findReplacementCaptain flow
-export interface PublisherDetail {
-  id: string; // Firebase Auth UID
-  name: string;
-  email: string;
-  availability: UserAvailability;
-  assignedGroupId?: string; // Group the publisher belongs to
-}
-
 // For "Mi Grupo > Programa"
 export interface GroupAssignment {
   id: string;
@@ -247,6 +238,8 @@ export interface GroupAssignment {
   captainName?: string; // For display
   casaId?: string; // ID of a Casa associated with the group
   casaName?: string; // For display
+  assignedTerritoryId?: string; // ID of the Territory assigned for this slot
+  assignedTerritoryName?: string; // Name of the Territory for display
   notes?: string;
   createdAt: Timestamp;
   createdBy: string; // Firebase Auth UID of the SG who created it
