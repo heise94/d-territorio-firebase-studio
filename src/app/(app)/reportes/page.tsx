@@ -41,7 +41,7 @@ import {
   DialogContent,
   DialogHeader, // Using direct import
   DialogTitle,   // Using direct import
-  DialogDescription, // Using direct import
+  DialogDescription as DialogDescriptionComponent, // Using direct import to avoid conflict
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -62,11 +62,11 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { format, parse, isValid as isDateValid, isWithinInterval, compareDesc, getYear as getYearFromDateFn } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarIcon, Filter, FileText, Eye, History, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarIcon, Filter, FileText, Eye, History, Loader2, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react"; // Added AlertTriangle
 import { useToast } from "@/hooks/use-toast";
-// Asumimos que db está correctamente configurado en firebase.ts
-// import { db } from '@/lib/firebase';
-// import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { usePermissions } from "@/hooks/use-permissions"; // Import usePermissions
+import { PERMISSIONS } from "@/lib/constants"; // Import PERMISSIONS
+
 
 // --- Interfaces de Datos (ejemplos basados en DETALLES_PAGINA_REPORTES.md) ---
 
@@ -114,8 +114,10 @@ const REPORTS_COLLECTION_NAME = "reports"; // TODO: Asegúrate que coincida con 
 
 export default function ReportesPage() {
   const { toast } = useToast();
+  const { hasPermission, isLoadingPermissions } = usePermissions(); // Use permissions hook
+
   const [activeView, setActiveView] = useState<'detailedReports' | 's13Log'>('detailedReports');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // General data loading
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   // Estados para los filtros
@@ -161,8 +163,12 @@ export default function ReportesPage() {
   }, []);
 
   useEffect(() => {
-    fetchReports();
-  }, [fetchReports]);
+    if (!isLoadingPermissions && hasPermission(PERMISSIONS.VIEW_REPORTS)) {
+      fetchReports();
+    } else if (!isLoadingPermissions && !hasPermission(PERMISSIONS.VIEW_REPORTS)) {
+      setIsLoading(false); // Not loading data if no permission
+    }
+  }, [fetchReports, isLoadingPermissions, hasPermission]);
 
   useEffect(() => {
     let filtered = allStoredReports;
@@ -296,6 +302,10 @@ export default function ReportesPage() {
   }, [selectedTerritoryS13History, s13HistoryModalFilterYear]);
 
   const handleExportS13Csv = () => {
+    if (!hasPermission(PERMISSIONS.EXPORT_REPORTS)) {
+      toast({ title: "Permiso Denegado", description: "No tienes permiso para exportar reportes.", variant: "destructive" });
+      return;
+    }
     if (processedS13Data.length === 0) {
       toast({ title: "Sin Datos", description: "No hay datos S-13 para exportar con los filtros actuales.", variant: "destructive" });
       return;
@@ -307,9 +317,21 @@ export default function ReportesPage() {
   const serviceYears = ["Todos los Años", ...Array.from({length: 5}, (_, i) => (currentCalendarYear - i).toString())];
 
 
-  if (isLoading) {
+  if (isLoadingPermissions || isLoading) { // Check both loading states
     return <div className="flex items-center justify-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-3 text-muted-foreground">Cargando reportes...</p></div>;
   }
+
+  if (!hasPermission(PERMISSIONS.VIEW_REPORTS)) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen gap-4 p-4 text-center">
+        <AlertTriangle className="h-16 w-16 text-destructive" />
+        <h1 className="text-2xl font-bold text-destructive">Acceso Denegado</h1>
+        <p className="text-muted-foreground">No tienes los permisos necesarios para ver esta sección de reportes.</p>
+        <Button onClick={() => window.history.back()}>Volver</Button>
+      </div>
+    );
+  }
+
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
@@ -318,7 +340,10 @@ export default function ReportesPage() {
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Reporte de Actividad de Territorios</h1>
           <p className="text-sm text-muted-foreground">Consulta y exporta el historial de actividad de los territorios.</p>
         </div>
-        {/* SheetTrigger for filters has been removed as requested */}
+        <Button onClick={() => setIsFilterSheetOpen(true)} variant="outline">
+          <Filter className="mr-2 h-4 w-4" />
+          Filtros
+        </Button>
       </header>
 
       <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
@@ -388,7 +413,15 @@ export default function ReportesPage() {
         </TabsList>
         <TabsContent value="detailedReports" className="mt-4">
           <Card className="shadow-md">
-            <CardHeader><CardTitle>Vista Detallada de Actividad</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Vista Detallada de Actividad</CardTitle>
+                <Button onClick={() => setIsFilterSheetOpen(true)} variant="outline" size="sm" className="ml-auto">
+                  <Filter className="mr-2 h-3.5 w-3.5" />
+                  Filtros
+                </Button>
+              </div>
+            </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
@@ -431,10 +464,19 @@ export default function ReportesPage() {
         <TabsContent value="s13Log" className="mt-4">
           <Card className="shadow-md">
             <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                <CardTitle>Vista S-13 (Ciclos Completados)</CardTitle>
-                <Button onClick={handleExportS13Csv} variant="outline" className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 h-auto text-sm">
-                    <FileText className="mr-2 h-4 w-4" /> Exportar S-13 a CSV
-                </Button>
+                <div>
+                    <CardTitle>Vista S-13 (Ciclos Completados)</CardTitle>
+                    <CardDescription>Visualiza los ciclos de predicación completados por territorio.</CardDescription>
+                </div>
+                <div className="flex gap-2 items-center">
+                    <Button onClick={() => setIsFilterSheetOpen(true)} variant="outline" size="sm">
+                        <Filter className="mr-2 h-3.5 w-3.5" />
+                        Filtros S-13
+                    </Button>
+                    <Button onClick={handleExportS13Csv} variant="outline" className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 h-auto text-sm">
+                        <FileText className="mr-2 h-4 w-4" /> Exportar S-13 a CSV
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -486,8 +528,9 @@ export default function ReportesPage() {
       {selectedReportForCampaignHistory && (
         <Dialog open={isCampaignHistoryModalOpen} onOpenChange={setIsCampaignHistoryModalOpen}>
           <DialogContent className="sm:max-w-xl">
-            <DialogHeader> {/* Using direct DialogHeader */}
+            <DialogHeader> 
               <DialogTitle>Historial de Campañas del Ciclo: {selectedReportForCampaignHistory.territoryNumber}</DialogTitle>
+              <DialogDescriptionComponent>Detalle de las asignaciones dentro de este ciclo de trabajo.</DialogDescriptionComponent>
             </DialogHeader>
             <div className="max-h-[60vh] overflow-y-auto py-4">
               <Table>
@@ -509,8 +552,9 @@ export default function ReportesPage() {
       {selectedTerritoryS13History && (
         <Dialog open={isS13HistoryModalOpen} onOpenChange={setIsS13HistoryModalOpen}>
           <DialogContent className="sm:max-w-2xl">
-            <DialogHeader> {/* Using direct DialogHeader */}
+            <DialogHeader> 
               <DialogTitle>Historial S-13 de Ciclos Completados: {selectedTerritoryS13History.territoryNumber}</DialogTitle>
+              <DialogDescriptionComponent>Todos los ciclos completados registrados para este territorio.</DialogDescriptionComponent>
                <div className="pt-2">
                     <Label htmlFor="s13HistoryYearFilterModal" className="text-xs">Filtrar por Año de Servicio:</Label>
                     <Select value={s13HistoryModalFilterYear} onValueChange={setS13HistoryModalFilterYear}>
@@ -543,3 +587,4 @@ export default function ReportesPage() {
     </div>
   );
 }
+
