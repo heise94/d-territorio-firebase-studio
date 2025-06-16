@@ -21,6 +21,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription as FormFieldDescription, 
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -167,7 +168,7 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
                   <FormLabel>Superintendente (SG) (Opcional)</FormLabel>
                   <Select
                     onValueChange={(value) => field.onChange(value === NO_USER_VALUE ? "" : value)}
-                    value={field.value} // Use value for controlled component
+                    value={field.value} 
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -195,7 +196,7 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
                   <FormLabel>Auxiliar (Opcional)</FormLabel>
                    <Select
                     onValueChange={(value) => field.onChange(value === NO_USER_VALUE ? "" : value)}
-                    value={field.value} // Use value for controlled component
+                    value={field.value} 
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -211,6 +212,9 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormFieldDescription className="text-xs">
+                    Para que el Auxiliar tenga los mismos permisos que un SG, asegúrate de que el usuario seleccionado tenga el rol "SG" asignado en su perfil (en la sección Usuarios).
+                  </FormFieldDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -232,3 +236,6 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
     </Dialog>
   );
 }
+
+
+    
