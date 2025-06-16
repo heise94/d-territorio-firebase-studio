@@ -168,7 +168,7 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
                   <FormLabel>Superintendente (SG) (Opcional)</FormLabel>
                   <Select
                     onValueChange={(value) => field.onChange(value === NO_USER_VALUE ? "" : value)}
-                    value={field.value} 
+                    value={field.value || NO_USER_VALUE} 
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -196,7 +196,7 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
                   <FormLabel>Auxiliar (Opcional)</FormLabel>
                    <Select
                     onValueChange={(value) => field.onChange(value === NO_USER_VALUE ? "" : value)}
-                    value={field.value} 
+                    value={field.value || NO_USER_VALUE} 
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -236,6 +236,5 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
     </Dialog>
   );
 }
-
 
     
