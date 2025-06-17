@@ -70,36 +70,59 @@ export default function GruposPage() {
   };
 
   const handleGroupSubmit = async (submittedGroupData: PreachingGroup) => {
-     if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
-      return;
+    if (!db || Object.keys(db).length === 0) {
+     toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
+     return;
     }
-    
+   
     const isEditing = !!groups.find(g => g.id === submittedGroupData.id);
     const docRef = doc(db, "preachingGroups", submittedGroupData.id);
 
-    // Ensure optional fields are set to undefined if empty string, to remove them from Firestore if needed
-    const dataToSave: PreachingGroup = {
-        ...submittedGroupData,
-        description: submittedGroupData.description?.trim() || undefined,
-        superintendentId: submittedGroupData.superintendentId?.trim() || undefined,
-        auxiliaryId: submittedGroupData.auxiliaryId?.trim() || undefined,
-        updatedAt: Timestamp.now(), // Always update this
-        createdAt: isEditing ? submittedGroupData.createdAt : Timestamp.now() // Keep original if editing
-    };
+    // Prepare data for Firestore, ensuring no 'undefined' values are passed.
+    // Optional fields from the form might come as `undefined` if cleared.
+    const dataForFirestore: { [key: string]: any } = {};
+
+    // Copy all properties from submittedGroupData except 'id' and undefined values.
+    for (const key in submittedGroupData) {
+      if (key !== 'id' && submittedGroupData[key as keyof PreachingGroup] !== undefined) {
+        dataForFirestore[key] = submittedGroupData[key as keyof PreachingGroup];
+      }
+    }
+    
+    dataForFirestore.updatedAt = Timestamp.now();
+    if (!isEditing) {
+      dataForFirestore.createdAt = Timestamp.now();
+    } else if (submittedGroupData.createdAt) { // Preserve existing createdAt if editing
+        dataForFirestore.createdAt = submittedGroupData.createdAt;
+    }
+
+
+    // Ensure empty strings for optional text fields are not stored if user cleared them,
+    // or store null if that's preferred (Firestore allows null, but not undefined).
+    // For setDoc({merge:true}), omitting the field is often best if it means "no change" or "not set".
+    // If an empty string means "remove the field", then updateDoc with deleteField() is needed.
+    // Here, if dialog sends `description: undefined`, it will be filtered out above.
+    // If it sends `description: ""`, it will be saved as `""`.
+    // The dialog currently ensures empty optional strings result in `undefined` being passed here.
+    
+    // Example: if `description` came as `undefined` from the dialog (because it was empty),
+    // it will not be in `dataForFirestore` due to the loop condition.
+    // If `merge:true` is used, an existing `description` in Firestore would remain.
+    // If the intention is to remove the field if it's emptied, `updateDoc` with `deleteField()` would be necessary for edits.
+    // For now, this approach fixes the "undefined" error.
 
     try {
-      await setDoc(docRef, dataToSave, { merge: true }); // merge:true is good for updates
+      await setDoc(docRef, dataForFirestore, { merge: true });
       toast({
         title: isEditing ? "Grupo Actualizado" : "Grupo Añadido",
-        description: `El grupo "${dataToSave.name}" ha sido ${isEditing ? 'actualizado' : 'registrado'} en Firestore.`,
+        description: `El grupo "${dataForFirestore.name}" ha sido ${isEditing ? 'actualizado' : 'registrado'} en Firestore.`,
       });
       setIsGroupDialogOpen(false);
     } catch (error) {
       console.error("Error saving group:", error);
       toast({ title: "Error al Guardar", description: "No se pudo guardar el grupo.", variant: "destructive" });
     }
-  };
+   };
 
   const handleDeleteGroup = async (groupId: string) => {
     if (!db || Object.keys(db).length === 0) {
