@@ -11,7 +11,7 @@ import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban,
 import type { Territory } from "@/types";
 import { ViewImageDialog } from './view-image-dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/hooks/use-toast"; // Import useToast
+import { useToast } from "@/hooks/use-toast";
 
 interface TerritoryCardProps {
   territory: Territory;
@@ -23,26 +23,23 @@ interface TerritoryCardProps {
 export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: TerritoryCardProps) {
   const approxHouseCountDisplay = territory.approxHouseCount ?? territory.blockHouseCounts?.reduce((a, b) => a + b, 0) ?? 'N/A';
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
-  const { toast } = useToast(); // Initialize useToast
+  const { toast } = useToast();
 
   const handleShare = async () => {
-    const title = `Información del Territorio: ${territory.name}`;
-    let textToShare = `Territorio: ${territory.name}\n`;
+    let textToShare = `Territorio: `;
     if (territory.type === 'urban' && territory.number) {
-      textToShare += `Número: U-${territory.number}\n`;
+      textToShare += `U-${territory.number}: `;
     }
-    textToShare += `Tipo: ${territory.type === 'urban' ? 'Urbano' : 'Rural'}\n`;
+    textToShare += `${territory.name}`;
+
     if (territory.mapImageUrl) {
-      textToShare += `Mapa: ${territory.mapImageUrl}\n`; // Consider sharing a link if it's a public URL
-    }
-    if (territory.googleMapsLink) {
-      textToShare += `Google Maps: ${territory.googleMapsLink}\n`;
+      textToShare += `\nMapa: ${territory.mapImageUrl}`;
     }
 
     const shareData: ShareData = {
-      title: title,
+      title: `Información del Territorio: ${territory.name}`,
       text: textToShare,
-      url: territory.googleMapsLink || (typeof window !== 'undefined' ? window.location.href : undefined), // Fallback to current page URL
+      url: territory.mapImageUrl || territory.googleMapsLink || (typeof window !== 'undefined' ? window.location.href : undefined),
     };
 
     if (navigator.share) {
@@ -54,16 +51,13 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
         });
       } catch (error) {
         console.error("Error al compartir:", error);
-        // Fallback to clipboard if sharing fails (e.g., user cancels) or for certain errors
         if (error instanceof DOMException && error.name === 'AbortError') {
-            // User cancelled the share operation
             toast({
                 title: "Compartir Cancelado",
                 description: "No se compartió la información del territorio.",
                 variant: "default",
             });
         } else {
-            // Attempt to copy to clipboard as a fallback for other share errors
             try {
                 await navigator.clipboard.writeText(textToShare);
                 toast({
@@ -81,7 +75,6 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
         }
       }
     } else {
-      // Fallback for browsers that don't support Web Share API
       try {
         await navigator.clipboard.writeText(textToShare);
         toast({
@@ -258,4 +251,3 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
     </>
   );
 }
-
