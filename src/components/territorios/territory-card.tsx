@@ -34,11 +34,10 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
 
     if (territory.mapImageUrl) {
       textToShare += `\nMapa: ${territory.mapImageUrl}`;
-    }
-    // Add Google Maps link if available and no map image URL
-    else if (territory.googleMapsLink) {
+    } else if (territory.googleMapsLink) {
       textToShare += `\nMapa: ${territory.googleMapsLink}`;
     }
+
 
     const shareData: ShareData = {
       title: `Información del Territorio: ${territory.name}`,
@@ -54,7 +53,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
           description: "La información del territorio se ha compartido.",
         });
       } catch (error) {
-        console.error("Error al compartir con navigator.share:", error);
+        console.error("navigator.share() falló (esto puede ser por permisos denegados en el navegador). Intentando fallback a WhatsApp. Error original:", error);
         if (error instanceof DOMException && error.name === 'AbortError') {
           toast({
             title: "Compartir Cancelado",
@@ -66,8 +65,8 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
           const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(textToShare)}`;
           window.open(whatsappUrl, '_blank');
           toast({
-            title: "Abriendo WhatsApp",
-            description: "No se pudo compartir directamente. Intentando abrir WhatsApp con la información del territorio.",
+            title: "Compartir Directo Falló",
+            description: "No se pudo usar la función de compartir nativa (posiblemente por permisos). Intentando abrir WhatsApp en su lugar.",
           });
         }
       }
