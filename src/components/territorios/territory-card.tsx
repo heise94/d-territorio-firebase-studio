@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Share2, Building, ShieldCheck, BarChart3 } from "lucide-react";
 import type { Territory } from "@/types";
 import { ViewImageDialog } from './view-image-dialog';
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 
 interface TerritoryCardProps {
@@ -38,7 +38,6 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
       textToShare += `\nMapa: ${territory.googleMapsLink}`;
     }
 
-
     const shareData: ShareData = {
       title: `Información del Territorio: ${territory.name}`,
       text: textToShare,
@@ -52,31 +51,31 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
           title: "Territorio Compartido",
           description: "La información del territorio se ha compartido.",
         });
-      } catch (error) {
-        console.error("navigator.share() falló (esto puede ser por permisos denegados en el navegador). Intentando fallback a WhatsApp. Error original:", error);
-        if (error instanceof DOMException && error.name === 'AbortError') {
+      } catch (error: any) {
+        console.error("navigator.share() falló. Error:", error);
+        if (error.name === 'AbortError') {
           toast({
             title: "Compartir Cancelado",
             description: "No se compartió la información del territorio.",
             variant: "default",
           });
         } else {
-          // Fallback to WhatsApp link if native share fails for other reasons
+          // Fallback a WhatsApp si navigator.share falla por otras razones (ej. PermissionDenied)
           const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(textToShare)}`;
           window.open(whatsappUrl, '_blank');
           toast({
             title: "Compartir Directo Falló",
-            description: "No se pudo usar la función de compartir nativa (posiblemente por permisos). Intentando abrir WhatsApp en su lugar.",
+            description: "No se pudo usar la función nativa. Intentando abrir WhatsApp.",
           });
         }
       }
     } else {
-      // Fallback to WhatsApp link if navigator.share is not available
+      // Fallback a WhatsApp si navigator.share no está disponible
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(textToShare)}`;
       window.open(whatsappUrl, '_blank');
       toast({
         title: "Abriendo WhatsApp",
-        description: "La función de compartir nativa no está disponible. Intentando abrir WhatsApp con la información del territorio.",
+        description: "Compartir nativo no disponible. Intentando abrir WhatsApp.",
       });
     }
   };
@@ -134,10 +133,10 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
               </div>
           )}
         </CardContent>
-        <CardFooter className="border-t pt-3 pb-3 flex flex-wrap justify-end gap-1">
+        <CardFooter className="border-t pt-3 pb-3 flex flex-wrap justify-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" onClick={onEdit} aria-label="Editar territorio" className="h-8 w-8">
+              <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Editar territorio" className="h-8 w-8">
                 <Pencil className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -149,11 +148,11 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant={territory.isBlocked ? "secondary" : "outline"}
+                variant="ghost"
                 size="icon"
                 onClick={onBlockToggle}
                 aria-label={territory.isBlocked ? "Desbloquear territorio" : "Bloquear territorio"}
-                className={`h-8 w-8 ${!territory.isBlocked ? 'hover:bg-amber-500/10 hover:border-amber-500 hover:text-amber-600' : 'hover:bg-green-500/10 hover:border-green-500 hover:text-green-600'}`}
+                className={`h-8 w-8 ${!territory.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
               >
                 {territory.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
               </Button>
@@ -167,7 +166,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
             <Tooltip>
               <TooltipTrigger asChild>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="icon" aria-label="Eliminar territorio" className="h-8 w-8">
+                  <Button variant="ghost" size="icon" aria-label="Eliminar territorio" className="h-8 w-8 text-destructive hover:bg-destructive/10">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </AlertDialogTrigger>
@@ -186,7 +185,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={onDelete}>
+                <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                   Sí, eliminar
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -196,7 +195,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
           {territory.mapImageUrl && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={() => setIsImageDialogOpen(true)} aria-label="Ver imagen del mapa" className="h-8 w-8">
+                <Button variant="ghost" size="icon" onClick={() => setIsImageDialogOpen(true)} aria-label="Ver imagen del mapa" className="h-8 w-8">
                     <Eye className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -208,7 +207,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
           {territory.googleMapsLink && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={() => window.open(territory.googleMapsLink, '_blank')} aria-label="Ver en Google Maps" className="h-8 w-8">
+                <Button variant="ghost" size="icon" onClick={() => window.open(territory.googleMapsLink, '_blank')} aria-label="Ver en Google Maps" className="h-8 w-8">
                     <MapPin className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -219,7 +218,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
           )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" onClick={handleShare} aria-label="Compartir territorio" className="h-8 w-8">
+              <Button variant="ghost" size="icon" onClick={handleShare} aria-label="Compartir territorio" className="h-8 w-8">
                   <Share2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>

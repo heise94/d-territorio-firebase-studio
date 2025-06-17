@@ -47,7 +47,7 @@ import {
   Bot, 
   Loader2,
   AlertTriangle,
-  MessageSquareText, // Icon for WhatsApp reminder
+  MessageSquareText,
 } from "lucide-react";
 import type { Assignment, AssignmentStatus, PreachingAssignedType, PublisherDetail, ProgramScheduleSlot } from "@/types";
 import { useToast } from "@/hooks/use-toast";
@@ -337,7 +337,7 @@ export default function GestionAsignacionesPage() {
                       <TableHead>Tipo</TableHead>
                       <TableHead>Lugar</TableHead>
                       <TableHead>Estado</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+                      <TableHead className="text-center">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -365,8 +365,8 @@ export default function GestionAsignacionesPage() {
                         </TableCell>
                         <TableCell>{assign.locationName}</TableCell>
                         <TableCell><StatusBadge status={assign.status} /></TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-0.5">
+                        <TableCell>
+                          <div className="flex items-center justify-center gap-0.5">
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditAssignment(assign.id)} disabled={isFindingReplacement === assign.id}>

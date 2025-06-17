@@ -50,7 +50,7 @@ export function GroupCard({ group, onEdit, onDelete }: GroupCardProps) {
             <p className="text-xs text-muted-foreground italic text-center py-2">Sin detalles adicionales.</p>
         )}
       </CardContent>
-      <CardFooter className="border-t pt-3 pb-3 flex justify-end gap-1">
+      <CardFooter className="border-t pt-3 pb-3 flex justify-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Editar grupo" className="h-8 w-8">
@@ -64,7 +64,7 @@ export function GroupCard({ group, onEdit, onDelete }: GroupCardProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Eliminar grupo" className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive">
+                  <Button variant="ghost" size="icon" aria-label="Eliminar grupo" className="h-8 w-8 text-destructive hover:bg-destructive/10">
                       <Trash2 className="h-4 w-4" />
                   </Button>
               </AlertDialogTrigger>
@@ -81,7 +81,7 @@ export function GroupCard({ group, onEdit, onDelete }: GroupCardProps) {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90">
+              <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                 Sí, eliminar
               </AlertDialogAction>
             </AlertDialogFooter>

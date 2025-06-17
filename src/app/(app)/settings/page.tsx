@@ -1053,16 +1053,16 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
                     {campaigns.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-10 text-center bg-muted/30 rounded-lg border border-dashed"><PackageSearch className="h-16 w-16 text-muted-foreground/70 mb-4" /><p className="text-lg font-medium text-muted-foreground mb-1">No hay campañas configuradas.</p><p className="text-sm text-muted-foreground">Haz clic en "Añadir Campaña".</p></div>
                     ) : (
-                      <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Nombre</TableHead><TableHead>Tipo</TableHead><TableHead>Fechas</TableHead><TableHead>Detalles Adic.</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>
+                      <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Nombre</TableHead><TableHead>Tipo</TableHead><TableHead>Fechas</TableHead><TableHead>Detalles Adic.</TableHead><TableHead className="text-center">Acciones</TableHead></TableRow></TableHeader><TableBody>
                         {campaigns.map((campaign) => {
                             const startDate = campaign.startDate instanceof Timestamp ? campaign.startDate.toDate() : new Date(campaign.startDate);
                             const endDate = campaign.endDate instanceof Timestamp ? campaign.endDate.toDate() : new Date(campaign.endDate);
                             return (
                             <TableRow key={campaign.id}><TableCell className="font-medium">{campaign.name}</TableCell><TableCell>{CampaignTypeLabels[campaign.type]}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy", { timeZone: 'UTC' })} - {formatDate(endDate, "dd/MM/yyyy", { timeZone: 'UTC' })}</TableCell><TableCell className="text-xs">{campaign.type === 'superintendent_visit' && campaign.superintendentName && (<div>Sup: {campaign.superintendentName}</div>)}{(campaign.specialCampaignTerritoriesPerDay ?? 0) > 0 && (<div>Terr/día (Camp.): {campaign.specialCampaignTerritoriesPerDay}</div>)}{campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}</TableCell>
-                            <TableCell className="text-right space-x-0">
+                            <TableCell><div className="flex items-center justify-center gap-0.5">
                                 <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setCampaignToEdit(campaign); setIsCampaignDialogOpen(true);}} className="h-8 w-8"><Edit className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Editar Campaña</p></TooltipContent></Tooltip>
-                                <AlertDialog><Tooltip><TooltipTrigger asChild><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger></TooltipTrigger><TooltipContent><p>Eliminar Campaña</p></TooltipContent></Tooltip><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la campaña "{campaign.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteCampaign(campaign.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-                            </TableCell></TableRow>
+                                <AlertDialog><Tooltip><TooltipTrigger asChild><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger></TooltipTrigger><TooltipContent><p>Eliminar Campaña</p></TooltipContent></Tooltip><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la campaña "{campaign.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteCampaign(campaign.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+                            </div></TableCell></TableRow>
                             );
                         })}
                       </TableBody></Table></div>
@@ -1081,16 +1081,16 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
                     {assemblies.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-10 text-center bg-muted/30 rounded-lg border border-dashed"><BookOpenCheck className="h-16 w-16 text-muted-foreground/70 mb-4" /><p className="text-lg font-medium text-muted-foreground mb-1">No hay asambleas configuradas.</p><p className="text-sm text-muted-foreground">Haz clic en "Añadir Asamblea".</p></div>
                     ) : (
-                      <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Nombre/Tipo</TableHead><TableHead>Fechas</TableHead><TableHead>Descripción</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>
+                      <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Nombre/Tipo</TableHead><TableHead>Fechas</TableHead><TableHead>Descripción</TableHead><TableHead className="text-center">Acciones</TableHead></TableRow></TableHeader><TableBody>
                         {assemblies.map((assembly) => {
                              const startDate = assembly.startDate instanceof Timestamp ? assembly.startDate.toDate() : new Date(assembly.startDate);
                              const endDate = assembly.endDate instanceof Timestamp ? assembly.endDate.toDate() : new Date(assembly.endDate);
                             return (
                             <TableRow key={assembly.id}><TableCell className="font-medium">{assembly.name}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy", { timeZone: 'UTC' })} - {formatDate(endDate, "dd/MM/yyyy", { timeZone: 'UTC' })}</TableCell><TableCell className="text-xs italic text-muted-foreground truncate w-64" title={assembly.description || undefined}>{assembly.description || 'N/A'}</TableCell>
-                            <TableCell className="text-right space-x-0">
+                            <TableCell><div className="flex items-center justify-center gap-0.5">
                                 <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setAssemblyToEdit(assembly); setIsAssemblyDialogOpen(true); }} className="h-8 w-8"><Edit className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Editar Asamblea</p></TooltipContent></Tooltip>
-                                <AlertDialog><Tooltip><TooltipTrigger asChild><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger></TooltipTrigger><TooltipContent><p>Eliminar Asamblea</p></TooltipContent></Tooltip><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la asamblea "{assembly.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteAssembly(assembly.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-                            </TableCell></TableRow>
+                                <AlertDialog><Tooltip><TooltipTrigger asChild><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger></TooltipTrigger><TooltipContent><p>Eliminar Asamblea</p></TooltipContent></Tooltip><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la asamblea "{assembly.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteAssembly(assembly.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+                            </div></TableCell></TableRow>
                             );
                         })}
                       </TableBody></Table></div>
@@ -1151,7 +1151,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
                               <TableHead>Fecha</TableHead>
                               <TableHead>Nombre</TableHead>
                               <TableHead>Descripción</TableHead>
-                              <TableHead className="text-right">Acciones</TableHead>
+                              <TableHead className="text-center">Acciones</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -1164,10 +1164,10 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
                                     <TableCell className="text-xs italic text-muted-foreground truncate w-64" title={holiday.description || undefined}>
                                     {holiday.description || 'N/A'}
                                     </TableCell>
-                                    <TableCell className="text-right space-x-0">
+                                    <TableCell><div className="flex items-center justify-center gap-0.5">
                                     <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setHolidayToEdit(holiday); setIsHolidayDialogOpen(true);}} className="h-8 w-8"><Edit className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Editar Festivo</p></TooltipContent></Tooltip>
                                     <AlertDialog>
-                                        <Tooltip><TooltipTrigger asChild><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger></TooltipTrigger><TooltipContent><p>Eliminar Festivo</p></TooltipContent></Tooltip>
+                                        <Tooltip><TooltipTrigger asChild><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger></TooltipTrigger><TooltipContent><p>Eliminar Festivo</p></TooltipContent></Tooltip>
                                         <AlertDialogContent>
                                         <AlertDialogHeader>
                                             <AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner>
@@ -1181,7 +1181,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
                                         </AlertDialogFooter>
                                         </AlertDialogContent>
                                     </AlertDialog>
-                                    </TableCell>
+                                    </div></TableCell>
                                 </TableRow>
                                 );
                             })}

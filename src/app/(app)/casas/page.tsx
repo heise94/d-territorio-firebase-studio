@@ -215,7 +215,7 @@ export default function CasasPage() {
                     <Skeleton className="h-4 w-full" />
                     <Skeleton className="h-4 w-2/3" />
                   </CardContent>
-                  <CardFooter className="border-t pt-3 pb-3 flex justify-end gap-1">
+                  <CardFooter className="border-t pt-3 pb-3 flex justify-center gap-1">
                     <Skeleton className="h-8 w-8" /> <Skeleton className="h-8 w-8" /> <Skeleton className="h-8 w-8" />
                   </CardFooter>
                 </Card>
@@ -271,7 +271,7 @@ export default function CasasPage() {
                         </div>
                     )}
                   </CardContent>
-                  <CardFooter className="border-t pt-4 pb-4 flex justify-end gap-1">
+                  <CardFooter className="border-t pt-4 pb-4 flex justify-center gap-1">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
@@ -288,9 +288,9 @@ export default function CasasPage() {
                             size="icon" 
                             onClick={() => handleToggleBlockCasa(casa.id)} 
                             aria-label={casa.isBlocked ? "Desbloquear casa" : "Bloquear casa"}
-                            className="h-8 w-8"
+                            className={`h-8 w-8 ${!casa.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
                         >
-                          {casa.isBlocked ? <ShieldCheck className="h-4 w-4 text-green-600" /> : <Ban className="h-4 w-4 text-amber-600" />}
+                          {casa.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent><p>{casa.isBlocked ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
@@ -300,7 +300,7 @@ export default function CasasPage() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label="Eliminar casa" className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive">
+                              <Button variant="ghost" size="icon" aria-label="Eliminar casa" className="h-8 w-8 text-destructive hover:bg-destructive/10">
                                   <Trash2 className="h-4 w-4" />
                               </Button>
                           </AlertDialogTrigger>
@@ -317,7 +317,7 @@ export default function CasasPage() {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeleteCasa(casa.id)}>
+                          <AlertDialogAction onClick={() => handleDeleteCasa(casa.id)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                               Sí, eliminar
                           </AlertDialogAction>
                           </AlertDialogFooter>
