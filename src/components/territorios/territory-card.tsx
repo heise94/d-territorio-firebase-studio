@@ -35,7 +35,10 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
     if (territory.mapImageUrl) {
       textToShare += `\nMapa: ${territory.mapImageUrl}`;
     }
-
+    // Add Google Maps link if available and no map image URL
+    else if (territory.googleMapsLink) {
+      textToShare += `\nMapa: ${territory.googleMapsLink}`;
+    }
 
     const shareData: ShareData = {
       title: `Información del Territorio: ${territory.name}`,
@@ -51,45 +54,31 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
           description: "La información del territorio se ha compartido.",
         });
       } catch (error) {
-        console.error("Error al compartir:", error);
+        console.error("Error al compartir con navigator.share:", error);
         if (error instanceof DOMException && error.name === 'AbortError') {
-            toast({
-                title: "Compartir Cancelado",
-                description: "No se compartió la información del territorio.",
-                variant: "default",
-            });
-        } else { // Fallback for other share errors (like PermissionDeniedError)
-            try {
-                await navigator.clipboard.writeText(textToShare);
-                toast({
-                    title: "Copiado al Portapapeles",
-                    description: "No se pudo compartir directamente. La información del territorio se ha copiado al portapapeles.",
-                });
-            } catch (copyError) {
-                console.error("Error al copiar al portapapeles:", copyError);
-                toast({
-                    title: "Error",
-                    description: "No se pudo compartir ni copiar la información del territorio.",
-                    variant: "destructive",
-                });
-            }
+          toast({
+            title: "Compartir Cancelado",
+            description: "No se compartió la información del territorio.",
+            variant: "default",
+          });
+        } else {
+          // Fallback to WhatsApp link if native share fails for other reasons
+          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(textToShare)}`;
+          window.open(whatsappUrl, '_blank');
+          toast({
+            title: "Abriendo WhatsApp",
+            description: "No se pudo compartir directamente. Intentando abrir WhatsApp con la información del territorio.",
+          });
         }
       }
-    } else { // Fallback if navigator.share itself is not present
-      try {
-        await navigator.clipboard.writeText(textToShare);
-        toast({
-          title: "Copiado al Portapapeles",
-          description: "La información del territorio se ha copiado al portapapeles.",
-        });
-      } catch (error) {
-        console.error("Error al copiar al portapapeles:", error);
-        toast({
-          title: "Error al Copiar",
-          description: "No se pudo copiar la información al portapapeles.",
-          variant: "destructive",
-        });
-      }
+    } else {
+      // Fallback to WhatsApp link if navigator.share is not available
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(textToShare)}`;
+      window.open(whatsappUrl, '_blank');
+      toast({
+        title: "Abriendo WhatsApp",
+        description: "La función de compartir nativa no está disponible. Intentando abrir WhatsApp con la información del territorio.",
+      });
     }
   };
 
