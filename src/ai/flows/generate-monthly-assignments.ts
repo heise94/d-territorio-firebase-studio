@@ -141,8 +141,6 @@ const prompt = ai.definePrompt({
   {{#if publisherDetailedAvailabilities}}
     {{#each publisherDetailedAvailabilities}}
     - Publisher ID (for captainId): {{this.id}}, Name (for captainName): {{this.name}}
-      {{#if this.email}}Email: {{this.email}}{{/if}}
-      {{#if this.availability}}Availability Info: {{jsonStringify this.availability}}{{/if}}
     {{/each}}
   {{else}}
     No publisher availability data provided. You must still attempt to assign captains based on the general logic and output a placeholder or note if specific publisher IDs cannot be determined.
@@ -255,3 +253,4 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
 );
 
     
+
