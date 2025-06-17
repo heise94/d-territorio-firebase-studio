@@ -12,7 +12,7 @@ import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, UserRole, SettingsDoc } from "@/types";
-import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS } from "@/lib/constants";
+import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS, PERMISSION_MODULES } from "@/lib/constants";
 import {
   Dialog,
   DialogContent,
@@ -154,7 +154,7 @@ export default function SettingsPage() {
   const [isHolidayDialogOpen, setIsHolidayDialogOpen] = useState(false);
   const [holidayToEdit, setHolidayToEdit] = useState<CustomHoliday | null>(null);
   const [selectedHolidayYear, setSelectedHolidayYear] = useState<string>(new Date().getUTCFullYear().toString());
-  const [selectedHolidayMonth, setSelectedHolidayMonth] = useState<string>("Todos los Meses");
+  const [selectedHolidayMonth, setSelectedHolidayMonth] = useState<string>("ALL_MONTHS");
 
 
   const [assemblies, setAssemblies] = useState<Assembly[]>([]);
@@ -165,7 +165,7 @@ export default function SettingsPage() {
   const [isSavingSpecialEvents, setIsSavingSpecialEvents] = useState(false);
 
 
-  const [selectedLastRuralGroupId, setSelectedLastRuralGroupId] = useState<string | null | undefined>(undefined);
+  const [selectedLastRuralGroupId, setSelectedLastRuralGroupId] = useState<string | null | undefined>(undefined); // null for "NONE", undefined for initial load
   const [isSavingRuralRotation, setIsSavingRuralRotation] = useState(false);
 
   const [editableRolePermissions, setEditableRolePermissions] = useState<RoleConfiguration>(DEFAULT_ROLE_PERMISSIONS);
@@ -246,7 +246,7 @@ export default function SettingsPage() {
     }
   }, [toast]);
   
- const loadSpecialEventsConfiguration = useCallback(async () => {
+  const loadSpecialEventsConfiguration = useCallback(async () => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       setIsLoadingSpecialEvents(false);
@@ -264,22 +264,16 @@ export default function SettingsPage() {
             dateFields.forEach(field => {
                 if (newItem[field] instanceof Timestamp) {
                     newItem[field] = newItem[field].toDate();
-                } else if (typeof newItem[field] === 'string') { // If it's a string, try to parse
+                } else if (typeof newItem[field] === 'string') { 
                      try {
-                        // Attempt to parse ISO string or other common formats
                         const parsedDate = new Date(newItem[field]);
-                        // Check if parsing was successful
                         if (!isNaN(parsedDate.getTime())) {
                            newItem[field] = parsedDate;
                         } else {
-                            // Handle cases where string might not be a valid date string recognized by new Date()
-                            // For example, "dd/MM/yyyy" might need manual parsing with date-fns/parse
                             console.warn(`Could not parse date string "${newItem[field]}" for field "${field}". Leaving as is or set to null.`);
-                            // newItem[field] = null; // or keep as string if preferred for debugging
                         }
                     } catch (e) {
                         console.warn(`Error parsing date string "${newItem[field]}" for field "${field}":`, e);
-                        // newItem[field] = null;
                     }
                 }
             });
@@ -385,7 +379,6 @@ export default function SettingsPage() {
             : configToSave.lastRuralWeekendLeadingGroupId;
     }
     
-    // Make sure not to send undefined fields
     const sanitizedData = Object.entries(dataToSave).reduce((acc, [key, value]) => {
         if (value !== undefined) {
             (acc as any)[key] = value;
@@ -415,13 +408,12 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
       const newItem = { ...item };
       dateFields.forEach(field => {
         if (newItem[field] && !(newItem[field] instanceof Timestamp)) {
-          // Ensure it's a valid Date object before converting
           const dateCandidate = new Date(newItem[field]);
           if (!isNaN(dateCandidate.getTime())) {
             newItem[field] = Timestamp.fromDate(dateCandidate);
           } else {
             console.warn(`Invalid date found for field ${field} in item:`, item);
-            newItem[field] = null; // Or handle as an error
+            newItem[field] = null; 
           }
         } else if (newItem[field] === undefined) {
             newItem[field] = null;
@@ -435,26 +427,26 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
         sanitizedEvent = convertDatesToTimestamps(sanitizedEvent, dateFields);
         optionalFields.forEach(field => {
             if (sanitizedEvent[field] === undefined || sanitizedEvent[field] === '' || (typeof sanitizedEvent[field] === 'number' && isNaN(sanitizedEvent[field]))) {
-                 sanitizedEvent[field] = null; // Use null for Firestore instead of undefined
+                 sanitizedEvent[field] = null; 
             }
         });
-        // Remove any top-level undefined properties after conversion
+        
         return Object.fromEntries(Object.entries(sanitizedEvent).filter(([_, v]) => v !== undefined));
     };
     
     const payloadToSave: any = { updatedAt: serverTimestamp() };
 
-    if (eventsData.campaigns) {
+    if (eventsData.campaigns !== undefined) {
         payloadToSave.campaignsList = (eventsData.campaigns || []).map(c => 
             sanitizeEvent(c, ['startDate', 'endDate'], ['superintendentName', 'description', 'specialCampaignTerritoriesPerDay'])
         );
     }
-    if (eventsData.customHolidays) {
+    if (eventsData.customHolidays !== undefined) {
         payloadToSave.holidaysList = (eventsData.customHolidays || []).map(h => 
             sanitizeEvent(h, ['date'], ['description'])
         );
     }
-    if (eventsData.assemblies) {
+    if (eventsData.assemblies !== undefined) {
         payloadToSave.assembliesList = (eventsData.assemblies || []).map(a => 
             sanitizeEvent(a, ['startDate', 'endDate'], ['description'])
         );
@@ -539,6 +531,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
 
 
   const handleCampaignSubmit = async (submittedCampaignData: Omit<Campaign, 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
+    setIsSavingSpecialEvents(true);
     let updatedCampaigns;
     const isEdit = !!submittedCampaignData.id;
     
@@ -565,9 +558,9 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
     });
     
     const success = await saveSpecialEventsToFirestore({ campaigns: updatedCampaigns });
+    setIsSavingSpecialEvents(false);
 
     if (success) {
-        // Convert Timestamps back to Dates for local state if they were converted for saving
         setCampaigns(updatedCampaigns.map(c => ({
             ...c, 
             startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), 
@@ -582,7 +575,9 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
   const handleDeleteCampaign = async (campaignId: string) => {
     const campaignToDelete = campaigns.find(c => c.id === campaignId);
     const updatedCampaigns = campaigns.filter(c => c.id !== campaignId);
+    setIsSavingSpecialEvents(true);
     const success = await saveSpecialEventsToFirestore({ campaigns: updatedCampaigns });
+    setIsSavingSpecialEvents(false);
     if (success) {
         setCampaigns(updatedCampaigns);
         toast({ title: "Campaña Eliminada", description: `La campaña "${campaignToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
@@ -590,6 +585,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
   };
 
   const handleAssemblySubmit = async (submittedAssemblyData: Omit<Assembly, 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
+    setIsSavingSpecialEvents(true);
     let updatedAssemblies;
     const isEdit = !!submittedAssemblyData.id;
      const assemblyToSave = {
@@ -613,6 +609,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
     });
 
     const success = await saveSpecialEventsToFirestore({ assemblies: updatedAssemblies });
+    setIsSavingSpecialEvents(false);
     if (success) {
         setAssemblies(updatedAssemblies.map(a => ({
             ...a, 
@@ -627,7 +624,9 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
   const handleDeleteAssembly = async (assemblyId: string) => {
     const assemblyToDelete = assemblies.find(a => a.id === assemblyId);
     const updatedAssemblies = assemblies.filter(a => a.id !== assemblyId);
+    setIsSavingSpecialEvents(true);
     const success = await saveSpecialEventsToFirestore({ assemblies: updatedAssemblies });
+    setIsSavingSpecialEvents(false);
     if (success) {
         setAssemblies(updatedAssemblies);
         toast({ title: "Asamblea Eliminada", description: `La asamblea "${assemblyToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
@@ -635,6 +634,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
   };
 
   const handleHolidaySubmit = async (submittedHolidayData: Omit<CustomHoliday, 'createdAt' | 'updatedAt'> & { id?:string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
+    setIsSavingSpecialEvents(true);
     let updatedHolidays;
     const isEdit = !!submittedHolidayData.id;
      const holidayToSave = {
@@ -658,6 +658,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
     });
 
     const success = await saveSpecialEventsToFirestore({ customHolidays: updatedHolidays });
+    setIsSavingSpecialEvents(false);
     if (success) {
         setCustomHolidays(updatedHolidays.map(h => ({...h, date: h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)})));
         toast({ title: isEdit ? "Festivo Actualizado" : "Festivo Añadido", description: `El festivo "${holidayToSave.name}" ha sido guardado.` });
@@ -668,7 +669,9 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
   const handleDeleteHoliday = async (holidayId: string) => {
     const holidayToDelete = customHolidays.find(h => h.id === holidayId);
     const updatedHolidays = customHolidays.filter(h => h.id !== holidayId);
+    setIsSavingSpecialEvents(true);
     const success = await saveSpecialEventsToFirestore({ customHolidays: updatedHolidays });
+    setIsSavingSpecialEvents(false);
     if (success) {
         setCustomHolidays(updatedHolidays);
         toast({ title: "Festivo Eliminado", description: `El festivo "${holidayToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
@@ -764,22 +767,26 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
   }, [customHolidays]);
 
   const holidayMonthsForFilter = useMemo(() => {
-    return ["Todos los Meses", ...Array.from({ length: 12 }, (_, i) => ({
-      value: i.toString(),
-      label: formatDate(new Date(Date.UTC(2000, i, 1)), "MMMM", { locale: es, timeZone: 'UTC' }),
-    }))];
+    const monthItems = Array.from({ length: 12 }, (_, i) => ({
+      value: `month_${i}`, 
+      label: formatDate(new Date(Date.UTC(2000, i, 15)), "MMMM", { locale: es, timeZone: 'UTC' }),
+    }));
+    return [{ value: "ALL_MONTHS", label: "Todos los Meses" }, ...monthItems];
   }, []);
+
 
   const filteredHolidaysForTable = useMemo(() => {
     return customHolidays
       .filter(holiday => {
         const holidayDate = holiday.date instanceof Timestamp ? holiday.date.toDate() : new Date(holiday.date);
+        if (isNaN(holidayDate.getTime())) return false;
+
         const yearMatch = selectedHolidayYear === "Todos los Años" || holidayDate.getUTCFullYear().toString() === selectedHolidayYear;
         
-        let monthMatch = true; // Default to true if "Todos los Meses" is selected
-        if (selectedHolidayMonth !== "Todos los Meses") {
-            // Ensure selectedHolidayMonth is parsed as an integer for comparison
-            monthMatch = holidayDate.getUTCMonth() === parseInt(selectedHolidayMonth, 10);
+        let monthMatch = true;
+        if (selectedHolidayMonth !== "ALL_MONTHS") {
+            const monthIndex = parseInt(selectedHolidayMonth.replace("month_", ""), 10);
+            monthMatch = holidayDate.getUTCMonth() === monthIndex;
         }
         
         return yearMatch && monthMatch;
@@ -804,6 +811,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
   };
 
   const currentSection = settingsSections.find(sec => sec.id === activeSectionId);
+  const PERMISSIONS_MODULES_ORDERED_FOR_ACCORDION = PERMISSIONS_BY_MODULE.map(m => m.moduleName);
 
   return (
     <div className="space-y-8">
@@ -1101,8 +1109,8 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
                             </SelectTrigger>
                             <SelectContent>
                                 {holidayMonthsForFilter.map(month => (
-                                    <SelectItem key={typeof month === 'string' ? month : month.value} value={typeof month === 'string' ? month : month.value} className="text-xs">
-                                        {typeof month === 'string' ? month : month.label}
+                                    <SelectItem key={month.value} value={month.value} className="text-xs">
+                                        {month.label}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
