@@ -5,14 +5,15 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, Bot, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, CalendarDays, Bot, AlertTriangle, CheckCircle2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateMonthlyAssignments, type GenerateMonthlyAssignmentsInput, type GenerateMonthlyAssignmentsOutput } from "@/ai/flows/generate-monthly-assignments";
 import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth } from 'date-fns';
-import { Timestamp } from "firebase/firestore"; // For placeholder data
-import type { ProgramScheduleSlot } from "@/types"; // Import ProgramScheduleSlot
+import { Timestamp, writeBatch, collection, doc } from "firebase/firestore"; 
+import { db } from "@/lib/firebase";
+import type { ProgramScheduleSlot, PublisherDetail, PreachingAssignedType } from "@/types";
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 6 }, (_, i) => currentYear + i);
@@ -22,15 +23,23 @@ const months = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 // MOCK data for program schedule slots - replace with actual data fetching from settings later
-// This will be passed to the GenerateAIDialog
 const MOCK_PROGRAM_SCHEDULE_SLOTS_FOR_DIALOG: ProgramScheduleSlot[] = [
   { id: 'mon-0900-gen', dayOfWeek: 'monday', startTime: '09:00', type: 'general', status: 'fixed' },
   { id: 'tue-1000-rur', dayOfWeek: 'tuesday', startTime: '10:00', type: 'rural', status: 'fixed' },
   { id: 'wed-0930-gen', dayOfWeek: 'wednesday', startTime: '09:30', type: 'general', status: 'fixed' },
   { id: 'sat-1000-gen', dayOfWeek: 'saturday', startTime: '10:00', type: 'general', status: 'fixed' },
-  { id: 'sat-1100-rur', dayOfWeek: 'saturday', startTime: '11:00', type: 'rural', status: 'fixed' }, // Rural Saturday
+  { id: 'sat-1100-rur', dayOfWeek: 'saturday', startTime: '11:00', type: 'rural', status: 'fixed' },
   { id: 'sun-1500-zoom', dayOfWeek: 'sunday', startTime: '15:00', type: 'zoom', status: 'fixed' },
-  { id: 'sun-1000-rur', dayOfWeek: 'sunday', startTime: '10:00', type: 'rural', status: 'fixed' }, // Rural Sunday
+  { id: 'sun-1000-rur', dayOfWeek: 'sunday', startTime: '10:00', type: 'rural', status: 'fixed' },
+];
+
+// MOCK data for publishers - replace with actual data fetching later
+const MOCK_PUBLISHERS_FOR_PROGRAM_GENERATION: PublisherDetail[] = [
+    { id: "uidUser1", name: "Ana Pérez", email: "ana@example.com", availability: { availableSlotIds: ["mon-0900-gen", "wed-0930-gen"] } },
+    { id: "uidUser2", name: "Luis Gómez", email: "luis@example.com", availability: { availableSlotIds: ["mon-1500-zoom", "thu-1400-zoom"] } },
+    { id: "uidUser3", name: "Sofía Castro", email: "sofia@example.com", availability: { availableSlotIds: ["tue-1000-rur", "fri-1000-gen"] } },
+    { id: "uidUser4", name: "Carlos Díaz", email: "carlos@example.com", availability: { availableSlotIds: ["sat-1000-gen", "sun-1500-zoom"] } },
+    { id: "uidUser5", name: "Elena Jara (SG)", email: "elena.jara.sg@example.com", availability: { availableSlotIds: ["mon-0900-gen", "fri-1700-rur"] } },
 ];
 
 
@@ -38,6 +47,7 @@ export default function ProgramaMensualPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingProgram, setIsSavingProgram] = useState(false);
   const [generatedAssignments, setGeneratedAssignments] = useState<GenerateMonthlyAssignmentsOutput | null>(null);
   const [isGenerationDialogOpen, setIsGenerationDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -52,13 +62,11 @@ export default function ProgramaMensualPage() {
 
     const input: GenerateMonthlyAssignmentsInput = {
       year: selectedYear,
-      month: selectedMonth, // 0-indexed month
+      month: selectedMonth, 
       additionalInstructions: dialogData.additionalInstructions,
-      designatedRuralSundays: dialogData.designatedRuralWeekendDays, // Changed from designatedRuralSundays
-      // --- Start of placeholder/simulated data for complex inputs ---
-      // Pass the MOCK_PROGRAM_SCHEDULE_SLOTS_FOR_DIALOG to availableDaysWithTimeSlots if needed, or ensure the IA flow uses it from a central source.
-      // For now, the IA flow's 'availableDaysWithTimeSlots' is a simple example structure.
-      availableDaysWithTimeSlots: { // Example, replace with actual data from settings (ProgramScheduleSlot[])
+      designatedRuralSundays: dialogData.designatedRuralWeekendDays,
+      publisherDetailedAvailabilities: MOCK_PUBLISHERS_FOR_PROGRAM_GENERATION.map(p => ({ id: p.id, name: p.name })), // Pass only id and name as per schema
+      availableDaysWithTimeSlots: { 
         monday: [{ startTime: "09:00", type: "publica" }],
         saturday: [{ startTime: "10:00", type: "publica" }, { startTime: "11:00", type: "rural" }],
         sunday: [{ startTime: "10:00", type: "rural" }, { startTime: "15:00", type: "zoom" }],
@@ -74,18 +82,16 @@ export default function ProgramaMensualPage() {
       specialCampaignTerritoriesPerDay: 1, 
       holidayDatesInMonth: [], 
       assembliesInMonth: [], 
-      publisherDetailedAvailabilities: [], 
       lastRuralWeekendLeadingGroupId: undefined, 
       preachingGroups: [], 
-      // --- End of placeholder/simulated data ---
     };
 
     try {
       const result = await generateMonthlyAssignments(input);
       setGeneratedAssignments(result);
       toast({
-        title: "Programa Generado",
-        description: "El programa mensual ha sido generado por la IA.",
+        title: "Programa Generado por IA",
+        description: "El borrador del programa mensual ha sido generado. Revísalo y guárdalo.",
         variant: "default",
       });
     } catch (error) {
@@ -98,6 +104,60 @@ export default function ProgramaMensualPage() {
     } finally {
       setIsLoading(false);
       setIsGenerationDialogOpen(false);
+    }
+  };
+
+  const handleSaveProgramToFirestore = async () => {
+    if (!generatedAssignments || !generatedAssignments.captainAssignments) {
+        toast({ title: "Sin Datos", description: "No hay asignaciones generadas para guardar.", variant: "default" });
+        return;
+    }
+    if (!db || Object.keys(db).length === 0) {
+        toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+        return;
+    }
+
+    setIsSavingProgram(true);
+    const batch = writeBatch(db);
+    const assignmentsCollectionRef = collection(db, "assignments");
+    let assignmentCount = 0;
+
+    try {
+        Object.values(generatedAssignments.captainAssignments).flat().forEach(assign => {
+            const newAssignmentRef = doc(assignmentsCollectionRef); // Auto-generate ID
+            assignmentCount++;
+            batch.set(newAssignmentRef, {
+                userId: assign.captainId,
+                userName: assign.captainName,
+                date: assign.date,
+                time: assign.time,
+                type: assign.preachingType as PreachingAssignedType, // Cast, as schema is string but we use specific types
+                locationName: assign.territoryName || assign.casaName || "Lugar no especificado",
+                status: 'pending', // Default status
+                assignedBy: 'Admin IA',
+                assignedGroupId: assign.assignedGroupId || null,
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+                // locationId could be derived if territory/casa IDs were part of the flow's output
+            });
+        });
+
+        await batch.commit();
+        toast({
+            title: "Programa Guardado",
+            description: `${assignmentCount} asignaciones han sido guardadas en Firestore.`,
+            variant: "default",
+        });
+        setGeneratedAssignments(null); // Clear after saving
+    } catch (error) {
+        console.error("Error saving program to Firestore:", error);
+        toast({
+            title: "Error al Guardar",
+            description: "No se pudo guardar el programa en Firestore.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsSavingProgram(false);
     }
   };
   
@@ -161,7 +221,7 @@ export default function ProgramaMensualPage() {
           ) : generatedAssignments && generatedAssignments.captainAssignments ? (
             <div className="space-y-6">
               <h2 className="text-2xl font-semibold font-headline text-center">
-                Asignaciones para {months.find(m => m.value === selectedMonth)?.label} de {selectedYear}
+                Borrador de Asignaciones para {months.find(m => m.value === selectedMonth)?.label} de {selectedYear}
               </h2>
               {monthDays.map(dayString => {
                 const assignmentsForDay = generatedAssignments.captainAssignments[dayString] || [];
@@ -186,7 +246,7 @@ export default function ProgramaMensualPage() {
                           {assignmentsForDay.map(assign => (
                             <li key={assign.id} className="p-3 border rounded-md shadow-sm bg-card hover:bg-muted/10 transition-colors">
                               <div className="flex justify-between items-center">
-                                <span className="font-medium text-primary">{assign.captain}</span>
+                                <span className="font-medium text-primary">{assign.captainName} ({assign.captainId})</span>
                                 <span className="text-sm text-muted-foreground">{assign.time}</span>
                               </div>
                               <p className="text-sm capitalize">Tipo: {assign.preachingType}</p>
@@ -216,8 +276,12 @@ export default function ProgramaMensualPage() {
         </CardContent>
         {generatedAssignments && (
              <CardFooter className="border-t pt-4 flex justify-end">
-                <Button variant="outline" className="mr-2">Guardar Borrador</Button>
-                <Button>Publicar Programa</Button>
+                {/* <Button variant="outline" className="mr-2" disabled={isSavingProgram}>Guardar Borrador</Button> */}
+                <Button onClick={handleSaveProgramToFirestore} disabled={isSavingProgram || isLoading}>
+                    {isSavingProgram && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Save className="mr-2 h-4 w-4" />
+                    Guardar Programa en Firestore
+                </Button>
             </CardFooter>
         )}
       </Card>
@@ -229,7 +293,7 @@ export default function ProgramaMensualPage() {
           onSubmitGeneration={handleGenerateAssignments}
           year={selectedYear}
           month={selectedMonth}
-          programScheduleSlots={MOCK_PROGRAM_SCHEDULE_SLOTS_FOR_DIALOG} // Pass mock slots
+          programScheduleSlots={MOCK_PROGRAM_SCHEDULE_SLOTS_FOR_DIALOG} 
         />
       )}
     </div>
