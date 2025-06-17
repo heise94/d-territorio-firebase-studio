@@ -40,7 +40,7 @@ import { Loader2 } from "lucide-react";
 import { AddCampaignDialog } from "@/components/settings/campaigns/add-campaign-dialog";
 import { AddHolidayDialog } from "@/components/settings/holidays/add-holiday-dialog";
 import { AddAssemblyDialog } from "@/components/settings/assemblies/add-assembly-dialog";
-import { Timestamp, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { Timestamp, doc, getDoc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   Table,
@@ -145,7 +145,8 @@ export default function SettingsPage() {
   const [isSubmittingSlotDialog, setIsSubmittingSlotDialog] = useState(false);
 
   const [groupOrganizedDays, setGroupOrganizedDays] = useState<DayOfWeek[]>([]);
-  const [isSavingGroupOrganizedDays, setIsSavingGroupOrganizedDays] = useState(false);
+  const [isSavingGroupOrganizedDays, setIsSavingGroupOrganizedDays] = useState(false); // Renamed for clarity
+  const [isLoadingProgramSettings, setIsLoadingProgramSettings] = useState(false); // New loading state for program settings
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isCampaignDialogOpen, setIsCampaignDialogOpen] = useState(false);
@@ -192,8 +193,6 @@ export default function SettingsPage() {
         setEditableRolePermissions(docSnap.data().rolePermissions as RoleConfiguration);
       } else {
         setEditableRolePermissions(DEFAULT_ROLE_PERMISSIONS);
-        // Optional: inform user that defaults are being used, or create the doc with defaults
-        // await setDoc(docRef, { rolePermissions: DEFAULT_ROLE_PERMISSIONS, updatedAt: serverTimestamp() });
       }
     } catch (error) {
       console.error("Error fetching role permissions from Firestore:", error);
@@ -208,13 +207,44 @@ export default function SettingsPage() {
     }
   }, [toast]);
 
+  const loadProgramConfiguration = useCallback(async () => {
+    if (!db || Object.keys(db).length === 0) {
+        toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+        setIsLoadingProgramSettings(false);
+        return;
+    }
+    setIsLoadingProgramSettings(true);
+    try {
+        const docRef = doc(db, "settings", "programConfig");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            setScheduleSlots(data.scheduleSlots || []);
+            setGroupOrganizedDays(data.groupOrganizedDays || []);
+        } else {
+            setScheduleSlots([]);
+            setGroupOrganizedDays([]);
+        }
+    } catch (error) {
+        console.error("Error fetching program configuration:", error);
+        toast({ title: "Error al Cargar Programa Semanal", description: "No se pudo cargar la configuración del programa.", variant: "destructive" });
+        setScheduleSlots([]);
+        setGroupOrganizedDays([]);
+    } finally {
+        setIsLoadingProgramSettings(false);
+    }
+  }, [toast]);
+
+
   useEffect(() => {
     if (activeSectionId === "permissions") {
       loadPermissionsConfiguration();
+    } else if (activeSectionId === "weeklyProgram") {
+      loadProgramConfiguration();
     }
-    // TODO: Add similar loading logic for other sections (scheduleSlots, groupOrganizedDays, etc.)
-    // when they are connected to Firebase. For now, they use local state.
-  }, [activeSectionId, loadPermissionsConfiguration]);
+    // TODO: Add similar loading logic for other sections (specialEvents, ruralRotation)
+    // when they are connected to Firebase.
+  }, [activeSectionId, loadPermissionsConfiguration, loadProgramConfiguration]);
 
 
   const handlePermissionChange = (role: UserRole, permissionId: PermissionId, checked: boolean) => {
@@ -261,6 +291,28 @@ export default function SettingsPage() {
     }
   };
 
+  const saveProgramConfigToFirestore = async (configToSave: { scheduleSlots?: ProgramScheduleSlot[], groupOrganizedDays?: DayOfWeek[] }) => {
+    if (!db || Object.keys(db).length === 0) {
+        toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+        return false;
+    }
+    setIsSavingGroupOrganizedDays(true); // Re-use this for general program settings save
+    try {
+        const docRef = doc(db, "settings", "programConfig");
+        // Using updateDoc with merge: true would be better if we only update parts,
+        // but setDoc with merge: true handles creation and partial updates well.
+        await setDoc(docRef, { ...configToSave, updatedAt: serverTimestamp() }, { merge: true });
+        toast({ title: "Configuración Guardada", description: "Los ajustes del programa semanal han sido guardados en Firebase." });
+        return true;
+    } catch (error) {
+        console.error("Error saving program configuration:", error);
+        toast({ title: "Error al Guardar", description: "No se pudo guardar la configuración del programa semanal.", variant: "destructive" });
+        return false;
+    } finally {
+        setIsSavingGroupOrganizedDays(false);
+    }
+};
+
   const handleOpenAddSlotDialog = (day: DayOfWeek) => {
     setDayForNewSlot(day);
     slotForm.reset({startTime: "", type: undefined, status: "fixed"});
@@ -277,39 +329,43 @@ export default function SettingsPage() {
       type: data.type as PreachingType,
       status: data.status as ScheduleSlotStatus,
     };
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setScheduleSlots((prev) => [...prev, newSlot].sort((a,b) => {
+    
+    const updatedSlots = [...scheduleSlots, newSlot].sort((a, b) => {
         const dayCompare = dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek);
         if (dayCompare !== 0) return dayCompare;
         return a.startTime.localeCompare(b.startTime);
-    }));
-    toast({ title: "Horario Añadido", description: `Nuevo horario para ${dayOfWeekLabels[dayForNewSlot]} a las ${data.startTime} (simulación).` });
+    });
+    
+    const success = await saveProgramConfigToFirestore({ scheduleSlots: updatedSlots });
+    if (success) {
+        setScheduleSlots(updatedSlots);
+        toast({ title: "Horario Añadido", description: `Nuevo horario para ${dayOfWeekLabels[dayForNewSlot]} a las ${data.startTime}.` });
+        setIsAddSlotDialogOpen(false);
+        slotForm.reset();
+    }
     setIsSubmittingSlotDialog(false);
-    setIsAddSlotDialogOpen(false);
-    slotForm.reset();
   };
 
-  const handleDeleteSlot = (slotId: string) => {
-    setScheduleSlots((prev) => prev.filter(slot => slot.id !== slotId));
-    toast({ title: "Horario Eliminado", description: "El horario ha sido eliminado (simulación).", variant: "destructive" });
+  const handleDeleteSlot = async (slotId: string) => {
+    const updatedSlots = scheduleSlots.filter(slot => slot.id !== slotId);
+    const success = await saveProgramConfigToFirestore({ scheduleSlots: updatedSlots });
+    if (success) {
+        setScheduleSlots(updatedSlots);
+        toast({ title: "Horario Eliminado", description: "El horario ha sido eliminado.", variant: "destructive" });
+    }
   };
 
   const handleGroupOrganizedDayChange = (day: DayOfWeek, checked: boolean) => {
     setGroupOrganizedDays(prev =>
-      checked ? [...prev, day] : prev.filter(d => d !== day)
+      checked ? [...new Set([...prev, day])] : prev.filter(d => d !== day)
     );
   };
 
   const handleSaveGroupOrganizedDays = async () => {
-    setIsSavingGroupOrganizedDays(true);
-    await new Promise(resolve => setTimeout(resolve, 700));
-    console.log("Días organizados por grupo guardados (simulación):", groupOrganizedDays);
-    toast({
-      title: "Configuración Guardada",
-      description: "Los días de predicación organizados por grupos han sido actualizados (simulación).",
-    });
-    setIsSavingGroupOrganizedDays(false);
+    const success = await saveProgramConfigToFirestore({ groupOrganizedDays });
+    // Toast is handled by saveProgramConfigToFirestore
   };
+
 
   const handleOpenAddCampaignDialog = () => { setCampaignToEdit(null); setIsCampaignDialogOpen(true); };
   const handleOpenEditCampaignDialog = (campaign: Campaign) => { setCampaignToEdit(campaign); setIsCampaignDialogOpen(true); };
@@ -571,73 +627,86 @@ export default function SettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {dayOrder.map(dayKey => {
-                    const slotsForDay = scheduleSlots.filter(slot => slot.dayOfWeek === dayKey).sort((a,b) => a.startTime.localeCompare(b.startTime));
-                    return (
-                      <Card key={dayKey} className="flex flex-col">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-lg">{dayOfWeekLabels[dayKey]}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-grow space-y-2 min-h-[100px]">
-                          {slotsForDay.length === 0 ? (
-                            <p className="text-xs text-muted-foreground text-center py-4">No hay horarios.</p>
-                          ) : (
-                            <ul className="space-y-1.5">
-                              {slotsForDay.map(slot => (
-                                <li key={slot.id} className="flex justify-between items-center p-2 border rounded-md text-xs shadow-sm hover:shadow-md transition-shadow bg-card/80">
-                                  <div className="flex items-center">
-                                    <PreachingTypeIcon type={slot.type}/>
-                                    <span className="font-medium">{slot.startTime}</span>
-                                    <span className="text-muted-foreground mx-1">-</span>
-                                    <span className="capitalize text-muted-foreground/80">{slot.type}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                      <Badge variant={slot.status === 'tentative' ? 'outline' : 'default'} className={`capitalize text-[0.7rem] px-1.5 py-0.5 ${slot.status === 'tentative' ? 'border-amber-500 text-amber-600' : ''}`}>
-                                          {slot.status === 'fixed' ? 'Fijo' : 'Tentativo'}
-                                          {slot.status === 'tentative' && <AlertTriangle className="ml-1 h-3 w-3" />}
-                                      </Badge>
-                                      <Button variant="ghost" size="icon" onClick={() => handleDeleteSlot(slot.id)} className="h-6 w-6 text-destructive hover:text-destructive/80">
-                                          <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </CardContent>
-                        <CardFooter className="border-t pt-3">
-                          <Button size="sm" onClick={() => handleOpenAddSlotDialog(dayKey)} className="w-full">
-                            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Horario
-                          </Button>
-                        </CardFooter>
-                      </Card>
-                    );
-                  })}
-                </div>
-                <Separator className="my-8" />
-                <div>
-                  <h3 className="text-lg font-medium mb-1 flex items-center">
-                      <GanttChartSquare className="mr-2 h-5 w-5 text-primary" />
-                      Días Organizados por Grupos
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Marca los días en que la organización recae en los grupos. La IA no asignará horarios centralizados para estos días.
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 p-4 border rounded-md shadow-sm bg-muted/20">
-                    {dayOrder.map(dayKey => (
-                      <div key={`group-day-${dayKey}`} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
-                        <Checkbox id={`group-organized-${dayKey}`} checked={groupOrganizedDays.includes(dayKey)} onCheckedChange={(checked) => handleGroupOrganizedDayChange(dayKey, !!checked)} />
-                        <label htmlFor={`group-organized-${dayKey}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">{dayOfWeekLabels[dayKey]}</label>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-6 flex justify-end">
-                      <Button onClick={handleSaveGroupOrganizedDays} disabled={isSavingGroupOrganizedDays}>
-                      {isSavingGroupOrganizedDays && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} <Save className="mr-2 h-4 w-4" /> Guardar Días Grupales
-                      </Button>
-                  </div>
-                </div>
+                {isLoadingProgramSettings ? (
+                    <div className="space-y-4 py-10">
+                        <Skeleton className="h-12 w-1/3 mb-4" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-48 w-full rounded-md" />)}
+                        </div>
+                        <Skeleton className="h-12 w-1/3 mt-8 mb-4" />
+                        <Skeleton className="h-24 w-full rounded-md" />
+                    </div>
+                ) : (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {dayOrder.map(dayKey => {
+                        const slotsForDay = scheduleSlots.filter(slot => slot.dayOfWeek === dayKey).sort((a,b) => a.startTime.localeCompare(b.startTime));
+                        return (
+                        <Card key={dayKey} className="flex flex-col">
+                            <CardHeader className="pb-3">
+                            <CardTitle className="text-lg">{dayOfWeekLabels[dayKey]}</CardTitle>
+                            </CardHeader>
+                            <CardContent className="flex-grow space-y-2 min-h-[100px]">
+                            {slotsForDay.length === 0 ? (
+                                <p className="text-xs text-muted-foreground text-center py-4">No hay horarios.</p>
+                            ) : (
+                                <ul className="space-y-1.5">
+                                {slotsForDay.map(slot => (
+                                    <li key={slot.id} className="flex justify-between items-center p-2 border rounded-md text-xs shadow-sm hover:shadow-md transition-shadow bg-card/80">
+                                    <div className="flex items-center">
+                                        <PreachingTypeIcon type={slot.type}/>
+                                        <span className="font-medium">{slot.startTime}</span>
+                                        <span className="text-muted-foreground mx-1">-</span>
+                                        <span className="capitalize text-muted-foreground/80">{slot.type}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <Badge variant={slot.status === 'tentative' ? 'outline' : 'default'} className={`capitalize text-[0.7rem] px-1.5 py-0.5 ${slot.status === 'tentative' ? 'border-amber-500 text-amber-600' : ''}`}>
+                                            {slot.status === 'fixed' ? 'Fijo' : 'Tentativo'}
+                                            {slot.status === 'tentative' && <AlertTriangle className="ml-1 h-3 w-3" />}
+                                        </Badge>
+                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteSlot(slot.id)} className="h-6 w-6 text-destructive hover:text-destructive/80">
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
+                                    </li>
+                                ))}
+                                </ul>
+                            )}
+                            </CardContent>
+                            <CardFooter className="border-t pt-3">
+                            <Button size="sm" onClick={() => handleOpenAddSlotDialog(dayKey)} className="w-full">
+                                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Horario
+                            </Button>
+                            </CardFooter>
+                        </Card>
+                        );
+                    })}
+                    </div>
+                    <Separator className="my-8" />
+                    <div>
+                    <h3 className="text-lg font-medium mb-1 flex items-center">
+                        <GanttChartSquare className="mr-2 h-5 w-5 text-primary" />
+                        Días Organizados por Grupos
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        Marca los días en que la organización recae en los grupos. La IA no asignará horarios centralizados para estos días.
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 p-4 border rounded-md shadow-sm bg-muted/20">
+                        {dayOrder.map(dayKey => (
+                        <div key={`group-day-${dayKey}`} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
+                            <Checkbox id={`group-organized-${dayKey}`} checked={groupOrganizedDays.includes(dayKey)} onCheckedChange={(checked) => handleGroupOrganizedDayChange(dayKey, !!checked)} />
+                            <label htmlFor={`group-organized-${dayKey}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">{dayOfWeekLabels[dayKey]}</label>
+                        </div>
+                        ))}
+                    </div>
+                    <div className="mt-6 flex justify-end">
+                        <Button onClick={handleSaveGroupOrganizedDays} disabled={isSavingGroupOrganizedDays}>
+                        {isSavingGroupOrganizedDays && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} <Save className="mr-2 h-4 w-4" /> Guardar Días Grupales
+                        </Button>
+                    </div>
+                    </div>
+                </>
+                )}
               </CardContent>
             </Card>
           )}
