@@ -46,7 +46,7 @@ type HolidayFormValues = z.infer<typeof holidayFormSchema>;
 interface AddHolidayDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onHolidaySubmit: (holiday: CustomHoliday) => void;
+  onHolidaySubmit: (holiday: Omit<CustomHoliday, 'createdAt' | 'updatedAt'> & { id?:string; createdAt?: Timestamp; updatedAt?: Timestamp }) => Promise<void>;
   holidayToEdit?: CustomHoliday | null;
 }
 
@@ -79,29 +79,26 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
   async function onSubmit(values: HolidayFormValues) {
     setIsSubmitting(true);
 
-    const holidayData: Partial<CustomHoliday> = {
+    const holidayData: Omit<CustomHoliday, 'createdAt' | 'updatedAt'> & { id?:string; createdAt?: Timestamp; updatedAt?: Timestamp } = {
       id: isEditMode && holidayToEdit ? holidayToEdit.id : crypto.randomUUID(),
       name: values.name,
       date: Timestamp.fromDate(values.date),
-      createdAt: isEditMode && holidayToEdit ? holidayToEdit.createdAt : Timestamp.now(),
-      updatedAt: Timestamp.now(),
     };
+    if (isEditMode && holidayToEdit) {
+        holidayData.createdAt = holidayToEdit.createdAt;
+    }
 
     if (values.description && values.description.trim() !== "") {
       holidayData.description = values.description;
     }
     
-    await new Promise(resolve => setTimeout(resolve, 600));
-
-    onHolidaySubmit(holidayData as CustomHoliday);
-    toast({
-      title: isEditMode ? "Festivo Actualizado" : "Festivo Añadido",
-      description: `El festivo "${values.name}" ha sido ${isEditMode ? 'actualizado' : 'registrado'}.`,
-    });
-    
-    if (!isEditMode) form.reset(); 
-    onOpenChange(false); 
-    setIsSubmitting(false);
+    try {
+      await onHolidaySubmit(holidayData);
+    } catch (e) {
+       toast({title: "Error", description: "Ocurrió un error al guardar el festivo.", variant: "destructive"})
+    } finally {
+      setIsSubmitting(false);
+    }
   }
   
   const handleDialogClose = (open: boolean) => {

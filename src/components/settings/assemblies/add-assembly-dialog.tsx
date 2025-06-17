@@ -54,7 +54,7 @@ type AssemblyFormValues = z.infer<typeof assemblyFormSchema>;
 interface AddAssemblyDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onAssemblySubmit: (assembly: Assembly) => void;
+  onAssemblySubmit: (assembly: Omit<Assembly, 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => Promise<void>;
   assemblyToEdit?: Assembly | null;
 }
 
@@ -94,30 +94,27 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
   async function onSubmit(values: AssemblyFormValues) {
     setIsSubmitting(true);
 
-    const assemblyData: Partial<Assembly> = {
+    const assemblyData: Omit<Assembly, 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp } = {
       id: isEditMode && assemblyToEdit ? assemblyToEdit.id : crypto.randomUUID(),
       name: values.name,
       startDate: Timestamp.fromDate(values.startDate),
       endDate: Timestamp.fromDate(values.endDate),
-      createdAt: isEditMode && assemblyToEdit ? assemblyToEdit.createdAt : Timestamp.now(),
-      updatedAt: Timestamp.now(),
     };
+    if (isEditMode && assemblyToEdit) {
+        assemblyData.createdAt = assemblyToEdit.createdAt;
+    }
 
     if (values.description && values.description.trim() !== "") {
       assemblyData.description = values.description;
     }
     
-    await new Promise(resolve => setTimeout(resolve, 600));
-
-    onAssemblySubmit(assemblyData as Assembly);
-    toast({
-      title: isEditMode ? "Asamblea Actualizada" : "Asamblea Añadida",
-      description: `La asamblea "${values.name}" ha sido ${isEditMode ? 'actualizada' : 'registrada'}.`,
-    });
-
-    if (!isEditMode) form.reset();
-    onOpenChange(false);
-    setIsSubmitting(false);
+    try {
+      await onAssemblySubmit(assemblyData);
+    } catch (e) {
+      toast({title: "Error", description: "Ocurrió un error al guardar la asamblea.", variant: "destructive"})
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   const handleDialogClose = (open: boolean) => {

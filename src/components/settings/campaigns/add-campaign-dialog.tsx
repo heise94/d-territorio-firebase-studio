@@ -68,7 +68,7 @@ type CampaignFormValues = z.infer<typeof campaignFormSchema>;
 interface AddCampaignDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onCampaignSubmit: (campaign: Omit<Campaign, 'isActive'>) => void;
+  onCampaignSubmit: (campaign: Omit<Campaign, 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => Promise<void>;
   campaignToEdit?: Campaign | null;
 }
 
@@ -107,7 +107,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
         endDate: campaignToEdit.endDate?.toDate() || undefined,
         description: campaignToEdit.description || "",
         superintendentName: campaignToEdit.superintendentName || "",
-        specialCampaignTerritoriesPerDay: campaignToEdit.specialCampaignTerritoriesPerDay || 0,
+        specialCampaignTerritoriesPerDay: campaignToEdit.specialCampaignTerritoriesPerDay === undefined || campaignToEdit.specialCampaignTerritoriesPerDay === null ? 0 : campaignToEdit.specialCampaignTerritoriesPerDay,
       });
     } else if (!isOpen) {
       form.reset({ 
@@ -125,16 +125,17 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
   async function onSubmit(values: CampaignFormValues) {
     setIsSubmitting(true);
 
-    const campaignData: Partial<Omit<Campaign, 'isActive'>> = {
+    const campaignData: Omit<Campaign, 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp } = {
       id: isEditMode && campaignToEdit ? campaignToEdit.id : crypto.randomUUID(),
       name: values.name,
       type: values.type,
       startDate: Timestamp.fromDate(values.startDate),
       endDate: Timestamp.fromDate(values.endDate),
       specialCampaignTerritoriesPerDay: values.specialCampaignTerritoriesPerDay,
-      createdAt: isEditMode && campaignToEdit ? campaignToEdit.createdAt : Timestamp.now(),
-      updatedAt: Timestamp.now(),
     };
+    if (isEditMode && campaignToEdit) {
+        campaignData.createdAt = campaignToEdit.createdAt;
+    }
 
     if (values.description && values.description.trim() !== "") {
       campaignData.description = values.description;
@@ -143,17 +144,14 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       campaignData.superintendentName = values.superintendentName;
     }
     
-    await new Promise(resolve => setTimeout(resolve, 600));
-
-    onCampaignSubmit(campaignData as Omit<Campaign, 'isActive'>);
-    toast({
-      title: isEditMode ? "Campaña Actualizada" : "Campaña Añadida",
-      description: `La campaña "${values.name}" ha sido ${isEditMode ? 'actualizada' : 'registrada'}.`,
-    });
-    
-    if (!isEditMode) form.reset(); 
-    onOpenChange(false); 
-    setIsSubmitting(false);
+    try {
+      await onCampaignSubmit(campaignData);
+      // Toast y cierre del diálogo se manejan en la página de settings
+    } catch (e) {
+        toast({title: "Error", description: "Ocurrió un error al guardar la campaña.", variant: "destructive"})
+    } finally {
+        setIsSubmitting(false);
+    }
   }
   
   const handleDialogClose = (open: boolean) => {
