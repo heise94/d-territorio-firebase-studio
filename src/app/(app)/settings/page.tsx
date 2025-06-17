@@ -977,7 +977,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                                         <span className="text-muted-foreground mx-1">-</span>
                                         <span className="capitalize text-muted-foreground/80">{slot.type}</span>
                                     </div>
-                                    <div className="flex items-center gap-0.5">
+                                    <div className="flex items-center justify-center gap-0.5">
                                         <Badge variant={slot.status === 'tentative' ? 'outline' : 'default'} className={`capitalize text-[0.7rem] px-1.5 py-0.5 ${slot.status === 'tentative' ? 'border-amber-500 text-amber-600' : ''}`}>
                                             {slot.status === 'fixed' ? 'Fijo' : 'Tentativo'}
                                             {slot.status === 'tentative' && <AlertTriangle className="ml-1 h-3 w-3" />}
@@ -1248,7 +1248,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
           <DialogHeader><DialogTitle>Añadir Horario para {dayForNewSlot ? dayOfWeekLabels[dayForNewSlot] : ''}</DialogTitle><DialogDescriptionComponent>Completa los detalles.</DialogDescriptionComponent></DialogHeader>
           <Form {...slotForm}>
             <form onSubmit={slotForm.handleSubmit(onSubmitSlotDialog)} className="space-y-4 py-2">
-              <FormField control={slotForm.control} name="startTime" render={({ field }) => (<FormItem><FormLabel>Hora (HH:mm)</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={slotForm.control} name="startTime" render={({ field }) => (<FormItem><FormLabel>Hora (Formato 24h)</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>)} />
               <FormField control={slotForm.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="general">General</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
               <FormField control={slotForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona estado" /></SelectTrigger></FormControl><SelectContent><SelectItem value="fixed">Fijo</SelectItem><SelectItem value="tentative">Tentativo</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
               <DialogFooter className="pt-4"><DialogClose asChild><Button type="button" variant="outline" disabled={isSubmittingSlotDialog}>Cancelar</Button></DialogClose><Button type="submit" disabled={isSubmittingSlotDialog}>{isSubmittingSlotDialog && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Añadir Horario</Button></DialogFooter>
