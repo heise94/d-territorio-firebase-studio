@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,104 +27,27 @@ import {
   Edit,
   FileWarning,
   Info, 
-  PlusCircle, // For "Solicitar + Territorio"
-  Map as MapIconLucide, // For "Solicitar + Territorio" dialog
+  PlusCircle,
+  Map as MapIconLucide,
+  Loader2,
 } from "lucide-react";
 import { format, parse, differenceInHours, isBefore, addHours, startOfDay, differenceInMinutes, subDays, subHours, addMinutes, getMonth, getYear, addDays, isSameDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Territory, ReportedAssignmentData, UserAssignment, SingleTerritoryReportDetails, AdditionalTerritoryInfo, TerritoryType } from "@/types";
 import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
-import { SolicitarTerritorioDialog } from "@/components/asignaciones/solicitar-territorio-dialog"; // New Dialog
-import { Timestamp } from "firebase/firestore";
+import { SolicitarTerritorioDialog } from "@/components/asignaciones/solicitar-territorio-dialog";
+import { Timestamp, collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; 
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"; 
+import { Skeleton } from "@/components/ui/skeleton";
 
 
-const MOCK_ASSIGNMENTS: UserAssignment[] = [
-  // Futuras, pendientes de aceptar
-  { id: "FUT-PEND", date: format(addDays(new Date(), 7), "yyyy-MM-dd"), time: "10:00", type: "publica", locationName: "Plaza Futura", locationId: "T-FUT1", status: "pending", assignedBy: "Admin IA" },
-  // Futuras, aceptadas
-  { id: "FUT-ACC", date: format(addDays(new Date(), 3), "yyyy-MM-dd"), time: "15:00", type: "zoom", locationName: "Zoom Futuro", status: "accepted", assignedBy: "Admin IA", notes: "Recuerda prepararte." },
-  
-  // Pasadas, aceptadas, SIN REPORTE (debe estar en activas y destacada)
-  { id: "PAST-ACC-NO-REP", date: format(subDays(new Date(), 1), "yyyy-MM-dd"), time: "09:00", type: "publica", locationName: "Mercado Ayer (Sin Reporte)", locationId: "T-PAS1", status: "accepted", assignedBy: "Admin IA" },
-  
-  // Pasadas, aceptadas, CON REPORTE < 1 HORA (debe estar en activas, con botón Modificar)
-  { 
-    id: "PAST-ACC-REP-EDIT", 
-    date: format(subDays(new Date(), 1), "yyyy-MM-dd"), 
-    time: "11:00", 
-    type: "rural", 
-    locationName: "Finca Ayer (Reporte Reciente)", 
-    locationId: "T-PAS2", 
-    status: "accepted", 
-    assignedBy: "Admin IA",
-    lastReportData: { 
-        assignmentId: "PAST-ACC-REP-EDIT", 
-        reports: [{ territoryId: "T-PAS2", territoryName: "Finca Ayer (Reporte Reciente)", workedBlocksIds: ["block-0"], territoryNotWorked: false }], 
-        generalNotes: "Todo bien.", 
-        reportedAt: Timestamp.fromDate(addMinutes(new Date(), -30)), 
-        reportedByUserId: "mockUser" 
-    }
-  },
-  // Asignación para hoy, aceptada, para probar el botón "Solicitar + Territorio"
-  { id: "TODAY-ACC", date: format(new Date(), "yyyy-MM-dd"), time: "10:00", type: "publica", locationName: "Parque Central Hoy", locationId: "T-TODAY1", status: "accepted", assignedBy: "Admin IA" },
-  
-  // Pasadas, aceptadas, CON REPORTE > 1 HORA (debe estar en HISTORIAL)
-  { 
-    id: "PAST-ACC-REP-NOEDIT", 
-    date: format(subDays(new Date(), 2), "yyyy-MM-dd"), 
-    time: "14:00", 
-    type: "publica", 
-    locationName: "Centro Antiguo (Reporte Viejo)", 
-    locationId: "T-PAS3", 
-    status: "accepted", 
-    assignedBy: "Admin IA",
-    lastReportData: { 
-        assignmentId: "PAST-ACC-REP-NOEDIT", 
-        reports: [{ territoryId: "T-PAS3", territoryName: "Centro Antiguo (Reporte Viejo)", workedBlocksIds: ["block-1", "block-2"], territoryNotWorked: false }], 
-        generalNotes: "Predicación completa.", 
-        reportedAt: Timestamp.fromDate(subHours(new Date(), 5)), 
-        reportedByUserId: "mockUser" 
-    }
-  },
-  
-  // Pasadas, aceptadas, CON REPORTE (No se pudo trabajar) > 1 HORA (debe estar en HISTORIAL)
-   { 
-    id: "PAST-ACC-REP-NOT-WORKED-NOEDIT", 
-    date: format(subDays(new Date(), 2), "yyyy-MM-dd"), 
-    time: "10:00", 
-    type: "publica", 
-    locationName: "Calle Lluviosa (Reporte Viejo)", 
-    locationId: "T-PAS4", 
-    status: "accepted", 
-    assignedBy: "Admin IA",
-    lastReportData: { 
-        assignmentId: "PAST-ACC-REP-NOT-WORKED-NOEDIT", 
-        reports: [{ territoryId: "T-PAS4", territoryName: "Calle Lluviosa (Reporte Viejo)", workedBlocksIds: [], territoryNotWorked: true }], 
-        generalNotes: "Llovió mucho.", 
-        reportedAt: Timestamp.fromDate(subHours(new Date(), 6)), 
-        reportedByUserId: "mockUser" 
-    }
-  },
-
-  // Pasadas, PENDIENTES (debe estar en HISTORIAL)
-  { id: "PAST-PEND", date: format(subDays(new Date(), 3), "yyyy-MM-dd"), time: "10:00", type: "zoom", locationName: "Zoom Olvidado", status: "pending", assignedBy: "Admin IA" },
-  
-  // Rechazadas (debe estar en HISTORIAL)
-  { id: "REJ", date: format(subDays(new Date(), 4), "yyyy-MM-dd"), time: "16:00", type: "publica", locationName: "Calle Rechazada", locationId: "T-REJ1", status: "rejected", assignedBy: "Admin IA" },
-
-  // Cubiertas por reemplazo (debe estar en HISTORIAL)
-  { id: "REP-COV", date: format(subDays(new Date(), 5), "yyyy-MM-dd"), time: "17:00", type: "rural", locationName: "Camino Cubierto", locationId: "T-REPCOV1", status: "replacement_covered", assignedBy: "Admin IA" },
-
-  // Solicitud de reemplazo pasada (debe estar en HISTORIAL)
-  { id: "PAST-REP-REQ", date: format(subDays(new Date(), 2), "yyyy-MM-dd"), time: "18:00", type: "publica", locationName: "Plaza con Solicitud Pasada", locationId: "T-PSR1", status: "replacement_requested", assignedBy: "Admin IA" },
-];
-
-
+// MOCK_TERRITORY_FOR_REPORT se mantiene por ahora para el diálogo de reporte del territorio principal.
+// La carga dinámica de los detalles del territorio principal para el reporte se podría implementar en el futuro.
 const MOCK_TERRITORY_FOR_REPORT: Territory = {
   id: "T-Mock",
   name: "Territorio de Ejemplo",
@@ -169,13 +92,14 @@ const StatusBadge = ({ status }: { status: UserAssignment["status"] }) => {
 
 
 export default function MisAsignacionesPage() {
-  const [assignments, setAssignments] = useState<UserAssignment[]>(MOCK_ASSIGNMENTS);
+  const [assignments, setAssignments] = useState<UserAssignment[]>([]);
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
   const { toast } = useToast();
-  const { userProfile } = usePermissions();
+  const { userProfile, isLoadingPermissions } = usePermissions();
 
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [assignmentToReport, setAssignmentToReport] = useState<UserAssignment | null>(null);
-  const [territoryForReport, setTerritoryForReport] = useState<Territory | null>(null);
+  const [territoryForReport, setTerritoryForReport] = useState<Territory | null>(null); // Main territory for report dialog
   const [initialReportDataForDialog, setInitialReportDataForDialog] = useState<Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null>(null);
   
   const [isSolicitarTerritorioDialogOpen, setIsSolicitarTerritorioDialogOpen] = useState(false);
@@ -189,18 +113,77 @@ export default function MisAsignacionesPage() {
   const monthsForFilter = useMemo(() => Array.from({ length: 12 }, (_, i) => ({ value: i, label: format(new Date(2000, i), "MMMM", { locale: es }) })), []);
   const yearsForFilter = useMemo(() => Array.from({ length: 5 }, (_, i) => currentFilterYear - 2 + i), [currentFilterYear]);
 
+  useEffect(() => {
+    if (isLoadingPermissions || !userProfile?.firebaseAuthUid) {
+      if (!isLoadingPermissions && !userProfile?.firebaseAuthUid) {
+        setIsLoadingAssignments(false); // Not loading if no user
+      }
+      return;
+    }
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      setIsLoadingAssignments(false);
+      return;
+    }
 
-  const handleUpdateStatus = (assignmentId: string, newStatus: UserAssignment["status"]) => {
-    setAssignments(prev =>
-      prev.map(assign =>
-        assign.id === assignmentId ? { ...assign, status: newStatus } : assign
-      )
+    setIsLoadingAssignments(true);
+    const assignmentsCollectionRef = collection(db, "assignments");
+    const q = query(
+      assignmentsCollectionRef,
+      where("userId", "==", userProfile.firebaseAuthUid),
+      orderBy("date", "desc"), // Order by date to help with active/history logic
+      orderBy("time", "desc")  // Then by time
     );
-    toast({
-      title: "Estado Actualizado",
-      description: `La asignación ha sido marcada como "${newStatus.replace("_", " ")}" (simulación).`,
-      variant: newStatus === "accepted" ? "default" : newStatus === "rejected" ? "destructive" : "default"
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedAssignments = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Ensure lastReportData.reportedAt is a Timestamp if it exists
+          lastReportData: data.lastReportData 
+            ? { 
+                ...data.lastReportData, 
+                reportedAt: data.lastReportData.reportedAt instanceof Timestamp 
+                                ? data.lastReportData.reportedAt 
+                                : Timestamp.fromDate(new Date(data.lastReportData.reportedAt)) // Fallback if stored as string
+              } 
+            : undefined,
+        } as UserAssignment;
+      });
+      setAssignments(fetchedAssignments);
+      setIsLoadingAssignments(false);
+    }, (error) => {
+      console.error("Error fetching assignments:", error);
+      toast({ title: "Error al Cargar Asignaciones", description: "No se pudieron cargar tus asignaciones.", variant: "destructive" });
+      setIsLoadingAssignments(false);
     });
+
+    return () => unsubscribe();
+  }, [userProfile?.firebaseAuthUid, toast, isLoadingPermissions]);
+
+
+  const handleUpdateStatus = async (assignmentId: string, newStatus: UserAssignment["status"]) => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
+      return;
+    }
+    const assignmentRef = doc(db, "assignments", assignmentId);
+    try {
+      await updateDoc(assignmentRef, {
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      });
+      toast({
+        title: "Estado Actualizado",
+        description: `La asignación ha sido marcada como "${newStatus.replace("_", " ")}".`,
+        variant: newStatus === "accepted" ? "default" : newStatus === "rejected" ? "destructive" : "default"
+      });
+    } catch (error) {
+      console.error("Error updating assignment status:", error);
+      toast({ title: "Error al Actualizar", description: "No se pudo actualizar el estado de la asignación.", variant: "destructive" });
+    }
   };
   
   const handleRequestReplacement = (assignmentId: string) => {
@@ -236,10 +219,12 @@ export default function MisAsignacionesPage() {
   };
 
   const handleOpenReportDialog = (assignment: UserAssignment, existingReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null) => {
+    // For the main territory, we use a mock structure but populate its name and type from the assignment.
+    // A more robust solution would fetch full territory details if locationId is present.
     if (assignment.type === 'publica' || assignment.type === 'rural') {
         const mockTerritory: Territory = { 
             ...MOCK_TERRITORY_FOR_REPORT,
-            id: assignment.locationId || `mock-main-${assignment.id}`,
+            id: assignment.locationId || `mock-main-${assignment.id}`, // Use locationId or a mock one
             name: assignment.locationName,
             type: assignment.type === 'publica' ? 'urban' : 'rural', 
             number: assignment.type === 'publica' ? (MOCK_TERRITORY_FOR_REPORT.number || 'N/A') : undefined,
@@ -256,54 +241,54 @@ export default function MisAsignacionesPage() {
     setIsReportDialogOpen(true);
   };
 
-  const handleReportSubmit = (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => {
-    if (!assignmentToReport || !userProfile) {
-        toast({ title: "Error", description: "No se pudo enviar el reporte.", variant: "destructive"});
+  const handleReportSubmit = async (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => {
+    if (!assignmentToReport || !userProfile?.firebaseAuthUid || !db || Object.keys(db).length === 0) {
+        toast({ title: "Error", description: "No se pudo enviar el reporte. Datos incompletos o error de conexión.", variant: "destructive"});
         return;
     }
     const isEditing = !!initialReportDataForDialog;
+    const assignmentRef = doc(db, "assignments", assignmentToReport.id);
 
     const fullReportData: ReportedAssignmentData = {
         assignmentId: assignmentToReport.id,
         reports: data.reports,
         generalNotes: data.generalNotes,
         reportedAt: Timestamp.now(), 
-        reportedByUserId: userProfile.firebaseAuthUid || "unknown-user",
+        reportedByUserId: userProfile.firebaseAuthUid,
         additionalTerritorySelected: !!assignmentToReport.additionalTerritorySelected,
     };
     
-    setAssignments(prev => prev.map(assign => 
-        assign.id === assignmentToReport.id 
-        ? { ...assign, lastReportData: fullReportData } 
-        : assign
-    ));
-    
-    console.log("Reporte a enviar (simulación):", fullReportData);
-    
-    let reportSummary = `${isEditing ? 'Reporte modificado' : 'Reporte enviado'} para "${assignmentToReport.locationName}".`;
-    
-    const mainReport = fullReportData.reports.find(r => r.territoryId === (territoryForReport?.id || assignmentToReport.locationId));
-    if (mainReport?.territoryNotWorked) {
-        reportSummary += " Se indicó que el territorio principal no fue trabajado.";
-    }
-
-    if(assignmentToReport.additionalTerritorySelected) {
-        const additionalReport = fullReportData.reports.find(r => r.territoryId === assignmentToReport.additionalTerritorySelected!.id);
-        if (additionalReport?.territoryNotWorked) {
-             reportSummary += " Se indicó que el territorio adicional no fue trabajado.";
+    try {
+        await updateDoc(assignmentRef, {
+            lastReportData: fullReportData,
+            updatedAt: serverTimestamp()
+        });
+        
+        let reportSummary = `${isEditing ? 'Reporte modificado' : 'Reporte enviado'} para "${assignmentToReport.locationName}".`;
+        const mainReport = fullReportData.reports.find(r => r.territoryId === (territoryForReport?.id || assignmentToReport.locationId));
+        if (mainReport?.territoryNotWorked) {
+            reportSummary += " Se indicó que el territorio principal no fue trabajado.";
         }
+        if(assignmentToReport.additionalTerritorySelected) {
+            const additionalReport = fullReportData.reports.find(r => r.territoryId === assignmentToReport.additionalTerritorySelected!.id);
+            if (additionalReport?.territoryNotWorked) {
+                reportSummary += " Se indicó que el territorio adicional no fue trabajado.";
+            }
+        }
+        if(fullReportData.generalNotes) reportSummary += ` Notas: ${fullReportData.generalNotes}`;
+
+        toast({
+          title: isEditing ? "Reporte Modificado" : "Reporte Enviado",
+          description: reportSummary,
+          duration: 7000,
+        });
+    } catch (error) {
+        console.error("Error submitting report:", error);
+        toast({ title: "Error al Enviar Reporte", description: "No se pudo guardar el reporte en la base de datos.", variant: "destructive"});
+    } finally {
+        setIsReportDialogOpen(false);
+        setInitialReportDataForDialog(null); 
     }
-
-    if(fullReportData.generalNotes) reportSummary += ` Notas: ${fullReportData.generalNotes}`;
-
-
-    toast({
-      title: isEditing ? "Reporte Modificado" : "Reporte Enviado",
-      description: reportSummary,
-      duration: 7000,
-    });
-    setIsReportDialogOpen(false);
-    setInitialReportDataForDialog(null); 
   };
 
   const handleOpenSolicitarTerritorioDialog = (assignment: UserAssignment) => {
@@ -311,20 +296,25 @@ export default function MisAsignacionesPage() {
     setIsSolicitarTerritorioDialogOpen(true);
   };
 
-  const handleTerritorioAdicionalSelected = (selectedTerritory: AdditionalTerritoryInfo) => {
-    if (!assignmentForTerritorioAdicional) return;
-
-    setAssignments(prev => prev.map(assign =>
-      assign.id === assignmentForTerritorioAdicional.id
-        ? { ...assign, additionalTerritorySelected: selectedTerritory }
-        : assign
-    ));
-    toast({
-      title: "Territorio Adicional Añadido",
-      description: `Se ha añadido "${selectedTerritory.name}" a tu asignación actual. Recuerda reportar ambos. (Simulación)`
-    });
-    setIsSolicitarTerritorioDialogOpen(false);
-    setAssignmentForTerritorioAdicional(null);
+  const handleTerritorioAdicionalSelected = async (selectedTerritory: AdditionalTerritoryInfo) => {
+    if (!assignmentForTerritorioAdicional || !db || Object.keys(db).length === 0) return;
+    const assignmentRef = doc(db, "assignments", assignmentForTerritorioAdicional.id);
+    try {
+      await updateDoc(assignmentRef, {
+        additionalTerritorySelected: selectedTerritory,
+        updatedAt: serverTimestamp()
+      });
+      toast({
+        title: "Territorio Adicional Añadido",
+        description: `Se ha añadido "${selectedTerritory.name}" a tu asignación actual. Recuerda reportar ambos.`
+      });
+    } catch (error) {
+        console.error("Error adding additional territory:", error);
+        toast({ title: "Error", description: "No se pudo añadir el territorio adicional.", variant: "destructive" });
+    } finally {
+        setIsSolicitarTerritorioDialogOpen(false);
+        setAssignmentForTerritorioAdicional(null);
+    }
   };
 
 
@@ -334,11 +324,10 @@ export default function MisAsignacionesPage() {
         const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
         const isPast = isBefore(assignmentDateTime, new Date());
 
-        if (!isPast) { // Asignaciones futuras
+        if (!isPast) { 
           return a.status === 'pending' || a.status === 'accepted' || a.status === 'replacement_requested';
-        } else { // Asignaciones pasadas
+        } else { 
           if (a.status === 'accepted') {
-            // Incluir si no tiene reporte, o si tiene reporte y es editable
             return !a.lastReportData || (a.lastReportData && canEditReport(a.lastReportData.reportedAt));
           }
           return false;
@@ -372,7 +361,7 @@ export default function MisAsignacionesPage() {
         const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
         const isPast = isBefore(assignmentDateTime, new Date());
 
-        if (a.status === 'rejected' || a.status === 'replacement_covered' || a.status === 'cancelled_by_admin') {
+        if (a.status === 'rejected' || a.status === 'replacement_covered' || (a.status as string) === 'cancelled_by_admin') {
           return true;
         }
         if (isPast && a.status === 'accepted' && a.lastReportData && !canEditReport(a.lastReportData.reportedAt)) {
@@ -409,6 +398,27 @@ export default function MisAsignacionesPage() {
       return isPastAssignment && isReportableType && a.status === 'accepted' && !a.lastReportData;
     }).length;
   }, [activeAssignments]);
+
+  if (isLoadingPermissions || isLoadingAssignments) {
+    return (
+      <div className="space-y-8">
+        <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
+          <ListChecks className="mr-3 h-8 w-8 text-primary" />
+          Mis Asignaciones
+        </h1>
+        <p className="text-muted-foreground mt-1">Cargando tus asignaciones...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(3)].map((_, i) => (
+                <Card key={i}>
+                    <CardHeader><Skeleton className="h-6 w-3/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
+                    <CardContent className="space-y-2 pt-2 pb-4"><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent>
+                    <CardFooter className="border-t pt-4 grid grid-cols-2 gap-2"><Skeleton className="h-9 w-full" /><Skeleton className="h-9 w-full" /></CardFooter>
+                </Card>
+            ))}
+        </div>
+      </div>
+    );
+  }
 
 
   return (
@@ -507,7 +517,7 @@ export default function MisAsignacionesPage() {
                                 <AlertTriangle className="h-4 w-4 mr-1.5" /> ¡Esta asignación está pendiente de reporte!
                             </p>
                         )}
-                        {assign.lastReportData && (
+                        {assign.lastReportData && assign.lastReportData.reportedAt && (
                              <p className="text-green-600 dark:text-green-400 font-medium flex items-center mt-2">
                                 <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Reporte enviado el {format(assign.lastReportData.reportedAt.toDate(), "dd/MM HH:mm", { locale: es })}.
                             </p>
@@ -564,7 +574,7 @@ export default function MisAsignacionesPage() {
                         )}
 
                         {isReportableType && (isPastAssignment || isTodayAssignment) && assign.status === 'accepted' ? (
-                          assign.lastReportData ? (
+                          assign.lastReportData && assign.lastReportData.reportedAt ? (
                             canEditReport(assign.lastReportData.reportedAt) ? (
                               <Button
                                 size="sm"
@@ -647,7 +657,7 @@ export default function MisAsignacionesPage() {
                        let cardBgClass = 'bg-card';
                        if (isUnreported) { 
                            cardBgClass = 'bg-orange-50 border-orange-400 dark:bg-orange-900/20 dark:border-orange-700/40';
-                       } else if (assign.status === 'rejected' || assign.status === 'cancelled_by_admin') {
+                       } else if (assign.status === 'rejected' || (assign.status as string) === 'cancelled_by_admin') {
                            cardBgClass = 'bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700/40';
                        } else if (assign.status === 'replacement_covered' || (assign.lastReportData && !canEditReport(assign.lastReportData.reportedAt))) {
                            cardBgClass = 'bg-slate-50 border-slate-300 dark:bg-slate-900/20 dark:border-slate-700/40';
@@ -674,7 +684,7 @@ export default function MisAsignacionesPage() {
                                  {assign.additionalTerritorySelected && <p><span className="font-medium">Terr. Adicional:</span> {assign.additionalTerritorySelected.name}</p>}
                                 {assign.assignedBy && <p><span className="font-medium">Asignado por:</span> {assign.assignedBy}</p>}
                                 {assign.notes && <p className="truncate" title={assign.notes}><span className="font-medium">Notas:</span> <em className="text-foreground/80">{assign.notes}</em></p>}
-                                {assign.lastReportData && (
+                                {assign.lastReportData && assign.lastReportData.reportedAt && (
                                     <p className="text-xs text-green-700 dark:text-green-500 mt-1">
                                         <CheckCircle2 className="inline-block mr-1 h-3 w-3" /> Reporte enviado el {format(assign.lastReportData.reportedAt.toDate(), "dd/MM HH:mm", { locale: es })}.
                                         {assign.lastReportData.reports.map(r => r.territoryNotWorked ? ` (${r.territoryName} No trabajado)` : '').join('')}
@@ -719,8 +729,4 @@ export default function MisAsignacionesPage() {
   );
 }
     
-
     
-
-    
-
