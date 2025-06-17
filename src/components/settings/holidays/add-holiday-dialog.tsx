@@ -69,7 +69,7 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
     if (holidayToEdit && isOpen) {
       form.reset({
         name: holidayToEdit.name || "",
-        date: holidayToEdit.date instanceof Timestamp ? holidayToEdit.date.toDate() : holidayToEdit.date || undefined,
+        date: holidayToEdit.date instanceof Timestamp ? holidayToEdit.date.toDate() : new Date(holidayToEdit.date) || undefined,
         description: holidayToEdit.description || "",
       });
     } else if (!isOpen) {
@@ -81,12 +81,12 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
     setIsSubmitting(true);
 
     const holidayData: Omit<CustomHoliday, 'createdAt' | 'updatedAt'> & { id?:string; createdAt?: Timestamp; updatedAt?: Timestamp } = {
-      id: isEditMode && holidayToEdit ? holidayToEdit.id : crypto.randomUUID(),
+      id: isEditMode && holidayToEdit ? holidayToEdit.id : undefined, // Let parent handle ID generation
       name: values.name,
-      date: Timestamp.fromDate(values.date),
+      date: values.date, // Pass as Date
     };
     if (isEditMode && holidayToEdit) {
-        holidayData.createdAt = holidayToEdit.createdAt;
+        holidayData.createdAt = holidayToEdit.createdAt; // Preserve original createdAt
     }
 
     if (values.description && values.description.trim() !== "") {
@@ -203,4 +203,5 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
     </Dialog>
   );
 }
+
 

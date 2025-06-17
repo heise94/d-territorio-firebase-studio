@@ -78,8 +78,8 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
     if (assemblyToEdit && isOpen) {
       form.reset({
         name: assemblyToEdit.name || "",
-        startDate: assemblyToEdit.startDate instanceof Timestamp ? assemblyToEdit.startDate.toDate() : assemblyToEdit.startDate || undefined,
-        endDate: assemblyToEdit.endDate instanceof Timestamp ? assemblyToEdit.endDate.toDate() : assemblyToEdit.endDate || undefined,
+        startDate: assemblyToEdit.startDate instanceof Timestamp ? assemblyToEdit.startDate.toDate() : new Date(assemblyToEdit.startDate) || undefined,
+        endDate: assemblyToEdit.endDate instanceof Timestamp ? assemblyToEdit.endDate.toDate() : new Date(assemblyToEdit.endDate) || undefined,
         description: assemblyToEdit.description || "",
       });
     } else if (!isOpen) {
@@ -96,13 +96,13 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
     setIsSubmitting(true);
 
     const assemblyData: Omit<Assembly, 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp } = {
-      id: isEditMode && assemblyToEdit ? assemblyToEdit.id : crypto.randomUUID(),
+      id: isEditMode && assemblyToEdit ? assemblyToEdit.id : undefined, // Let parent handle ID generation for new
       name: values.name,
-      startDate: Timestamp.fromDate(values.startDate),
-      endDate: Timestamp.fromDate(values.endDate),
+      startDate: values.startDate, // Pass as Date
+      endDate: values.endDate,     // Pass as Date
     };
     if (isEditMode && assemblyToEdit) {
-        assemblyData.createdAt = assemblyToEdit.createdAt;
+        assemblyData.createdAt = assemblyToEdit.createdAt; // Preserve original createdAt on edit
     }
 
     if (values.description && values.description.trim() !== "") {
@@ -272,4 +272,5 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
     </Dialog>
   );
 }
+
 

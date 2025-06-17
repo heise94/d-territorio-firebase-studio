@@ -104,8 +104,8 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       form.reset({
         name: campaignToEdit.name || "",
         type: campaignToEdit.type || undefined,
-        startDate: campaignToEdit.startDate instanceof Timestamp ? campaignToEdit.startDate.toDate() : campaignToEdit.startDate || undefined,
-        endDate: campaignToEdit.endDate instanceof Timestamp ? campaignToEdit.endDate.toDate() : campaignToEdit.endDate || undefined,
+        startDate: campaignToEdit.startDate instanceof Timestamp ? campaignToEdit.startDate.toDate() : new Date(campaignToEdit.startDate) || undefined,
+        endDate: campaignToEdit.endDate instanceof Timestamp ? campaignToEdit.endDate.toDate() : new Date(campaignToEdit.endDate) || undefined,
         description: campaignToEdit.description || "",
         superintendentName: campaignToEdit.superintendentName || "",
         specialCampaignTerritoriesPerDay: campaignToEdit.specialCampaignTerritoriesPerDay === undefined || campaignToEdit.specialCampaignTerritoriesPerDay === null ? 0 : campaignToEdit.specialCampaignTerritoriesPerDay,
@@ -127,15 +127,15 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
     setIsSubmitting(true);
 
     const campaignData: Omit<Campaign, 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp } = {
-      id: isEditMode && campaignToEdit ? campaignToEdit.id : crypto.randomUUID(),
+      id: isEditMode && campaignToEdit ? campaignToEdit.id : undefined, // Let parent handle ID generation for new
       name: values.name,
       type: values.type,
-      startDate: Timestamp.fromDate(values.startDate),
-      endDate: Timestamp.fromDate(values.endDate),
+      startDate: values.startDate, // Pass as Date, parent will convert to Timestamp
+      endDate: values.endDate,     // Pass as Date, parent will convert to Timestamp
       specialCampaignTerritoriesPerDay: values.specialCampaignTerritoriesPerDay,
     };
     if (isEditMode && campaignToEdit) {
-        campaignData.createdAt = campaignToEdit.createdAt;
+        campaignData.createdAt = campaignToEdit.createdAt; // Preserve original createdAt on edit
     }
 
     if (values.description && values.description.trim() !== "") {
@@ -371,4 +371,5 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
     </Dialog>
   );
 }
+
 

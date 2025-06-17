@@ -44,42 +44,43 @@ export interface Campaign {
   id: string;
   name: string;
   type: CampaignType;
-  startDate: Timestamp;
-  endDate: Timestamp;
-  superintendentName?: string; // Only for 'superintendent_visit'
-  specialCampaignTerritoriesPerDay?: number;
-  description?: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  startDate: Date | Timestamp; // Can be Date in JS, Timestamp in Firestore
+  endDate: Date | Timestamp;   // Can be Date in JS, Timestamp in Firestore
+  superintendentName?: string | null; // Only for 'superintendent_visit'
+  specialCampaignTerritoriesPerDay?: number | null;
+  description?: string | null;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface CustomHoliday {
   id: string;
   name: string;
-  date: Timestamp;
-  description?: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  date: Date | Timestamp; // Can be Date in JS, Timestamp in Firestore
+  description?: string | null;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface Assembly {
   id: string;
   name: string; // e.g., "Asamblea de Circuito 'Amemos a Jehová'", "Asamblea Regional 2024"
-  startDate: Timestamp;
-  endDate: Timestamp;
-  description?: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  startDate: Date | Timestamp; // Can be Date in JS, Timestamp in Firestore
+  endDate: Date | Timestamp;   // Can be Date in JS, Timestamp in Firestore
+  description?: string | null;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface SettingsDoc {
   rolePermissions?: RoleConfiguration;
   programScheduleSlots?: ProgramScheduleSlot[];
   groupOrganizedDays?: DayOfWeek[];
-  campaigns?: Campaign[];
-  customHolidays?: CustomHoliday[];
-  assemblies?: Assembly[];
-  lastRuralWeekendLeadingGroupId?: string;
+  campaignsList?: Campaign[];      // Renamed for clarity in Firestore
+  holidaysList?: CustomHoliday[];  // Renamed for clarity in Firestore
+  assembliesList?: Assembly[];     // Renamed for clarity in Firestore
+  lastRuralWeekendLeadingGroupId?: string | null; // Can be null
+  updatedAt?: Timestamp; // General timestamp for the settings document
 }
 
 
@@ -244,4 +245,5 @@ export interface GroupAssignment {
   createdAt: Timestamp;
   createdBy: string; // Firebase Auth UID of the SG who created it
 }
+
 
