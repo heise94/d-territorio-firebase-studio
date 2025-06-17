@@ -169,14 +169,10 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     const blockHouseCounts = values.blockHouseCounts || [];
     const approxHouseCount = blockHouseCounts.reduce((sum, count) => sum + count, 0);
 
-    const submittedTerritory: Territory = {
+    const territoryData: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt'> = {
       id: isEditMode && territoryToEdit ? territoryToEdit.id : crypto.randomUUID(),
       type: values.type,
-      number: values.type === "urban" ? values.number : undefined,
       name: values.name,
-      mapImageUrl: values.mapImageUrl || undefined,
-      dataAiHint: "map sketch", // Default hint, can be customized later
-      googleMapsLink: values.googleMapsLink || undefined,
       totalBlocks: values.totalBlocks,
       blockHouseCounts: blockHouseCounts,
       approxHouseCount: approxHouseCount,
@@ -185,20 +181,36 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       isBlocked: isEditMode && territoryToEdit ? territoryToEdit.isBlocked : false,
       groupIds: values.groupIdsString?.split(',').map(s => s.trim()).filter(s => s) || [],
       associatedCasaIds: values.associatedCasaIdsString?.split(',').map(s => s.trim()).filter(s => s) || [],
-      lastWorked: isEditMode && territoryToEdit ? territoryToEdit.lastWorked : undefined,
       createdAt: isEditMode && territoryToEdit ? territoryToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
+      dataAiHint: "map sketch", // Default hint
     };
 
-    // No API call or toast here, parent will handle it
-    onTerritorySubmit(submittedTerritory);
+    if (values.type === "urban" && values.number && values.number.trim() !== "") {
+      territoryData.number = values.number.trim();
+    }
+    if (values.mapImageUrl && values.mapImageUrl.trim() !== "") {
+      territoryData.mapImageUrl = values.mapImageUrl.trim();
+    }
+    if (values.googleMapsLink && values.googleMapsLink.trim() !== "") {
+      territoryData.googleMapsLink = values.googleMapsLink.trim();
+    }
+    if (isEditMode && territoryToEdit && territoryToEdit.lastWorked) {
+      territoryData.lastWorked = territoryToEdit.lastWorked;
+    }
+     if (isEditMode && territoryToEdit && territoryToEdit.blockReason) {
+      territoryData.blockReason = territoryToEdit.blockReason;
+    }
+    if (isEditMode && territoryToEdit && territoryToEdit.unblockDate) {
+      territoryData.unblockDate = territoryToEdit.unblockDate;
+    }
     
-    // Reset form only if not in edit mode, parent handles dialog closing
+    onTerritorySubmit(territoryData as Territory);
+    
     if (!isEditMode) {
         form.reset();
         setMapImagePreview(null);
     }
-    // onOpenChange(false); // Parent page will close the dialog after successful Firestore operation
     setIsSubmitting(false);
   }
 
