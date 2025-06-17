@@ -11,6 +11,7 @@ import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban,
 import type { Territory } from "@/types";
 import { ViewImageDialog } from './view-image-dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast"; // Import useToast
 
 interface TerritoryCardProps {
   territory: Territory;
@@ -22,6 +23,82 @@ interface TerritoryCardProps {
 export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: TerritoryCardProps) {
   const approxHouseCountDisplay = territory.approxHouseCount ?? territory.blockHouseCounts?.reduce((a, b) => a + b, 0) ?? 'N/A';
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const { toast } = useToast(); // Initialize useToast
+
+  const handleShare = async () => {
+    const title = `Información del Territorio: ${territory.name}`;
+    let textToShare = `Territorio: ${territory.name}\n`;
+    if (territory.type === 'urban' && territory.number) {
+      textToShare += `Número: U-${territory.number}\n`;
+    }
+    textToShare += `Tipo: ${territory.type === 'urban' ? 'Urbano' : 'Rural'}\n`;
+    if (territory.mapImageUrl) {
+      textToShare += `Mapa: ${territory.mapImageUrl}\n`; // Consider sharing a link if it's a public URL
+    }
+    if (territory.googleMapsLink) {
+      textToShare += `Google Maps: ${territory.googleMapsLink}\n`;
+    }
+
+    const shareData: ShareData = {
+      title: title,
+      text: textToShare,
+      url: territory.googleMapsLink || (typeof window !== 'undefined' ? window.location.href : undefined), // Fallback to current page URL
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        toast({
+          title: "Territorio Compartido",
+          description: "La información del territorio se ha compartido.",
+        });
+      } catch (error) {
+        console.error("Error al compartir:", error);
+        // Fallback to clipboard if sharing fails (e.g., user cancels) or for certain errors
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            // User cancelled the share operation
+            toast({
+                title: "Compartir Cancelado",
+                description: "No se compartió la información del territorio.",
+                variant: "default",
+            });
+        } else {
+            // Attempt to copy to clipboard as a fallback for other share errors
+            try {
+                await navigator.clipboard.writeText(textToShare);
+                toast({
+                    title: "Copiado al Portapapeles",
+                    description: "No se pudo compartir, pero la información se copió al portapapeles.",
+                });
+            } catch (copyError) {
+                console.error("Error al copiar al portapapeles:", copyError);
+                toast({
+                    title: "Error",
+                    description: "No se pudo compartir ni copiar la información del territorio.",
+                    variant: "destructive",
+                });
+            }
+        }
+      }
+    } else {
+      // Fallback for browsers that don't support Web Share API
+      try {
+        await navigator.clipboard.writeText(textToShare);
+        toast({
+          title: "Copiado al Portapapeles",
+          description: "La información del territorio se ha copiado al portapapeles.",
+        });
+      } catch (error) {
+        console.error("Error al copiar al portapapeles:", error);
+        toast({
+          title: "Error al Copiar",
+          description: "No se pudo copiar la información al portapapeles.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
 
   return (
     <>
@@ -160,7 +237,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
           )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" onClick={() => alert('Función "Compartir" no implementada.')} aria-label="Compartir territorio" className="h-8 w-8">
+              <Button variant="outline" size="icon" onClick={handleShare} aria-label="Compartir territorio" className="h-8 w-8">
                   <Share2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -181,3 +258,4 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
     </>
   );
 }
+
