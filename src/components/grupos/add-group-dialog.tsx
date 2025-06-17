@@ -48,6 +48,7 @@ interface AddGroupDialogProps {
   groupToEdit?: PreachingGroup | null;
 }
 
+// MOCK USER DATA - Replace with actual user fetching logic in a real app
 const mockUsers = [
     { id: 'uidElena', name: 'Elena Campos' },
     { id: 'uidCarlos', name: 'Carlos Rivas' },
@@ -60,7 +61,7 @@ const mockUsers = [
 const NO_USER_VALUE = "___NO_USER_SELECTED___";
 
 export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdit }: AddGroupDialogProps) {
-  const { toast } = useToast();
+  const { toast } = useToast(); // Kept for potential future use, but actual saving toasts are in page
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = !!groupToEdit;
 
@@ -100,17 +101,20 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
       updatedAt: Timestamp.now(),
     };
     
-    await new Promise(resolve => setTimeout(resolve, 600));
-
-    onGroupSubmit(submittedGroup);
-    toast({
-      title: isEditMode ? "Grupo Actualizado" : "Grupo Añadido",
-      description: `El grupo "${values.name}" ha sido ${isEditMode ? 'actualizado' : 'registrado'} (simulación).`,
-    });
-    
-    if (!isEditMode) form.reset(); 
-    onOpenChange(false); 
-    setIsSubmitting(false);
+    // The actual Firestore operation is handled by the onGroupSubmit prop from the page
+    try {
+      await onGroupSubmit(submittedGroup);
+      // Toast messages will be handled by the page after Firestore op
+    } catch (error) {
+      // This catch is for errors thrown by the onGroupSubmit itself if it's async and can fail
+      console.error("Error during group submission in dialog (passed to parent):", error);
+      // Toast can be shown here for dialog-specific issues, but parent handles save success/failure
+    } finally {
+        setIsSubmitting(false);
+        // Dialog closing is handled by the parent page upon successful Firestore operation.
+        // If onGroupSubmit doesn't close dialog, we might need to onOpenChange(false) here.
+        // But current flow is that page handles it.
+    }
   }
   
   const handleDialogClose = (open: boolean) => {

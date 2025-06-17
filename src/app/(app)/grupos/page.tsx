@@ -5,31 +5,54 @@ import { useState, useMemo, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Search, Users2 as GroupIcon, Pencil, Trash2 } from "lucide-react";
+import { PlusCircle, Search, Users2 as GroupIcon, Pencil, Trash2, Loader2 } from "lucide-react";
 import { AddGroupDialog } from "@/components/grupos/add-group-dialog";
 import type { PreachingGroup } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp } from "firebase/firestore";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { GroupCard } from "@/components/grupos/group-card";
 import { TooltipProvider } from "@/components/ui/tooltip";
-
-
-const initialGroups: PreachingGroup[] = [
-    { id: 'G1', name: 'Grupo Los Pioneros', description: 'Grupo de predicación enfocado en el centro.', superintendentId: 'uidElena', auxiliaryId: 'uidCarlos', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-    { id: 'G2', name: 'Grupo Betel', description: 'Conquistadores de nuevos territorios rurales.', superintendentId: 'uidPedro', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-    { id: 'G3', name: 'Grupo Emanuel', superintendentId: 'uidLaura', auxiliaryId: 'someOtherUID', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-];
+import { Skeleton } from "@/components/ui/skeleton";
 
 
 export default function GruposPage() {
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [groupToEdit, setGroupToEdit] = useState<PreachingGroup | null>(null);
-  const [groups, setGroups] = useState<PreachingGroup[]>(initialGroups);
+  const [groups, setGroups] = useState<PreachingGroup[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
-  // Effect to reset edit state when dialog closes
+  useEffect(() => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      setIsLoadingGroups(false);
+      return;
+    }
+    setIsLoadingGroups(true);
+    const groupsCollectionRef = collection(db, "preachingGroups");
+    const q = query(groupsCollectionRef, orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedGroups = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt : Timestamp.now(),
+        updatedAt: doc.data().updatedAt instanceof Timestamp ? doc.data().updatedAt : Timestamp.now(),
+      } as PreachingGroup));
+      setGroups(fetchedGroups);
+      setIsLoadingGroups(false);
+    }, (error) => {
+      console.error("Error fetching groups:", error);
+      toast({ title: "Error al Cargar Grupos", description: "No se pudieron cargar los grupos desde Firestore.", variant: "destructive" });
+      setIsLoadingGroups(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
+
+
   useEffect(() => {
     if (!isGroupDialogOpen) {
       setGroupToEdit(null);
@@ -46,25 +69,51 @@ export default function GruposPage() {
     setIsGroupDialogOpen(true);
   };
 
-  const handleGroupSubmit = (submittedGroup: PreachingGroup) => {
-    setGroups(prevGroups => {
-      const existingIndex = prevGroups.findIndex(g => g.id === submittedGroup.id);
-      if (existingIndex > -1) {
-        const updatedGroups = [...prevGroups];
-        updatedGroups[existingIndex] = submittedGroup;
-        return updatedGroups;
-      } else {
-        // For new groups, ensure id is unique if not already handled by dialog
-        return [...prevGroups, { ...submittedGroup, id: submittedGroup.id || crypto.randomUUID() }];
-      }
-    });
-    setIsGroupDialogOpen(false);
+  const handleGroupSubmit = async (submittedGroupData: PreachingGroup) => {
+     if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
+      return;
+    }
+    
+    const isEditing = !!groups.find(g => g.id === submittedGroupData.id);
+    const docRef = doc(db, "preachingGroups", submittedGroupData.id);
+
+    // Ensure optional fields are set to undefined if empty string, to remove them from Firestore if needed
+    const dataToSave: PreachingGroup = {
+        ...submittedGroupData,
+        description: submittedGroupData.description?.trim() || undefined,
+        superintendentId: submittedGroupData.superintendentId?.trim() || undefined,
+        auxiliaryId: submittedGroupData.auxiliaryId?.trim() || undefined,
+        updatedAt: Timestamp.now(), // Always update this
+        createdAt: isEditing ? submittedGroupData.createdAt : Timestamp.now() // Keep original if editing
+    };
+
+    try {
+      await setDoc(docRef, dataToSave, { merge: true }); // merge:true is good for updates
+      toast({
+        title: isEditing ? "Grupo Actualizado" : "Grupo Añadido",
+        description: `El grupo "${dataToSave.name}" ha sido ${isEditing ? 'actualizado' : 'registrado'} en Firestore.`,
+      });
+      setIsGroupDialogOpen(false);
+    } catch (error) {
+      console.error("Error saving group:", error);
+      toast({ title: "Error al Guardar", description: "No se pudo guardar el grupo.", variant: "destructive" });
+    }
   };
 
-  const handleDeleteGroup = (groupId: string) => {
-    setGroups(prevGroups => prevGroups.filter(g => g.id !== groupId));
-    const group = groups.find(g => g.id === groupId);
-    toast({ title: "Grupo Eliminado", description: `El grupo "${group?.name || groupId}" ha sido eliminado (simulación).`, variant: "destructive" });
+  const handleDeleteGroup = async (groupId: string) => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
+      return;
+    }
+    const groupToDelete = groups.find(g => g.id === groupId);
+    try {
+      await deleteDoc(doc(db, "preachingGroups", groupId));
+      toast({ title: "Grupo Eliminado", description: `El grupo "${groupToDelete?.name || groupId}" ha sido eliminado de Firestore.`, variant: "destructive" });
+    } catch (error) {
+      console.error("Error deleting group:", error);
+      toast({ title: "Error al Eliminar", description: "No se pudo eliminar el grupo.", variant: "destructive" });
+    }
   };
 
   const filteredGroups = useMemo(() => {
@@ -96,10 +145,12 @@ export default function GruposPage() {
           <CardTitle>Lista de Grupos</CardTitle>
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
             <CardDescription>
-              {filteredGroups.length > 0
-                ? `Mostrando ${filteredGroups.length} de ${groups.length} grupo(s) registrados.`
-                : groups.length > 0 ? "Ningún grupo coincide con la búsqueda."
-                : "Actualmente no hay grupos registrados."
+              {isLoadingGroups ? "Cargando grupos..." :
+                (filteredGroups.length > 0
+                  ? `Mostrando ${filteredGroups.length} de ${groups.length} grupo(s) registrados.`
+                  : groups.length > 0 ? "Ningún grupo coincide con la búsqueda."
+                  : "Actualmente no hay grupos registrados."
+                )
               }
             </CardDescription>
             <div className="relative w-full sm:w-64 md:w-72">
@@ -115,7 +166,17 @@ export default function GruposPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {groups.length === 0 && !searchTerm ? (
+          {isLoadingGroups ? (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i} className="flex flex-col">
+                  <CardHeader><Skeleton className="h-6 w-3/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
+                  <CardContent className="flex-grow space-y-2 pt-2"><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></CardContent>
+                  <CardFooter className="border-t pt-3 pb-3 flex justify-center gap-1"><Skeleton className="h-8 w-8" /> <Skeleton className="h-8 w-8" /></CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : groups.length === 0 && !searchTerm ? (
             <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
               <GroupIcon className="h-20 w-20 text-muted-foreground/70 mb-6" />
               <p className="text-xl font-medium text-muted-foreground mb-2">No hay grupos para mostrar.</p>
@@ -138,7 +199,7 @@ export default function GruposPage() {
                   key={group.id}
                   group={group}
                   onEdit={() => handleOpenEditDialog(group)}
-                  onDelete={() => handleDeleteGroup(group.id)} // Actual confirmation handled within GroupCard via AlertDialog
+                  onDelete={() => handleDeleteGroup(group.id)}
                 />
               ))}
             </div>
@@ -156,3 +217,4 @@ export default function GruposPage() {
     </TooltipProvider>
   );
 }
+
