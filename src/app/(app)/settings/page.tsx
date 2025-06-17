@@ -164,7 +164,7 @@ export default function SettingsPage() {
   const [isSavingSpecialEvents, setIsSavingSpecialEvents] = useState(false);
 
 
-  const [selectedLastRuralGroupId, setSelectedLastRuralGroupId] = useState<string | null | undefined>(undefined);
+  const [selectedLastRuralGroupId, setSelectedLastRuralGroupId] = useState<string | null | undefined>(undefined); // undefined for initial state, null for "None"
   const [isSavingRuralRotation, setIsSavingRuralRotation] = useState(false);
 
   const [editableRolePermissions, setEditableRolePermissions] = useState<RoleConfiguration>(DEFAULT_ROLE_PERMISSIONS);
@@ -225,11 +225,11 @@ export default function SettingsPage() {
             const data = docSnap.data() as Partial<SettingsDoc>;
             setScheduleSlots(data.scheduleSlots || []);
             setGroupOrganizedDays(data.groupOrganizedDays || []);
-            setSelectedLastRuralGroupId(data.lastRuralWeekendLeadingGroupId === undefined ? null : data.lastRuralWeekendLeadingGroupId); // Handle undefined from DB as null
+            setSelectedLastRuralGroupId(data.lastRuralWeekendLeadingGroupId === undefined ? null : data.lastRuralWeekendLeadingGroupId);
         } else {
             setScheduleSlots([]);
             setGroupOrganizedDays([]);
-            setSelectedLastRuralGroupId(null); // Default to null if doc doesn't exist
+            setSelectedLastRuralGroupId(null);
         }
     } catch (error) {
         console.error("Error fetching program configuration:", error);
@@ -253,10 +253,10 @@ export default function SettingsPage() {
       const docRef = doc(db, "settings", "specialEventsConfig");
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        const data = docSnap.data() as Partial<SettingsDoc>; // Use Partial
-        setCampaigns(data.campaigns || []);
-        setCustomHolidays(data.customHolidays || []);
-        setAssemblies(data.assemblies || []);
+        const data = docSnap.data() as Partial<SettingsDoc>;
+        setCampaigns((data.campaignsList || []).map((c:any) => ({...c, startDate: c.startDate?.toDate ? c.startDate.toDate() : c.startDate, endDate: c.endDate?.toDate ? c.endDate.toDate() : c.endDate })));
+        setCustomHolidays((data.holidaysList || []).map((h:any) => ({...h, date: h.date?.toDate ? h.date.toDate() : h.date })));
+        setAssemblies((data.assembliesList || []).map((a:any) => ({...a, startDate: a.startDate?.toDate ? a.startDate.toDate() : a.startDate, endDate: a.endDate?.toDate ? a.endDate.toDate() : a.endDate })));
       } else {
         setCampaigns([]);
         setCustomHolidays([]);
@@ -347,8 +347,8 @@ export default function SettingsPage() {
         if (configToSave.groupOrganizedDays !== undefined) {
             finalConfig.groupOrganizedDays = configToSave.groupOrganizedDays;
         }
-        if (configToSave.hasOwnProperty('lastRuralWeekendLeadingGroupId')) { // Check if property exists, even if null
-            finalConfig.lastRuralWeekendLeadingGroupId = configToSave.lastRuralWeekendLeadingGroupId === undefined ? deleteField() : configToSave.lastRuralWeekendLeadingGroupId; // Use deleteField for undefined
+        if (configToSave.hasOwnProperty('lastRuralWeekendLeadingGroupId')) {
+            finalConfig.lastRuralWeekendLeadingGroupId = configToSave.lastRuralWeekendLeadingGroupId === undefined ? deleteField() : configToSave.lastRuralWeekendLeadingGroupId;
         }
         
         await setDoc(docRef, finalConfig, { merge: true });
@@ -360,7 +360,25 @@ export default function SettingsPage() {
     }
   };
 
-  const saveSpecialEventsToFirestore = async (eventsData: Pick<SettingsDoc, 'campaigns' | 'customHolidays' | 'assemblies'>) => {
+  const sanitizeFirestoreObject = (obj: any) => {
+    const newObj: any = {};
+    for (const key in obj) {
+      if (obj[key] !== undefined) {
+        if (obj[key] instanceof Date && !isNaN(obj[key].valueOf())) { // Check for valid Date
+          newObj[key] = Timestamp.fromDate(obj[key]);
+        } else if (obj[key] instanceof Timestamp){
+          newObj[key] = obj[key];
+        } else {
+          newObj[key] = obj[key];
+        }
+      }
+    }
+    // Remove specific problematic fields if they are still undefined or not useful
+    if (newObj.isActive === undefined) delete newObj.isActive; // example
+    return newObj;
+  };
+
+  const saveSpecialEventsToFirestore = async (eventsData: { campaigns: Campaign[]; customHolidays: CustomHoliday[]; assemblies: Assembly[] }) => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       return false;
@@ -368,26 +386,11 @@ export default function SettingsPage() {
     setIsSavingSpecialEvents(true);
     try {
       const docRef = doc(db, "settings", "specialEventsConfig");
-
-      const sanitizeItem = (item: any, isCampaign: boolean = false) => {
-        const sanitized: any = { ...item };
-        // Convert empty strings or undefined for optional fields to null
-        sanitized.description = item.description || null;
-        if (isCampaign) {
-          sanitized.superintendentName = item.superintendentName || null;
-          sanitized.specialCampaignTerritoriesPerDay = item.specialCampaignTerritoriesPerDay === undefined ? null : Number(item.specialCampaignTerritoriesPerDay);
-        }
-        // Remove any remaining undefined fields
-        Object.keys(sanitized).forEach(key => {
-          if (sanitized[key] === undefined) delete sanitized[key];
-        });
-        return sanitized;
-      };
       
       const payloadToSave = {
-        campaigns: (eventsData.campaigns || []).map(c => sanitizeItem(c, true)),
-        customHolidays: (eventsData.customHolidays || []).map(h => sanitizeItem(h)),
-        assemblies: (eventsData.assemblies || []).map(a => sanitizeItem(a)),
+        campaignsList: (eventsData.campaigns || []).map(c => sanitizeFirestoreObject(c)),
+        holidaysList: (eventsData.customHolidays || []).map(h => sanitizeFirestoreObject(h)),
+        assembliesList: (eventsData.assemblies || []).map(a => sanitizeFirestoreObject(a)),
         updatedAt: serverTimestamp(),
       };
       
@@ -466,97 +469,121 @@ export default function SettingsPage() {
   };
 
 
-  const handleCampaignSubmit = async (submittedCampaign: Omit<Campaign, 'isActive'>) => {
-    setIsSavingSpecialEvents(true);
+  const handleCampaignSubmit = async (submittedCampaignData: Omit<Campaign, 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
     let updatedCampaigns;
-    const existingIndex = campaigns.findIndex(c => c.id === submittedCampaign.id);
+    const campaignWithTimestamps = {
+        ...submittedCampaignData,
+        startDate: Timestamp.fromDate(submittedCampaignData.startDate instanceof Date ? submittedCampaignData.startDate : new Date(submittedCampaignData.startDate.seconds * 1000)),
+        endDate: Timestamp.fromDate(submittedCampaignData.endDate instanceof Date ? submittedCampaignData.endDate : new Date(submittedCampaignData.endDate.seconds * 1000)),
+        createdAt: submittedCampaignData.createdAt instanceof Timestamp ? submittedCampaignData.createdAt : Timestamp.now(),
+        updatedAt: Timestamp.now(),
+    };
+    
+    const existingIndex = campaigns.findIndex(c => c.id === campaignWithTimestamps.id);
     if (existingIndex > -1) {
-      updatedCampaigns = campaigns.map(c => c.id === submittedCampaign.id ? submittedCampaign : c);
+      updatedCampaigns = campaigns.map(c => c.id === campaignWithTimestamps.id ? campaignWithTimestamps : c);
     } else {
-      updatedCampaigns = [...campaigns, submittedCampaign];
+      updatedCampaigns = [...campaigns, campaignWithTimestamps];
     }
     updatedCampaigns.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
     
     const success = await saveSpecialEventsToFirestore({ campaigns: updatedCampaigns, customHolidays, assemblies });
-    setIsSavingSpecialEvents(false);
 
     if (success) {
-        setCampaigns(updatedCampaigns);
-        toast({ title: campaignToEdit ? "Campaña Actualizada" : "Campaña Añadida", description: `La campaña "${submittedCampaign.name}" ha sido guardada.` });
+        setCampaigns(updatedCampaigns.map(c => ({...c, startDate: c.startDate.toDate(), endDate: c.endDate.toDate()} as any))); // Convert back for UI state
+        toast({ title: campaignToEdit ? "Campaña Actualizada" : "Campaña Añadida", description: `La campaña "${campaignWithTimestamps.name}" ha sido guardada.` });
         setIsCampaignDialogOpen(false);
         setCampaignToEdit(null);
     }
   };
+
   const handleDeleteCampaign = async (campaignId: string) => {
-    setIsSavingSpecialEvents(true);
     const campaignToDelete = campaigns.find(c => c.id === campaignId);
     const updatedCampaigns = campaigns.filter(c => c.id !== campaignId);
-    const success = await saveSpecialEventsToFirestore({ campaigns: updatedCampaigns, customHolidays, assemblies });
-    setIsSavingSpecialEvents(false);
+    const success = await saveSpecialEventsToFirestore({ 
+        campaigns: updatedCampaigns.map(c => ({...c, startDate: Timestamp.fromDate(new Date(c.startDate)), endDate: Timestamp.fromDate(new Date(c.endDate))})), // Ensure Timestamps
+        customHolidays, 
+        assemblies 
+    });
     if (success) {
         setCampaigns(updatedCampaigns);
         toast({ title: "Campaña Eliminada", description: `La campaña "${campaignToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
     }
   };
 
-  const handleAssemblySubmit = async (submittedAssembly: Assembly) => {
-    setIsSavingSpecialEvents(true);
+  const handleAssemblySubmit = async (submittedAssemblyData: Omit<Assembly, 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
     let updatedAssemblies;
-    const existingIndex = assemblies.findIndex(a => a.id === submittedAssembly.id);
+     const assemblyWithTimestamps = {
+        ...submittedAssemblyData,
+        startDate: Timestamp.fromDate(submittedAssemblyData.startDate instanceof Date ? submittedAssemblyData.startDate : new Date(submittedAssemblyData.startDate.seconds * 1000)),
+        endDate: Timestamp.fromDate(submittedAssemblyData.endDate instanceof Date ? submittedAssemblyData.endDate : new Date(submittedAssemblyData.endDate.seconds * 1000)),
+        createdAt: submittedAssemblyData.createdAt instanceof Timestamp ? submittedAssemblyData.createdAt : Timestamp.now(),
+        updatedAt: Timestamp.now(),
+    };
+
+    const existingIndex = assemblies.findIndex(a => a.id === assemblyWithTimestamps.id);
     if (existingIndex > -1) {
-      updatedAssemblies = assemblies.map(a => a.id === submittedAssembly.id ? submittedAssembly : a);
+      updatedAssemblies = assemblies.map(a => a.id === assemblyWithTimestamps.id ? assemblyWithTimestamps : a);
     } else {
-      updatedAssemblies = [...assemblies, submittedAssembly];
+      updatedAssemblies = [...assemblies, assemblyWithTimestamps];
     }
     updatedAssemblies.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
 
     const success = await saveSpecialEventsToFirestore({ campaigns, customHolidays, assemblies: updatedAssemblies });
-    setIsSavingSpecialEvents(false);
     if (success) {
-        setAssemblies(updatedAssemblies);
-        toast({ title: assemblyToEdit ? "Asamblea Actualizada" : "Asamblea Añadida", description: `La asamblea "${submittedAssembly.name}" ha sido guardada.` });
+        setAssemblies(updatedAssemblies.map(a => ({...a, startDate: a.startDate.toDate(), endDate: a.endDate.toDate()} as any)));
+        toast({ title: assemblyToEdit ? "Asamblea Actualizada" : "Asamblea Añadida", description: `La asamblea "${assemblyWithTimestamps.name}" ha sido guardada.` });
         setIsAssemblyDialogOpen(false);
         setAssemblyToEdit(null);
     }
   };
   const handleDeleteAssembly = async (assemblyId: string) => {
-    setIsSavingSpecialEvents(true);
     const assemblyToDelete = assemblies.find(a => a.id === assemblyId);
     const updatedAssemblies = assemblies.filter(a => a.id !== assemblyId);
-    const success = await saveSpecialEventsToFirestore({ campaigns, customHolidays, assemblies: updatedAssemblies });
-    setIsSavingSpecialEvents(false);
+    const success = await saveSpecialEventsToFirestore({ 
+        campaigns, 
+        customHolidays, 
+        assemblies: updatedAssemblies.map(a => ({...a, startDate: Timestamp.fromDate(new Date(a.startDate)), endDate: Timestamp.fromDate(new Date(a.endDate))}))
+    });
     if (success) {
         setAssemblies(updatedAssemblies);
         toast({ title: "Asamblea Eliminada", description: `La asamblea "${assemblyToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
     }
   };
 
-  const handleHolidaySubmit = async (submittedHoliday: CustomHoliday) => {
-    setIsSavingSpecialEvents(true);
+  const handleHolidaySubmit = async (submittedHolidayData: Omit<CustomHoliday, 'createdAt' | 'updatedAt'> & { id?:string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
     let updatedHolidays;
-    const existingIndex = customHolidays.findIndex(h => h.id === submittedHoliday.id);
+     const holidayWithTimestamps = {
+        ...submittedHolidayData,
+        date: Timestamp.fromDate(submittedHolidayData.date instanceof Date ? submittedHolidayData.date : new Date(submittedHolidayData.date.seconds * 1000)),
+        createdAt: submittedHolidayData.createdAt instanceof Timestamp ? submittedHolidayData.createdAt : Timestamp.now(),
+        updatedAt: Timestamp.now(),
+    };
+
+    const existingIndex = customHolidays.findIndex(h => h.id === holidayWithTimestamps.id);
     if (existingIndex > -1) {
-      updatedHolidays = customHolidays.map(h => h.id === submittedHoliday.id ? submittedHoliday : h);
+      updatedHolidays = customHolidays.map(h => h.id === holidayWithTimestamps.id ? holidayWithTimestamps : h);
     } else {
-      updatedHolidays = [...customHolidays, submittedHoliday];
+      updatedHolidays = [...customHolidays, holidayWithTimestamps];
     }
     updatedHolidays.sort((a,b) => a.date.toMillis() - b.date.toMillis());
 
     const success = await saveSpecialEventsToFirestore({ campaigns, customHolidays: updatedHolidays, assemblies });
-    setIsSavingSpecialEvents(false);
     if (success) {
-        setCustomHolidays(updatedHolidays);
-        toast({ title: holidayToEdit ? "Festivo Actualizado" : "Festivo Añadido", description: `El festivo "${submittedHoliday.name}" ha sido guardado.` });
+        setCustomHolidays(updatedHolidays.map(h => ({...h, date: h.date.toDate()} as any)));
+        toast({ title: holidayToEdit ? "Festivo Actualizado" : "Festivo Añadido", description: `El festivo "${holidayWithTimestamps.name}" ha sido guardado.` });
         setIsHolidayDialogOpen(false);
         setHolidayToEdit(null);
     }
   };
   const handleDeleteHoliday = async (holidayId: string) => {
-    setIsSavingSpecialEvents(true);
     const holidayToDelete = customHolidays.find(h => h.id === holidayId);
     const updatedHolidays = customHolidays.filter(h => h.id !== holidayId);
-    const success = await saveSpecialEventsToFirestore({ campaigns, customHolidays: updatedHolidays, assemblies });
-    setIsSavingSpecialEvents(false);
+    const success = await saveSpecialEventsToFirestore({ 
+        campaigns, 
+        customHolidays: updatedHolidays.map(h => ({...h, date: Timestamp.fromDate(new Date(h.date))})), 
+        assemblies 
+    });
     if (success) {
         setCustomHolidays(updatedHolidays);
         toast({ title: "Festivo Eliminado", description: `El festivo "${holidayToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
@@ -583,7 +610,7 @@ export default function SettingsPage() {
         { year: 2026, month: 3, day: 3, name: "Viernes Santo (Ej. 2026)"}, { year: 2026, month: 3, day: 4, name: "Sábado Santo (Ej. 2026)"},
     ];
     const newHolidaysToAdd: CustomHoliday[] = [];
-    const existingDates = new Set(customHolidays.map(h => h.date.toDate().toDateString()));
+    const existingDates = new Set(customHolidays.map(h => h.date instanceof Timestamp ? h.date.toDate().toDateString() : new Date(h.date).toDateString()));
     const twelveMonthsFromTodayEnd = new Date(today.getFullYear(), today.getMonth() + 12, today.getDate());
     for (let i = 0; i < 12; i++) {
       const currentDateIter = new Date(today.getFullYear(), today.getMonth() + i, 1);
@@ -609,10 +636,16 @@ export default function SettingsPage() {
     }
     
     if (newHolidaysToAdd.length > 0) {
-        const updatedHolidays = [...customHolidays, ...newHolidaysToAdd].sort((a,b) => a.date.toMillis() - b.date.toMillis());
-        const success = await saveSpecialEventsToFirestore({ campaigns, customHolidays: updatedHolidays, assemblies });
+        const currentCustomHolidaysAsTimestamps = customHolidays.map(h => ({ ...h, date: Timestamp.fromDate(new Date(h.date)) }));
+        const updatedHolidaysWithTimestamps = [...currentCustomHolidaysAsTimestamps, ...newHolidaysToAdd].sort((a,b) => a.date.toMillis() - b.date.toMillis());
+        
+        const success = await saveSpecialEventsToFirestore({ 
+            campaigns: campaigns.map(c => ({...c, startDate: Timestamp.fromDate(new Date(c.startDate)), endDate: Timestamp.fromDate(new Date(c.endDate))})), // Ensure Timestamps
+            customHolidays: updatedHolidaysWithTimestamps, 
+            assemblies: assemblies.map(a => ({...a, startDate: Timestamp.fromDate(new Date(a.startDate)), endDate: Timestamp.fromDate(new Date(a.endDate))})) // Ensure Timestamps
+        });
         if (success) {
-            setCustomHolidays(updatedHolidays);
+            setCustomHolidays(updatedHolidaysWithTimestamps.map(h => ({...h, date: h.date.toDate()} as any)));
             toast({ title: "Festivos de Ejemplo Cargados", description: `${newHolidaysToAdd.length} festivos (Chile, próximos 12 meses) añadidos y guardados. Verifique y ajuste.`, duration: 10000 });
         }
     } else {
@@ -624,7 +657,8 @@ export default function SettingsPage() {
   const groupedHolidays = useMemo(() => {
     if (!customHolidays.length) return {}; const groups: Record<string, CustomHoliday[]> = {};
     customHolidays.forEach(holiday => {
-      const holidayDate = holiday.date.toDate(); const year = holidayDate.getUTCFullYear(); const month = holidayDate.getUTCMonth();
+      const holidayDate = holiday.date instanceof Timestamp ? holiday.date.toDate() : new Date(holiday.date);
+      const year = holidayDate.getUTCFullYear(); const month = holidayDate.getUTCMonth();
       const monthYearKey = `${year}-${String(month).padStart(2, '0')}`;
       if (!groups[monthYearKey]) groups[monthYearKey] = [];
       groups[monthYearKey].push(holiday);
@@ -635,7 +669,7 @@ export default function SettingsPage() {
   const handleSaveRuralRotation = async () => {
     setIsSavingRuralRotation(true);
     const valueToSave = selectedLastRuralGroupId === undefined ? deleteField() : selectedLastRuralGroupId;
-    const success = await saveProgramConfigToFirestore({ lastRuralWeekendLeadingGroupId: valueToSave as string | null }); // cast null explicitly if valueToSave can be null
+    const success = await saveProgramConfigToFirestore({ lastRuralWeekendLeadingGroupId: valueToSave as string | null });
     
     if (success) {
         toast({ title: "Configuración Guardada", description: "La rotación para predicación rural de fin de semana ha sido actualizada." });
@@ -879,7 +913,13 @@ export default function SettingsPage() {
                       <div className="flex flex-col items-center justify-center py-10 text-center bg-muted/30 rounded-lg border border-dashed"><PackageSearch className="h-16 w-16 text-muted-foreground/70 mb-4" /><p className="text-lg font-medium text-muted-foreground mb-1">No hay campañas configuradas.</p><p className="text-sm text-muted-foreground">Haz clic en "Añadir Campaña".</p></div>
                     ) : (
                       <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Nombre</TableHead><TableHead>Tipo</TableHead><TableHead>Fechas</TableHead><TableHead>Detalles Adic.</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>
-                        {campaigns.map((campaign) => (<TableRow key={campaign.id}><TableCell className="font-medium">{campaign.name}</TableCell><TableCell>{CampaignTypeLabels[campaign.type]}</TableCell><TableCell>{formatDate(campaign.startDate.toDate(), "dd/MM/yyyy")} - {formatDate(campaign.endDate.toDate(), "dd/MM/yyyy")}</TableCell><TableCell className="text-xs">{campaign.type === 'superintendent_visit' && campaign.superintendentName && (<div>Sup: {campaign.superintendentName}</div>)}{(campaign.specialCampaignTerritoriesPerDay ?? 0) > 0 && (<div>Terr/día (Camp.): {campaign.specialCampaignTerritoriesPerDay}</div>)}{campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => { setCampaignToEdit(campaign); setIsCampaignDialogOpen(true);}} className="h-8 w-8"><Edit className="h-4 w-4" /></Button><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la campaña "{campaign.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteCampaign(campaign.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></TableCell></TableRow>))}
+                        {campaigns.map((campaign) => {
+                            const startDate = campaign.startDate instanceof Timestamp ? campaign.startDate.toDate() : new Date(campaign.startDate);
+                            const endDate = campaign.endDate instanceof Timestamp ? campaign.endDate.toDate() : new Date(campaign.endDate);
+                            return (
+                            <TableRow key={campaign.id}><TableCell className="font-medium">{campaign.name}</TableCell><TableCell>{CampaignTypeLabels[campaign.type]}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy")} - {formatDate(endDate, "dd/MM/yyyy")}</TableCell><TableCell className="text-xs">{campaign.type === 'superintendent_visit' && campaign.superintendentName && (<div>Sup: {campaign.superintendentName}</div>)}{(campaign.specialCampaignTerritoriesPerDay ?? 0) > 0 && (<div>Terr/día (Camp.): {campaign.specialCampaignTerritoriesPerDay}</div>)}{campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => { setCampaignToEdit(campaign); setIsCampaignDialogOpen(true);}} className="h-8 w-8"><Edit className="h-4 w-4" /></Button><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la campaña "{campaign.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteCampaign(campaign.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></TableCell></TableRow>
+                            );
+                        })}
                       </TableBody></Table></div>
                     )}
                   </CardContent>
@@ -897,7 +937,13 @@ export default function SettingsPage() {
                       <div className="flex flex-col items-center justify-center py-10 text-center bg-muted/30 rounded-lg border border-dashed"><BookOpenCheck className="h-16 w-16 text-muted-foreground/70 mb-4" /><p className="text-lg font-medium text-muted-foreground mb-1">No hay asambleas configuradas.</p><p className="text-sm text-muted-foreground">Haz clic en "Añadir Asamblea".</p></div>
                     ) : (
                       <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Nombre/Tipo</TableHead><TableHead>Fechas</TableHead><TableHead>Descripción</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>
-                        {assemblies.map((assembly) => (<TableRow key={assembly.id}><TableCell className="font-medium">{assembly.name}</TableCell><TableCell>{formatDate(assembly.startDate.toDate(), "dd/MM/yyyy")} - {formatDate(assembly.endDate.toDate(), "dd/MM/yyyy")}</TableCell><TableCell className="text-xs italic text-muted-foreground truncate w-64" title={assembly.description || undefined}>{assembly.description || 'N/A'}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => { setAssemblyToEdit(assembly); setIsAssemblyDialogOpen(true); }} className="h-8 w-8"><Edit className="h-4 w-4" /></Button><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la asamblea "{assembly.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteAssembly(assembly.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></TableCell></TableRow>))}
+                        {assemblies.map((assembly) => {
+                             const startDate = assembly.startDate instanceof Timestamp ? assembly.startDate.toDate() : new Date(assembly.startDate);
+                             const endDate = assembly.endDate instanceof Timestamp ? assembly.endDate.toDate() : new Date(assembly.endDate);
+                            return (
+                            <TableRow key={assembly.id}><TableCell className="font-medium">{assembly.name}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy")} - {formatDate(endDate, "dd/MM/yyyy")}</TableCell><TableCell className="text-xs italic text-muted-foreground truncate w-64" title={assembly.description || undefined}>{assembly.description || 'N/A'}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => { setAssemblyToEdit(assembly); setIsAssemblyDialogOpen(true); }} className="h-8 w-8"><Edit className="h-4 w-4" /></Button><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la asamblea "{assembly.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteAssembly(assembly.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></TableCell></TableRow>
+                            );
+                        })}
                       </TableBody></Table></div>
                     )}
                   </CardContent>
@@ -908,8 +954,8 @@ export default function SettingsPage() {
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center pt-1 gap-2">
                       <CardDescription>Añade festivos. Puedes cargar ejemplos (Chile). Verifica y ajusta los variables.</CardDescription>
                       <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                          <Button onClick={handleLoadExampleHolidays} size="sm" variant="outline" className="w-full sm:w-auto"><Upload className="mr-2 h-4 w-4" /> Cargar Ejemplos</Button>
-                          <Button onClick={() => { setHolidayToEdit(null); setIsHolidayDialogOpen(true); }} size="sm" className="w-full sm:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Añadir Festivo Manual</Button>
+                          <Button onClick={handleLoadExampleHolidays} size="sm" variant="outline" className="w-full sm:w-auto" disabled={isSavingSpecialEvents}><Upload className="mr-2 h-4 w-4" /> Cargar Ejemplos</Button>
+                          <Button onClick={() => { setHolidayToEdit(null); setIsHolidayDialogOpen(true); }} size="sm" className="w-full sm:w-auto" disabled={isSavingSpecialEvents}><PlusCircle className="mr-2 h-4 w-4" /> Añadir Festivo Manual</Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -923,7 +969,12 @@ export default function SettingsPage() {
                           const year = parseInt(yearStr, 10); const monthIndex = parseInt(monthIndexStr, 10);
                           const monthDate = new Date(Date.UTC(year, monthIndex, 1));
                           return (<React.Fragment key={monthYearKey}><TableRow className="bg-muted/40 hover:bg-muted/40 sticky top-0 z-10"><TableCell colSpan={4} className="font-semibold text-primary py-2.5 px-4 text-sm">{formatDate(monthDate, "MMMM yyyy", { locale: es, timeZone: 'UTC' }).toUpperCase()}</TableCell></TableRow>
-                            {holidaysInMonth.map((holiday) => (<TableRow key={holiday.id}><TableCell>{formatDate(holiday.date.toDate(), "dd/MM/yyyy")}</TableCell><TableCell className="font-medium">{holiday.name}</TableCell><TableCell className="text-xs italic text-muted-foreground truncate w-64" title={holiday.description || undefined}>{holiday.description || 'N/A'}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => { setHolidayToEdit(holiday); setIsHolidayDialogOpen(true);}} className="h-8 w-8"><Edit className="h-4 w-4" /></Button><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás el festivo "{holiday.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteHoliday(holiday.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></TableCell></TableRow>))}
+                            {holidaysInMonth.map((holiday) => {
+                                const holidayDate = holiday.date instanceof Timestamp ? holiday.date.toDate() : new Date(holiday.date);
+                                return (
+                                <TableRow key={holiday.id}><TableCell>{formatDate(holidayDate, "dd/MM/yyyy")}</TableCell><TableCell className="font-medium">{holiday.name}</TableCell><TableCell className="text-xs italic text-muted-foreground truncate w-64" title={holiday.description || undefined}>{holiday.description || 'N/A'}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => { setHolidayToEdit(holiday); setIsHolidayDialogOpen(true);}} className="h-8 w-8"><Edit className="h-4 w-4" /></Button><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás el festivo "{holiday.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteHoliday(holiday.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></TableCell></TableRow>
+                                );
+                            })}
                           </React.Fragment>);
                         })}
                       </TableBody></Table></div>
@@ -1018,5 +1069,5 @@ export default function SettingsPage() {
   );
 }
 
-const PERMISSION_MODULES_ORDERED_FOR_ACCORDION = PERMISSION_MODULES_BY_MODULE.map(m => m.moduleName);
+const PERMISSION_MODULES_ORDERED_FOR_ACCORDION = PERMISSIONS_BY_MODULE.map(m => m.moduleName);
     
