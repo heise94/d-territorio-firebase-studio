@@ -1,16 +1,18 @@
 
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck } from "lucide-react";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, Loader2 } from "lucide-react";
 import type { Casa, CasaAvailability } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp } from "firebase/firestore"; 
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function formatAvailability(availability?: CasaAvailability): string {
   if (!availability) return "No especificada";
@@ -36,9 +38,44 @@ function formatAvailability(availability?: CasaAvailability): string {
 export default function CasasPage() {
   const [isCasaDialogOpen, setIsCasaDialogOpen] = useState(false);
   const [casaToEdit, setCasaToEdit] = useState<Casa | null>(null);
-  const [casas, setCasas] = useState<Casa[]>([]); // Populate this from Firestore later
+  const [casas, setCasas] = useState<Casa[]>([]);
+  const [isLoadingCasas, setIsLoadingCasas] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      setIsLoadingCasas(false);
+      return;
+    }
+    setIsLoadingCasas(true);
+    const casasCollectionRef = collection(db, "casas");
+    const q = query(casasCollectionRef, orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedCasas = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt : Timestamp.now(),
+        updatedAt: doc.data().updatedAt instanceof Timestamp ? doc.data().updatedAt : Timestamp.now(),
+      } as Casa));
+      setCasas(fetchedCasas);
+      setIsLoadingCasas(false);
+    }, (error) => {
+      console.error("Error fetching casas:", error);
+      toast({ title: "Error al Cargar Casas", description: "No se pudieron cargar las casas desde Firestore.", variant: "destructive" });
+      setIsLoadingCasas(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
+
+  useEffect(() => {
+    if (!isCasaDialogOpen) {
+      setCasaToEdit(null);
+    }
+  }, [isCasaDialogOpen]);
 
   const handleOpenAddDialog = () => {
     setCasaToEdit(null);
@@ -50,37 +87,70 @@ export default function CasasPage() {
     setIsCasaDialogOpen(true);
   };
 
-  const handleCasaSubmit = (submittedCasa: Casa) => {
-    setCasas(prevCasas => {
-      const existingIndex = prevCasas.findIndex(c => c.id === submittedCasa.id);
-      if (existingIndex > -1) {
-        const updatedCasas = [...prevCasas];
-        updatedCasas[existingIndex] = submittedCasa;
-        return updatedCasas;
-      } else {
-        return [...prevCasas, submittedCasa];
-      }
-    });
-    setIsCasaDialogOpen(false); 
+  const handleCasaSubmit = async (submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'>) => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
+      return;
+    }
+
+    const sanitizedData = Object.fromEntries(
+      Object.entries(submittedCasaData).filter(([, value]) => value !== undefined)
+    );
+
+    const isEditing = !!casas.find(c => c.id === submittedCasaData.id);
+    const docRef = doc(db, "casas", submittedCasaData.id);
+
+    try {
+      await setDoc(docRef, sanitizedData, { merge: true });
+      toast({
+        title: isEditing ? "Casa Actualizada" : "Casa Añadida",
+        description: `La casa de ${submittedCasaData.ownerName} ha sido ${isEditing ? 'actualizada' : 'guardada'} en Firestore.`,
+      });
+      setIsCasaDialogOpen(false);
+    } catch (error) {
+      console.error("Error saving casa:", error);
+      toast({ title: "Error al Guardar", description: "No se pudo guardar la casa.", variant: "destructive" });
+    }
   };
 
-  const handleDeleteCasa = (casaId: string) => {
-    setCasas(prevCasas => prevCasas.filter(c => c.id !== casaId));
-    toast({ title: "Casa Eliminada", description: "La casa ha sido eliminada (simulación)." });
+  const handleDeleteCasa = async (casaId: string) => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
+      return;
+    }
+    const casaToDelete = casas.find(c => c.id === casaId);
+    try {
+      await deleteDoc(doc(db, "casas", casaId));
+      toast({ title: "Casa Eliminada", description: `La casa de ${casaToDelete?.ownerName || casaId} ha sido eliminada de Firestore.`, variant: "default" });
+    } catch (error) {
+      console.error("Error deleting casa:", error);
+      toast({ title: "Error al Eliminar", description: "No se pudo eliminar la casa.", variant: "destructive" });
+    }
   };
   
-  const handleToggleBlockCasa = (casaId: string) => {
-     setCasas(prevCasas => 
-        prevCasas.map(c => 
-            c.id === casaId ? {...c, isBlocked: !c.isBlocked, updatedAt: Timestamp.now() } : c
-        )
-     );
-     const casa = casas.find(c => c.id === casaId);
-     toast({ 
-        title: casa?.isBlocked ? "Casa Desbloqueada" : "Casa Bloqueada", 
-        description: `La casa ha sido ${casa?.isBlocked ? 'desbloqueada' : 'bloqueada'} (simulación).`
-    });
-  }
+  const handleToggleBlockCasa = async (casaId: string) => {
+     if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
+      return;
+    }
+    const casa = casas.find(c => c.id === casaId);
+    if (!casa) return;
+
+    const newBlockStatus = !casa.isBlocked;
+    try {
+      await updateDoc(doc(db, "casas", casaId), {
+        isBlocked: newBlockStatus,
+        updatedAt: Timestamp.now()
+      });
+      toast({
+        title: newBlockStatus ? "Casa Bloqueada" : "Casa Desbloqueada",
+        description: `La casa de ${casa.ownerName} ha sido ${newBlockStatus ? 'bloqueada' : 'desbloqueada'}.`
+      });
+    } catch (error) {
+      console.error("Error toggling block status:", error);
+      toast({ title: "Error al Actualizar", description: "No se pudo cambiar el estado de bloqueo.", variant: "destructive" });
+    }
+  };
 
   const filteredCasas = useMemo(() => {
     if (!searchTerm) return casas;
@@ -110,10 +180,12 @@ export default function CasasPage() {
           <CardTitle>Lista de Casas</CardTitle>
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
             <CardDescription>
-              {filteredCasas.length > 0 
-                ? `Mostrando ${filteredCasas.length} de ${casas.length} casa(s) registradas.`
-                : casas.length > 0 ? "Ninguna casa coincide con la búsqueda."
-                : "Actualmente no hay casas registradas."
+              {isLoadingCasas ? "Cargando casas..." : 
+                (filteredCasas.length > 0 
+                  ? `Mostrando ${filteredCasas.length} de ${casas.length} casa(s) registradas.`
+                  : casas.length > 0 ? "Ninguna casa coincide con la búsqueda."
+                  : "Actualmente no hay casas registradas."
+                )
               }
             </CardDescription>
             <div className="relative w-full sm:w-64 md:w-72">
@@ -129,7 +201,22 @@ export default function CasasPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {casas.length === 0 ? (
+          {isLoadingCasas ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i} className="flex flex-col">
+                  <CardHeader><Skeleton className="h-6 w-3/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
+                  <CardContent className="flex-grow space-y-2 pt-2">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                  </CardContent>
+                  <CardFooter className="border-t pt-3 pb-3 grid grid-cols-3 gap-2">
+                    <Skeleton className="h-9 w-full" /> <Skeleton className="h-9 w-full" /> <Skeleton className="h-9 w-full" />
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : casas.length === 0 && !searchTerm ? (
             <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
               <Building className="h-20 w-20 text-muted-foreground/70 mb-6" />
               <p className="text-xl font-medium text-muted-foreground mb-2">No hay casas para mostrar.</p>
@@ -166,7 +253,6 @@ export default function CasasPage() {
                         <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad (Lu-Vi):</span>
                         <p className="text-foreground pl-1 text-xs">{formatAvailability(casa.availableDays)}</p>
                     </div>
-                    {/* Associated Territories display removed from here */}
                     {casa.isSuitableForRural !== undefined && (
                         <div className="flex items-center">
                             {casa.isSuitableForRural ? <CheckCircle2 size={14} className="mr-2 text-green-600" /> : <Ban size={14} className="mr-2 text-red-600" />}
@@ -226,7 +312,7 @@ export default function CasasPage() {
       <AddCasaDialog 
         isOpen={isCasaDialogOpen} 
         onOpenChange={setIsCasaDialogOpen}
-        onCasaSubmit={handleCasaSubmit}
+        onCasaSubmit={handleCasaSubmit as any} // Cast to any if necessary for partial updates
         casaToEdit={casaToEdit}
       />
     </div>

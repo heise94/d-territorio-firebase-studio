@@ -48,8 +48,7 @@ const casaFormSchema = z.object({
     thursday: dayAvailabilitySchema,
     friday: dayAvailabilitySchema,
   }).optional(),
-  // associatedTerritories: z.string().optional().describe("Territorios asociados, separados por comas"), // Removed
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(1000).optional().or(z.literal('')),
   isSuitableForRural: z.boolean().optional().default(false),
 });
 
@@ -66,7 +65,7 @@ const WEEK_DAYS = [
 interface AddCasaDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onCasaSubmit: (casa: Casa) => void;
+  onCasaSubmit: (casa: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'>) => void;
   casaToEdit?: Casa | null;
 }
 
@@ -88,7 +87,6 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
         thursday: { am: false, pm: false },
         friday: { am: false, pm: false },
       },
-      // associatedTerritories: "", // Removed
       notes: "",
       isSuitableForRural: false,
     },
@@ -107,12 +105,11 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
           thursday: { am: false, pm: false },
           friday: { am: false, pm: false },
         },
-        // associatedTerritories: casaToEdit.associatedTerritories?.join(", ") || "", // Removed
         notes: casaToEdit.notes || "",
         isSuitableForRural: casaToEdit.isSuitableForRural || false,
       });
     } else if (!isOpen) {
-      form.reset({ // Ensure form resets to default values when closing after adding, not editing
+      form.reset({ 
         ownerName: "",
         address: "",
         phoneNumber: "",
@@ -132,38 +129,46 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
   async function onSubmit(values: CasaFormValues) {
     setIsSubmitting(true);
 
-    const submittedCasa: Casa = {
+    const submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'> = {
       id: isEditMode && casaToEdit ? casaToEdit.id : crypto.randomUUID(),
       ownerName: values.ownerName,
       address: values.address,
-      phoneNumber: values.phoneNumber || undefined,
-      availableDays: values.availableDays as CasaAvailability,
-      // associatedTerritories: values.associatedTerritories?.split(',').map(t => t.trim()).filter(t => t) || [], // Removed
-      notes: values.notes || undefined,
-      isSuitableForRural: values.isSuitableForRural,
       isBlocked: isEditMode && casaToEdit ? casaToEdit.isBlocked : false, 
       createdAt: isEditMode && casaToEdit ? casaToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
-    
-    await new Promise(resolve => setTimeout(resolve, 700));
 
-    onCasaSubmit(submittedCasa);
-    toast({
-      title: isEditMode ? "Casa Actualizada" : "Casa Añadida",
-      description: `La casa para ${values.ownerName} ha sido ${isEditMode ? 'actualizada' : 'registrada'} (simulación).`,
-    });
+    if (values.phoneNumber && values.phoneNumber.trim() !== "") {
+      submittedCasaData.phoneNumber = values.phoneNumber;
+    }
+    if (values.availableDays) {
+        submittedCasaData.availableDays = values.availableDays as CasaAvailability;
+    }
+    if (values.notes && values.notes.trim() !== "") {
+      submittedCasaData.notes = values.notes;
+    }
+    if (values.isSuitableForRural !== undefined) {
+      submittedCasaData.isSuitableForRural = values.isSuitableForRural;
+    }
+    // Default values for other fields if not editing
+    if (!isEditMode) {
+        // Ensure all required fields for `Casa` type are present or handled by Firestore defaults (like serverTimestamp)
+        submittedCasaData.addedByGroupId = undefined; // Example, set as needed
+        submittedCasaData.lastVisitedAt = undefined;
+    }
+    
+    // onCasaSubmit will handle Firestore interaction
+    onCasaSubmit(submittedCasaData);
     
     if (!isEditMode) form.reset(); 
-    onOpenChange(false);
+    // onOpenChange(false); // Parent component will handle closing dialog after Firestore operation
     setIsSubmitting(false);
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
-        if (!open) { // When dialog closes
-            if (!isEditMode) form.reset(); // If not edit mode (i.e. add mode), reset form
-            // If it was edit mode, form.reset() was already handled by useEffect or will be if opened again
+        if (!open) { 
+            if (!isEditMode) form.reset();
         }
         onOpenChange(open);
     }}>
@@ -254,8 +259,6 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
               </div>
             </div>
             
-            {/* associatedTerritories field removed */}
-
             <FormField
               control={form.control}
               name="isSuitableForRural"
