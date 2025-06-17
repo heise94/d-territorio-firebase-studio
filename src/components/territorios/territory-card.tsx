@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, CheckCircle2, Eye, Share2, Link as LinkIcon, BarChart3, Building } from "lucide-react"; // Added Building icon
+import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, CheckCircle2, Eye, Share2, Link as LinkIcon, BarChart3, Building, ShieldCheck } from "lucide-react"; // Added Building and ShieldCheck icon
 import type { Territory } from "@/types";
 
 interface TerritoryCardProps {
