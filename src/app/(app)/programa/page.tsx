@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,10 +10,11 @@ import { useToast } from "@/hooks/use-toast";
 import { generateMonthlyAssignments, type GenerateMonthlyAssignmentsInput, type GenerateMonthlyAssignmentsOutput } from "@/ai/flows/generate-monthly-assignments";
 import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
 import { es } from "date-fns/locale";
-import { format, getDaysInMonth, startOfMonth } from 'date-fns';
-import { Timestamp, writeBatch, collection, doc } from "firebase/firestore"; 
+import { format, getDaysInMonth, startOfMonth, getDay, isWithinInterval, parseISO } from 'date-fns';
+import { Timestamp, writeBatch, collection, doc, getDoc, getDocs, query, where, orderBy } from "firebase/firestore"; 
 import { db } from "@/lib/firebase";
-import type { ProgramScheduleSlot, PublisherDetail, PreachingAssignedType } from "@/types";
+import type { ProgramScheduleSlot, PublisherDetail, PreachingAssignedType, SettingsDoc, Casa, Territory, PreachingGroup, DayOfWeek as TypeDayOfWeek, Campaign, Assembly, CustomHoliday } from "@/types";
+import { USER_ROLES } from "@/lib/constants";
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 6 }, (_, i) => currentYear + i);
@@ -22,68 +23,157 @@ const months = Array.from({ length: 12 }, (_, i) => ({
   label: format(new Date(currentYear, i), "MMMM", { locale: es }),
 }));
 
-// MOCK data for program schedule slots - replace with actual data fetching from settings later
-const MOCK_PROGRAM_SCHEDULE_SLOTS_FOR_DIALOG: ProgramScheduleSlot[] = [
-  { id: 'mon-0900-gen', dayOfWeek: 'monday', startTime: '09:00', type: 'general', status: 'fixed' },
-  { id: 'tue-1000-rur', dayOfWeek: 'tuesday', startTime: '10:00', type: 'rural', status: 'fixed' },
-  { id: 'wed-0930-gen', dayOfWeek: 'wednesday', startTime: '09:30', type: 'general', status: 'fixed' },
-  { id: 'sat-1000-gen', dayOfWeek: 'saturday', startTime: '10:00', type: 'general', status: 'fixed' },
-  { id: 'sat-1100-rur', dayOfWeek: 'saturday', startTime: '11:00', type: 'rural', status: 'fixed' },
-  { id: 'sun-1500-zoom', dayOfWeek: 'sunday', startTime: '15:00', type: 'zoom', status: 'fixed' },
-  { id: 'sun-1000-rur', dayOfWeek: 'sunday', startTime: '10:00', type: 'rural', status: 'fixed' },
-];
-
-// MOCK data for publishers - replace with actual data fetching later
-const MOCK_PUBLISHERS_FOR_PROGRAM_GENERATION: PublisherDetail[] = [
-    { id: "uidUser1", name: "Ana Pérez", email: "ana@example.com", availability: { availableSlotIds: ["mon-0900-gen", "wed-0930-gen"] } },
-    { id: "uidUser2", name: "Luis Gómez", email: "luis@example.com", availability: { availableSlotIds: ["mon-1500-zoom", "thu-1400-zoom"] } },
-    { id: "uidUser3", name: "Sofía Castro", email: "sofia@example.com", availability: { availableSlotIds: ["tue-1000-rur", "fri-1000-gen"] } },
-    { id: "uidUser4", name: "Carlos Díaz", email: "carlos@example.com", availability: { availableSlotIds: ["sat-1000-gen", "sun-1500-zoom"] } },
-    { id: "uidUser5", name: "Elena Jara (SG)", email: "elena.jara.sg@example.com", availability: { availableSlotIds: ["mon-0900-gen", "fri-1700-rur"] } },
-];
-
+const DAY_OF_WEEK_MAP: Record<number, TypeDayOfWeek> = {
+  0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday',
+};
 
 export default function ProgramaMensualPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // For AI generation
   const [isSavingProgram, setIsSavingProgram] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false); // For fetching initial data for AI
   const [generatedAssignments, setGeneratedAssignments] = useState<GenerateMonthlyAssignmentsOutput | null>(null);
   const [isGenerationDialogOpen, setIsGenerationDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const handleOpenGenerateDialog = () => {
-    setIsGenerationDialogOpen(true);
+  const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
+  const [groupOrganizedDays, setGroupOrganizedDays] = useState<Record<TypeDayOfWeek, boolean>>({});
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [holidays, setHolidays] = useState<CustomHoliday[]>([]);
+  const [assemblies, setAssemblies] = useState<Assembly[]>([]);
+  const [lastRuralGroupId, setLastRuralGroupId] = useState<string | null | undefined>(undefined);
+  const [publishers, setPublishers] = useState<PublisherDetail[]>([]);
+  const [casas, setCasas] = useState<Casa[]>([]);
+  const [territories, setTerritories] = useState<Territory[]>([]);
+  const [preachingGroups, setPreachingGroups] = useState<PreachingGroup[]>([]);
+
+
+  const fetchRequiredDataForAI = useCallback(async () => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      return false;
+    }
+    setIsLoadingData(true);
+    try {
+      // Fetch settings
+      const programConfigRef = doc(db, "settings", "programConfig");
+      const programConfigSnap = await getDoc(programConfigRef);
+      if (programConfigSnap.exists()) {
+        const config = programConfigSnap.data() as SettingsDoc;
+        setProgramScheduleSlots(config.programScheduleSlots || []);
+        
+        const organizedDaysMap: Record<TypeDayOfWeek, boolean> = {} as Record<TypeDayOfWeek, boolean>;
+        (config.groupOrganizedDays || []).forEach(day => { organizedDaysMap[day] = true; });
+        setGroupOrganizedDays(organizedDaysMap);
+        setLastRuralGroupId(config.lastRuralWeekendLeadingGroupId);
+      }
+
+      const specialEventsConfigRef = doc(db, "settings", "specialEventsConfig");
+      const specialEventsConfigSnap = await getDoc(specialEventsConfigRef);
+      if (specialEventsConfigSnap.exists()) {
+        const eventsConfig = specialEventsConfigSnap.data() as SettingsDoc;
+        setCampaigns((eventsConfig.campaignsList || []).map(c => ({...c, startDate: (c.startDate as Timestamp).toDate(), endDate: (c.endDate as Timestamp).toDate()})));
+        setHolidays((eventsConfig.holidaysList || []).map(h => ({...h, date: (h.date as Timestamp).toDate()})));
+        setAssemblies((eventsConfig.assembliesList || []).map(a => ({...a, startDate: (a.startDate as Timestamp).toDate(), endDate: (a.endDate as Timestamp).toDate()})));
+      }
+
+      // Fetch collections
+      const usersQuery = query(collection(db, "users"), where("status", "==", "Activo"), where("adminApprovalStatus", "==", "approved"));
+      const usersSnap = await getDocs(usersQuery);
+      setPublishers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as PublisherDetail)));
+      
+      const casasQuery = query(collection(db, "casas"), where("isBlocked", "==", false));
+      const casasSnap = await getDocs(casasQuery);
+      setCasas(casasSnap.docs.map(d => ({ id: d.id, ...d.data() } as Casa)));
+
+      const territoriesQuery = query(collection(db, "territories"), where("isBlocked", "==", false));
+      const territoriesSnap = await getDocs(territoriesQuery);
+      setTerritories(territoriesSnap.docs.map(d => ({ id: d.id, ...d.data() } as Territory)));
+
+      const groupsQuery = query(collection(db, "preachingGroups"));
+      const groupsSnap = await getDocs(groupsQuery);
+      setPreachingGroups(groupsSnap.docs.map(d => ({ id: d.id, ...d.data() } as PreachingGroup)));
+
+      return true;
+    } catch (error) {
+      console.error("Error fetching data for AI:", error);
+      toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los datos necesarios para la IA.", variant: "destructive" });
+      return false;
+    } finally {
+      setIsLoadingData(false);
+    }
+  }, [toast]);
+
+
+  const handleOpenGenerateDialog = async () => {
+    const dataFetched = await fetchRequiredDataForAI();
+    if (dataFetched) {
+      setIsGenerationDialogOpen(true);
+    } else {
+      toast({ title: "Datos Incompletos", description: "No se pueden abrir las opciones de generación sin los datos de configuración.", variant: "destructive"});
+    }
   };
 
   const handleGenerateAssignments = async (dialogData: { additionalInstructions: string; designatedRuralWeekendDays: string[] }) => {
     setIsLoading(true);
     setGeneratedAssignments(null);
 
+    // Process data for AI input
+    const processedAvailableDays: Record<TypeDayOfWeek, {startTime: string; type: PreachingAssignedType}[]> = {} as Record<TypeDayOfWeek, {startTime: string; type: PreachingAssignedType}[]>;
+    programScheduleSlots.forEach(slot => {
+        if (!processedAvailableDays[slot.dayOfWeek]) {
+            processedAvailableDays[slot.dayOfWeek] = [];
+        }
+        processedAvailableDays[slot.dayOfWeek].push({startTime: slot.startTime, type: slot.type});
+    });
+    
     const input: GenerateMonthlyAssignmentsInput = {
       year: selectedYear,
       month: selectedMonth, 
       additionalInstructions: dialogData.additionalInstructions,
       designatedRuralSundays: dialogData.designatedRuralWeekendDays,
-      publisherDetailedAvailabilities: MOCK_PUBLISHERS_FOR_PROGRAM_GENERATION.map(p => ({ id: p.id, name: p.name })), // Pass only id and name as per schema
-      availableDaysWithTimeSlots: { 
-        monday: [{ startTime: "09:00", type: "publica" }],
-        saturday: [{ startTime: "10:00", type: "publica" }, { startTime: "11:00", type: "rural" }],
-        sunday: [{ startTime: "10:00", type: "rural" }, { startTime: "15:00", type: "zoom" }],
-      },
-      assignCasas: true,
-      availableCasas: [], 
-      assignTerritories: true,
-      availableTerritories: [], 
-      detailedTerritoryReports: [], 
-      predeterminedRuralSundayAssignments: [], 
-      groupPreachingDays: { wednesday: true }, 
-      configuredCampaigns: [], 
-      specialCampaignTerritoriesPerDay: 1, 
-      holidayDatesInMonth: [], 
-      assembliesInMonth: [], 
-      lastRuralWeekendLeadingGroupId: undefined, 
-      preachingGroups: [], 
+      
+      availableDaysWithTimeSlots: processedAvailableDays,
+      groupPreachingDays: groupOrganizedDays,
+      lastRuralWeekendLeadingGroupId: lastRuralGroupId ?? undefined, // Pass undefined if null
+
+      publisherDetailedAvailabilities: publishers.map(p => ({ id: p.firebaseAuthUid || p.id, name: p.name })),
+      availableCasas: casas.map(c => ({ id: c.id, name: c.ownerName, address: c.address })),
+      availableTerritories: territories.map(t => ({id: t.id, name: t.name, type: t.type, number: t.number})),
+      preachingGroups: preachingGroups.map(g => ({id: g.id, name: g.name, superintendentId: g.superintendentId})),
+      
+      configuredCampaigns: campaigns
+        .filter(c => {
+            const campaignStartMonth = c.startDate.getMonth();
+            const campaignStartYear = c.startDate.getFullYear();
+            const campaignEndMonth = c.endDate.getMonth();
+            const campaignEndYear = c.endDate.getFullYear();
+            return (campaignStartYear < selectedYear || (campaignStartYear === selectedYear && campaignStartMonth <= selectedMonth)) &&
+                   (campaignEndYear > selectedYear || (campaignEndYear === selectedYear && campaignEndMonth >= selectedMonth));
+        })
+        .map(c => ({...c, startDate: format(c.startDate, "yyyy-MM-dd"), endDate: format(c.endDate, "yyyy-MM-dd")})),
+      
+      holidayDatesInMonth: holidays
+        .filter(h => h.date.getFullYear() === selectedYear && h.date.getMonth() === selectedMonth)
+        .map(h => format(h.date, "yyyy-MM-dd")),
+      
+      assembliesInMonth: assemblies
+         .filter(a => {
+            const assemblyStartMonth = a.startDate.getMonth();
+            const assemblyStartYear = a.startDate.getFullYear();
+            const assemblyEndMonth = a.endDate.getMonth();
+            const assemblyEndYear = a.endDate.getFullYear();
+            return (assemblyStartYear < selectedYear || (assemblyStartYear === selectedYear && assemblyStartMonth <= selectedMonth)) &&
+                   (assemblyEndYear > selectedYear || (assemblyEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
+        })
+        .map(a => ({...a, startDate: format(a.startDate, "yyyy-MM-dd"), endDate: format(a.endDate, "yyyy-MM-dd")})),
+
+      assignCasas: true, // Example, could be dynamic
+      assignTerritories: true, // Example
+      detailedTerritoryReports: [], // Placeholder - needs real data
+      predeterminedRuralSundayAssignments: [], // Placeholder
+      specialCampaignTerritoriesPerDay: 1, // Default, can be configurable
     };
 
     try {
@@ -124,21 +214,28 @@ export default function ProgramaMensualPage() {
 
     try {
         Object.values(generatedAssignments.captainAssignments).flat().forEach(assign => {
+            if (!assign.captainId || assign.captainId === "PENDING_CAPTAIN_ID") {
+                console.warn(`Saltando asignación para ${assign.date} a las ${assign.time} porque no tiene capitán asignado.`);
+                return; // Skip assignments with placeholder captainId
+            }
             const newAssignmentRef = doc(assignmentsCollectionRef); // Auto-generate ID
             assignmentCount++;
+            
+            const captainUser = publishers.find(p => p.id === assign.captainId || p.firebaseAuthUid === assign.captainId);
+
             batch.set(newAssignmentRef, {
                 userId: assign.captainId,
                 userName: assign.captainName,
+                userEmail: captainUser?.email || null, // Add email if available
                 date: assign.date,
                 time: assign.time,
-                type: assign.preachingType as PreachingAssignedType, // Cast, as schema is string but we use specific types
+                type: assign.preachingType as PreachingAssignedType, 
                 locationName: assign.territoryName || assign.casaName || "Lugar no especificado",
-                status: 'pending', // Default status
+                status: 'pending', 
                 assignedBy: 'Admin IA',
                 assignedGroupId: assign.assignedGroupId || null,
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now(),
-                // locationId could be derived if territory/casa IDs were part of the flow's output
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
             });
         });
 
@@ -148,7 +245,7 @@ export default function ProgramaMensualPage() {
             description: `${assignmentCount} asignaciones han sido guardadas en Firestore.`,
             variant: "default",
         });
-        setGeneratedAssignments(null); // Clear after saving
+        setGeneratedAssignments(null); 
     } catch (error) {
         console.error("Error saving program to Firestore:", error);
         toast({
@@ -206,8 +303,9 @@ export default function ProgramaMensualPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleOpenGenerateDialog} size="lg" className="w-full sm:w-auto mt-2 sm:mt-0">
-              <Bot className="mr-2 h-5 w-5" /> Generar Programa con IA
+            <Button onClick={handleOpenGenerateDialog} size="lg" className="w-full sm:w-auto mt-2 sm:mt-0" disabled={isLoadingData || isLoading}>
+              {isLoadingData ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Bot className="mr-2 h-5 w-5" />} 
+              {isLoadingData ? "Cargando Datos..." : "Generar Programa con IA"}
             </Button>
           </div>
         </CardHeader>
@@ -225,7 +323,7 @@ export default function ProgramaMensualPage() {
               </h2>
               {monthDays.map(dayString => {
                 const assignmentsForDay = generatedAssignments.captainAssignments[dayString] || [];
-                const isAssemblyDay = (generatedAssignments.captainAssignments[dayString]?.length === 0) && 
+                const isEventDay = (generatedAssignments.captainAssignments[dayString]?.length === 0) && 
                                       Object.keys(generatedAssignments.captainAssignments).includes(dayString);
 
 
@@ -233,20 +331,20 @@ export default function ProgramaMensualPage() {
                   <Card key={dayString} className="shadow-md">
                     <CardHeader className="pb-2 bg-muted/30 rounded-t-md">
                       <CardTitle className="text-lg font-semibold">
-                        {format(new Date(dayString + 'T00:00:00'), "EEEE, dd 'de' MMMM", { locale: es })}
+                        {format(parseISO(dayString), "EEEE, dd 'de' MMMM", { locale: es })}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4">
-                      {isAssemblyDay ? (
+                      {isEventDay ? (
                         <p className="text-center text-amber-600 font-medium py-3 flex items-center justify-center">
-                          <AlertTriangle className="mr-2 h-5 w-5" /> Día de Asamblea (Sin predicación programada)
+                          <AlertTriangle className="mr-2 h-5 w-5" /> Día de Asamblea o Festivo (Sin predicación programada)
                         </p>
                       ) : assignmentsForDay.length > 0 ? (
                         <ul className="space-y-3">
                           {assignmentsForDay.map(assign => (
                             <li key={assign.id} className="p-3 border rounded-md shadow-sm bg-card hover:bg-muted/10 transition-colors">
                               <div className="flex justify-between items-center">
-                                <span className="font-medium text-primary">{assign.captainName} ({assign.captainId})</span>
+                                <span className="font-medium text-primary">{assign.captainName} ({assign.captainId === "PENDING_CAPTAIN_ID" ? "ID Pendiente" : assign.captainId})</span>
                                 <span className="text-sm text-muted-foreground">{assign.time}</span>
                               </div>
                               <p className="text-sm capitalize">Tipo: {assign.preachingType}</p>
@@ -276,7 +374,6 @@ export default function ProgramaMensualPage() {
         </CardContent>
         {generatedAssignments && (
              <CardFooter className="border-t pt-4 flex justify-end">
-                {/* <Button variant="outline" className="mr-2" disabled={isSavingProgram}>Guardar Borrador</Button> */}
                 <Button onClick={handleSaveProgramToFirestore} disabled={isSavingProgram || isLoading}>
                     {isSavingProgram && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     <Save className="mr-2 h-4 w-4" />
@@ -293,7 +390,7 @@ export default function ProgramaMensualPage() {
           onSubmitGeneration={handleGenerateAssignments}
           year={selectedYear}
           month={selectedMonth}
-          programScheduleSlots={MOCK_PROGRAM_SCHEDULE_SLOTS_FOR_DIALOG} 
+          programScheduleSlots={programScheduleSlots} // Pass fetched slots for rural day validation
         />
       )}
     </div>
@@ -301,3 +398,4 @@ export default function ProgramaMensualPage() {
 }
 
     
+

@@ -71,6 +71,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
     const firstDayOfMonth = startOfMonth(new Date(year, month));
     const numDaysInMonth = getDaysInMonth(firstDayOfMonth);
 
+    // Check if there's any rural slot configured for Saturday or Sunday in general
     const hasSaturdayRuralSlot = programScheduleSlots.some(slot => slot.dayOfWeek === 'saturday' && slot.type === 'rural');
     const hasSundayRuralSlot = programScheduleSlots.some(slot => slot.dayOfWeek === 'sunday' && slot.type === 'rural');
 
@@ -94,6 +95,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
         additionalInstructions: values.additionalInstructions || "",
         designatedRuralWeekendDays: values.designatedRuralWeekendDays || [],
       });
+      // The parent (programa/page.tsx) will handle closing the dialog on success/failure of the AI call.
     } catch (error) {
       console.error("Error in dialog submission that calls parent:", error);
       toast({
@@ -103,11 +105,12 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
       });
     } finally {
       setIsSubmitting(false);
+      // Do not call onOpenChange(false) here; let the parent decide based on AI call result.
     }
   }
 
   const handleDialogClose = (open: boolean) => {
-    if (!open && !isSubmitting) {
+    if (!open && !isSubmitting) { // Only reset if not submitting, as parent might close it
       form.reset({ additionalInstructions: "", designatedRuralWeekendDays: [] });
     }
     onOpenChange(open);
@@ -129,14 +132,14 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 py-2 pr-1">
-            {weekendDaysForSelection.length > 0 && (
+            {weekendDaysForSelection.length > 0 ? (
               <div className="space-y-3">
                 <FormLabel className="text-base font-semibold flex items-center">
                   <CalendarDays className="mr-2 h-5 w-5 text-primary" />
                   Designar Predicación Rural de Fin de Semana
                 </FormLabel>
                 <FormFieldDescription>
-                  Selecciona los sábados/domingos que tendrán un enfoque rural especial (ej. rotación de grupo, asignación de SG). Deben tener un horario rural configurado en Ajustes.
+                  Selecciona los sábados/domingos que tendrán un enfoque rural especial (ej. rotación de grupo, asignación de SG). Estos días deben tener un horario de tipo "rural" configurado en Ajustes.
                 </FormFieldDescription>
                 <div className="max-h-48 overflow-y-auto space-y-2 rounded-md border p-3 shadow-sm bg-muted/30">
                   {weekendDaysForSelection.map((day) => (
@@ -170,6 +173,11 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
                   ))}
                 </div>
                 <FormMessage />
+              </div>
+            ) : (
+              <div className="p-3 border rounded-md bg-amber-50 border-amber-200 text-amber-700 text-sm">
+                <AlertTriangle className="inline h-4 w-4 mr-1.5" />
+                 No hay Sábados o Domingos con horarios rurales configurados en Ajustes para el mes de {monthName}. La designación de días rurales especiales no está disponible.
               </div>
             )}
 
