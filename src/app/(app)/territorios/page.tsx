@@ -1,28 +1,57 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddTerritoryDialog } from "@/components/territorios/add-territory-dialog";
 import { TerritoryCard } from "@/components/territorios/territory-card";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { PlusCircle, Search, MapPin, AlertTriangle, Eye, Trash2, Share2, Ban, ShieldCheck } from "lucide-react";
+import { PlusCircle, Search, MapPin, Loader2 } from "lucide-react";
 import type { Territory, TerritoryType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function TerritoriosPage() {
   const [isTerritoryDialogOpen, setIsTerritoryDialogOpen] = useState(false);
   const [territoryToEdit, setTerritoryToEdit] = useState<Territory | null>(null);
-  const [territories, setTerritories] = useState<Territory[]>([]); // Populate this from Firestore later
+  const [territories, setTerritories] = useState<Territory[]>([]);
+  const [isLoadingTerritories, setIsLoadingTerritories] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<TerritoryType>("urban");
   const { toast } = useToast();
 
-  // Effect to reset edit state when dialog closes
+  useEffect(() => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      setIsLoadingTerritories(false);
+      return;
+    }
+    setIsLoadingTerritories(true);
+    const territoriesCollectionRef = collection(db, "territories");
+    const q = query(territoriesCollectionRef, orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedTerritories = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt : Timestamp.now(), // Ensure Timestamp
+        updatedAt: doc.data().updatedAt instanceof Timestamp ? doc.data().updatedAt : Timestamp.now(), // Ensure Timestamp
+      } as Territory));
+      setTerritories(fetchedTerritories);
+      setIsLoadingTerritories(false);
+    }, (error) => {
+      console.error("Error fetching territories:", error);
+      toast({ title: "Error al Cargar Territorios", description: "No se pudieron cargar los territorios desde Firestore.", variant: "destructive" });
+      setIsLoadingTerritories(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
+
   useEffect(() => {
     if (!isTerritoryDialogOpen) {
       setTerritoryToEdit(null);
@@ -39,36 +68,64 @@ export default function TerritoriosPage() {
     setIsTerritoryDialogOpen(true);
   };
 
-  const handleTerritorySubmit = (submittedTerritory: Territory) => {
-    setTerritories(prevTerritories => {
-      const existingIndex = prevTerritories.findIndex(t => t.id === submittedTerritory.id);
-      if (existingIndex > -1) {
-        const updatedTerritories = [...prevTerritories];
-        updatedTerritories[existingIndex] = submittedTerritory;
-        return updatedTerritories;
-      } else {
-        return [...prevTerritories, submittedTerritory];
-      }
-    });
-    setIsTerritoryDialogOpen(false);
+  const handleTerritorySubmit = async (submittedTerritory: Territory) => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Base de Datos", description: "No se pudo conectar a la base de datos.", variant: "destructive" });
+      return;
+    }
+    const isEditing = !!territories.find(t => t.id === submittedTerritory.id);
+    const docRef = doc(db, "territories", submittedTerritory.id);
+
+    try {
+      await setDoc(docRef, submittedTerritory, { merge: isEditing }); // merge true to update if exists
+      toast({
+        title: isEditing ? "Territorio Actualizado" : "Territorio Añadido",
+        description: `El territorio "${submittedTerritory.name}" ha sido ${isEditing ? 'actualizado' : 'guardado'} en Firestore.`,
+      });
+      setIsTerritoryDialogOpen(false);
+    } catch (error) {
+      console.error("Error saving territory:", error);
+      toast({ title: "Error al Guardar", description: "No se pudo guardar el territorio.", variant: "destructive" });
+    }
   };
   
-  const handleDeleteTerritory = (territoryId: string) => {
-    setTerritories(prevTerritories => prevTerritories.filter(t => t.id !== territoryId));
-    toast({ title: "Territorio Eliminado", description: "El territorio ha sido eliminado (simulación)." });
+  const handleDeleteTerritory = async (territoryId: string) => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
+      return;
+    }
+    const territoryToDelete = territories.find(t => t.id === territoryId);
+    try {
+      await deleteDoc(doc(db, "territories", territoryId));
+      toast({ title: "Territorio Eliminado", description: `El territorio "${territoryToDelete?.name || territoryId}" ha sido eliminado de Firestore.`, variant: "default" });
+    } catch (error) {
+      console.error("Error deleting territory:", error);
+      toast({ title: "Error al Eliminar", description: "No se pudo eliminar el territorio.", variant: "destructive" });
+    }
   };
 
-  const handleToggleBlockTerritory = (territoryId: string) => {
-    setTerritories(prevTerritories =>
-      prevTerritories.map(t =>
-        t.id === territoryId ? { ...t, isBlocked: !t.isBlocked, updatedAt: Timestamp.now() } : t
-      )
-    );
+  const handleToggleBlockTerritory = async (territoryId: string) => {
+     if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
+      return;
+    }
     const territory = territories.find(t => t.id === territoryId);
-    toast({
-      title: territory?.isBlocked ? "Territorio Desbloqueado" : "Territorio Bloqueado",
-      description: `El territorio ha sido ${territory?.isBlocked ? 'desbloqueado' : 'bloqueado'} (simulación).`
-    });
+    if (!territory) return;
+
+    const newBlockStatus = !territory.isBlocked;
+    try {
+      await updateDoc(doc(db, "territories", territoryId), {
+        isBlocked: newBlockStatus,
+        updatedAt: Timestamp.now()
+      });
+      toast({
+        title: newBlockStatus ? "Territorio Bloqueado" : "Territorio Desbloqueado",
+        description: `El territorio "${territory.name}" ha sido ${newBlockStatus ? 'bloqueado' : 'desbloqueado'}.`
+      });
+    } catch (error) {
+      console.error("Error toggling block status:", error);
+      toast({ title: "Error al Actualizar", description: "No se pudo cambiar el estado de bloqueo.", variant: "destructive" });
+    }
   };
 
   const filteredTerritories = useMemo(() => {
@@ -79,6 +136,67 @@ export default function TerritoriosPage() {
         (territory.number && territory.number.toLowerCase().includes(searchTerm.toLowerCase()))
       );
   }, [territories, searchTerm, activeTab]);
+  
+  const renderTerritoryGrid = (tabType: TerritoryType) => {
+    if (isLoadingTerritories) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i} className="flex flex-col">
+              <CardHeader><Skeleton className="h-5 w-3/4" /><Skeleton className="h-3 w-1/2 mt-1" /></CardHeader>
+              <CardContent className="flex-grow space-y-2 pt-2">
+                <Skeleton className="aspect-video w-full rounded-md" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-2/3" />
+              </CardContent>
+              <CardFooter className="border-t pt-3 pb-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <Skeleton className="h-8 w-full" /> <Skeleton className="h-8 w-full" /> <Skeleton className="h-8 w-full" />
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      );
+    }
+
+    const territoriesForTab = filteredTerritories.filter(t => t.type === tabType);
+
+    if (territoriesForTab.length === 0) {
+      const noDataMessage = searchTerm 
+        ? `No se encontraron territorios ${tabType === 'urban' ? 'urbanos' : 'rurales'} que coincidan con "${searchTerm}".`
+        : `Actualmente no hay territorios ${tabType === 'urban' ? 'urbanos' : 'rurales'} registrados.`;
+      const IconComponent = searchTerm ? Search : MapPin;
+      
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
+          <IconComponent className="h-20 w-20 text-muted-foreground/70 mb-6" />
+          <p className="text-xl font-medium text-muted-foreground mb-2">
+            {searchTerm ? "Sin resultados" : `No hay territorios ${tabType === 'urban' ? 'urbanos' : 'rurales'}`}
+          </p>
+          <p className="text-sm text-muted-foreground">{noDataMessage}</p>
+          {!searchTerm && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Haz clic en "Añadir Nuevo Territorio" para registrar el primero de este tipo.
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {territoriesForTab.map((territory) => (
+          <TerritoryCard
+            key={territory.id}
+            territory={territory}
+            onEdit={() => handleOpenEditDialog(territory)}
+            onDelete={() => handleDeleteTerritory(territory.id)}
+            onBlockToggle={() => handleToggleBlockTerritory(territory.id)}
+          />
+        ))}
+      </div>
+    );
+  };
+
 
   return (
     <div className="space-y-8">
@@ -100,10 +218,12 @@ export default function TerritoriosPage() {
           <CardTitle>Lista de Territorios</CardTitle>
            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
             <CardDescription>
-              {filteredTerritories.length > 0 
-                ? `Mostrando ${filteredTerritories.length} de ${territories.filter(t => t.type === activeTab).length} territorio(s) ${activeTab === 'urban' ? 'urbanos' : 'rurales'}.`
-                : territories.filter(t => t.type === activeTab).length > 0 ? `Ningún territorio ${activeTab === 'urban' ? 'urbano' : 'rural'} coincide con la búsqueda.`
-                : `Actualmente no hay territorios ${activeTab === 'urban' ? 'urbanos' : 'rurales'} registrados.`
+              {isLoadingTerritories ? "Cargando territorios..." : 
+                (filteredTerritories.length > 0 
+                  ? `Mostrando ${filteredTerritories.length} de ${territories.filter(t => t.type === activeTab).length} territorio(s) ${activeTab === 'urban' ? 'urbanos' : 'rurales'}.`
+                  : territories.filter(t => t.type === activeTab).length > 0 ? `Ningún territorio ${activeTab === 'urban' ? 'urbano' : 'rural'} coincide con la búsqueda.`
+                  : `Actualmente no hay territorios ${activeTab === 'urban' ? 'urbanos' : 'rurales'} registrados.`
+                )
               }
             </CardDescription>
              <div className="relative w-full sm:w-64 md:w-72">
@@ -126,35 +246,7 @@ export default function TerritoriosPage() {
             </TabsList>
             {(["urban", "rural"] as TerritoryType[]).map(tabType => (
               <TabsContent value={tabType} key={tabType}>
-                {territories.filter(t => t.type === tabType).length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
-                    <MapPin className="h-20 w-20 text-muted-foreground/70 mb-6" />
-                    <p className="text-xl font-medium text-muted-foreground mb-2">No hay territorios {tabType === 'urban' ? 'urbanos' : 'rurales'} para mostrar.</p>
-                    <p className="text-sm text-muted-foreground">
-                      Haz clic en "Añadir Nuevo Territorio" para registrar el primero de este tipo.
-                    </p>
-                  </div>
-                ) : filteredTerritories.filter(t => t.type === tabType).length === 0 && searchTerm ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
-                    <Search className="h-20 w-20 text-muted-foreground/70 mb-6" />
-                    <p className="text-xl font-medium text-muted-foreground mb-2">Sin resultados</p>
-                    <p className="text-sm text-muted-foreground">
-                      No se encontraron territorios {tabType === 'urban' ? 'urbanos' : 'rurales'} que coincidan con "{searchTerm}".
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredTerritories.filter(t => t.type === tabType).map((territory) => (
-                      <TerritoryCard
-                        key={territory.id}
-                        territory={territory}
-                        onEdit={() => handleOpenEditDialog(territory)}
-                        onDelete={() => handleDeleteTerritory(territory.id)} // Placeholder for AlertDialogTrigger
-                        onBlockToggle={() => handleToggleBlockTerritory(territory.id)}
-                      />
-                    ))}
-                  </div>
-                )}
+                {renderTerritoryGrid(tabType)}
               </TabsContent>
             ))}
           </Tabs>

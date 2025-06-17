@@ -44,7 +44,7 @@ const territoryFormSchema = z.object({
   doNotCallAddressesString: z.string().optional(),
   warningsString: z.string().optional(),
   groupIdsString: z.string().optional(),
-  associatedCasaIdsString: z.string().optional(), // Added for nearby house IDs/names
+  associatedCasaIdsString: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.type === "urban" && (!data.number || data.number.trim() === "")) {
     ctx.addIssue({
@@ -83,7 +83,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       doNotCallAddressesString: "",
       warningsString: "",
       groupIdsString: "",
-      associatedCasaIdsString: "", // Added default
+      associatedCasaIdsString: "",
     },
   });
 
@@ -103,7 +103,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
         doNotCallAddressesString: territoryToEdit.doNotCallAddresses?.join("\n") || "",
         warningsString: territoryToEdit.warnings?.join("\n") || "",
         groupIdsString: territoryToEdit.groupIds?.join(", ") || "",
-        associatedCasaIdsString: territoryToEdit.associatedCasaIds?.join(", ") || "", // Populate for edit
+        associatedCasaIdsString: territoryToEdit.associatedCasaIds?.join(", ") || "",
       });
       if (territoryToEdit.mapImageUrl) {
         setMapImagePreview(territoryToEdit.mapImageUrl);
@@ -175,6 +175,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       number: values.type === "urban" ? values.number : undefined,
       name: values.name,
       mapImageUrl: values.mapImageUrl || undefined,
+      dataAiHint: "map sketch", // Default hint, can be customized later
       googleMapsLink: values.googleMapsLink || undefined,
       totalBlocks: values.totalBlocks,
       blockHouseCounts: blockHouseCounts,
@@ -183,25 +184,21 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       warnings: values.warningsString?.split('\n').map(s => s.trim()).filter(s => s) || [],
       isBlocked: isEditMode && territoryToEdit ? territoryToEdit.isBlocked : false,
       groupIds: values.groupIdsString?.split(',').map(s => s.trim()).filter(s => s) || [],
-      associatedCasaIds: values.associatedCasaIdsString?.split(',').map(s => s.trim()).filter(s => s) || [], // Parse and add
+      associatedCasaIds: values.associatedCasaIdsString?.split(',').map(s => s.trim()).filter(s => s) || [],
       lastWorked: isEditMode && territoryToEdit ? territoryToEdit.lastWorked : undefined,
       createdAt: isEditMode && territoryToEdit ? territoryToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
 
-    await new Promise(resolve => setTimeout(resolve, 700));
-
+    // No API call or toast here, parent will handle it
     onTerritorySubmit(submittedTerritory);
-    toast({
-      title: isEditMode ? "Territorio Actualizado" : "Territorio Añadido",
-      description: `El territorio "${values.name}" ha sido ${isEditMode ? 'actualizado' : 'registrado'} (simulación).`,
-    });
-
+    
+    // Reset form only if not in edit mode, parent handles dialog closing
     if (!isEditMode) {
         form.reset();
         setMapImagePreview(null);
     }
-    onOpenChange(false);
+    // onOpenChange(false); // Parent page will close the dialog after successful Firestore operation
     setIsSubmitting(false);
   }
 
