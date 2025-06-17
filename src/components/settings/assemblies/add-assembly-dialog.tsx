@@ -77,8 +77,8 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
     if (assemblyToEdit && isOpen) {
       form.reset({
         name: assemblyToEdit.name || "",
-        startDate: assemblyToEdit.startDate?.toDate() || undefined,
-        endDate: assemblyToEdit.endDate?.toDate() || undefined,
+        startDate: assemblyToEdit.startDate instanceof Timestamp ? assemblyToEdit.startDate.toDate() : (assemblyToEdit.startDate as Date | undefined) || undefined,
+        endDate: assemblyToEdit.endDate instanceof Timestamp ? assemblyToEdit.endDate.toDate() : (assemblyToEdit.endDate as Date | undefined) || undefined,
         description: assemblyToEdit.description || "",
       });
     } else if (!isOpen) {

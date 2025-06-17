@@ -68,7 +68,7 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
     if (holidayToEdit && isOpen) {
       form.reset({
         name: holidayToEdit.name || "",
-        date: holidayToEdit.date?.toDate() || undefined,
+        date: holidayToEdit.date instanceof Timestamp ? holidayToEdit.date.toDate() : (holidayToEdit.date as Date | undefined) || undefined,
         description: holidayToEdit.description || "",
       });
     } else if (!isOpen) {

@@ -103,8 +103,8 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       form.reset({
         name: campaignToEdit.name || "",
         type: campaignToEdit.type || undefined,
-        startDate: campaignToEdit.startDate?.toDate() || undefined,
-        endDate: campaignToEdit.endDate?.toDate() || undefined,
+        startDate: campaignToEdit.startDate instanceof Timestamp ? campaignToEdit.startDate.toDate() : (campaignToEdit.startDate as Date | undefined) || undefined,
+        endDate: campaignToEdit.endDate instanceof Timestamp ? campaignToEdit.endDate.toDate() : (campaignToEdit.endDate as Date | undefined) || undefined,
         description: campaignToEdit.description || "",
         superintendentName: campaignToEdit.superintendentName || "",
         specialCampaignTerritoriesPerDay: campaignToEdit.specialCampaignTerritoriesPerDay === undefined || campaignToEdit.specialCampaignTerritoriesPerDay === null ? 0 : campaignToEdit.specialCampaignTerritoriesPerDay,
@@ -146,7 +146,6 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
     
     try {
       await onCampaignSubmit(campaignData);
-      // Toast y cierre del diálogo se manejan en la página de settings
     } catch (e) {
         toast({title: "Error", description: "Ocurrió un error al guardar la campaña.", variant: "destructive"})
     } finally {
