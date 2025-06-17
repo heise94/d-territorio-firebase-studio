@@ -387,6 +387,7 @@ export default function SettingsPage() {
             updateData.groupOrganizedDays = configToSave.groupOrganizedDays;
         }
         if (configToSave.hasOwnProperty('lastRuralWeekendLeadingGroupId')) {
+            // Ensure that if undefined is passed, it's converted to null for Firestore
             updateData.lastRuralWeekendLeadingGroupId = configToSave.lastRuralWeekendLeadingGroupId === undefined ? null : configToSave.lastRuralWeekendLeadingGroupId;
         }
 
@@ -763,7 +764,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
 
   const handleSaveRuralRotation = async () => {
     setIsSavingRuralRotation(true);
-    const valueToSave = selectedLastRuralGroupId;
+    const valueToSave = selectedLastRuralGroupId === undefined ? null : selectedLastRuralGroupId; // Convert undefined to null
     const success = await saveProgramConfigToFirestore({ lastRuralWeekendLeadingGroupId: valueToSave });
     
     if (success) {
@@ -828,7 +829,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
                     <Skeleton className="h-20 w-full" />
                   </div>
                 ) : (
-                  <Accordion type="multiple" className="w-full space-y-2" defaultValue={PERMISSION_MODULES_BY_MODULE.map(m => m.moduleName)}>
+                  <Accordion type="multiple" className="w-full space-y-2" defaultValue={PERMISSIONS_BY_MODULE.map(m => m.moduleName)}>
                     {PERMISSIONS_BY_MODULE.map((moduleItem) => (
                       <AccordionItem value={moduleItem.moduleName} key={moduleItem.moduleName} className="border rounded-md shadow-sm bg-muted/20">
                         <AccordionTrigger className="px-4 py-3 text-base hover:no-underline hover:bg-muted/30 rounded-t-md">
@@ -1215,4 +1216,3 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
 
 const PERMISSION_MODULES_ORDERED_FOR_ACCORDION = PERMISSIONS_BY_MODULE.map(m => m.moduleName);
     
-
