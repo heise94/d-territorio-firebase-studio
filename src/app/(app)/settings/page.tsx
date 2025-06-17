@@ -12,7 +12,7 @@ import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, UserRole, SettingsDoc } from "@/types";
-import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS, PERMISSION_MODULES, PERMISSION_MODULES_BY_MODULE } from "@/lib/constants";
+import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS, PERMISSION_MODULES } from "@/lib/constants";
 import {
   Dialog,
   DialogContent,
@@ -61,13 +61,13 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription as AlertDialogDescriptionComponentInner, 
+  AlertDialogDescription as AlertDialogDescriptionComponentInner,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle as AlertDialogTitleComponentInner, 
+  AlertDialogTitle as AlertDialogTitleComponentInner,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { format as formatDate, getYear, getMonth } from 'date-fns';
+import { format as formatDate, getYear as getYearFromDateFn, getMonth as getMonthFromDateFn } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -153,6 +153,9 @@ export default function SettingsPage() {
   const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   const [isHolidayDialogOpen, setIsHolidayDialogOpen] = useState(false);
   const [holidayToEdit, setHolidayToEdit] = useState<CustomHoliday | null>(null);
+  const [selectedHolidayYear, setSelectedHolidayYear] = useState<string>(new Date().getUTCFullYear().toString());
+  const [selectedHolidayMonth, setSelectedHolidayMonth] = useState<string>("Todos los Meses");
+
 
   const [assemblies, setAssemblies] = useState<Assembly[]>([]);
   const [isAssemblyDialogOpen, setIsAssemblyDialogOpen] = useState(false);
@@ -162,7 +165,7 @@ export default function SettingsPage() {
   const [isSavingSpecialEvents, setIsSavingSpecialEvents] = useState(false);
 
 
-  const [selectedLastRuralGroupId, setSelectedLastRuralGroupId] = useState<string | null | undefined>(undefined); // undefined for initial state, null for "None"
+  const [selectedLastRuralGroupId, setSelectedLastRuralGroupId] = useState<string | null | undefined>(undefined);
   const [isSavingRuralRotation, setIsSavingRuralRotation] = useState(false);
 
   const [editableRolePermissions, setEditableRolePermissions] = useState<RoleConfiguration>(DEFAULT_ROLE_PERMISSIONS);
@@ -194,7 +197,7 @@ export default function SettingsPage() {
       if (docSnap.exists() && docSnap.data()?.rolePermissions) {
         setEditableRolePermissions(docSnap.data().rolePermissions as RoleConfiguration);
       } else {
-        console.warn("Role permissions document not found. Using default permissions.");
+        console.warn("Role permissions document not found. Using default permissions. Creating one...");
         await setDoc(docRef, { rolePermissions: DEFAULT_ROLE_PERMISSIONS, updatedAt: serverTimestamp() });
         setEditableRolePermissions(DEFAULT_ROLE_PERMISSIONS);
       }
@@ -223,13 +226,14 @@ export default function SettingsPage() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
             const data = docSnap.data() as Partial<SettingsDoc>;
-            setScheduleSlots(data.scheduleSlots || []);
+            setScheduleSlots(data.programScheduleSlots || []);
             setGroupOrganizedDays(data.groupOrganizedDays || []);
             setSelectedLastRuralGroupId(data.hasOwnProperty('lastRuralWeekendLeadingGroupId') ? data.lastRuralWeekendLeadingGroupId : null);
         } else {
             setScheduleSlots([]);
             setGroupOrganizedDays([]);
-            setSelectedLastRuralGroupId(null);
+            setSelectedLastRuralGroupId(null); 
+            console.log("Program config document (settings/programConfig) does not exist. Initializing with empty/default values.");
         }
     } catch (error) {
         console.error("Error fetching program configuration:", error);
@@ -242,7 +246,28 @@ export default function SettingsPage() {
     }
   }, [toast]);
 
-  const loadSpecialEventsConfiguration = useCallback(async () => {
+  const sanitizeFirestoreObject = (obj: any): any => {
+    if (obj === null || typeof obj !== 'object' || obj instanceof Timestamp || obj instanceof Date) {
+      return obj;
+    }
+    if (Array.isArray(obj)) {
+      return obj.map(item => sanitizeFirestoreObject(item));
+    }
+    const newObj: any = {};
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const value = obj[key];
+        if (value !== undefined) {
+          newObj[key] = sanitizeFirestoreObject(value);
+        } else {
+          newObj[key] = null;
+        }
+      }
+    }
+    return newObj;
+  };
+  
+ const loadSpecialEventsConfiguration = useCallback(async () => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       setIsLoadingSpecialEvents(false);
@@ -254,13 +279,27 @@ export default function SettingsPage() {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data() as Partial<SettingsDoc>;
-        setCampaigns((data.campaignsList || []).map((c:any) => ({...c, startDate: c.startDate?.toDate ? c.startDate.toDate() : c.startDate, endDate: c.endDate?.toDate ? c.endDate.toDate() : c.endDate })));
-        setCustomHolidays((data.holidaysList || []).map((h:any) => ({...h, date: h.date?.toDate ? h.date.toDate() : h.date })));
-        setAssemblies((data.assembliesList || []).map((a:any) => ({...a, startDate: a.startDate?.toDate ? a.startDate.toDate() : a.startDate, endDate: a.endDate?.toDate ? a.endDate.toDate() : a.endDate })));
+        const convertTimestampToDateIfPresent = (item: any, dateFields: string[]) => {
+            const newItem = { ...item };
+            dateFields.forEach(field => {
+                if (newItem[field] instanceof Timestamp) {
+                    newItem[field] = newItem[field].toDate();
+                } else if (typeof newItem[field] === 'string') {
+                     newItem[field] = new Date(newItem[field]); 
+                }
+            });
+            return newItem;
+        };
+
+        setCampaigns((data.campaignsList || []).map(c => convertTimestampToDateIfPresent(c, ['startDate', 'endDate'])));
+        setCustomHolidays((data.holidaysList || []).map(h => convertTimestampToDateIfPresent(h, ['date'])));
+        setAssemblies((data.assembliesList || []).map(a => convertTimestampToDateIfPresent(a, ['startDate', 'endDate'])));
+
       } else {
         setCampaigns([]);
         setCustomHolidays([]);
         setAssemblies([]);
+        console.log("Special events config document (settings/specialEventsConfig) does not exist. Initializing with empty values.");
       }
     } catch (error) {
       console.error("Error fetching special events configuration:", error);
@@ -309,10 +348,10 @@ export default function SettingsPage() {
     setIsSavingPermissions(true);
     try {
       const docRef = doc(db, "settings", "rolePermissions");
-      await setDoc(docRef, { 
+      await setDoc(docRef, {
         rolePermissions: editableRolePermissions,
-        updatedAt: serverTimestamp() 
-      });
+        updatedAt: serverTimestamp()
+      }, { merge: true });
       toast({
         title: "Permisos Guardados",
         description: "La configuración de permisos de roles ha sido actualizada en Firebase.",
@@ -330,33 +369,28 @@ export default function SettingsPage() {
   };
 
   const saveProgramConfigToFirestore = async (
-    configToSave: Partial<Pick<SettingsDoc, 'scheduleSlots' | 'groupOrganizedDays' | 'lastRuralWeekendLeadingGroupId'>>
+    configToSave: Partial<Pick<SettingsDoc, 'programScheduleSlots' | 'groupOrganizedDays' | 'lastRuralWeekendLeadingGroupId'>>
   ) => {
     if (!db || Object.keys(db).length === 0) {
         toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
         return false;
     }
-    
+
     try {
         const docRef = doc(db, "settings", "programConfig");
-        const batch = writeBatch(db);
-        
         const updateData: any = { updatedAt: serverTimestamp() };
 
-        if (configToSave.hasOwnProperty('scheduleSlots')) {
-            updateData.scheduleSlots = configToSave.scheduleSlots;
+        if (configToSave.hasOwnProperty('programScheduleSlots')) {
+            updateData.programScheduleSlots = configToSave.programScheduleSlots;
         }
         if (configToSave.hasOwnProperty('groupOrganizedDays')) {
             updateData.groupOrganizedDays = configToSave.groupOrganizedDays;
         }
         if (configToSave.hasOwnProperty('lastRuralWeekendLeadingGroupId')) {
-            updateData.lastRuralWeekendLeadingGroupId = configToSave.lastRuralWeekendLeadingGroupId === undefined 
-                                                        ? deleteField() 
-                                                        : (configToSave.lastRuralWeekendLeadingGroupId === null ? null : configToSave.lastRuralWeekendLeadingGroupId);
+            updateData.lastRuralWeekendLeadingGroupId = configToSave.lastRuralWeekendLeadingGroupId === undefined ? null : configToSave.lastRuralWeekendLeadingGroupId;
         }
-        
-        batch.set(docRef, updateData, { merge: true });
-        await batch.commit();
+
+        await setDoc(docRef, sanitizeFirestoreObject(updateData), { merge: true });
         return true;
     } catch (error) {
         console.error("Error saving program configuration:", error);
@@ -365,43 +399,54 @@ export default function SettingsPage() {
     }
   };
 
-  const sanitizeForFirestore = (obj: any): any => {
-    if (obj === undefined) return null; // Or deleteField() if merging and want to remove
-    if (obj === null || typeof obj !== 'object' || obj instanceof Timestamp || obj instanceof Date) {
-      return obj;
-    }
-    if (Array.isArray(obj)) {
-      return obj.map(sanitizeForFirestore);
-    }
-    const newObj: any = {};
-    for (const key in obj) {
-      if (obj.hasOwnProperty(key) && obj[key] !== undefined) {
-        newObj[key] = sanitizeForFirestore(obj[key]);
-      } else if (obj.hasOwnProperty(key) && obj[key] === undefined){
-        // Explicitly handle undefined by setting to null or deleting if field should be removed
-        newObj[key] = null; 
-      }
-    }
-    return newObj;
-  };
-
-
-  const saveSpecialEventsToFirestore = async (eventsData: { campaigns: Campaign[]; customHolidays: CustomHoliday[]; assemblies: Assembly[] }) => {
+const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]; customHolidays?: CustomHoliday[]; assemblies?: Assembly[] }) => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       return false;
     }
+    
+    const convertDatesToTimestamps = (item: any, dateFields: string[]) => {
+      const newItem = { ...item };
+      dateFields.forEach(field => {
+        if (newItem[field] && !(newItem[field] instanceof Timestamp)) {
+          newItem[field] = Timestamp.fromDate(new Date(newItem[field]));
+        }
+      });
+      return newItem;
+    };
+
+    const sanitizeEvent = (event: any, dateFields: string[], optionalFields: string[]) => {
+        let sanitizedEvent = { ...event };
+        sanitizedEvent = convertDatesToTimestamps(sanitizedEvent, dateFields);
+        optionalFields.forEach(field => {
+            if (sanitizedEvent[field] === undefined || sanitizedEvent[field] === '') {
+                 sanitizedEvent[field] = null;
+            }
+        });
+        return sanitizeFirestoreObject(sanitizedEvent);
+    };
+    
+    const payloadToSave: any = { updatedAt: serverTimestamp() };
+
+    if (eventsData.campaigns) {
+        payloadToSave.campaignsList = (eventsData.campaigns || []).map(c => 
+            sanitizeEvent(c, ['startDate', 'endDate'], ['superintendentName', 'description', 'specialCampaignTerritoriesPerDay'])
+        );
+    }
+    if (eventsData.customHolidays) {
+        payloadToSave.holidaysList = (eventsData.customHolidays || []).map(h => 
+            sanitizeEvent(h, ['date'], ['description'])
+        );
+    }
+    if (eventsData.assemblies) {
+        payloadToSave.assembliesList = (eventsData.assemblies || []).map(a => 
+            sanitizeEvent(a, ['startDate', 'endDate'], ['description'])
+        );
+    }
+
     setIsSavingSpecialEvents(true);
     try {
       const docRef = doc(db, "settings", "specialEventsConfig");
-      
-      const payloadToSave = {
-        campaignsList: (eventsData.campaigns || []).map(c => sanitizeForFirestore({...c, startDate: Timestamp.fromDate(new Date(c.startDate)), endDate: Timestamp.fromDate(new Date(c.endDate))})),
-        holidaysList: (eventsData.customHolidays || []).map(h => sanitizeForFirestore({...h, date: Timestamp.fromDate(new Date(h.date))})),
-        assembliesList: (eventsData.assemblies || []).map(a => sanitizeForFirestore({...a, startDate: Timestamp.fromDate(new Date(a.startDate)), endDate: Timestamp.fromDate(new Date(a.endDate))})),
-        updatedAt: serverTimestamp(),
-      };
-      
       await setDoc(docRef, payloadToSave, { merge: true });
       return true;
     } catch (error: any) {
@@ -438,7 +483,7 @@ export default function SettingsPage() {
     });
     
     setIsSavingProgramSettings(true);
-    const success = await saveProgramConfigToFirestore({ scheduleSlots: updatedSlots });
+    const success = await saveProgramConfigToFirestore({ programScheduleSlots: updatedSlots });
     setIsSavingProgramSettings(false);
 
     if (success) {
@@ -453,7 +498,7 @@ export default function SettingsPage() {
   const handleDeleteSlot = async (slotId: string) => {
     const updatedSlots = scheduleSlots.filter(slot => slot.id !== slotId);
     setIsSavingProgramSettings(true);
-    const success = await saveProgramConfigToFirestore({ scheduleSlots: updatedSlots });
+    const success = await saveProgramConfigToFirestore({ programScheduleSlots: updatedSlots });
     setIsSavingProgramSettings(false);
     if (success) {
         setScheduleSlots(updatedSlots);
@@ -479,13 +524,15 @@ export default function SettingsPage() {
 
   const handleCampaignSubmit = async (submittedCampaignData: Omit<Campaign, 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
     let updatedCampaigns;
+    const isEdit = !!submittedCampaignData.id;
     
     const campaignToSave = {
       ...submittedCampaignData,
+      id: submittedCampaignData.id || crypto.randomUUID(),
       superintendentName: submittedCampaignData.superintendentName?.trim() || null,
       description: submittedCampaignData.description?.trim() || null,
       specialCampaignTerritoriesPerDay: submittedCampaignData.specialCampaignTerritoriesPerDay === undefined ? 0 : submittedCampaignData.specialCampaignTerritoriesPerDay,
-      createdAt: submittedCampaignData.createdAt instanceof Timestamp ? submittedCampaignData.createdAt : Timestamp.now(),
+      createdAt: isEdit && campaignToEdit?.createdAt ? campaignToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
     
@@ -495,17 +542,17 @@ export default function SettingsPage() {
     } else {
       updatedCampaigns = [...campaigns, campaignToSave];
     }
-    updatedCampaigns.sort((a, b) => (b.startDate instanceof Timestamp ? b.startDate.toMillis() : new Date(b.startDate).getTime()) - (a.startDate instanceof Timestamp ? a.startDate.toMillis() : new Date(a.startDate).getTime()));
-    
-    const success = await saveSpecialEventsToFirestore({ 
-        campaigns: updatedCampaigns, 
-        customHolidays: customHolidays.map(h => ({...h, date: h.date instanceof Date ? Timestamp.fromDate(h.date) : h.date}) as any), 
-        assemblies: assemblies.map(a => ({...a, startDate: a.startDate instanceof Date ? Timestamp.fromDate(a.startDate) : a.startDate, endDate: a.endDate instanceof Date ? Timestamp.fromDate(a.endDate) : a.endDate}) as any)
+     updatedCampaigns.sort((a, b) => {
+        const dateA = a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate);
+        const dateB = b.startDate instanceof Timestamp ? b.startDate.toDate() : new Date(b.startDate);
+        return dateB.getTime() - dateA.getTime();
     });
+    
+    const success = await saveSpecialEventsToFirestore({ campaigns: updatedCampaigns });
 
     if (success) {
-        setCampaigns(updatedCampaigns.map(c => ({...c, startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate)} as any)));
-        toast({ title: campaignToEdit ? "Campaña Actualizada" : "Campaña Añadida", description: `La campaña "${campaignToSave.name}" ha sido guardada.` });
+        setCampaigns(updatedCampaigns.map(c => ({...c, startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate)})));
+        toast({ title: isEdit ? "Campaña Actualizada" : "Campaña Añadida", description: `La campaña "${campaignToSave.name}" ha sido guardada.` });
         setIsCampaignDialogOpen(false);
         setCampaignToEdit(null);
     }
@@ -514,11 +561,7 @@ export default function SettingsPage() {
   const handleDeleteCampaign = async (campaignId: string) => {
     const campaignToDelete = campaigns.find(c => c.id === campaignId);
     const updatedCampaigns = campaigns.filter(c => c.id !== campaignId);
-    const success = await saveSpecialEventsToFirestore({ 
-        campaigns: updatedCampaigns, 
-        customHolidays: customHolidays.map(h => ({...h, date: h.date instanceof Date ? Timestamp.fromDate(h.date) : h.date}) as any), 
-        assemblies: assemblies.map(a => ({...a, startDate: a.startDate instanceof Date ? Timestamp.fromDate(a.startDate) : a.startDate, endDate: a.endDate instanceof Date ? Timestamp.fromDate(a.endDate) : a.endDate}) as any)
-    });
+    const success = await saveSpecialEventsToFirestore({ campaigns: updatedCampaigns });
     if (success) {
         setCampaigns(updatedCampaigns);
         toast({ title: "Campaña Eliminada", description: `La campaña "${campaignToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
@@ -527,10 +570,12 @@ export default function SettingsPage() {
 
   const handleAssemblySubmit = async (submittedAssemblyData: Omit<Assembly, 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
     let updatedAssemblies;
+    const isEdit = !!submittedAssemblyData.id;
      const assemblyToSave = {
         ...submittedAssemblyData,
+        id: submittedAssemblyData.id || crypto.randomUUID(),
         description: submittedAssemblyData.description?.trim() || null,
-        createdAt: submittedAssemblyData.createdAt instanceof Timestamp ? submittedAssemblyData.createdAt : Timestamp.now(),
+        createdAt: isEdit && assemblyToEdit?.createdAt ? assemblyToEdit.createdAt : Timestamp.now(),
         updatedAt: Timestamp.now(),
     };
 
@@ -540,16 +585,16 @@ export default function SettingsPage() {
     } else {
       updatedAssemblies = [...assemblies, assemblyToSave];
     }
-    updatedAssemblies.sort((a, b) => (b.startDate instanceof Timestamp ? b.startDate.toMillis() : new Date(b.startDate).getTime()) - (a.startDate instanceof Timestamp ? a.startDate.toMillis() : new Date(a.startDate).getTime()));
-
-    const success = await saveSpecialEventsToFirestore({ 
-      campaigns: campaigns.map(c => ({...c, startDate: c.startDate instanceof Date ? Timestamp.fromDate(c.startDate) : c.startDate, endDate: c.endDate instanceof Date ? Timestamp.fromDate(c.endDate) : c.endDate}) as any), 
-      customHolidays: customHolidays.map(h => ({...h, date: h.date instanceof Date ? Timestamp.fromDate(h.date) : h.date}) as any), 
-      assemblies: updatedAssemblies 
+    updatedAssemblies.sort((a, b) => {
+        const dateA = a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate);
+        const dateB = b.startDate instanceof Timestamp ? b.startDate.toDate() : new Date(b.startDate);
+        return dateB.getTime() - dateA.getTime();
     });
+
+    const success = await saveSpecialEventsToFirestore({ assemblies: updatedAssemblies });
     if (success) {
-        setAssemblies(updatedAssemblies.map(a => ({...a, startDate: a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate), endDate: a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate)} as any)));
-        toast({ title: assemblyToEdit ? "Asamblea Actualizada" : "Asamblea Añadida", description: `La asamblea "${assemblyToSave.name}" ha sido guardada.` });
+        setAssemblies(updatedAssemblies.map(a => ({...a, startDate: a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate), endDate: a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate)})));
+        toast({ title: isEdit ? "Asamblea Actualizada" : "Asamblea Añadida", description: `La asamblea "${assemblyToSave.name}" ha sido guardada.` });
         setIsAssemblyDialogOpen(false);
         setAssemblyToEdit(null);
     }
@@ -557,11 +602,7 @@ export default function SettingsPage() {
   const handleDeleteAssembly = async (assemblyId: string) => {
     const assemblyToDelete = assemblies.find(a => a.id === assemblyId);
     const updatedAssemblies = assemblies.filter(a => a.id !== assemblyId);
-    const success = await saveSpecialEventsToFirestore({ 
-        campaigns: campaigns.map(c => ({...c, startDate: c.startDate instanceof Date ? Timestamp.fromDate(c.startDate) : c.startDate, endDate: c.endDate instanceof Date ? Timestamp.fromDate(c.endDate) : c.endDate}) as any), 
-        customHolidays: customHolidays.map(h => ({...h, date: h.date instanceof Date ? Timestamp.fromDate(h.date) : h.date}) as any), 
-        assemblies: updatedAssemblies
-    });
+    const success = await saveSpecialEventsToFirestore({ assemblies: updatedAssemblies });
     if (success) {
         setAssemblies(updatedAssemblies);
         toast({ title: "Asamblea Eliminada", description: `La asamblea "${assemblyToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
@@ -570,10 +611,12 @@ export default function SettingsPage() {
 
   const handleHolidaySubmit = async (submittedHolidayData: Omit<CustomHoliday, 'createdAt' | 'updatedAt'> & { id?:string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
     let updatedHolidays;
+    const isEdit = !!submittedHolidayData.id;
      const holidayToSave = {
         ...submittedHolidayData,
+        id: submittedHolidayData.id || crypto.randomUUID(),
         description: submittedHolidayData.description?.trim() || null,
-        createdAt: submittedHolidayData.createdAt instanceof Timestamp ? submittedHolidayData.createdAt : Timestamp.now(),
+        createdAt: isEdit && holidayToEdit?.createdAt ? holidayToEdit.createdAt : Timestamp.now(),
         updatedAt: Timestamp.now(),
     };
 
@@ -583,16 +626,16 @@ export default function SettingsPage() {
     } else {
       updatedHolidays = [...customHolidays, holidayToSave];
     }
-    updatedHolidays.sort((a,b) => (a.date instanceof Timestamp ? a.date.toMillis() : new Date(a.date).getTime()) - (b.date instanceof Timestamp ? b.date.toMillis() : new Date(b.date).getTime()));
-
-    const success = await saveSpecialEventsToFirestore({ 
-      campaigns: campaigns.map(c => ({...c, startDate: c.startDate instanceof Date ? Timestamp.fromDate(c.startDate) : c.startDate, endDate: c.endDate instanceof Date ? Timestamp.fromDate(c.endDate) : c.endDate}) as any), 
-      customHolidays: updatedHolidays, 
-      assemblies: assemblies.map(a => ({...a, startDate: a.startDate instanceof Date ? Timestamp.fromDate(a.startDate) : a.startDate, endDate: a.endDate instanceof Date ? Timestamp.fromDate(a.endDate) : a.endDate}) as any)
+    updatedHolidays.sort((a,b) => {
+        const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
+        const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+        return dateA.getTime() - dateB.getTime();
     });
+
+    const success = await saveSpecialEventsToFirestore({ customHolidays: updatedHolidays });
     if (success) {
-        setCustomHolidays(updatedHolidays.map(h => ({...h, date: h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)} as any)));
-        toast({ title: holidayToEdit ? "Festivo Actualizado" : "Festivo Añadido", description: `El festivo "${holidayToSave.name}" ha sido guardado.` });
+        setCustomHolidays(updatedHolidays.map(h => ({...h, date: h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)})));
+        toast({ title: isEdit ? "Festivo Actualizado" : "Festivo Añadido", description: `El festivo "${holidayToSave.name}" ha sido guardado.` });
         setIsHolidayDialogOpen(false);
         setHolidayToEdit(null);
     }
@@ -600,11 +643,7 @@ export default function SettingsPage() {
   const handleDeleteHoliday = async (holidayId: string) => {
     const holidayToDelete = customHolidays.find(h => h.id === holidayId);
     const updatedHolidays = customHolidays.filter(h => h.id !== holidayId);
-    const success = await saveSpecialEventsToFirestore({ 
-        campaigns: campaigns.map(c => ({...c, startDate: c.startDate instanceof Date ? Timestamp.fromDate(c.startDate) : c.startDate, endDate: c.endDate instanceof Date ? Timestamp.fromDate(c.endDate) : c.endDate}) as any), 
-        customHolidays: updatedHolidays, 
-        assemblies: assemblies.map(a => ({...a, startDate: a.startDate instanceof Date ? Timestamp.fromDate(a.startDate) : a.startDate, endDate: a.endDate instanceof Date ? Timestamp.fromDate(a.endDate) : a.endDate}) as any)
-    });
+    const success = await saveSpecialEventsToFirestore({ customHolidays: updatedHolidays });
     if (success) {
         setCustomHolidays(updatedHolidays);
         toast({ title: "Festivo Eliminado", description: `El festivo "${holidayToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
@@ -621,41 +660,48 @@ export default function SettingsPage() {
       { day: 15, month: 7, name: "Asunción de la Virgen" }, { day: 18, month: 8, name: "Independencia Nacional" },
       { day: 19, month: 8, name: "Día de las Glorias del Ejército" }, { day: 12, month: 9, name: "Encuentro de Dos Mundos" },
       { day: 27, month: 9, name: "Día Nacional de las Iglesias Evangélicas y Protestantes" },
-      { day: 31, month: 9, name: "Día Nacional de las Iglesias Evangélicas y Protestantes" }, // Corregido, este es el 31 de Octubre
+      { day: 31, month: 9, name: "Día Nacional de las Iglesias Evangélicas y Protestantes (Halloween)" }, 
       { day: 1, month: 10, name: "Día de Todos los Santos" }, { day: 8, month: 11, name: "Inmaculada Concepción" },
       { day: 25, month: 11, name: "Navidad" },
     ];
-    const easterExamples = [
+    const easterExamples = [ 
         { year: 2024, month: 2, day: 29, name: "Viernes Santo (Ej. 2024)"}, { year: 2024, month: 2, day: 30, name: "Sábado Santo (Ej. 2024)"},
         { year: 2025, month: 3, day: 18, name: "Viernes Santo (Ej. 2025)"}, { year: 2025, month: 3, day: 19, name: "Sábado Santo (Ej. 2025)"},
         { year: 2026, month: 3, day: 3, name: "Viernes Santo (Ej. 2026)"}, { year: 2026, month: 3, day: 4, name: "Sábado Santo (Ej. 2026)"},
     ];
     const newHolidaysToAdd: Omit<CustomHoliday, 'id' | 'createdAt' | 'updatedAt'>[] = [];
-    const existingDates = new Set(customHolidays.map(h => (h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)).toDateString()));
-    
-    const twelveMonthsFromTodayEnd = new Date(today.getFullYear(), today.getMonth() + 12, today.getDate());
+    const existingDates = new Set(customHolidays.map(h => {
+        const d = h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date);
+        d.setUTCHours(0,0,0,0);
+        return d.toISOString().split('T')[0];
+    }));
 
-    for (let i = 0; i < 12; i++) {
-      const currentDateIter = new Date(today.getFullYear(), today.getMonth() + i, 1);
-      const targetYear = currentDateIter.getFullYear(); const targetMonth = currentDateIter.getMonth();
-      baseFixedHolidays.forEach(bh => {
-        if (bh.month === targetMonth) {
-          const potentialHolidayDate = new Date(targetYear, bh.month, bh.day); potentialHolidayDate.setHours(0,0,0,0);
-          if (potentialHolidayDate >= today && potentialHolidayDate < twelveMonthsFromTodayEnd && !existingDates.has(potentialHolidayDate.toDateString())) {
-            newHolidaysToAdd.push({ name: bh.name, date: Timestamp.fromDate(potentialHolidayDate) });
-            existingDates.add(potentialHolidayDate.toDateString());
-          }
-        }
-      });
-       easterExamples.forEach(ee => {
-        if (ee.year === targetYear && ee.month === targetMonth) {
-            const potentialHolidayDate = new Date(ee.year, ee.month, ee.day); potentialHolidayDate.setHours(0,0,0,0);
-            if (potentialHolidayDate >= today && potentialHolidayDate < twelveMonthsFromTodayEnd && !existingDates.has(potentialHolidayDate.toDateString())) {
-                 newHolidaysToAdd.push({ name: ee.name, date: Timestamp.fromDate(potentialHolidayDate) });
-                existingDates.add(potentialHolidayDate.toDateString());
+    const currentLoopDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+    const endDateLimit = new Date(Date.UTC(today.getUTCFullYear() + 1, today.getUTCMonth(), 1)); 
+
+    while(currentLoopDate < endDateLimit) {
+        const targetYear = currentLoopDate.getUTCFullYear();
+        const targetMonth = currentLoopDate.getUTCMonth();
+
+        baseFixedHolidays.forEach(bh => {
+            if (bh.month === targetMonth) {
+                const potentialHolidayDate = new Date(Date.UTC(targetYear, bh.month, bh.day));
+                if (potentialHolidayDate >= today && !existingDates.has(potentialHolidayDate.toISOString().split('T')[0])) {
+                    newHolidaysToAdd.push({ name: bh.name, date: Timestamp.fromDate(potentialHolidayDate) });
+                    existingDates.add(potentialHolidayDate.toISOString().split('T')[0]);
+                }
             }
-        }
-      });
+        });
+        easterExamples.forEach(ee => {
+            if (ee.year === targetYear && ee.month === targetMonth) {
+                const potentialHolidayDate = new Date(Date.UTC(ee.year, ee.month, ee.day));
+                 if (potentialHolidayDate >= today && !existingDates.has(potentialHolidayDate.toISOString().split('T')[0])) {
+                    newHolidaysToAdd.push({ name: ee.name, date: Timestamp.fromDate(potentialHolidayDate) });
+                    existingDates.add(potentialHolidayDate.toISOString().split('T')[0]);
+                }
+            }
+        });
+        currentLoopDate.setUTCMonth(currentLoopDate.getUTCMonth() + 1);
     }
     
     if (newHolidaysToAdd.length > 0) {
@@ -666,16 +712,13 @@ export default function SettingsPage() {
             updatedAt: Timestamp.now(),
         }));
 
-        const currentCustomHolidaysAsTimestamps = customHolidays.map(h => ({ ...h, date: h.date instanceof Date ? Timestamp.fromDate(h.date) : h.date }) as any);
-        const updatedHolidaysWithTimestamps = [...currentCustomHolidaysAsTimestamps, ...holidaysWithIdsAndTimestamps].sort((a,b) => a.date.toMillis() - b.date.toMillis());
+        const currentCustomHolidaysAsDates = customHolidays.map(h => ({ ...h, date: (h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)) }));
+        const updatedHolidaysWithDates = [...currentCustomHolidaysAsDates, ...holidaysWithIdsAndTimestamps.map(h => ({...h, date: h.date.toDate()}))]
+          .sort((a,b) => a.date.getTime() - b.date.getTime());
         
-        const success = await saveSpecialEventsToFirestore({ 
-            campaigns: campaigns.map(c => ({...c, startDate: c.startDate instanceof Date ? Timestamp.fromDate(c.startDate) : c.startDate, endDate: c.endDate instanceof Date ? Timestamp.fromDate(c.endDate) : c.endDate}) as any), 
-            customHolidays: updatedHolidaysWithTimestamps, 
-            assemblies: assemblies.map(a => ({...a, startDate: a.startDate instanceof Date ? Timestamp.fromDate(a.startDate) : a.startDate, endDate: a.endDate instanceof Date ? Timestamp.fromDate(a.endDate) : a.endDate}) as any)
-        });
+        const success = await saveSpecialEventsToFirestore({ customHolidays: updatedHolidaysWithDates });
         if (success) {
-            setCustomHolidays(updatedHolidaysWithTimestamps.map(h => ({...h, date: h.date.toDate()} as any)));
+            setCustomHolidays(updatedHolidaysWithDates);
             toast({ title: "Festivos de Ejemplo Cargados", description: `${holidaysWithIdsAndTimestamps.length} festivos (Chile, próximos 12 meses) añadidos y guardados. Verifique y ajuste.`, duration: 10000 });
         }
     } else {
@@ -684,21 +727,43 @@ export default function SettingsPage() {
     setIsSavingSpecialEvents(false);
   };
 
-  const groupedHolidays = useMemo(() => {
-    if (!customHolidays.length) return {}; const groups: Record<string, CustomHoliday[]> = {};
-    customHolidays.forEach(holiday => {
-      const holidayDate = holiday.date instanceof Timestamp ? holiday.date.toDate() : new Date(holiday.date);
-      const year = holidayDate.getUTCFullYear(); const month = holidayDate.getUTCMonth();
-      const monthYearKey = `${year}-${String(month).padStart(2, '0')}`;
-      if (!groups[monthYearKey]) groups[monthYearKey] = [];
-      groups[monthYearKey].push(holiday);
-    }); return groups;
+  const holidayYearsForFilter = useMemo(() => {
+    const years = new Set<string>();
+    customHolidays.forEach(h => {
+      const d = h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date);
+      years.add(d.getUTCFullYear().toString());
+    });
+    const currentYr = new Date().getUTCFullYear().toString();
+    if (!years.has(currentYr)) years.add(currentYr); 
+    return ["Todos los Años", ...Array.from(years).sort((a, b) => parseInt(b) - parseInt(a))];
   }, [customHolidays]);
-  const sortedMonthYearKeys = useMemo(() => Object.keys(groupedHolidays).sort(), [groupedHolidays]);
+
+  const holidayMonthsForFilter = useMemo(() => {
+    return ["Todos los Meses", ...Array.from({ length: 12 }, (_, i) => ({
+      value: i.toString(),
+      label: formatDate(new Date(Date.UTC(2000, i, 1)), "MMMM", { locale: es, timeZone: 'UTC' }),
+    }))];
+  }, []);
+
+  const filteredHolidaysForTable = useMemo(() => {
+    return customHolidays
+      .filter(holiday => {
+        const holidayDate = holiday.date instanceof Timestamp ? holiday.date.toDate() : new Date(holiday.date);
+        const yearMatch = selectedHolidayYear === "Todos los Años" || holidayDate.getUTCFullYear().toString() === selectedHolidayYear;
+        const monthMatch = selectedHolidayMonth === "Todos los Meses" || holidayDate.getUTCMonth().toString() === selectedHolidayMonth;
+        return yearMatch && monthMatch;
+      })
+      .sort((a, b) => {
+          const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
+          const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+          return dateA.getTime() - dateB.getTime();
+      });
+  }, [customHolidays, selectedHolidayYear, selectedHolidayMonth]);
+
 
   const handleSaveRuralRotation = async () => {
     setIsSavingRuralRotation(true);
-    const valueToSave = selectedLastRuralGroupId; // Already null or string
+    const valueToSave = selectedLastRuralGroupId;
     const success = await saveProgramConfigToFirestore({ lastRuralWeekendLeadingGroupId: valueToSave });
     
     if (success) {
@@ -763,8 +828,8 @@ export default function SettingsPage() {
                     <Skeleton className="h-20 w-full" />
                   </div>
                 ) : (
-                  <Accordion type="multiple" className="w-full space-y-2" defaultValue={PERMISSION_MODULES_ORDERED_FOR_ACCORDION}>
-                    {PERMISSION_MODULES_BY_MODULE.map((moduleItem) => (
+                  <Accordion type="multiple" className="w-full space-y-2" defaultValue={PERMISSION_MODULES_BY_MODULE.map(m => m.moduleName)}>
+                    {PERMISSIONS_BY_MODULE.map((moduleItem) => (
                       <AccordionItem value={moduleItem.moduleName} key={moduleItem.moduleName} className="border rounded-md shadow-sm bg-muted/20">
                         <AccordionTrigger className="px-4 py-3 text-base hover:no-underline hover:bg-muted/30 rounded-t-md">
                           <div className="flex items-center">
@@ -979,35 +1044,102 @@ export default function SettingsPage() {
                   </CardContent>
                 </Card>
                 <Card className="shadow-lg">
-                  <CardHeader>
+                   <CardHeader>
                     <CardTitle className="flex items-center text-xl"><CalendarDays className="mr-3 h-6 w-6 text-primary" />Días Festivos Personalizados</CardTitle>
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center pt-1 gap-2">
-                      <CardDescription>Añade festivos. Puedes cargar ejemplos (Chile). Verifica y ajusta los variables.</CardDescription>
-                      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                          <Button onClick={handleLoadExampleHolidays} size="sm" variant="outline" className="w-full sm:w-auto" disabled={isSavingSpecialEvents}><Upload className="mr-2 h-4 w-4" /> Cargar Ejemplos</Button>
-                          <Button onClick={() => { setHolidayToEdit(null); setIsHolidayDialogOpen(true); }} size="sm" className="w-full sm:w-auto" disabled={isSavingSpecialEvents}><PlusCircle className="mr-2 h-4 w-4" /> Añadir Festivo Manual</Button>
-                      </div>
+                        <CardDescription>Añade festivos. Puedes cargar ejemplos (Chile). Verifica y ajusta los variables.</CardDescription>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                            <Button onClick={handleLoadExampleHolidays} size="sm" variant="outline" className="w-full sm:w-auto" disabled={isSavingSpecialEvents}><Upload className="mr-2 h-4 w-4" /> Cargar Ejemplos</Button>
+                            <Button onClick={() => { setHolidayToEdit(null); setIsHolidayDialogOpen(true); }} size="sm" className="w-full sm:w-auto" disabled={isSavingSpecialEvents}><PlusCircle className="mr-2 h-4 w-4" /> Añadir Festivo Manual</Button>
+                        </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3 items-center pt-3">
+                        <Select value={selectedHolidayYear} onValueChange={setSelectedHolidayYear}>
+                            <SelectTrigger className="w-full sm:w-[180px] h-9 text-xs">
+                                <SelectValue placeholder="Filtrar por Año" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {holidayYearsForFilter.map(year => (
+                                    <SelectItem key={year} value={year} className="text-xs">{year}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select value={selectedHolidayMonth} onValueChange={setSelectedHolidayMonth}>
+                            <SelectTrigger className="w-full sm:w-[200px] h-9 text-xs">
+                                <SelectValue placeholder="Filtrar por Mes" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {holidayMonthsForFilter.map(month => (
+                                    <SelectItem key={typeof month === 'string' ? month : month.value} value={typeof month === 'string' ? month : month.value} className="text-xs">
+                                        {typeof month === 'string' ? month : month.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {customHolidays.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-10 text-center bg-muted/30 rounded-lg border border-dashed"><CalendarDays className="h-16 w-16 text-muted-foreground/70 mb-4" /><p className="text-lg font-medium text-muted-foreground mb-1">No hay festivos.</p><p className="text-sm text-muted-foreground">Añade festivos manualmente o carga ejemplos.</p></div>
+                    {filteredHolidaysForTable.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 text-center bg-muted/30 rounded-lg border border-dashed">
+                        <CalendarDays className="h-16 w-16 text-muted-foreground/70 mb-4" />
+                        <p className="text-lg font-medium text-muted-foreground mb-1">
+                            {customHolidays.length === 0 ? "No hay festivos configurados." : "No hay festivos para el filtro seleccionado."}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                           {customHolidays.length === 0 ? "Añade festivos manualmente o carga ejemplos." : "Ajusta los filtros o añade nuevos festivos."}
+                        </p>
+                      </div>
                     ) : (
-                      <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Nombre</TableHead><TableHead>Descripción</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>
-                        {sortedMonthYearKeys.map((monthYearKey) => {
-                          const holidaysInMonth = groupedHolidays[monthYearKey]; const [yearStr, monthIndexStr] = monthYearKey.split('-');
-                          const year = parseInt(yearStr, 10); const monthIndex = parseInt(monthIndexStr, 10);
-                          const monthDate = new Date(Date.UTC(year, monthIndex, 1));
-                          return (<React.Fragment key={monthYearKey}><TableRow className="bg-muted/40 hover:bg-muted/40 sticky top-0 z-10"><TableCell colSpan={4} className="font-semibold text-primary py-2.5 px-4 text-sm">{formatDate(monthDate, "MMMM yyyy", { locale: es, timeZone: 'UTC' }).toUpperCase()}</TableCell></TableRow>
-                            {holidaysInMonth.map((holiday) => {
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Fecha</TableHead>
+                              <TableHead>Nombre</TableHead>
+                              <TableHead>Descripción</TableHead>
+                              <TableHead className="text-right">Acciones</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredHolidaysForTable.map((holiday) => {
                                 const holidayDate = holiday.date instanceof Timestamp ? holiday.date.toDate() : new Date(holiday.date);
                                 return (
-                                <TableRow key={holiday.id}><TableCell>{formatDate(holidayDate, "dd/MM/yyyy", { timeZone: 'UTC' })}</TableCell><TableCell className="font-medium">{holiday.name}</TableCell><TableCell className="text-xs italic text-muted-foreground truncate w-64" title={holiday.description || undefined}>{holiday.description || 'N/A'}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => { setHolidayToEdit(holiday); setIsHolidayDialogOpen(true);}} className="h-8 w-8"><Edit className="h-4 w-4" /></Button><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás el festivo "{holiday.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteHoliday(holiday.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></TableCell></TableRow>
+                                <TableRow key={holiday.id}>
+                                    <TableCell>{formatDate(holidayDate, "dd/MM/yyyy", { timeZone: 'UTC' })}</TableCell>
+                                    <TableCell className="font-medium">{holiday.name}</TableCell>
+                                    <TableCell className="text-xs italic text-muted-foreground truncate w-64" title={holiday.description || undefined}>
+                                    {holiday.description || 'N/A'}
+                                    </TableCell>
+                                    <TableCell className="text-right space-x-1">
+                                    <Button variant="ghost" size="icon" onClick={() => { setHolidayToEdit(holiday); setIsHolidayDialogOpen(true);}} className="h-8 w-8">
+                                        <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner>
+                                            <AlertDialogDescriptionComponentInner>Eliminarás el festivo "{holiday.name}".</AlertDialogDescriptionComponentInner>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteHoliday(holiday.id)} className={buttonVariants({variant: "destructive"})}>
+                                            Sí, eliminar
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                    </TableCell>
+                                </TableRow>
                                 );
                             })}
-                          </React.Fragment>);
-                        })}
-                      </TableBody></Table></div>
+                          </TableBody>
+                        </Table>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -1032,8 +1164,8 @@ export default function SettingsPage() {
                 ) : (
                   <div className="space-y-2">
                     <Label htmlFor="ruralRotationSelect">Último grupo que dirigió el rural de fin de semana</Label>
-                    <Select 
-                        value={selectedLastRuralGroupId === null ? "NONE_OR_RESET" : selectedLastRuralGroupId || "NONE_OR_RESET"} 
+                    <Select
+                        value={selectedLastRuralGroupId === null ? "NONE_OR_RESET" : selectedLastRuralGroupId || "NONE_OR_RESET"}
                         onValueChange={(value) => setSelectedLastRuralGroupId(value === "NONE_OR_RESET" ? null : value)}
                     >
                       <SelectTrigger className="w-full sm:w-[300px]" id="ruralRotationSelect"><SelectValue placeholder="Seleccionar grupo..." /></SelectTrigger>
@@ -1081,6 +1213,6 @@ export default function SettingsPage() {
   );
 }
 
-const PERMISSION_MODULES_ORDERED_FOR_ACCORDION = PERMISSION_MODULES_BY_MODULE.map(m => m.moduleName);
+const PERMISSION_MODULES_ORDERED_FOR_ACCORDION = PERMISSIONS_BY_MODULE.map(m => m.moduleName);
     
 
