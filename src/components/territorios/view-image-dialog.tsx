@@ -8,6 +8,7 @@ import {
   DialogTitle,
   DialogClose,
   DialogDescription,
+  DialogFooter, // Added DialogFooter
 } from "@/components/ui/dialog";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
