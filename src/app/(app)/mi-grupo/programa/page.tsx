@@ -423,12 +423,8 @@ export default function MiGrupoProgramaPage() {
 
                                 {!isPastDay && (
                                   <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
-                                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenEditDialog(assign)}>
-                                      <Pencil className="h-3 w-3 text-blue-600" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenDeleteDialog(assign.id)}>
-                                      <Trash2 className="h-3 w-3 text-destructive" />
-                                    </Button>
+                                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenEditDialog(assign)} aria-label="Editar asignación"><Pencil className="h-3 w-3 text-blue-600" /></Button></TooltipTrigger><TooltipContent><p>Editar</p></TooltipContent></Tooltip>
+                                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenDeleteDialog(assign.id)} aria-label="Eliminar asignación"><Trash2 className="h-3 w-3 text-destructive" /></Button></TooltipTrigger><TooltipContent><p>Eliminar</p></TooltipContent></Tooltip>
                                   </div>
                                 )}
                               </div>

@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Timestamp } from "firebase/firestore";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { GroupCard } from "@/components/grupos/group-card";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 
 const initialGroups: PreachingGroup[] = [
@@ -75,6 +76,7 @@ export default function GruposPage() {
   }, [groups, searchTerm]);
 
   return (
+    <TooltipProvider>
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -151,5 +153,6 @@ export default function GruposPage() {
         groupToEdit={groupToEdit}
       />
     </div>
+    </TooltipProvider>
   );
 }

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Users2 as GroupIcon, UserCog, UserCheck, Pencil, Trash2 } from "lucide-react";
 import type { PreachingGroup } from "@/types";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface GroupCardProps {
   group: PreachingGroup;
@@ -49,16 +50,27 @@ export function GroupCard({ group, onEdit, onDelete }: GroupCardProps) {
             <p className="text-xs text-muted-foreground italic text-center py-2">Sin detalles adicionales.</p>
         )}
       </CardContent>
-      <CardFooter className="border-t pt-3 pb-3 grid grid-cols-2 gap-2">
-        <Button variant="outline" size="sm" onClick={onEdit} className="text-xs">
-          <Pencil className="mr-1.5 h-3.5 w-3.5" /> Editar
-        </Button>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive" size="sm" className="text-xs">
-              <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Eliminar
+      <CardFooter className="border-t pt-3 pb-3 flex justify-end gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Editar grupo" className="h-8 w-8">
+              <Pencil className="h-4 w-4" />
             </Button>
-          </AlertDialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent><p>Editar Grupo</p></TooltipContent>
+        </Tooltip>
+
+        <AlertDialog>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Eliminar grupo" className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive">
+                      <Trash2 className="h-4 w-4" />
+                  </Button>
+              </AlertDialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent><p>Eliminar Grupo</p></TooltipContent>
+          </Tooltip>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
@@ -69,7 +81,7 @@ export function GroupCard({ group, onEdit, onDelete }: GroupCardProps) {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={onDelete}> 
+              <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90">
                 Sí, eliminar
               </AlertDialogAction>
             </AlertDialogFooter>

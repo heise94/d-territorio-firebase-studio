@@ -67,6 +67,7 @@ import {
   AlertDialogTitle as AlertDialogTitleComponentInner,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { format as formatDate, getYear as getYearFromDateFn, getMonth as getMonthFromDateFn } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
@@ -814,6 +815,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
   const PERMISSIONS_MODULES_ORDERED_FOR_ACCORDION = PERMISSIONS_BY_MODULE.map(m => m.moduleName);
 
   return (
+    <TooltipProvider>
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
@@ -972,14 +974,19 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
                                         <span className="text-muted-foreground mx-1">-</span>
                                         <span className="capitalize text-muted-foreground/80">{slot.type}</span>
                                     </div>
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-0.5">
                                         <Badge variant={slot.status === 'tentative' ? 'outline' : 'default'} className={`capitalize text-[0.7rem] px-1.5 py-0.5 ${slot.status === 'tentative' ? 'border-amber-500 text-amber-600' : ''}`}>
                                             {slot.status === 'fixed' ? 'Fijo' : 'Tentativo'}
                                             {slot.status === 'tentative' && <AlertTriangle className="ml-1 h-3 w-3" />}
                                         </Badge>
-                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteSlot(slot.id)} className="h-6 w-6 text-destructive hover:text-destructive/80">
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </Button>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteSlot(slot.id)} className="h-6 w-6 text-destructive hover:text-destructive/80 hover:bg-destructive/10">
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent><p>Eliminar Horario</p></TooltipContent>
+                                        </Tooltip>
                                     </div>
                                     </li>
                                 ))}
@@ -1051,7 +1058,11 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
                             const startDate = campaign.startDate instanceof Timestamp ? campaign.startDate.toDate() : new Date(campaign.startDate);
                             const endDate = campaign.endDate instanceof Timestamp ? campaign.endDate.toDate() : new Date(campaign.endDate);
                             return (
-                            <TableRow key={campaign.id}><TableCell className="font-medium">{campaign.name}</TableCell><TableCell>{CampaignTypeLabels[campaign.type]}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy", { timeZone: 'UTC' })} - {formatDate(endDate, "dd/MM/yyyy", { timeZone: 'UTC' })}</TableCell><TableCell className="text-xs">{campaign.type === 'superintendent_visit' && campaign.superintendentName && (<div>Sup: {campaign.superintendentName}</div>)}{(campaign.specialCampaignTerritoriesPerDay ?? 0) > 0 && (<div>Terr/día (Camp.): {campaign.specialCampaignTerritoriesPerDay}</div>)}{campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => { setCampaignToEdit(campaign); setIsCampaignDialogOpen(true);}} className="h-8 w-8"><Edit className="h-4 w-4" /></Button><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la campaña "{campaign.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteCampaign(campaign.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></TableCell></TableRow>
+                            <TableRow key={campaign.id}><TableCell className="font-medium">{campaign.name}</TableCell><TableCell>{CampaignTypeLabels[campaign.type]}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy", { timeZone: 'UTC' })} - {formatDate(endDate, "dd/MM/yyyy", { timeZone: 'UTC' })}</TableCell><TableCell className="text-xs">{campaign.type === 'superintendent_visit' && campaign.superintendentName && (<div>Sup: {campaign.superintendentName}</div>)}{(campaign.specialCampaignTerritoriesPerDay ?? 0) > 0 && (<div>Terr/día (Camp.): {campaign.specialCampaignTerritoriesPerDay}</div>)}{campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}</TableCell>
+                            <TableCell className="text-right space-x-0">
+                                <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setCampaignToEdit(campaign); setIsCampaignDialogOpen(true);}} className="h-8 w-8"><Edit className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Editar Campaña</p></TooltipContent></Tooltip>
+                                <AlertDialog><Tooltip><TooltipTrigger asChild><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger></TooltipTrigger><TooltipContent><p>Eliminar Campaña</p></TooltipContent></Tooltip><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la campaña "{campaign.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteCampaign(campaign.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+                            </TableCell></TableRow>
                             );
                         })}
                       </TableBody></Table></div>
@@ -1075,7 +1086,11 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
                              const startDate = assembly.startDate instanceof Timestamp ? assembly.startDate.toDate() : new Date(assembly.startDate);
                              const endDate = assembly.endDate instanceof Timestamp ? assembly.endDate.toDate() : new Date(assembly.endDate);
                             return (
-                            <TableRow key={assembly.id}><TableCell className="font-medium">{assembly.name}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy", { timeZone: 'UTC' })} - {formatDate(endDate, "dd/MM/yyyy", { timeZone: 'UTC' })}</TableCell><TableCell className="text-xs italic text-muted-foreground truncate w-64" title={assembly.description || undefined}>{assembly.description || 'N/A'}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => { setAssemblyToEdit(assembly); setIsAssemblyDialogOpen(true); }} className="h-8 w-8"><Edit className="h-4 w-4" /></Button><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la asamblea "{assembly.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteAssembly(assembly.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></TableCell></TableRow>
+                            <TableRow key={assembly.id}><TableCell className="font-medium">{assembly.name}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy", { timeZone: 'UTC' })} - {formatDate(endDate, "dd/MM/yyyy", { timeZone: 'UTC' })}</TableCell><TableCell className="text-xs italic text-muted-foreground truncate w-64" title={assembly.description || undefined}>{assembly.description || 'N/A'}</TableCell>
+                            <TableCell className="text-right space-x-0">
+                                <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setAssemblyToEdit(assembly); setIsAssemblyDialogOpen(true); }} className="h-8 w-8"><Edit className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Editar Asamblea</p></TooltipContent></Tooltip>
+                                <AlertDialog><Tooltip><TooltipTrigger asChild><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger></TooltipTrigger><TooltipContent><p>Eliminar Asamblea</p></TooltipContent></Tooltip><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la asamblea "{assembly.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteAssembly(assembly.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+                            </TableCell></TableRow>
                             );
                         })}
                       </TableBody></Table></div>
@@ -1149,16 +1164,10 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
                                     <TableCell className="text-xs italic text-muted-foreground truncate w-64" title={holiday.description || undefined}>
                                     {holiday.description || 'N/A'}
                                     </TableCell>
-                                    <TableCell className="text-right space-x-1">
-                                    <Button variant="ghost" size="icon" onClick={() => { setHolidayToEdit(holiday); setIsHolidayDialogOpen(true);}} className="h-8 w-8">
-                                        <Edit className="h-4 w-4" />
-                                    </Button>
+                                    <TableCell className="text-right space-x-0">
+                                    <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setHolidayToEdit(holiday); setIsHolidayDialogOpen(true);}} className="h-8 w-8"><Edit className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Editar Festivo</p></TooltipContent></Tooltip>
                                     <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                        </AlertDialogTrigger>
+                                        <Tooltip><TooltipTrigger asChild><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger></TooltipTrigger><TooltipContent><p>Eliminar Festivo</p></TooltipContent></Tooltip>
                                         <AlertDialogContent>
                                         <AlertDialogHeader>
                                             <AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner>
@@ -1249,8 +1258,8 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
       {isAssemblyDialogOpen && (<AddAssemblyDialog isOpen={isAssemblyDialogOpen} onOpenChange={setIsAssemblyDialogOpen} onAssemblySubmit={handleAssemblySubmit} assemblyToEdit={assemblyToEdit} />)}
       {isHolidayDialogOpen && (<AddHolidayDialog isOpen={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen} onHolidaySubmit={handleHolidaySubmit} holidayToEdit={holidayToEdit} />)}
     </div>
+    </TooltipProvider>
   );
 }
     
-
     

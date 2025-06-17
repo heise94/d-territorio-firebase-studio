@@ -47,6 +47,7 @@ import {
   Bot, 
   Loader2,
   AlertTriangle,
+  MessageSquareText, // Icon for WhatsApp reminder
 } from "lucide-react";
 import type { Assignment, AssignmentStatus, PreachingAssignedType, PublisherDetail, ProgramScheduleSlot } from "@/types";
 import { useToast } from "@/hooks/use-toast";
@@ -161,10 +162,6 @@ export default function GestionAsignacionesPage() {
     }
 
     let cleanedPhoneNumber = assign.userPhoneNumber.replace(/[\s-()]/g, "");
-    // Basic international format check (optional, adjust as needed)
-    // if (!cleanedPhoneNumber.startsWith('+')) {
-    //   cleanedPhoneNumber = `+${cleanedPhoneNumber}`; // Example: Assume it needs a +
-    // }
     
     const assignmentDate = parse(assign.date, "yyyy-MM-dd", new Date());
     const assignmentDateTime = parse(`${assign.date} ${assign.time}`, "yyyy-MM-dd HH:mm", new Date());
@@ -222,7 +219,6 @@ export default function GestionAsignacionesPage() {
         const result = await findReplacementCaptain(replacementInput);
 
         if (result.newCaptainId && result.newCaptainName && result.newCaptainEmail) {
-            // Find the phone number for the new captain from MOCK_AVAILABLE_PUBLISHERS
             const newCaptainDetails = MOCK_AVAILABLE_PUBLISHERS.find(p => p.id === result.newCaptainId);
             
             setAssignments(prev =>
@@ -233,7 +229,7 @@ export default function GestionAsignacionesPage() {
                         userId: result.newCaptainId!,
                         userName: result.newCaptainName!,
                         userEmail: result.newCaptainEmail!,
-                        userPhoneNumber: newCaptainDetails?.email, // Placeholder, ideally phone number would be in PublisherDetail
+                        userPhoneNumber: newCaptainDetails?.email, 
                         status: 'pending' as AssignmentStatus, 
                         notes: `Reasignado por IA. Original: ${assignment.userName}. ${result.reasoning || ''}`.trim(),
                         updatedAt: Timestamp.now(),
@@ -377,39 +373,39 @@ export default function GestionAsignacionesPage() {
                                   <Edit3 className="h-4 w-4" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Editar Asignación</TooltipContent>
+                              <TooltipContent><p>Editar Asignación</p></TooltipContent>
                             </Tooltip>
 
-                            {(assign.status === 'rejected' || assign.status === 'replacement_requested') && (
+                            {(assign.status === 'rejected' || assign.status === 'replacement_requested' || assign.status === 'needs_manual_replacement') && (
                                 <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleFindReplacementWithAI(assign)} disabled={isFindingReplacement === assign.id}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10" onClick={() => handleFindReplacementWithAI(assign)} disabled={isFindingReplacement === assign.id}>
                                     {isFindingReplacement === assign.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Buscar Reemplazo (IA)</TooltipContent>
+                                <TooltipContent><p>Buscar Reemplazo (IA)</p></TooltipContent>
                                 </Tooltip>
                             )}
 
                             {assign.status === 'replacement_requested' && (
                                 <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700" onClick={() => handleMarkCovered(assign.id)} disabled={isFindingReplacement === assign.id}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-500/10" onClick={() => handleMarkCovered(assign.id)} disabled={isFindingReplacement === assign.id}>
                                     <MarkCoveredIcon className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Marcar como Cubierta Manualmente</TooltipContent>
+                                <TooltipContent><p>Marcar como Cubierta Manualmente</p></TooltipContent>
                                 </Tooltip>
                             )}
 
                             {assign.status === 'pending' && (
                                 <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleResendReminderEmail(assign.id)} disabled={isFindingReplacement === assign.id}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10" onClick={() => handleResendReminderEmail(assign.id)} disabled={isFindingReplacement === assign.id}>
                                     <Send className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Reenviar Recordatorio Email</TooltipContent>
+                                <TooltipContent><p>Reenviar Recordatorio Email</p></TooltipContent>
                                 </Tooltip>
                             )}
                             
@@ -419,27 +415,27 @@ export default function GestionAsignacionesPage() {
                                     <Button 
                                       variant="ghost" 
                                       size="icon" 
-                                      className="h-8 w-8" 
+                                      className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-500/10" 
                                       onClick={() => handleSendWhatsAppReminderToAssignee(assign)}
                                       disabled={isFindingReplacement === assign.id || !assign.userPhoneNumber}
                                     >
-                                      <Send className="h-4 w-4 text-green-600" />
+                                      <MessageSquareText className="h-4 w-4" />
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>Recordatorio WhatsApp</TooltipContent>
+                                  <TooltipContent><p>Recordatorio WhatsApp</p></TooltipContent>
                                 </Tooltip>
                             )}
 
-                            {(assign.status === 'pending' || assign.status === 'accepted' || assign.status === 'replacement_requested') && (
+                            {(assign.status === 'pending' || assign.status === 'accepted' || assign.status === 'replacement_requested' || assign.status === 'needs_manual_replacement') && (
                                 <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                     <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isFindingReplacement === assign.id}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" disabled={isFindingReplacement === assign.id}>
                                         <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Cancelar Asignación</TooltipContent>
+                                    <TooltipContent><p>Cancelar Asignación</p></TooltipContent>
                                     </Tooltip>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
