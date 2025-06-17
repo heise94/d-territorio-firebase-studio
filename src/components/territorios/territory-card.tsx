@@ -36,6 +36,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
       textToShare += `\nMapa: ${territory.mapImageUrl}`;
     }
 
+
     const shareData: ShareData = {
       title: `Información del Territorio: ${territory.name}`,
       text: textToShare,
@@ -57,12 +58,12 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
                 description: "No se compartió la información del territorio.",
                 variant: "default",
             });
-        } else {
+        } else { // Fallback for other share errors (like PermissionDeniedError)
             try {
                 await navigator.clipboard.writeText(textToShare);
                 toast({
                     title: "Copiado al Portapapeles",
-                    description: "No se pudo compartir, pero la información se copió al portapapeles.",
+                    description: "No se pudo compartir directamente. La información del territorio se ha copiado al portapapeles.",
                 });
             } catch (copyError) {
                 console.error("Error al copiar al portapapeles:", copyError);
@@ -74,7 +75,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
             }
         }
       }
-    } else {
+    } else { // Fallback if navigator.share itself is not present
       try {
         await navigator.clipboard.writeText(textToShare);
         toast({
