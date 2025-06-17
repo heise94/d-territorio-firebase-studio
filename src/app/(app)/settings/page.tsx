@@ -12,7 +12,7 @@ import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, UserRole, SettingsDoc } from "@/types";
-import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS, PERMISSION_MODULES } from "@/lib/constants";
+import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS } from "@/lib/constants";
 import {
   Dialog,
   DialogContent,
@@ -228,7 +228,7 @@ export default function SettingsPage() {
             const data = docSnap.data() as Partial<SettingsDoc>;
             setScheduleSlots(data.programScheduleSlots || []);
             setGroupOrganizedDays(data.groupOrganizedDays || []);
-            setSelectedLastRuralGroupId(data.hasOwnProperty('lastRuralWeekendLeadingGroupId') ? data.lastRuralWeekendLeadingGroupId : null);
+            setSelectedLastRuralGroupId(data.lastRuralWeekendLeadingGroupId === undefined ? null : data.lastRuralWeekendLeadingGroupId);
         } else {
             setScheduleSlots([]);
             setGroupOrganizedDays([]);
@@ -245,27 +245,6 @@ export default function SettingsPage() {
         setIsLoadingProgramSettings(false);
     }
   }, [toast]);
-
-  const sanitizeFirestoreObject = (obj: any): any => {
-    if (obj === null || typeof obj !== 'object' || obj instanceof Timestamp || obj instanceof Date) {
-      return obj;
-    }
-    if (Array.isArray(obj)) {
-      return obj.map(item => sanitizeFirestoreObject(item));
-    }
-    const newObj: any = {};
-    for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        const value = obj[key];
-        if (value !== undefined) {
-          newObj[key] = sanitizeFirestoreObject(value);
-        } else {
-          newObj[key] = null;
-        }
-      }
-    }
-    return newObj;
-  };
   
  const loadSpecialEventsConfiguration = useCallback(async () => {
     if (!db || Object.keys(db).length === 0) {
@@ -279,13 +258,29 @@ export default function SettingsPage() {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data() as Partial<SettingsDoc>;
+        
         const convertTimestampToDateIfPresent = (item: any, dateFields: string[]) => {
             const newItem = { ...item };
             dateFields.forEach(field => {
                 if (newItem[field] instanceof Timestamp) {
                     newItem[field] = newItem[field].toDate();
-                } else if (typeof newItem[field] === 'string') {
-                     newItem[field] = new Date(newItem[field]); 
+                } else if (typeof newItem[field] === 'string') { // If it's a string, try to parse
+                     try {
+                        // Attempt to parse ISO string or other common formats
+                        const parsedDate = new Date(newItem[field]);
+                        // Check if parsing was successful
+                        if (!isNaN(parsedDate.getTime())) {
+                           newItem[field] = parsedDate;
+                        } else {
+                            // Handle cases where string might not be a valid date string recognized by new Date()
+                            // For example, "dd/MM/yyyy" might need manual parsing with date-fns/parse
+                            console.warn(`Could not parse date string "${newItem[field]}" for field "${field}". Leaving as is or set to null.`);
+                            // newItem[field] = null; // or keep as string if preferred for debugging
+                        }
+                    } catch (e) {
+                        console.warn(`Error parsing date string "${newItem[field]}" for field "${field}":`, e);
+                        // newItem[field] = null;
+                    }
                 }
             });
             return newItem;
@@ -376,22 +371,32 @@ export default function SettingsPage() {
         return false;
     }
 
+    const dataToSave: any = { updatedAt: serverTimestamp() };
+
+    if (configToSave.hasOwnProperty('programScheduleSlots')) {
+        dataToSave.programScheduleSlots = configToSave.programScheduleSlots;
+    }
+    if (configToSave.hasOwnProperty('groupOrganizedDays')) {
+        dataToSave.groupOrganizedDays = configToSave.groupOrganizedDays;
+    }
+    if (configToSave.hasOwnProperty('lastRuralWeekendLeadingGroupId')) {
+        dataToSave.lastRuralWeekendLeadingGroupId = configToSave.lastRuralWeekendLeadingGroupId === undefined 
+            ? null 
+            : configToSave.lastRuralWeekendLeadingGroupId;
+    }
+    
+    // Make sure not to send undefined fields
+    const sanitizedData = Object.entries(dataToSave).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+            (acc as any)[key] = value;
+        }
+        return acc;
+    }, {});
+
+
     try {
         const docRef = doc(db, "settings", "programConfig");
-        const updateData: any = { updatedAt: serverTimestamp() };
-
-        if (configToSave.hasOwnProperty('programScheduleSlots')) {
-            updateData.programScheduleSlots = configToSave.programScheduleSlots;
-        }
-        if (configToSave.hasOwnProperty('groupOrganizedDays')) {
-            updateData.groupOrganizedDays = configToSave.groupOrganizedDays;
-        }
-        if (configToSave.hasOwnProperty('lastRuralWeekendLeadingGroupId')) {
-            // Ensure that if undefined is passed, it's converted to null for Firestore
-            updateData.lastRuralWeekendLeadingGroupId = configToSave.lastRuralWeekendLeadingGroupId === undefined ? null : configToSave.lastRuralWeekendLeadingGroupId;
-        }
-
-        await setDoc(docRef, sanitizeFirestoreObject(updateData), { merge: true });
+        await setDoc(docRef, sanitizedData, { merge: true });
         return true;
     } catch (error) {
         console.error("Error saving program configuration:", error);
@@ -410,7 +415,16 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
       const newItem = { ...item };
       dateFields.forEach(field => {
         if (newItem[field] && !(newItem[field] instanceof Timestamp)) {
-          newItem[field] = Timestamp.fromDate(new Date(newItem[field]));
+          // Ensure it's a valid Date object before converting
+          const dateCandidate = new Date(newItem[field]);
+          if (!isNaN(dateCandidate.getTime())) {
+            newItem[field] = Timestamp.fromDate(dateCandidate);
+          } else {
+            console.warn(`Invalid date found for field ${field} in item:`, item);
+            newItem[field] = null; // Or handle as an error
+          }
+        } else if (newItem[field] === undefined) {
+            newItem[field] = null;
         }
       });
       return newItem;
@@ -420,11 +434,12 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
         let sanitizedEvent = { ...event };
         sanitizedEvent = convertDatesToTimestamps(sanitizedEvent, dateFields);
         optionalFields.forEach(field => {
-            if (sanitizedEvent[field] === undefined || sanitizedEvent[field] === '') {
-                 sanitizedEvent[field] = null;
+            if (sanitizedEvent[field] === undefined || sanitizedEvent[field] === '' || (typeof sanitizedEvent[field] === 'number' && isNaN(sanitizedEvent[field]))) {
+                 sanitizedEvent[field] = null; // Use null for Firestore instead of undefined
             }
         });
-        return sanitizeFirestoreObject(sanitizedEvent);
+        // Remove any top-level undefined properties after conversion
+        return Object.fromEntries(Object.entries(sanitizedEvent).filter(([_, v]) => v !== undefined));
     };
     
     const payloadToSave: any = { updatedAt: serverTimestamp() };
@@ -532,7 +547,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
       id: submittedCampaignData.id || crypto.randomUUID(),
       superintendentName: submittedCampaignData.superintendentName?.trim() || null,
       description: submittedCampaignData.description?.trim() || null,
-      specialCampaignTerritoriesPerDay: submittedCampaignData.specialCampaignTerritoriesPerDay === undefined ? 0 : submittedCampaignData.specialCampaignTerritoriesPerDay,
+      specialCampaignTerritoriesPerDay: submittedCampaignData.specialCampaignTerritoriesPerDay === undefined ? null : submittedCampaignData.specialCampaignTerritoriesPerDay,
       createdAt: isEdit && campaignToEdit?.createdAt ? campaignToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -552,7 +567,12 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
     const success = await saveSpecialEventsToFirestore({ campaigns: updatedCampaigns });
 
     if (success) {
-        setCampaigns(updatedCampaigns.map(c => ({...c, startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate)})));
+        // Convert Timestamps back to Dates for local state if they were converted for saving
+        setCampaigns(updatedCampaigns.map(c => ({
+            ...c, 
+            startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), 
+            endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate)
+        })));
         toast({ title: isEdit ? "Campaña Actualizada" : "Campaña Añadida", description: `La campaña "${campaignToSave.name}" ha sido guardada.` });
         setIsCampaignDialogOpen(false);
         setCampaignToEdit(null);
@@ -594,7 +614,11 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
 
     const success = await saveSpecialEventsToFirestore({ assemblies: updatedAssemblies });
     if (success) {
-        setAssemblies(updatedAssemblies.map(a => ({...a, startDate: a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate), endDate: a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate)})));
+        setAssemblies(updatedAssemblies.map(a => ({
+            ...a, 
+            startDate: a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate), 
+            endDate: a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate)
+        })));
         toast({ title: isEdit ? "Asamblea Actualizada" : "Asamblea Añadida", description: `La asamblea "${assemblyToSave.name}" ha sido guardada.` });
         setIsAssemblyDialogOpen(false);
         setAssemblyToEdit(null);
@@ -751,7 +775,13 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
       .filter(holiday => {
         const holidayDate = holiday.date instanceof Timestamp ? holiday.date.toDate() : new Date(holiday.date);
         const yearMatch = selectedHolidayYear === "Todos los Años" || holidayDate.getUTCFullYear().toString() === selectedHolidayYear;
-        const monthMatch = selectedHolidayMonth === "Todos los Meses" || holidayDate.getUTCMonth().toString() === selectedHolidayMonth;
+        
+        let monthMatch = true; // Default to true if "Todos los Meses" is selected
+        if (selectedHolidayMonth !== "Todos los Meses") {
+            // Ensure selectedHolidayMonth is parsed as an integer for comparison
+            monthMatch = holidayDate.getUTCMonth() === parseInt(selectedHolidayMonth, 10);
+        }
+        
         return yearMatch && monthMatch;
       })
       .sort((a, b) => {
@@ -764,7 +794,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
 
   const handleSaveRuralRotation = async () => {
     setIsSavingRuralRotation(true);
-    const valueToSave = selectedLastRuralGroupId === undefined ? null : selectedLastRuralGroupId; // Convert undefined to null
+    const valueToSave = selectedLastRuralGroupId === undefined ? null : selectedLastRuralGroupId;
     const success = await saveProgramConfigToFirestore({ lastRuralWeekendLeadingGroupId: valueToSave });
     
     if (success) {
@@ -1213,6 +1243,6 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaigns?: Campaign[]
     </div>
   );
 }
+    
 
-const PERMISSION_MODULES_ORDERED_FOR_ACCORDION = PERMISSIONS_BY_MODULE.map(m => m.moduleName);
     
