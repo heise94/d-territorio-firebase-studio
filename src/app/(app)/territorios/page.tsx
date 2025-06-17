@@ -75,23 +75,27 @@ export default function TerritoriosPage() {
       return;
     }
     
-    // Firestore does not allow 'undefined' values. Convert them to null or remove the field.
-    const sanitizedData = Object.entries(submittedTerritoryData).reduce((acc, [key, value]) => {
-      if (value !== undefined) {
-        (acc as any)[key] = value;
-      }
-      return acc;
-    }, {} as Partial<Territory>);
-
-
     const isEditing = !!territories.find(t => t.id === submittedTerritoryData.id);
     const docRef = doc(db, "territories", submittedTerritoryData.id);
 
+    const dataForFirestore: { [key: string]: any } = {};
+    Object.keys(submittedTerritoryData).forEach(key => {
+      if (key !== 'id' && (submittedTerritoryData as any)[key] !== undefined) {
+        dataForFirestore[key] = (submittedTerritoryData as any)[key];
+      }
+    });
+    
+    dataForFirestore.updatedAt = Timestamp.now();
+    if (!isEditing || !submittedTerritoryData.createdAt) {
+      dataForFirestore.createdAt = submittedTerritoryData.createdAt || Timestamp.now();
+    }
+
+
     try {
-      await setDoc(docRef, sanitizedData, { merge: true }); // Use merge:true to update if exists or create if not
+      await setDoc(docRef, dataForFirestore, { merge: true }); 
       toast({
         title: isEditing ? "Territorio Actualizado" : "Territorio Añadido",
-        description: `El territorio "${submittedTerritoryData.name}" ha sido ${isEditing ? 'actualizado' : 'guardado'} en Firestore.`,
+        description: `El territorio "${dataForFirestore.name}" ha sido ${isEditing ? 'actualizado' : 'guardado'} en Firestore.`,
       });
       setIsTerritoryDialogOpen(false);
     } catch (error) {
@@ -160,7 +164,7 @@ export default function TerritoriosPage() {
                 <Skeleton className="h-3 w-full" />
                 <Skeleton className="h-3 w-2/3" />
               </CardContent>
-              <CardFooter className="border-t pt-3 pb-3 flex justify-end gap-1">
+              <CardFooter className="border-t pt-3 pb-3 flex justify-center gap-1">
                 <Skeleton className="h-8 w-8" /> <Skeleton className="h-8 w-8" /> <Skeleton className="h-8 w-8" />
               </CardFooter>
             </Card>
@@ -268,10 +272,12 @@ export default function TerritoriosPage() {
         <AddTerritoryDialog
           isOpen={isTerritoryDialogOpen}
           onOpenChange={setIsTerritoryDialogOpen}
-          onTerritorySubmit={handleTerritorySubmit as any} // Cast to any to bypass strict Partial<Territory> check if needed
+          onTerritorySubmit={handleTerritorySubmit as any}
           territoryToEdit={territoryToEdit}
         />
       </div>
     </TooltipProvider>
   );
 }
+
+    
