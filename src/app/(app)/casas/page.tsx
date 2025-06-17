@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // Added Tooltip components
 
 function formatAvailability(availability?: CasaAvailability): string {
   if (!availability) return "No especificada";
@@ -93,9 +94,13 @@ export default function CasasPage() {
       return;
     }
 
-    const sanitizedData = Object.fromEntries(
-      Object.entries(submittedCasaData).filter(([, value]) => value !== undefined)
-    );
+    const sanitizedData = Object.entries(submittedCasaData).reduce((acc, [key, value]) => {
+      if (value !== undefined) {
+        (acc as any)[key] = value;
+      }
+      return acc;
+    }, {} as Partial<Casa>);
+
 
     const isEditing = !!casas.find(c => c.id === submittedCasaData.id);
     const docRef = doc(db, "casas", submittedCasaData.id);
@@ -161,6 +166,7 @@ export default function CasasPage() {
   }, [casas, searchTerm]);
 
   return (
+    <TooltipProvider>
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -210,8 +216,8 @@ export default function CasasPage() {
                     <Skeleton className="h-4 w-full" />
                     <Skeleton className="h-4 w-2/3" />
                   </CardContent>
-                  <CardFooter className="border-t pt-3 pb-3 grid grid-cols-3 gap-2">
-                    <Skeleton className="h-9 w-full" /> <Skeleton className="h-9 w-full" /> <Skeleton className="h-9 w-full" />
+                  <CardFooter className="border-t pt-3 pb-3 flex justify-end gap-1">
+                    <Skeleton className="h-8 w-8" /> <Skeleton className="h-8 w-8" /> <Skeleton className="h-8 w-8" />
                   </CardFooter>
                 </Card>
               ))}
@@ -266,40 +272,57 @@ export default function CasasPage() {
                         </div>
                     )}
                   </CardContent>
-                  <CardFooter className="border-t pt-4 pb-4 grid grid-cols-3 gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleOpenEditDialog(casa)} className="text-xs">
-                      <Pencil className="mr-1.5 h-3.5 w-3.5" /> Editar
-                    </Button>
-                    <Button 
-                        variant={casa.isBlocked ? "secondary" : "outline"} 
-                        size="sm" 
-                        onClick={() => handleToggleBlockCasa(casa.id)} 
-                        className={`text-xs ${!casa.isBlocked ? 'hover:bg-amber-500/10 hover:border-amber-500 hover:text-amber-600' : 'hover:bg-green-500/10 hover:border-green-500 hover:text-green-600'}`}
-                    >
-                      {casa.isBlocked ? <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> : <Ban className="mr-1.5 h-3.5 w-3.5" />}
-                      {casa.isBlocked ? 'Desbloq.' : 'Bloquear'}
-                    </Button>
+                  <CardFooter className="border-t pt-4 pb-4 flex justify-end gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Editar</p></TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                            variant={casa.isBlocked ? "secondary" : "outline"} 
+                            size="icon" 
+                            onClick={() => handleToggleBlockCasa(casa.id)} 
+                            aria-label={casa.isBlocked ? "Desbloquear casa" : "Bloquear casa"}
+                            className={`h-8 w-8 ${!casa.isBlocked ? 'hover:bg-amber-500/10 hover:border-amber-500 hover:text-amber-600' : 'hover:bg-green-500/10 hover:border-green-500 hover:text-green-600'}`}
+                        >
+                          {casa.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p>{casa.isBlocked ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
+                    </Tooltip>
+
                     <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="sm" className="text-xs">
-                                <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Eliminar
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Esta acción no se puede deshacer. Esto eliminará permanentemente la casa
-                                de los registros.
-                            </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteCasa(casa.id)}>
-                                Sí, eliminar
-                            </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <AlertDialogTrigger asChild>
+                              <Button variant="destructive" size="icon" aria-label="Eliminar casa" className="h-8 w-8">
+                                  <Trash2 className="h-4 w-4" />
+                              </Button>
+                          </AlertDialogTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Eliminar</p></TooltipContent>
+                      </Tooltip>
+                      <AlertDialogContent>
+                          <AlertDialogHeader>
+                          <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                              Esta acción no se puede deshacer. Esto eliminará permanentemente la casa
+                              de los registros.
+                          </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDeleteCasa(casa.id)}>
+                              Sí, eliminar
+                          </AlertDialogAction>
+                          </AlertDialogFooter>
+                      </AlertDialogContent>
                     </AlertDialog>
                   </CardFooter>
                 </Card>
@@ -312,9 +335,11 @@ export default function CasasPage() {
       <AddCasaDialog 
         isOpen={isCasaDialogOpen} 
         onOpenChange={setIsCasaDialogOpen}
-        onCasaSubmit={handleCasaSubmit as any} // Cast to any if necessary for partial updates
+        onCasaSubmit={handleCasaSubmit as any}
         casaToEdit={casaToEdit}
       />
     </div>
+    </TooltipProvider>
   );
 }
+
