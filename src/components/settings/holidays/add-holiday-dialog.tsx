@@ -30,9 +30,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import type { CustomHoliday } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CalendarIcon as CalendarIconLucide } from "lucide-react"; // Renamed to avoid conflict
+import { Loader2, CalendarIcon as CalendarIconLucide } from "lucide-react"; 
 import { useState, useEffect } from "react";
-import { format as formatDateFn } from 'date-fns'; // Renamed to avoid conflict
+import { format as formatDateFn } from 'date-fns'; 
 import { cn } from "@/lib/utils";
 
 const holidayFormSchema = z.object({
@@ -79,21 +79,24 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
   async function onSubmit(values: HolidayFormValues) {
     setIsSubmitting(true);
 
-    const submittedHoliday: CustomHoliday = {
+    const holidayData: Partial<CustomHoliday> = {
       id: isEditMode && holidayToEdit ? holidayToEdit.id : crypto.randomUUID(),
       name: values.name,
       date: Timestamp.fromDate(values.date),
-      description: values.description || undefined,
       createdAt: isEditMode && holidayToEdit ? holidayToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
+
+    if (values.description && values.description.trim() !== "") {
+      holidayData.description = values.description;
+    }
     
     await new Promise(resolve => setTimeout(resolve, 600));
 
-    onHolidaySubmit(submittedHoliday);
+    onHolidaySubmit(holidayData as CustomHoliday);
     toast({
       title: isEditMode ? "Festivo Actualizado" : "Festivo Añadido",
-      description: `El festivo "${values.name}" ha sido ${isEditMode ? 'actualizado' : 'registrado'} (simulación).`,
+      description: `El festivo "${values.name}" ha sido ${isEditMode ? 'actualizado' : 'registrado'}.`,
     });
     
     if (!isEditMode) form.reset(); 
@@ -200,3 +203,4 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
     </Dialog>
   );
 }
+

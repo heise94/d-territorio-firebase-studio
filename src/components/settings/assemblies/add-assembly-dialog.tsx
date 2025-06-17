@@ -94,22 +94,25 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
   async function onSubmit(values: AssemblyFormValues) {
     setIsSubmitting(true);
 
-    const submittedAssembly: Assembly = {
+    const assemblyData: Partial<Assembly> = {
       id: isEditMode && assemblyToEdit ? assemblyToEdit.id : crypto.randomUUID(),
       name: values.name,
       startDate: Timestamp.fromDate(values.startDate),
       endDate: Timestamp.fromDate(values.endDate),
-      description: values.description || undefined,
       createdAt: isEditMode && assemblyToEdit ? assemblyToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
 
+    if (values.description && values.description.trim() !== "") {
+      assemblyData.description = values.description;
+    }
+    
     await new Promise(resolve => setTimeout(resolve, 600));
 
-    onAssemblySubmit(submittedAssembly);
+    onAssemblySubmit(assemblyData as Assembly);
     toast({
       title: isEditMode ? "Asamblea Actualizada" : "Asamblea Añadida",
-      description: `La asamblea "${values.name}" ha sido ${isEditMode ? 'actualizada' : 'registrada'} (simulación).`,
+      description: `La asamblea "${values.name}" ha sido ${isEditMode ? 'actualizada' : 'registrada'}.`,
     });
 
     if (!isEditMode) form.reset();
