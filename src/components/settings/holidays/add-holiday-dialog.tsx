@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, CalendarIcon as CalendarIconLucide } from "lucide-react"; 
 import { useState, useEffect } from "react";
 import { format as formatDateFn } from 'date-fns'; 
+import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 const holidayFormSchema = z.object({
@@ -68,7 +69,7 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
     if (holidayToEdit && isOpen) {
       form.reset({
         name: holidayToEdit.name || "",
-        date: holidayToEdit.date instanceof Timestamp ? holidayToEdit.date.toDate() : (holidayToEdit.date as Date | undefined) || undefined,
+        date: holidayToEdit.date instanceof Timestamp ? holidayToEdit.date.toDate() : holidayToEdit.date || undefined,
         description: holidayToEdit.description || "",
       });
     } else if (!isOpen) {
@@ -149,7 +150,7 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
                           )}
                         >
                           {field.value ? (
-                            formatDateFn(field.value, "PPP", { timeZone: 'UTC' })
+                            formatDateFn(field.value, "PPP", { locale: es })
                           ) : (
                             <span>Selecciona una fecha</span>
                           )}
@@ -163,6 +164,8 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
                         selected={field.value}
                         onSelect={field.onChange}
                         initialFocus
+                        locale={es}
+                        weekStartsOn={1}
                       />
                     </PopoverContent>
                   </Popover>

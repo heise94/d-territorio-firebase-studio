@@ -373,7 +373,7 @@ export default function ReportesPage() {
                     {filterFromDate ? format(filterFromDate, "PPP", { locale: es }) : <span>dd-mm-aaaa</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterFromDate} onSelect={setFilterFromDate} initialFocus locale={es} /></PopoverContent>
+                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterFromDate} onSelect={setFilterFromDate} initialFocus locale={es} weekStartsOn={1} /></PopoverContent>
               </Popover>
             </div>
             <div className="space-y-1">
@@ -385,7 +385,7 @@ export default function ReportesPage() {
                     {filterToDate ? format(filterToDate, "PPP", { locale: es }) : <span>dd-mm-aaaa</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterToDate} onSelect={setFilterToDate} disabled={(date) => filterFromDate ? date < filterFromDate : false} initialFocus locale={es} /></PopoverContent>
+                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterToDate} onSelect={setFilterToDate} disabled={(date) => filterFromDate ? date < filterFromDate : false} initialFocus locale={es} weekStartsOn={1} /></PopoverContent>
               </Popover>
             </div>
             <div className="space-y-1">
@@ -587,4 +587,5 @@ export default function ReportesPage() {
     </div>
   );
 }
+
 

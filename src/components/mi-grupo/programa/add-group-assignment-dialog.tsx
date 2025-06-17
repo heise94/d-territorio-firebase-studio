@@ -208,6 +208,8 @@ export function AddGroupAssignmentDialog({
                         }
                         initialFocus
                         month={monthStart}
+                        locale={es}
+                        weekStartsOn={1}
                       />
                     </PopoverContent>
                   </Popover>

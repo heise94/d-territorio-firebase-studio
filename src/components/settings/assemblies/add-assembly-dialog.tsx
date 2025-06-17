@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 const assemblyFormSchema = z.object({
@@ -77,8 +78,8 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
     if (assemblyToEdit && isOpen) {
       form.reset({
         name: assemblyToEdit.name || "",
-        startDate: assemblyToEdit.startDate instanceof Timestamp ? assemblyToEdit.startDate.toDate() : (assemblyToEdit.startDate as Date | undefined) || undefined,
-        endDate: assemblyToEdit.endDate instanceof Timestamp ? assemblyToEdit.endDate.toDate() : (assemblyToEdit.endDate as Date | undefined) || undefined,
+        startDate: assemblyToEdit.startDate instanceof Timestamp ? assemblyToEdit.startDate.toDate() : assemblyToEdit.startDate || undefined,
+        endDate: assemblyToEdit.endDate instanceof Timestamp ? assemblyToEdit.endDate.toDate() : assemblyToEdit.endDate || undefined,
         description: assemblyToEdit.description || "",
       });
     } else if (!isOpen) {
@@ -172,7 +173,7 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
                             )}
                           >
                             {field.value ? (
-                              format(field.value, "PPP", { timeZone: 'UTC' })
+                              format(field.value, "PPP", { locale: es }) 
                             ) : (
                               <span>Selecciona fecha</span>
                             )}
@@ -187,6 +188,8 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
                           onSelect={field.onChange}
                            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) && !isEditMode }
                           initialFocus
+                          locale={es}
+                          weekStartsOn={1}
                         />
                       </PopoverContent>
                     </Popover>
@@ -211,7 +214,7 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
                             )}
                           >
                             {field.value ? (
-                              format(field.value, "PPP", { timeZone: 'UTC' })
+                              format(field.value, "PPP", { locale: es })
                             ) : (
                               <span>Selecciona fecha</span>
                             )}
@@ -228,6 +231,8 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
                             (form.getValues("startDate") ? date < form.getValues("startDate") : date < new Date(new Date().setDate(new Date().getDate() -1)) )
                           }
                           initialFocus
+                          locale={es}
+                          weekStartsOn={1}
                         />
                       </PopoverContent>
                     </Popover>

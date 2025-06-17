@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, CalendarIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 const campaignFormSchema = z.object({
@@ -103,8 +104,8 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       form.reset({
         name: campaignToEdit.name || "",
         type: campaignToEdit.type || undefined,
-        startDate: campaignToEdit.startDate instanceof Timestamp ? campaignToEdit.startDate.toDate() : (campaignToEdit.startDate as Date | undefined) || undefined,
-        endDate: campaignToEdit.endDate instanceof Timestamp ? campaignToEdit.endDate.toDate() : (campaignToEdit.endDate as Date | undefined) || undefined,
+        startDate: campaignToEdit.startDate instanceof Timestamp ? campaignToEdit.startDate.toDate() : campaignToEdit.startDate || undefined,
+        endDate: campaignToEdit.endDate instanceof Timestamp ? campaignToEdit.endDate.toDate() : campaignToEdit.endDate || undefined,
         description: campaignToEdit.description || "",
         superintendentName: campaignToEdit.superintendentName || "",
         specialCampaignTerritoriesPerDay: campaignToEdit.specialCampaignTerritoriesPerDay === undefined || campaignToEdit.specialCampaignTerritoriesPerDay === null ? 0 : campaignToEdit.specialCampaignTerritoriesPerDay,
@@ -235,7 +236,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                             )}
                           >
                             {field.value ? (
-                              format(field.value, "PPP", { timeZone: 'UTC' }) 
+                              format(field.value, "PPP", { locale: es }) 
                             ) : (
                               <span>Selecciona fecha</span>
                             )}
@@ -250,6 +251,8 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                           onSelect={field.onChange}
                           disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) && !isEditMode } 
                           initialFocus
+                          locale={es}
+                          weekStartsOn={1}
                         />
                       </PopoverContent>
                     </Popover>
@@ -274,7 +277,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                             )}
                           >
                             {field.value ? (
-                              format(field.value, "PPP", { timeZone: 'UTC' })
+                              format(field.value, "PPP", { locale: es })
                             ) : (
                               <span>Selecciona fecha</span>
                             )}
@@ -291,6 +294,8 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                             (form.getValues("startDate") ? date < form.getValues("startDate") : date < new Date(new Date().setDate(new Date().getDate() -1)) )
                           }
                           initialFocus
+                          locale={es}
+                          weekStartsOn={1}
                         />
                       </PopoverContent>
                     </Popover>
