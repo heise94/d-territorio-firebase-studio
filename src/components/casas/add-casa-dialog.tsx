@@ -26,11 +26,21 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Casa, CasaAvailability } from "@/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { Casa, CasaAvailability, PreachingGroup } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
+
+// MOCK: Replace with actual data fetching if needed for a real select list
+const MOCK_AVAILABLE_GROUPS_FOR_SELECT: Pick<PreachingGroup, 'id' | 'name'>[] = [
+    { id: 'G1', name: 'Grupo Los Pioneros' },
+    { id: 'G2', name: 'Grupo Betel' },
+    { id: 'G3', name: 'Grupo Emanuel' },
+];
+const NO_GROUP_SELECTED_VALUE = "__NO_GROUP_SELECTED__";
+
 
 const dayAvailabilitySchema = z.object({
   am: z.boolean().optional().default(false),
@@ -50,6 +60,7 @@ const casaFormSchema = z.object({
   }).optional(),
   notes: z.string().max(1000).optional().or(z.literal('')),
   isSuitableForRural: z.boolean().optional().default(false),
+  addedByGroupId: z.string().optional().or(z.literal('')),
 });
 
 type CasaFormValues = z.infer<typeof casaFormSchema>;
@@ -89,6 +100,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
       },
       notes: "",
       isSuitableForRural: false,
+      addedByGroupId: "",
     },
   });
 
@@ -107,6 +119,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
         },
         notes: casaToEdit.notes || "",
         isSuitableForRural: casaToEdit.isSuitableForRural || false,
+        addedByGroupId: casaToEdit.addedByGroupId || "",
       });
     } else if (!isOpen) {
       form.reset({ 
@@ -122,6 +135,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
         },
         notes: "",
         isSuitableForRural: false,
+        addedByGroupId: "",
       });
     }
   }, [casaToEdit, isOpen, form]);
@@ -150,18 +164,20 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
     if (values.isSuitableForRural !== undefined) {
       submittedCasaData.isSuitableForRural = values.isSuitableForRural;
     }
+    if (values.addedByGroupId && values.addedByGroupId !== NO_GROUP_SELECTED_VALUE && values.addedByGroupId.trim() !== "") {
+        submittedCasaData.addedByGroupId = values.addedByGroupId;
+    } else {
+        submittedCasaData.addedByGroupId = undefined; // Ensure it's undefined if not selected or empty
+    }
+    
     // Default values for other fields if not editing
     if (!isEditMode) {
-        // Ensure all required fields for `Casa` type are present or handled by Firestore defaults (like serverTimestamp)
-        submittedCasaData.addedByGroupId = undefined; // Example, set as needed
         submittedCasaData.lastVisitedAt = undefined;
     }
     
-    // onCasaSubmit will handle Firestore interaction
     onCasaSubmit(submittedCasaData);
     
     if (!isEditMode) form.reset(); 
-    // onOpenChange(false); // Parent component will handle closing dialog after Firestore operation
     setIsSubmitting(false);
   }
 
@@ -221,6 +237,38 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
               )}
             />
             
+            <FormField
+              control={form.control}
+              name="addedByGroupId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Asignar a Grupo de Predicación (Opcional)</FormLabel>
+                  <Select 
+                    onValueChange={(value) => field.onChange(value === NO_GROUP_SELECTED_VALUE ? "" : value)} 
+                    value={field.value || NO_GROUP_SELECTED_VALUE}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar grupo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={NO_GROUP_SELECTED_VALUE}>Ningún grupo específico</SelectItem>
+                      {MOCK_AVAILABLE_GROUPS_FOR_SELECT.map(group => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormFieldDescription className="text-xs">
+                    Si esta casa es gestionada o usada principalmente por un grupo, selecciónalo aquí.
+                  </FormFieldDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div>
               <FormLabel className="text-sm font-medium">Disponibilidad (Lunes a Viernes)</FormLabel>
               <FormFieldDescription className="text-xs">
@@ -310,3 +358,4 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
     </Dialog>
   );
 }
+

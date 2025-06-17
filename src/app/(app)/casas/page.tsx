@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon } from "lucide-react";
 import type { Casa, CasaAvailability } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -98,6 +98,13 @@ export default function CasasPage() {
     for (const key in submittedCasaData) {
         if (submittedCasaData[key as keyof typeof submittedCasaData] !== undefined) {
             (sanitizedData as any)[key] = submittedCasaData[key as keyof typeof submittedCasaData];
+        } else {
+            // Firestore does not like 'undefined'. If a field might be legitimately cleared, 
+            // explicitly set to null or ensure it's omitted if it shouldn't be in Firestore.
+            // For `addedByGroupId`, if it's an empty string from form, we might want to store null or remove it.
+            if (key === 'addedByGroupId' && submittedCasaData.addedByGroupId === "") {
+                 delete sanitizedData[key as keyof typeof sanitizedData]; // Or set to null if schema expects it
+            }
         }
     }
     
@@ -160,9 +167,24 @@ export default function CasasPage() {
     if (!searchTerm) return casas;
     return casas.filter(casa => 
       casa.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      casa.address.toLowerCase().includes(searchTerm.toLowerCase())
+      casa.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (casa.addedByGroupId && casa.addedByGroupId.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [casas, searchTerm]);
+
+  // MOCK_GROUPS_FOR_DISPLAY - Ideally this comes from a context or fetched data
+  const MOCK_GROUPS_FOR_DISPLAY: { id: string, name: string }[] = [
+    { id: 'G1', name: 'Grupo Los Pioneros' },
+    { id: 'G2', name: 'Grupo Betel' },
+    { id: 'G3', name: 'Grupo Emanuel' },
+  ];
+
+  const getGroupNameById = (groupId?: string) => {
+    if (!groupId) return 'N/A';
+    const group = MOCK_GROUPS_FOR_DISPLAY.find(g => g.id === groupId);
+    return group ? group.name : groupId; // Fallback to ID if name not found
+  };
+
 
   return (
     <TooltipProvider>
@@ -197,7 +219,7 @@ export default function CasasPage() {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                     type="search"
-                    placeholder="Buscar por propietario o dirección..."
+                    placeholder="Buscar por propietario, dirección o grupo..."
                     className="pl-8 w-full"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -251,6 +273,9 @@ export default function CasasPage() {
                     <CardDescription className="text-sm pt-1 flex items-center"><MapPin size={14} className="mr-1.5 text-muted-foreground shrink-0" /> {casa.address}</CardDescription>
                     {casa.phoneNumber && (
                         <p className="text-xs text-muted-foreground flex items-center"><Phone size={12} className="mr-1.5 shrink-0" /> {casa.phoneNumber}</p>
+                    )}
+                    {casa.addedByGroupId && (
+                         <p className="text-xs text-muted-foreground flex items-center pt-1"><GroupIcon size={12} className="mr-1.5 shrink-0 text-blue-600" /> Grupo: <span className="font-medium text-blue-700 dark:text-blue-400 ml-1">{getGroupNameById(casa.addedByGroupId)}</span></p>
                     )}
                   </CardHeader>
                   <CardContent className="flex-grow space-y-3 pt-2 text-sm">

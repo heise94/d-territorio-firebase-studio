@@ -113,7 +113,7 @@ export interface Casa {
   isBlocked: boolean;
   notes?: string;
   isSuitableForRural?: boolean;
-  addedByGroupId?: string; // FK to preachingGroups, to know which group added this casa
+  addedByGroupId?: string; // FK to preachingGroups, group that owns/manages this casa
 
   lastVisitedAt?: Timestamp;
   createdAt: Timestamp;
@@ -244,3 +244,4 @@ export interface GroupAssignment {
   createdAt: Timestamp;
   createdBy: string; // Firebase Auth UID of the SG who created it
 }
+
