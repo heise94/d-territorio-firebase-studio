@@ -11,7 +11,7 @@ import { Briefcase, CalendarCog, ShieldAlert, Users as UsersIconLucide, Palette,
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, UserRole } from "@/types";
+import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, UserRole, SettingsDoc } from "@/types";
 import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS, PERMISSION_MODULES } from "@/lib/constants";
 import {
   Dialog,
@@ -166,6 +166,7 @@ export default function SettingsPage() {
 
   const [selectedLastRuralGroupId, setSelectedLastRuralGroupId] = useState<string | undefined>(undefined);
   const [isSavingRuralRotation, setIsSavingRuralRotation] = useState(false);
+  // isLoadingRuralRotation will use isLoadingProgramSettings as it's part of the same document load
 
   const [editableRolePermissions, setEditableRolePermissions] = useState<RoleConfiguration>(DEFAULT_ROLE_PERMISSIONS);
   const [isLoadingPermissionsSettings, setIsLoadingPermissionsSettings] = useState(true);
@@ -222,18 +223,21 @@ export default function SettingsPage() {
         const docRef = doc(db, "settings", "programConfig");
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-            const data = docSnap.data();
+            const data = docSnap.data() as SettingsDoc;
             setScheduleSlots(data.scheduleSlots || []);
             setGroupOrganizedDays(data.groupOrganizedDays || []);
+            setSelectedLastRuralGroupId(data.lastRuralWeekendLeadingGroupId || undefined);
         } else {
             setScheduleSlots([]);
             setGroupOrganizedDays([]);
+            setSelectedLastRuralGroupId(undefined);
         }
     } catch (error) {
         console.error("Error fetching program configuration:", error);
-        toast({ title: "Error al Cargar Programa Semanal", description: "No se pudo cargar la configuración del programa.", variant: "destructive" });
+        toast({ title: "Error al Cargar Config. Programa", description: "No se pudo cargar la configuración del programa.", variant: "destructive" });
         setScheduleSlots([]);
         setGroupOrganizedDays([]);
+        setSelectedLastRuralGroupId(undefined);
     } finally {
         setIsLoadingProgramSettings(false);
     }
@@ -250,10 +254,10 @@ export default function SettingsPage() {
       const docRef = doc(db, "settings", "specialEventsConfig");
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        const data = docSnap.data();
-        setCampaigns(data.campaignsList || []);
-        setCustomHolidays(data.holidaysList || []);
-        setAssemblies(data.assembliesList || []);
+        const data = docSnap.data() as SettingsDoc;
+        setCampaigns(data.campaigns || []);
+        setCustomHolidays(data.customHolidays || []);
+        setAssemblies(data.assemblies || []);
       } else {
         setCampaigns([]);
         setCustomHolidays([]);
@@ -274,12 +278,11 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeSectionId === "permissions") {
       loadPermissionsConfiguration();
-    } else if (activeSectionId === "weeklyProgram") {
+    } else if (activeSectionId === "weeklyProgram" || activeSectionId === "ruralRotation") {
       loadProgramConfiguration();
     } else if (activeSectionId === "specialEvents") {
       loadSpecialEventsConfiguration();
     }
-    // TODO: Add loading logic for "ruralRotation" when connected
   }, [activeSectionId, loadPermissionsConfiguration, loadProgramConfiguration, loadSpecialEventsConfiguration]);
 
 
@@ -327,27 +330,28 @@ export default function SettingsPage() {
     }
   };
 
-  const saveProgramConfigToFirestore = async (configToSave: { scheduleSlots?: ProgramScheduleSlot[], groupOrganizedDays?: DayOfWeek[] }) => {
+  const saveProgramConfigToFirestore = async (
+    configToSave: Partial<Pick<SettingsDoc, 'scheduleSlots' | 'groupOrganizedDays' | 'lastRuralWeekendLeadingGroupId'>>
+  ) => {
     if (!db || Object.keys(db).length === 0) {
         toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
         return false;
     }
-    setIsSavingProgramSettings(true);
+    setIsSavingProgramSettings(true); // Could use a more general saving state or specific one
     try {
         const docRef = doc(db, "settings", "programConfig");
         await setDoc(docRef, { ...configToSave, updatedAt: serverTimestamp() }, { merge: true });
-        // Toast success will be handled by the calling function to be more specific
         return true;
     } catch (error) {
         console.error("Error saving program configuration:", error);
-        toast({ title: "Error al Guardar Programa", description: "No se pudo guardar la configuración del programa semanal.", variant: "destructive" });
+        toast({ title: "Error al Guardar Programa", description: "No se pudo guardar la configuración del programa.", variant: "destructive" });
         return false;
     } finally {
         setIsSavingProgramSettings(false);
     }
   };
 
-  const saveSpecialEventsToFirestore = async (eventsData: { campaignsList: Campaign[], holidaysList: CustomHoliday[], assembliesList: Assembly[] }) => {
+  const saveSpecialEventsToFirestore = async (eventsData: Pick<SettingsDoc, 'campaigns' | 'customHolidays' | 'assemblies'>) => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       return false;
@@ -355,7 +359,7 @@ export default function SettingsPage() {
     setIsSavingSpecialEvents(true);
     try {
       const docRef = doc(db, "settings", "specialEventsConfig");
-      await setDoc(docRef, { ...eventsData, updatedAt: serverTimestamp() }, { merge: true });
+      await setDoc(docRef, { ...eventsData, updatedAt: serverTimestamp() }, { merge: true }); // Use merge:true to create or update
       return true;
     } catch (error) {
       console.error("Error saving special events configuration:", error);
@@ -390,7 +394,7 @@ export default function SettingsPage() {
         return a.startTime.localeCompare(b.startTime);
     });
     
-    const success = await saveProgramConfigToFirestore({ scheduleSlots: updatedSlots, groupOrganizedDays });
+    const success = await saveProgramConfigToFirestore({ scheduleSlots: updatedSlots });
     if (success) {
         setScheduleSlots(updatedSlots);
         toast({ title: "Horario Añadido", description: `Nuevo horario para ${dayOfWeekLabels[dayForNewSlot]} a las ${data.startTime} guardado.` });
@@ -402,7 +406,7 @@ export default function SettingsPage() {
 
   const handleDeleteSlot = async (slotId: string) => {
     const updatedSlots = scheduleSlots.filter(slot => slot.id !== slotId);
-    const success = await saveProgramConfigToFirestore({ scheduleSlots: updatedSlots, groupOrganizedDays });
+    const success = await saveProgramConfigToFirestore({ scheduleSlots: updatedSlots });
     if (success) {
         setScheduleSlots(updatedSlots);
         toast({ title: "Horario Eliminado", description: "El horario ha sido eliminado y guardado.", variant: "destructive" });
@@ -416,14 +420,14 @@ export default function SettingsPage() {
   };
 
   const handleSaveGroupOrganizedDays = async () => {
-    const success = await saveProgramConfigToFirestore({ scheduleSlots, groupOrganizedDays });
+    const success = await saveProgramConfigToFirestore({ groupOrganizedDays });
     if (success) {
         toast({ title: "Días Grupales Guardados", description: "La configuración de días organizados por grupos ha sido guardada." });
     }
   };
 
 
-  const handleCampaignSubmit = async (submittedCampaign: Campaign) => {
+  const handleCampaignSubmit = async (submittedCampaign: Omit<Campaign, 'isActive'>) => {
     let updatedCampaigns;
     const existingIndex = campaigns.findIndex(c => c.id === submittedCampaign.id);
     if (existingIndex > -1) {
@@ -433,7 +437,7 @@ export default function SettingsPage() {
     }
     updatedCampaigns.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
     
-    const success = await saveSpecialEventsToFirestore({ campaignsList: updatedCampaigns, holidaysList: customHolidays, assembliesList: assemblies });
+    const success = await saveSpecialEventsToFirestore({ campaigns: updatedCampaigns, customHolidays, assemblies });
     if (success) {
         setCampaigns(updatedCampaigns);
         toast({ title: campaignToEdit ? "Campaña Actualizada" : "Campaña Añadida", description: `La campaña "${submittedCampaign.name}" ha sido guardada.` });
@@ -444,7 +448,7 @@ export default function SettingsPage() {
   const handleDeleteCampaign = async (campaignId: string) => {
     const campaignToDelete = campaigns.find(c => c.id === campaignId);
     const updatedCampaigns = campaigns.filter(c => c.id !== campaignId);
-    const success = await saveSpecialEventsToFirestore({ campaignsList: updatedCampaigns, holidaysList: customHolidays, assembliesList: assemblies });
+    const success = await saveSpecialEventsToFirestore({ campaigns: updatedCampaigns, customHolidays, assemblies });
     if (success) {
         setCampaigns(updatedCampaigns);
         toast({ title: "Campaña Eliminada", description: `La campaña "${campaignToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
@@ -461,7 +465,7 @@ export default function SettingsPage() {
     }
     updatedAssemblies.sort((a, b) => b.startDate.toMillis() - a.startDate.toMillis());
 
-    const success = await saveSpecialEventsToFirestore({ campaignsList: campaigns, holidaysList: customHolidays, assembliesList: updatedAssemblies });
+    const success = await saveSpecialEventsToFirestore({ campaigns, customHolidays, assemblies: updatedAssemblies });
     if (success) {
         setAssemblies(updatedAssemblies);
         toast({ title: assemblyToEdit ? "Asamblea Actualizada" : "Asamblea Añadida", description: `La asamblea "${submittedAssembly.name}" ha sido guardada.` });
@@ -472,7 +476,7 @@ export default function SettingsPage() {
   const handleDeleteAssembly = async (assemblyId: string) => {
     const assemblyToDelete = assemblies.find(a => a.id === assemblyId);
     const updatedAssemblies = assemblies.filter(a => a.id !== assemblyId);
-    const success = await saveSpecialEventsToFirestore({ campaignsList: campaigns, holidaysList: customHolidays, assembliesList: updatedAssemblies });
+    const success = await saveSpecialEventsToFirestore({ campaigns, customHolidays, assemblies: updatedAssemblies });
     if (success) {
         setAssemblies(updatedAssemblies);
         toast({ title: "Asamblea Eliminada", description: `La asamblea "${assemblyToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
@@ -489,7 +493,7 @@ export default function SettingsPage() {
     }
     updatedHolidays.sort((a,b) => a.date.toMillis() - b.date.toMillis());
 
-    const success = await saveSpecialEventsToFirestore({ campaignsList: campaigns, holidaysList: updatedHolidays, assembliesList: assemblies });
+    const success = await saveSpecialEventsToFirestore({ campaigns, customHolidays: updatedHolidays, assemblies });
     if (success) {
         setCustomHolidays(updatedHolidays);
         toast({ title: holidayToEdit ? "Festivo Actualizado" : "Festivo Añadido", description: `El festivo "${submittedHoliday.name}" ha sido guardado.` });
@@ -500,7 +504,7 @@ export default function SettingsPage() {
   const handleDeleteHoliday = async (holidayId: string) => {
     const holidayToDelete = customHolidays.find(h => h.id === holidayId);
     const updatedHolidays = customHolidays.filter(h => h.id !== holidayId);
-    const success = await saveSpecialEventsToFirestore({ campaignsList: campaigns, holidaysList: updatedHolidays, assembliesList: assemblies });
+    const success = await saveSpecialEventsToFirestore({ campaigns, customHolidays: updatedHolidays, assemblies });
     if (success) {
         setCustomHolidays(updatedHolidays);
         toast({ title: "Festivo Eliminado", description: `El festivo "${holidayToDelete?.name}" ha sido eliminado.`, variant: "destructive" });
@@ -553,7 +557,7 @@ export default function SettingsPage() {
     
     if (newHolidaysToAdd.length > 0) {
         const updatedHolidays = [...customHolidays, ...newHolidaysToAdd].sort((a,b) => a.date.toMillis() - b.date.toMillis());
-        const success = await saveSpecialEventsToFirestore({ campaignsList: campaigns, holidaysList: updatedHolidays, assembliesList: assemblies });
+        const success = await saveSpecialEventsToFirestore({ campaigns, customHolidays: updatedHolidays, assemblies });
         if (success) {
             setCustomHolidays(updatedHolidays);
             toast({ title: "Festivos de Ejemplo Cargados", description: `${newHolidaysToAdd.length} festivos (Chile, próximos 12 meses) añadidos y guardados. Verifique y ajuste.`, duration: 10000 });
@@ -575,9 +579,11 @@ export default function SettingsPage() {
   const sortedMonthYearKeys = useMemo(() => Object.keys(groupedHolidays).sort(), [groupedHolidays]);
 
   const handleSaveRuralRotation = async () => {
-    setIsSavingRuralRotation(true); await new Promise(resolve => setTimeout(resolve, 700));
-    console.log("Configuración de rotación rural guardada (simulación):", selectedLastRuralGroupId);
-    toast({ title: "Configuración Guardada", description: "La rotación para predicación rural de fin de semana ha sido actualizada (simulación)." });
+    setIsSavingRuralRotation(true);
+    const success = await saveProgramConfigToFirestore({ lastRuralWeekendLeadingGroupId: selectedLastRuralGroupId });
+    if (success) {
+        toast({ title: "Configuración Guardada", description: "La rotación para predicación rural de fin de semana ha sido actualizada." });
+    }
     setIsSavingRuralRotation(false);
   };
 
@@ -882,20 +888,28 @@ export default function SettingsPage() {
                 <CardDescription>Define el último grupo que se hizo cargo de la predicación rural de fin de semana para una rotación equitativa.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <Label htmlFor="ruralRotationSelect">Último grupo que dirigió el rural de fin de semana</Label>
-                  <Select value={selectedLastRuralGroupId} onValueChange={setSelectedLastRuralGroupId}>
-                    <SelectTrigger className="w-full sm:w-[300px]" id="ruralRotationSelect"><SelectValue placeholder="Seleccionar grupo..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NONE_OR_RESET">Ninguno / Reiniciar Rotación</SelectItem>
-                      {MOCK_GROUPS_FOR_ROTATION_SELECT.map(group => (<SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-sm text-muted-foreground">Selecciona el grupo más reciente. Si es la primera vez, selecciona "Ninguno".</p>
-                </div>
+                {isLoadingProgramSettings ? (
+                  <div className="space-y-3 py-6">
+                    <Skeleton className="h-6 w-1/2" />
+                    <Skeleton className="h-10 w-full sm:w-[300px]" />
+                    <Skeleton className="h-4 w-3/4" />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="ruralRotationSelect">Último grupo que dirigió el rural de fin de semana</Label>
+                    <Select value={selectedLastRuralGroupId || "NONE_OR_RESET"} onValueChange={(value) => setSelectedLastRuralGroupId(value === "NONE_OR_RESET" ? undefined : value)}>
+                      <SelectTrigger className="w-full sm:w-[300px]" id="ruralRotationSelect"><SelectValue placeholder="Seleccionar grupo..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NONE_OR_RESET">Ninguno / Reiniciar Rotación</SelectItem>
+                        {MOCK_GROUPS_FOR_ROTATION_SELECT.map(group => (<SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-sm text-muted-foreground">Selecciona el grupo más reciente. Si es la primera vez, selecciona "Ninguno".</p>
+                  </div>
+                )}
               </CardContent>
-              <CardFooter>
-                <Button onClick={handleSaveRuralRotation} disabled={isSavingRuralRotation}>
+              <CardFooter className="border-t pt-4">
+                <Button onClick={handleSaveRuralRotation} disabled={isSavingRuralRotation || isLoadingProgramSettings}>
                   {isSavingRuralRotation && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}<Save className="mr-2 h-4 w-4" /> Guardar Rotación Rural
                 </Button>
               </CardFooter>
@@ -953,3 +967,4 @@ const PERMISSION_MODULES_ORDERED_FOR_ACCORDION = PERMISSIONS_BY_MODULE.map(m => 
     
 
     
+
