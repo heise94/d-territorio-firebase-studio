@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, Loader2 } from "lucide-react";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
 import type { Casa, CasaAvailability } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // Added Tooltip components
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 function formatAvailability(availability?: CasaAvailability): string {
   if (!availability) return "No especificada";
@@ -94,14 +94,13 @@ export default function CasasPage() {
       return;
     }
 
-    const sanitizedData = Object.entries(submittedCasaData).reduce((acc, [key, value]) => {
-      if (value !== undefined) {
-        (acc as any)[key] = value;
-      }
-      return acc;
-    }, {} as Partial<Casa>);
-
-
+    const sanitizedData: Partial<Casa> = {};
+    for (const key in submittedCasaData) {
+        if (submittedCasaData[key as keyof typeof submittedCasaData] !== undefined) {
+            (sanitizedData as any)[key] = submittedCasaData[key as keyof typeof submittedCasaData];
+        }
+    }
+    
     const isEditing = !!casas.find(c => c.id === submittedCasaData.id);
     const docRef = doc(db, "casas", submittedCasaData.id);
 
@@ -261,7 +260,7 @@ export default function CasasPage() {
                     </div>
                     {casa.isSuitableForRural !== undefined && (
                         <div className="flex items-center">
-                            {casa.isSuitableForRural ? <CheckCircle2 size={14} className="mr-2 text-green-600" /> : <Ban size={14} className="mr-2 text-red-600" />}
+                            {casa.isSuitableForRural ? <CheckCircle2 size={14} className="mr-2 text-green-600" /> : <ShieldAlert size={14} className="mr-2 text-red-600" />}
                             <span className="text-xs">{casa.isSuitableForRural ? 'Apta para rural' : 'No apta para rural'}</span>
                         </div>
                     )}
@@ -275,7 +274,7 @@ export default function CasasPage() {
                   <CardFooter className="border-t pt-4 pb-4 flex justify-end gap-1">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
                           <Pencil className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
@@ -285,13 +284,13 @@ export default function CasasPage() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button 
-                            variant={casa.isBlocked ? "secondary" : "outline"} 
+                            variant="ghost" 
                             size="icon" 
                             onClick={() => handleToggleBlockCasa(casa.id)} 
                             aria-label={casa.isBlocked ? "Desbloquear casa" : "Bloquear casa"}
-                            className={`h-8 w-8 ${!casa.isBlocked ? 'hover:bg-amber-500/10 hover:border-amber-500 hover:text-amber-600' : 'hover:bg-green-500/10 hover:border-green-500 hover:text-green-600'}`}
+                            className="h-8 w-8"
                         >
-                          {casa.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                          {casa.isBlocked ? <ShieldCheck className="h-4 w-4 text-green-600" /> : <Ban className="h-4 w-4 text-amber-600" />}
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent><p>{casa.isBlocked ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
@@ -301,7 +300,7 @@ export default function CasasPage() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <AlertDialogTrigger asChild>
-                              <Button variant="destructive" size="icon" aria-label="Eliminar casa" className="h-8 w-8">
+                              <Button variant="ghost" size="icon" aria-label="Eliminar casa" className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive">
                                   <Trash2 className="h-4 w-4" />
                               </Button>
                           </AlertDialogTrigger>
@@ -335,7 +334,7 @@ export default function CasasPage() {
       <AddCasaDialog 
         isOpen={isCasaDialogOpen} 
         onOpenChange={setIsCasaDialogOpen}
-        onCasaSubmit={handleCasaSubmit as any}
+        onCasaSubmit={handleCasaSubmit}
         casaToEdit={casaToEdit}
       />
     </div>
