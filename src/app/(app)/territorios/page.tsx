@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export default function TerritoriosPage() {
   const [isTerritoryDialogOpen, setIsTerritoryDialogOpen] = useState(false);
@@ -68,19 +69,29 @@ export default function TerritoriosPage() {
     setIsTerritoryDialogOpen(true);
   };
 
-  const handleTerritorySubmit = async (submittedTerritory: Territory) => {
+  const handleTerritorySubmit = async (submittedTerritoryData: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt'>) => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Base de Datos", description: "No se pudo conectar a la base de datos.", variant: "destructive" });
       return;
     }
-    const isEditing = !!territories.find(t => t.id === submittedTerritory.id);
-    const docRef = doc(db, "territories", submittedTerritory.id);
+    
+    // Firestore does not allow 'undefined' values. Convert them to null or remove the field.
+    const sanitizedData = Object.entries(submittedTerritoryData).reduce((acc, [key, value]) => {
+      if (value !== undefined) {
+        (acc as any)[key] = value;
+      }
+      return acc;
+    }, {} as Partial<Territory>);
+
+
+    const isEditing = !!territories.find(t => t.id === submittedTerritoryData.id);
+    const docRef = doc(db, "territories", submittedTerritoryData.id);
 
     try {
-      await setDoc(docRef, submittedTerritory, { merge: isEditing }); // merge true to update if exists
+      await setDoc(docRef, sanitizedData, { merge: true }); // Use merge:true to update if exists or create if not
       toast({
         title: isEditing ? "Territorio Actualizado" : "Territorio Añadido",
-        description: `El territorio "${submittedTerritory.name}" ha sido ${isEditing ? 'actualizado' : 'guardado'} en Firestore.`,
+        description: `El territorio "${submittedTerritoryData.name}" ha sido ${isEditing ? 'actualizado' : 'guardado'} en Firestore.`,
       });
       setIsTerritoryDialogOpen(false);
     } catch (error) {
@@ -149,8 +160,8 @@ export default function TerritoriosPage() {
                 <Skeleton className="h-3 w-full" />
                 <Skeleton className="h-3 w-2/3" />
               </CardContent>
-              <CardFooter className="border-t pt-3 pb-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                <Skeleton className="h-8 w-full" /> <Skeleton className="h-8 w-full" /> <Skeleton className="h-8 w-full" />
+              <CardFooter className="border-t pt-3 pb-3 flex justify-end gap-1">
+                <Skeleton className="h-8 w-8" /> <Skeleton className="h-8 w-8" /> <Skeleton className="h-8 w-8" />
               </CardFooter>
             </Card>
           ))}
@@ -161,7 +172,7 @@ export default function TerritoriosPage() {
     const territoriesForTab = filteredTerritories.filter(t => t.type === tabType);
 
     if (territoriesForTab.length === 0) {
-      const noDataMessage = searchTerm 
+      const noDataMessage = searchTerm
         ? `No se encontraron territorios ${tabType === 'urban' ? 'urbanos' : 'rurales'} que coincidan con "${searchTerm}".`
         : `Actualmente no hay territorios ${tabType === 'urban' ? 'urbanos' : 'rurales'} registrados.`;
       const IconComponent = searchTerm ? Search : MapPin;
@@ -199,66 +210,68 @@ export default function TerritoriosPage() {
 
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-headline font-bold tracking-tight">Gestión de Territorios</h1>
-          <p className="text-muted-foreground mt-1">
-            Administra los territorios de predicación urbanos y rurales.
-          </p>
-        </div>
-        <Button onClick={handleOpenAddDialog} size="lg">
-          <PlusCircle className="mr-2 h-5 w-5" />
-          Añadir Nuevo Territorio
-        </Button>
-      </div>
-
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle>Lista de Territorios</CardTitle>
-           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
-            <CardDescription>
-              {isLoadingTerritories ? "Cargando territorios..." : 
-                (filteredTerritories.length > 0 
-                  ? `Mostrando ${filteredTerritories.length} de ${territories.filter(t => t.type === activeTab).length} territorio(s) ${activeTab === 'urban' ? 'urbanos' : 'rurales'}.`
-                  : territories.filter(t => t.type === activeTab).length > 0 ? `Ningún territorio ${activeTab === 'urban' ? 'urbano' : 'rural'} coincide con la búsqueda.`
-                  : `Actualmente no hay territorios ${activeTab === 'urban' ? 'urbanos' : 'rurales'} registrados.`
-                )
-              }
-            </CardDescription>
-             <div className="relative w-full sm:w-64 md:w-72">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    type="search"
-                    placeholder="Buscar por nombre o número..."
-                    className="pl-8 w-full"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </div>
+    <TooltipProvider>
+      <div className="space-y-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-headline font-bold tracking-tight">Gestión de Territorios</h1>
+            <p className="text-muted-foreground mt-1">
+              Administra los territorios de predicación urbanos y rurales.
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TerritoryType)} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="urban">Urbanos</TabsTrigger>
-              <TabsTrigger value="rural">Rurales</TabsTrigger>
-            </TabsList>
-            {(["urban", "rural"] as TerritoryType[]).map(tabType => (
-              <TabsContent value={tabType} key={tabType}>
-                {renderTerritoryGrid(tabType)}
-              </TabsContent>
-            ))}
-          </Tabs>
-        </CardContent>
-      </Card>
+          <Button onClick={handleOpenAddDialog} size="lg">
+            <PlusCircle className="mr-2 h-5 w-5" />
+            Añadir Nuevo Territorio
+          </Button>
+        </div>
 
-      <AddTerritoryDialog
-        isOpen={isTerritoryDialogOpen}
-        onOpenChange={setIsTerritoryDialogOpen}
-        onTerritorySubmit={handleTerritorySubmit}
-        territoryToEdit={territoryToEdit}
-      />
-    </div>
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>Lista de Territorios</CardTitle>
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
+              <CardDescription>
+                {isLoadingTerritories ? "Cargando territorios..." :
+                  (filteredTerritories.length > 0
+                    ? `Mostrando ${filteredTerritories.length} de ${territories.filter(t => t.type === activeTab).length} territorio(s) ${activeTab === 'urban' ? 'urbanos' : 'rurales'}.`
+                    : territories.filter(t => t.type === activeTab).length > 0 ? `Ningún territorio ${activeTab === 'urban' ? 'urbano' : 'rural'} coincide con la búsqueda.`
+                    : `Actualmente no hay territorios ${activeTab === 'urban' ? 'urbanos' : 'rurales'} registrados.`
+                  )
+                }
+              </CardDescription>
+              <div className="relative w-full sm:w-64 md:w-72">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                      type="search"
+                      placeholder="Buscar por nombre o número..."
+                      className="pl-8 w-full"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TerritoryType)} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="urban">Urbanos</TabsTrigger>
+                <TabsTrigger value="rural">Rurales</TabsTrigger>
+              </TabsList>
+              {(["urban", "rural"] as TerritoryType[]).map(tabType => (
+                <TabsContent value={tabType} key={tabType}>
+                  {renderTerritoryGrid(tabType)}
+                </TabsContent>
+              ))}
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        <AddTerritoryDialog
+          isOpen={isTerritoryDialogOpen}
+          onOpenChange={setIsTerritoryDialogOpen}
+          onTerritorySubmit={handleTerritorySubmit as any} // Cast to any to bypass strict Partial<Territory> check if needed
+          territoryToEdit={territoryToEdit}
+        />
+      </div>
+    </TooltipProvider>
   );
 }

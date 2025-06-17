@@ -2,19 +2,20 @@
 "use client";
 
 import Image from 'next/image';
-import { useState } from 'react'; // Added useState
+import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Share2, Building, ShieldCheck, BarChart3 } from "lucide-react"; // Added BarChart3
+import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Share2, Building, ShieldCheck, BarChart3 } from "lucide-react";
 import type { Territory } from "@/types";
-import { ViewImageDialog } from './view-image-dialog'; 
+import { ViewImageDialog } from './view-image-dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface TerritoryCardProps {
   territory: Territory;
   onEdit: () => void;
-  onDelete: () => void; 
+  onDelete: () => void;
   onBlockToggle: () => void;
 }
 
@@ -45,10 +46,10 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
         <CardContent className="flex-grow space-y-2 pt-2 text-sm">
           {territory.mapImageUrl && (
             <div className="relative aspect-video w-full rounded-md overflow-hidden mb-2 border">
-              <Image 
+              <Image
                   src={territory.mapImageUrl || `https://placehold.co/600x400.png?text=${encodeURIComponent(territory.name)}`}
-                  alt={`Mapa de ${territory.name}`} 
-                  layout="fill" 
+                  alt={`Mapa de ${territory.name}`}
+                  layout="fill"
                   objectFit="cover"
                   data-ai-hint={territory.dataAiHint || (territory.type === 'urban' ? 'city map' : 'rural landscape')}
               />
@@ -74,25 +75,48 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
               </div>
           )}
         </CardContent>
-        <CardFooter className="border-t pt-3 pb-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
-          <Button variant="outline" size="sm" onClick={onEdit} className="text-xs col-span-1">
-            <Pencil className="mr-1.5 h-3.5 w-3.5" /> Editar
-          </Button>
-          <Button
-            variant={territory.isBlocked ? "secondary" : "outline"}
-            size="sm"
-            onClick={onBlockToggle}
-            className={`text-xs col-span-1 ${!territory.isBlocked ? 'hover:bg-amber-500/10 hover:border-amber-500 hover:text-amber-600' : 'hover:bg-green-500/10 hover:border-green-500 hover:text-green-600'}`}
-          >
-            {territory.isBlocked ? <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> : <Ban className="mr-1.5 h-3.5 w-3.5" />}
-            {territory.isBlocked ? 'Desbloq.' : 'Bloquear'}
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="text-xs col-span-1">
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Eliminar
+        <CardFooter className="border-t pt-3 pb-3 flex flex-wrap justify-end gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" onClick={onEdit} aria-label="Editar territorio" className="h-8 w-8">
+                <Pencil className="h-4 w-4" />
               </Button>
-            </AlertDialogTrigger>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Editar</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={territory.isBlocked ? "secondary" : "outline"}
+                size="icon"
+                onClick={onBlockToggle}
+                aria-label={territory.isBlocked ? "Desbloquear territorio" : "Bloquear territorio"}
+                className={`h-8 w-8 ${!territory.isBlocked ? 'hover:bg-amber-500/10 hover:border-amber-500 hover:text-amber-600' : 'hover:bg-green-500/10 hover:border-green-500 hover:text-green-600'}`}
+              >
+                {territory.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{territory.isBlocked ? 'Desbloquear' : 'Bloquear'}</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <AlertDialog>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="icon" aria-label="Eliminar territorio" className="h-8 w-8">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Eliminar</p>
+              </TooltipContent>
+            </Tooltip>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
@@ -109,20 +133,41 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-          
+
           {territory.mapImageUrl && (
-               <Button variant="outline" size="sm" onClick={() => setIsImageDialogOpen(true)} className="text-xs col-span-1">
-                  <Eye className="mr-1.5 h-3.5 w-3.5" /> Ver Imagen
-              </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={() => setIsImageDialogOpen(true)} aria-label="Ver imagen del mapa" className="h-8 w-8">
+                    <Eye className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Ver Imagen</p>
+              </TooltipContent>
+            </Tooltip>
           )}
           {territory.googleMapsLink && (
-              <Button variant="outline" size="sm" onClick={() => window.open(territory.googleMapsLink, '_blank')} className="text-xs col-span-1">
-                  <MapPin className="mr-1.5 h-3.5 w-3.5" /> Ver Mapa
-              </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={() => window.open(territory.googleMapsLink, '_blank')} aria-label="Ver en Google Maps" className="h-8 w-8">
+                    <MapPin className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Ver en Google Maps</p>
+              </TooltipContent>
+            </Tooltip>
           )}
-          <Button variant="outline" size="sm" onClick={() => alert('Función "Compartir" no implementada.')} className="text-xs col-span-1">
-              <Share2 className="mr-1.5 h-3.5 w-3.5" /> Compartir
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" onClick={() => alert('Función "Compartir" no implementada.')} aria-label="Compartir territorio" className="h-8 w-8">
+                  <Share2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Compartir</p>
+            </TooltipContent>
+          </Tooltip>
         </CardFooter>
       </Card>
       {territory.mapImageUrl && (
