@@ -26,25 +26,45 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Territory, TerritoryType } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UploadCloud, XCircle } from "lucide-react";
+import { Loader2, UploadCloud, XCircle, ChevronDown } from "lucide-react";
 import { useState, useEffect, ChangeEvent } from "react";
 import Image from 'next/image';
+import { cn } from "@/lib/utils";
+
+// MOCK DATA - In a real app, this would be fetched or passed as props
+const MOCK_AVAILABLE_CASAS: { id: string; name: string; address?: string }[] = [
+  { id: 'casa1', name: 'Familia Pérez', address: 'Calle Sol 123' },
+  { id: 'casa2', name: 'Hogar Dulce Hogar', address: 'Av. Luna 456' },
+  { id: 'casa3', name: 'Casa de Esquina', address: 'Pasaje Estrella 789' },
+  { id: 'casa4', name: 'Residencia Los Álamos', address: 'Roble 789' },
+  { id: 'casa5', name: 'Hogar Los Sauces', address: 'Sauce 101' },
+];
+
+const MOCK_AVAILABLE_GROUPS: { id: string; name: string }[] = [
+  { id: 'G1', name: 'Grupo Los Pioneros' },
+  { id: 'G2', name: 'Grupo Betel' },
+  { id: 'G3', name: 'Grupo Emanuel' },
+  { id: 'G4', name: 'Grupo Sinaí' },
+  { id: 'G5', name: 'Grupo Exploradores del Reino' },
+];
 
 const territoryFormSchema = z.object({
   type: z.enum(["urban", "rural"], { required_error: "El tipo es obligatorio." }),
   number: z.string().optional(),
   name: z.string().min(2, { message: "El nombre debe tener al menos 2 caracteres." }).max(100),
-  mapImageUrl: z.string().optional().or(z.literal('')), 
+  mapImageUrl: z.string().optional().or(z.literal('')),
   googleMapsLink: z.string().url({ message: "Debe ser una URL válida." }).optional().or(z.literal('')),
   totalBlocks: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().default(0),
   blockHouseCounts: z.array(z.coerce.number().int().min(0, "Debe ser 0 o más.")).optional(),
   doNotCallAddressesString: z.string().optional(),
   warningsString: z.string().optional(),
-  groupIdsString: z.string().optional(),
-  associatedCasaIdsString: z.string().optional(),
+  groupIds: z.array(z.string()).optional().default([]),
+  associatedCasaIds: z.array(z.string()).optional().default([]),
 }).superRefine((data, ctx) => {
   if (data.type === "urban" && (!data.number || data.number.trim() === "")) {
     ctx.addIssue({
@@ -82,13 +102,15 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       blockHouseCounts: [],
       doNotCallAddressesString: "",
       warningsString: "",
-      groupIdsString: "",
-      associatedCasaIdsString: "",
+      groupIds: [],
+      associatedCasaIds: [],
     },
   });
 
   const watchedType = form.watch("type");
   const watchedTotalBlocks = form.watch("totalBlocks");
+  const watchedAssociatedCasaIds = form.watch("associatedCasaIds");
+  const watchedGroupIds = form.watch("groupIds");
 
   useEffect(() => {
     if (territoryToEdit && isOpen) {
@@ -102,8 +124,8 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
         blockHouseCounts: territoryToEdit.blockHouseCounts || [],
         doNotCallAddressesString: territoryToEdit.doNotCallAddresses?.join("\n") || "",
         warningsString: territoryToEdit.warnings?.join("\n") || "",
-        groupIdsString: territoryToEdit.groupIds?.join(", ") || "",
-        associatedCasaIdsString: territoryToEdit.associatedCasaIds?.join(", ") || "",
+        groupIds: territoryToEdit.groupIds || [],
+        associatedCasaIds: territoryToEdit.associatedCasaIds || [],
       });
       if (territoryToEdit.mapImageUrl) {
         setMapImagePreview(territoryToEdit.mapImageUrl);
@@ -111,7 +133,19 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
         setMapImagePreview(null);
       }
     } else if (!isOpen) {
-      form.reset();
+      form.reset({
+        type: "urban",
+        number: "",
+        name: "",
+        mapImageUrl: "",
+        googleMapsLink: "",
+        totalBlocks: 0,
+        blockHouseCounts: [],
+        doNotCallAddressesString: "",
+        warningsString: "",
+        groupIds: [],
+        associatedCasaIds: [],
+      });
       setMapImagePreview(null);
     }
   }, [territoryToEdit, isOpen, form]);
@@ -120,7 +154,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     const currentBlockCounts = form.getValues("blockHouseCounts") || [];
     const newTotal = watchedTotalBlocks || 0;
 
-    if (newTotal < 0) return; 
+    if (newTotal < 0) return;
 
     const newCounts = Array(newTotal);
     for (let i = 0; i < newTotal; i++) {
@@ -128,12 +162,12 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     }
     form.setValue("blockHouseCounts", newCounts, { shouldValidate: true, shouldDirty: form.formState.isDirty });
 
-  }, [watchedTotalBlocks, form, isOpen]); 
+  }, [watchedTotalBlocks, form, isOpen]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { 
+      if (file.size > 2 * 1024 * 1024) {
         toast({
           variant: "destructive",
           title: "Imagen Demasiado Grande",
@@ -179,11 +213,11 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       doNotCallAddresses: values.doNotCallAddressesString?.split('\n').map(s => s.trim()).filter(s => s) || [],
       warnings: values.warningsString?.split('\n').map(s => s.trim()).filter(s => s) || [],
       isBlocked: isEditMode && territoryToEdit ? territoryToEdit.isBlocked : false,
-      groupIds: values.groupIdsString?.split(',').map(s => s.trim()).filter(s => s) || [],
-      associatedCasaIds: values.associatedCasaIdsString?.split(',').map(s => s.trim()).filter(s => s) || [],
+      groupIds: values.groupIds || [],
+      associatedCasaIds: values.associatedCasaIds || [],
       createdAt: isEditMode && territoryToEdit ? territoryToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
-      dataAiHint: "map sketch", // Default hint
+      dataAiHint: "map sketch", 
     };
 
     if (values.type === "urban" && values.number && values.number.trim() !== "") {
@@ -204,9 +238,9 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     if (isEditMode && territoryToEdit && territoryToEdit.unblockDate) {
       territoryData.unblockDate = territoryToEdit.unblockDate;
     }
-    
+
     onTerritorySubmit(territoryData as Territory);
-    
+
     if (!isEditMode) {
         form.reset();
         setMapImagePreview(null);
@@ -214,11 +248,21 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     setIsSubmitting(false);
   }
 
+  const getSelectedItemsText = (selectedIds: string[] | undefined, allItems: { id: string; name: string }[], placeholder: string) => {
+    if (!selectedIds || selectedIds.length === 0) return placeholder;
+    if (selectedIds.length === 1) {
+      const item = allItems.find(c => c.id === selectedIds[0]);
+      return item ? item.name : placeholder;
+    }
+    return `${selectedIds.length} seleccionados`;
+  };
+
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) {
             if (!isEditMode) form.reset();
-            setMapImagePreview(null); 
+            setMapImagePreview(null);
         }
         onOpenChange(open);
     }}>
@@ -366,7 +410,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
                             placeholder="Ej: 10"
                             {...field}
                             onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)}
-                            value={field.value || 0} 
+                            value={field.value || 0}
                           />
                         </FormControl>
                         <FormMessage />
@@ -376,7 +420,6 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
                 ))}
               </div>
             )}
-
 
             <FormField
               control={form.control}
@@ -410,14 +453,41 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
 
             <FormField
               control={form.control}
-              name="associatedCasaIdsString"
+              name="associatedCasaIds"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>IDs/Nombres de Casas Cercanas (Opcional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Ej: Casa Pérez, Casa González, ID-123 (separados por coma)" {...field} rows={2}/>
-                  </FormControl>
-                  <FormFieldDescription>IDs o nombres identificativos de las casas, separados por comas.</FormFieldDescription>
+                  <FormLabel>Casas Cercanas (Opcional)</FormLabel>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <FormControl>
+                        <Button variant="outline" className="w-full justify-between">
+                          {getSelectedItemsText(field.value, MOCK_AVAILABLE_CASAS, "Seleccionar casas...")}
+                          <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]" align="start">
+                      <DropdownMenuLabel>Casas Disponibles</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {MOCK_AVAILABLE_CASAS.map((casa) => (
+                        <DropdownMenuCheckboxItem
+                          key={casa.id}
+                          checked={field.value?.includes(casa.id)}
+                          onCheckedChange={(checked) => {
+                            const currentSelection = field.value || [];
+                            return checked
+                              ? field.onChange([...currentSelection, casa.id])
+                              : field.onChange(currentSelection.filter(id => id !== casa.id));
+                          }}
+                          onSelect={(e) => e.preventDefault()} // Prevent closing on select
+                        >
+                          {casa.name} {casa.address ? `(${casa.address})` : ''}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      {MOCK_AVAILABLE_CASAS.length === 0 && <DropdownMenuLabel className="text-xs text-muted-foreground text-center py-2">No hay casas disponibles</DropdownMenuLabel>}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <FormFieldDescription>Selecciona las casas de reunión cercanas o relevantes.</FormFieldDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -425,14 +495,41 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
 
             <FormField
               control={form.control}
-              name="groupIdsString"
+              name="groupIds"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>IDs de Grupos Asociados (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: G1, G2, G5 (separados por coma)" {...field} />
-                  </FormControl>
-                  <FormFieldDescription>IDs de los grupos de predicación que trabajan este territorio.</FormFieldDescription>
+                  <FormLabel>Grupos Asociados (Opcional)</FormLabel>
+                   <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <FormControl>
+                        <Button variant="outline" className="w-full justify-between">
+                           {getSelectedItemsText(field.value, MOCK_AVAILABLE_GROUPS, "Seleccionar grupos...")}
+                          <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]" align="start">
+                      <DropdownMenuLabel>Grupos Disponibles</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {MOCK_AVAILABLE_GROUPS.map((group) => (
+                        <DropdownMenuCheckboxItem
+                          key={group.id}
+                          checked={field.value?.includes(group.id)}
+                           onCheckedChange={(checked) => {
+                            const currentSelection = field.value || [];
+                            return checked
+                              ? field.onChange([...currentSelection, group.id])
+                              : field.onChange(currentSelection.filter(id => id !== group.id));
+                          }}
+                          onSelect={(e) => e.preventDefault()}
+                        >
+                          {group.name}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      {MOCK_AVAILABLE_GROUPS.length === 0 && <DropdownMenuLabel className="text-xs text-muted-foreground text-center py-2">No hay grupos disponibles</DropdownMenuLabel>}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <FormFieldDescription>Selecciona los grupos de predicación que trabajan este territorio.</FormFieldDescription>
                   <FormMessage />
                 </FormItem>
               )}
