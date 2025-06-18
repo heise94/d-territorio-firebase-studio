@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddTerritoryDialog } from "@/components/territorios/add-territory-dialog";
 import { TerritoryCard } from "@/components/territorios/territory-card";
-import { PlusCircle, Search, MapPin, Loader2 } from "lucide-react";
+import { PlusCircle, Search, MapPin, Loader2, Upload } from "lucide-react"; // Added Upload icon
 import type { Territory, TerritoryType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import Link from "next/link"; // Added Link for navigation
 
 export default function TerritoriosPage() {
   const [isTerritoryDialogOpen, setIsTerritoryDialogOpen] = useState(false);
@@ -223,10 +224,17 @@ export default function TerritoriosPage() {
               Administra los territorios de predicación urbanos y rurales.
             </p>
           </div>
-          <Button onClick={handleOpenAddDialog} size="lg">
-            <PlusCircle className="mr-2 h-5 w-5" />
-            Añadir Nuevo Territorio
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+            <Link href="/territorios/importar" passHref legacyBehavior>
+                <Button asChild variant="outline" size="lg" className="w-full sm:w-auto">
+                    <a><Upload className="mr-2 h-5 w-5" /> Importar CSV</a>
+                </Button>
+            </Link>
+            <Button onClick={handleOpenAddDialog} size="lg" className="w-full sm:w-auto">
+              <PlusCircle className="mr-2 h-5 w-5" />
+              Añadir Nuevo Territorio
+            </Button>
+          </div>
         </div>
 
         <Card className="shadow-lg">
