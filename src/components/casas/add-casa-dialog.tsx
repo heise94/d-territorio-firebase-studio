@@ -2,7 +2,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,18 +27,32 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Casa, CasaAvailability, PreachingGroup } from "@/types";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import type { Casa, CasaAvailability, PreachingGroup, UnavailabilityPeriod } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, CalendarIcon, PlusCircle, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { format, parse } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 const NO_GROUP_SELECTED_VALUE = "__NO_GROUP_SELECTED__";
-
 
 const dayAvailabilitySchema = z.object({
   am: z.boolean().optional().default(false),
   pm: z.boolean().optional().default(false),
+});
+
+const unavailabilityPeriodSchema = z.object({
+  id: z.string().optional(), // For React key, not stored in Firestore directly with this ID
+  startDate: z.date({ required_error: "Fecha de inicio es obligatoria." }),
+  endDate: z.date({ required_error: "Fecha de fin es obligatoria." }),
+  reason: z.string().max(100, "Máximo 100 caracteres.").optional().or(z.literal('')),
+}).refine(data => data.endDate >= data.startDate, {
+  message: "Fecha de fin debe ser igualo posterior a la de inicio.",
+  path: ["endDate"],
 });
 
 const casaFormSchema = z.object({
@@ -55,6 +69,7 @@ const casaFormSchema = z.object({
   notes: z.string().max(1000).optional().or(z.literal('')),
   isSuitableForRural: z.boolean().optional().default(false),
   addedByGroupId: z.string().optional().or(z.literal('')),
+  unavailabilityPeriods: z.array(unavailabilityPeriodSchema).optional().default([]),
 });
 
 type CasaFormValues = z.infer<typeof casaFormSchema>;
@@ -96,7 +111,13 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
       notes: "",
       isSuitableForRural: false,
       addedByGroupId: "",
+      unavailabilityPeriods: [],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "unavailabilityPeriods",
   });
 
   useEffect(() => {
@@ -115,6 +136,12 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
         notes: casaToEdit.notes || "",
         isSuitableForRural: casaToEdit.isSuitableForRural || false,
         addedByGroupId: casaToEdit.addedByGroupId || "",
+        unavailabilityPeriods: (casaToEdit.unavailabilityPeriods || []).map(p => ({
+          id: p.id, // Keep original ID for React key
+          startDate: p.startDate instanceof Timestamp ? p.startDate.toDate() : new Date(p.startDate),
+          endDate: p.endDate instanceof Timestamp ? p.endDate.toDate() : new Date(p.endDate),
+          reason: p.reason || "",
+        })),
       });
     } else if (!isOpen) {
       form.reset({ 
@@ -131,6 +158,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
         notes: "",
         isSuitableForRural: false,
         addedByGroupId: "",
+        unavailabilityPeriods: [],
       });
     }
   }, [casaToEdit, isOpen, form]);
@@ -168,6 +196,13 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
     if (!isEditMode) {
         submittedCasaData.lastVisitedAt = undefined;
     }
+
+    submittedCasaData.unavailabilityPeriods = (values.unavailabilityPeriods || []).map(p => ({
+      id: p.id || crypto.randomUUID(), // Ensure new periods get an ID for internal use if needed
+      startDate: Timestamp.fromDate(p.startDate),
+      endDate: Timestamp.fromDate(p.endDate),
+      reason: p.reason || undefined,
+    }));
     
     onCasaSubmit(submittedCasaData);
     
@@ -301,6 +336,60 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
                 ))}
               </div>
             </div>
+
+            <div className="space-y-3 rounded-md border p-4 shadow-sm">
+              <FormLabel className="text-sm font-medium">Períodos de Indisponibilidad</FormLabel>
+              <FormFieldDescription className="text-xs">
+                Define fechas en las que la casa no estará disponible (ej: vacaciones).
+              </FormFieldDescription>
+              {fields.map((item, index) => (
+                <div key={item.id} className="space-y-3 p-3 border rounded-md bg-muted/20 relative">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <FormField
+                      control={form.control}
+                      name={`unavailabilityPeriods.${index}.startDate`}
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel className="text-xs">Inicio</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("text-left font-normal h-9 text-xs", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-1.5 h-3.5 w-3.5" />{field.value ? format(field.value, "dd/MM/yy", { locale: es }) : "Seleccionar"}</Button></FormControl></PopoverTrigger>
+                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} locale={es} weekStartsOn={1} /></PopoverContent>
+                          </Popover>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`unavailabilityPeriods.${index}.endDate`}
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel className="text-xs">Fin</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("text-left font-normal h-9 text-xs", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-1.5 h-3.5 w-3.5" />{field.value ? format(field.value, "dd/MM/yy", { locale: es }) : "Seleccionar"}</Button></FormControl></PopoverTrigger>
+                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => form.getValues(`unavailabilityPeriods.${index}.startDate`) ? date < form.getValues(`unavailabilityPeriods.${index}.startDate`) : false} locale={es} weekStartsOn={1} /></PopoverContent>
+                          </Popover>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name={`unavailabilityPeriods.${index}.reason`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Razón (Opcional)</FormLabel>
+                        <FormControl><Input placeholder="Ej: Vacaciones familiares" {...field} className="h-8 text-xs" /></FormControl>
+                        <FormMessage className="text-xs" />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="absolute top-1 right-1 h-6 w-6 text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" /></Button>
+                </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={() => append({ id: crypto.randomUUID(), startDate: new Date(), endDate: new Date(), reason: '' })} className="mt-2 text-xs"><PlusCircle className="mr-2 h-4 w-4" /> Añadir Período</Button>
+            </div>
             
             <FormField
               control={form.control}
@@ -353,3 +442,5 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
     </Dialog>
   );
 }
+
+    

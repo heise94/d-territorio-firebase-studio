@@ -47,6 +47,18 @@ const GroupPreachingDaysAISchema = z.record(
   z.boolean()
 ).describe("Object where keys are days of the week (lowercase English) and value is true if preaching is organized by groups on that day, false or omitted otherwise. No centralized assignments should be made for true days.");
 
+const UnavailabilityPeriodAISchema = z.object({
+    startDate: z.string().describe("Start date of unavailability (YYYY-MM-DD)."),
+    endDate: z.string().describe("End date of unavailability (YYYY-MM-DD)."),
+    reason: z.string().optional().describe("Reason for unavailability."),
+});
+
+const CasaForAISchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    address: z.string().optional(),
+    unavailabilityPeriods: z.array(UnavailabilityPeriodAISchema).optional().describe("Periods when the house is unavailable. Do not assign this house if the assignment date falls within any of these periods.")
+});
 
 const GenerateMonthlyAssignmentsInputSchema = z.object({
   year: z.number().describe('The year for which to generate the schedule.'),
@@ -54,7 +66,7 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
   availableDaysWithTimeSlots: AvailableDaysWithTimeSlotsAISchema
     .describe('Pre-processed available days and time slots for preaching. For each day and slot, one captain should be assigned, trying to use different ones if multiple slots on the same day.'),
   assignCasas: z.boolean().describe('Whether to assign houses to the schedule.'),
-  availableCasas: z.array(z.object({id: z.string(), name: z.string(), address: z.string().optional()})).describe('Available houses for assignment.'),
+  availableCasas: z.array(CasaForAISchema).describe('Available houses for assignment, including their unavailability periods.'),
   assignTerritories: z.boolean().describe('Whether to assign territories to the schedule.'),
   availableTerritories: z
     .array(z.object({id: z.string(), name: z.string(), type: z.enum(["urban", "rural"]), number: z.string().optional() }))
@@ -150,9 +162,17 @@ const prompt = ai.definePrompt({
   (Note: For each time slot in 'availableDaysWithTimeSlots' on a given day, assign ONE captain. If a day has multiple time slots, aim to assign a DIFFERENT captain to each slot, based on their availability.)
   
   Assign Houses: {{{assignCasas}}}
-  Available Houses:
+  Available Houses (IMPORTANT: Check 'unavailabilityPeriods' for each house. Do NOT assign a house if the assignment date falls within any of its unavailability periods.):
   {{#if availableCasas}}
-    {{#each availableCasas}} - ID: {{this.id}}, Name: {{this.name}}, Address: {{this.address}}{{/each}}
+    {{#each availableCasas}} 
+    - ID: {{this.id}}, Name: {{this.name}}, Address: {{this.address}}
+      {{#if this.unavailabilityPeriods}}
+      Not Available:
+        {{#each this.unavailabilityPeriods}}
+        - From: {{this.startDate}} to {{this.endDate}} {{#if this.reason}} ({{this.reason}}) {{/if}}
+        {{/each}}
+      {{/if}}
+    {{/each}}
   {{else}} No houses available. {{/if}}
 
   Assign Territories: {{{assignTerritories}}}
@@ -229,6 +249,7 @@ const prompt = ai.definePrompt({
      - For each time slot in 'availableDaysWithTimeSlots' on a given day, assign ONE captain. Use 'publisherDetailedAvailabilities' to select a suitable publisher and set their 'id' as 'captainId' and 'name' as 'captainName'.
      - If a day has multiple time slots (e.g., morning and afternoon), aim to assign a DIFFERENT captain to each slot, based on their availability.
      - If no specific instructions are given for holidays, apply this general logic IF preaching is allowed on a holiday per 'additionalInstructions'.
+     - When assigning a 'casaName' or 'casaAddress', ensure the chosen house is NOT within one of its 'unavailabilityPeriods' for the assignment date. If all suitable houses are unavailable, do not assign a house.
 
   2. Assembly Days & Holidays:
      - For any date that falls within the range of an assembly listed in 'assembliesInMonth', OR is listed in 'holidayDatesInMonth' (unless 'additionalInstructions' explicitly allows preaching on that holiday), NO preaching assignments should be made.
@@ -269,7 +290,7 @@ const prompt = ai.definePrompt({
           "time": "HH:MM",
           "status": "pending", // Always pending after generation
           "preachingType": "publica", // or "zoom", "rural"
-          "casaName": "Optional casa name",
+          "casaName": "Optional casa name (ensure not unavailable)",
           "casaAddress": "Optional casa address",
           "territoryName": "Optional territory name",
           "assignedGroupId": "Optional group ID for rural weekend assignments"
@@ -292,5 +313,3 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
 );
 
     
-
-

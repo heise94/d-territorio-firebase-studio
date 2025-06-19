@@ -104,6 +104,12 @@ export interface UserAvailability {
   general?: CasaAvailability;
 }
 
+export interface UnavailabilityPeriod {
+  id: string; // For React key, can be UUID
+  startDate: Date | Timestamp;
+  endDate: Date | Timestamp;
+  reason?: string;
+}
 
 export interface Casa {
   id: string;
@@ -115,6 +121,7 @@ export interface Casa {
   notes?: string;
   isSuitableForRural?: boolean;
   addedByGroupId?: string; // FK to preachingGroups, group that owns/manages this casa
+  unavailabilityPeriods?: UnavailabilityPeriod[];
 
   lastVisitedAt?: Timestamp;
   createdAt: Timestamp;
@@ -246,4 +253,4 @@ export interface GroupAssignment {
   createdBy: string; // Firebase Auth UID of the SG who created it
 }
 
-
+    

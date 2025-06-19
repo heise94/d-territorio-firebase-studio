@@ -6,14 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon } from "lucide-react";
-import type { Casa, CasaAvailability, PreachingGroup } from "@/types";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info } from "lucide-react";
+import type { Casa, CasaAvailability, PreachingGroup, UnavailabilityPeriod } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 function formatAvailability(availability?: CasaAvailability): string {
   if (!availability) return "No especificada";
@@ -35,6 +37,18 @@ function formatAvailability(availability?: CasaAvailability): string {
   });
   return parts.length > 0 ? parts.join('; ') : "Disponibilidad no detallada";
 }
+
+function formatUnavailabilityPeriods(periods?: UnavailabilityPeriod[]): string | null {
+    if (!periods || periods.length === 0) return null;
+    return periods.map(p => {
+        const start = p.startDate instanceof Timestamp ? p.startDate.toDate() : new Date(p.startDate);
+        const end = p.endDate instanceof Timestamp ? p.endDate.toDate() : new Date(p.endDate);
+        let periodString = `${format(start, "dd/MM/yy", { locale: es })} - ${format(end, "dd/MM/yy", { locale: es })}`;
+        if (p.reason) periodString += ` (${p.reason})`;
+        return periodString;
+    }).join('; ');
+}
+
 
 export default function CasasPage() {
   const [isCasaDialogOpen, setIsCasaDialogOpen] = useState(false);
@@ -64,6 +78,11 @@ export default function CasasPage() {
         ...doc.data(),
         createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt : Timestamp.now(),
         updatedAt: doc.data().updatedAt instanceof Timestamp ? doc.data().updatedAt : Timestamp.now(),
+        unavailabilityPeriods: (doc.data().unavailabilityPeriods || []).map((p: any) => ({
+            ...p,
+            startDate: p.startDate instanceof Timestamp ? p.startDate.toDate() : new Date(p.startDate),
+            endDate: p.endDate instanceof Timestamp ? p.endDate.toDate() : new Date(p.endDate),
+        }))
       } as Casa));
       setCasas(fetchedCasas);
       setIsLoadingCasas(false);
@@ -118,15 +137,26 @@ export default function CasasPage() {
       return;
     }
 
-    const sanitizedData: Partial<Casa> = {};
+    const sanitizedData: { [key: string]: any } = {};
     for (const key in submittedCasaData) {
         if (submittedCasaData[key as keyof typeof submittedCasaData] !== undefined) {
             (sanitizedData as any)[key] = submittedCasaData[key as keyof typeof submittedCasaData];
         } else {
             if (key === 'addedByGroupId' && (submittedCasaData.addedByGroupId === "" || submittedCasaData.addedByGroupId === undefined)) {
-                 delete sanitizedData[key as keyof typeof sanitizedData];
+                 sanitizedData[key] = deleteField(); // Explicitly remove if empty/undefined
+            } else if (key === 'unavailabilityPeriods' && (!submittedCasaData.unavailabilityPeriods || submittedCasaData.unavailabilityPeriods.length === 0)){
+                 sanitizedData[key] = deleteField();
             }
         }
+    }
+    
+    // Ensure unavailabilityPeriods are Timestamps before saving
+    if (sanitizedData.unavailabilityPeriods) {
+      sanitizedData.unavailabilityPeriods = sanitizedData.unavailabilityPeriods.map((p: UnavailabilityPeriod) => ({
+        ...p,
+        startDate: p.startDate instanceof Date ? Timestamp.fromDate(p.startDate) : p.startDate,
+        endDate: p.endDate instanceof Date ? Timestamp.fromDate(p.endDate) : p.endDate,
+      }));
     }
     
     const isEditing = !!casas.find(c => c.id === submittedCasaData.id);
@@ -191,12 +221,12 @@ export default function CasasPage() {
       casa.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (casa.addedByGroupId && getGroupNameById(casa.addedByGroupId).toLowerCase().includes(searchTerm.toLowerCase()))
     );
-  }, [casas, searchTerm, availableGroups]); // Added availableGroups dependency
+  }, [casas, searchTerm, availableGroups]);
 
   const getGroupNameById = useCallback((groupId?: string) => {
     if (!groupId) return 'N/A';
     const group = availableGroups.find(g => g.id === groupId);
-    return group ? group.name : groupId; // Fallback to ID if name not found
+    return group ? group.name : groupId;
   }, [availableGroups]);
 
 
@@ -275,7 +305,9 @@ export default function CasasPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredCasas.map((casa) => (
+              {filteredCasas.map((casa) => {
+                const formattedUnavailability = formatUnavailabilityPeriods(casa.unavailabilityPeriods);
+                return (
                 <Card key={casa.id} className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${casa.isBlocked ? 'opacity-60 bg-muted/50' : ''}`}>
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
@@ -297,6 +329,12 @@ export default function CasasPage() {
                         <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad (Lu-Vi):</span>
                         <p className="text-foreground pl-1 text-xs">{formatAvailability(casa.availableDays)}</p>
                     </div>
+                    {formattedUnavailability && (
+                        <div>
+                            <span className="font-medium text-amber-600 dark:text-amber-400 flex items-center"><CalendarX2 size={14} className="mr-2" /> No Disponible:</span>
+                            <p className="text-amber-700 dark:text-amber-500 pl-1 text-xs">{formattedUnavailability}</p>
+                        </div>
+                    )}
                     {casa.isSuitableForRural !== undefined && (
                         <div className="flex items-center">
                             {casa.isSuitableForRural ? <CheckCircle2 size={14} className="mr-2 text-green-600" /> : <ShieldAlert size={14} className="mr-2 text-red-600" />}
@@ -305,7 +343,7 @@ export default function CasasPage() {
                     )}
                     {casa.notes && (
                         <div>
-                            <span className="font-medium text-muted-foreground">Notas:</span>
+                            <span className="font-medium text-muted-foreground flex items-center"><Info size={14} className="mr-2"/>Notas:</span>
                             <p className="text-foreground pl-1 text-xs italic">{casa.notes}</p>
                         </div>
                     )}
@@ -364,7 +402,8 @@ export default function CasasPage() {
                     </AlertDialog>
                   </CardFooter>
                 </Card>
-              ))}
+              );
+            })}
             </div>
           )}
         </CardContent>
@@ -381,3 +420,5 @@ export default function CasasPage() {
     </TooltipProvider>
   );
 }
+
+    
