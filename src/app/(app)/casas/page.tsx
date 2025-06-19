@@ -20,10 +20,10 @@ import { es } from "date-fns/locale";
 function formatAvailability(availability?: CasaAvailability): string {
   if (!availability) return "No especificada";
   
-  const dayLabels: Record<keyof Pick<Required<CasaAvailability>, 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday'>, string> = {
-    monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi'
+  const dayLabels: Record<keyof CasaAvailability, string> = {
+    monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi', saturday: 'Sá', sunday: 'Do'
   };
-  const daysOrder: (keyof Pick<Required<CasaAvailability>, 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday'>)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+  const daysOrder: (keyof CasaAvailability)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
   const parts: string[] = [];
   daysOrder.forEach(dayKey => {
@@ -326,7 +326,7 @@ export default function CasasPage() {
                   </CardHeader>
                   <CardContent className="flex-grow space-y-3 pt-2 text-sm">
                     <div>
-                        <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad (Lu-Vi):</span>
+                        <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad (Lu-Do):</span>
                         <p className="text-foreground pl-1 text-xs">{formatAvailability(casa.availableDays)}</p>
                     </div>
                     {formattedUnavailability && (

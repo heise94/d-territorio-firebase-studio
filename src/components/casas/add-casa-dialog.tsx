@@ -65,6 +65,8 @@ const casaFormSchema = z.object({
     wednesday: dayAvailabilitySchema,
     thursday: dayAvailabilitySchema,
     friday: dayAvailabilitySchema,
+    saturday: dayAvailabilitySchema, // Added Saturday
+    sunday: dayAvailabilitySchema,   // Added Sunday
   }).optional(),
   notes: z.string().max(1000).optional().or(z.literal('')),
   isSuitableForRural: z.boolean().optional().default(false),
@@ -80,6 +82,8 @@ const WEEK_DAYS = [
   { id: 'wednesday', label: 'Miércoles' },
   { id: 'thursday', label: 'Jueves' },
   { id: 'friday', label: 'Viernes' },
+  { id: 'saturday', label: 'Sábado' }, // Added Saturday
+  { id: 'sunday', label: 'Domingo' },   // Added Sunday
 ] as const;
 
 interface AddCasaDialogProps {
@@ -107,6 +111,8 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
         wednesday: { am: false, pm: false },
         thursday: { am: false, pm: false },
         friday: { am: false, pm: false },
+        saturday: { am: false, pm: false }, // Default for Saturday
+        sunday: { am: false, pm: false },   // Default for Sunday
       },
       notes: "",
       isSuitableForRural: false,
@@ -132,6 +138,8 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
           wednesday: { am: false, pm: false },
           thursday: { am: false, pm: false },
           friday: { am: false, pm: false },
+          saturday: { am: false, pm: false },
+          sunday: { am: false, pm: false },
         },
         notes: casaToEdit.notes || "",
         isSuitableForRural: casaToEdit.isSuitableForRural || false,
@@ -154,6 +162,8 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
           wednesday: { am: false, pm: false },
           thursday: { am: false, pm: false },
           friday: { am: false, pm: false },
+          saturday: { am: false, pm: false },
+          sunday: { am: false, pm: false },
         },
         notes: "",
         isSuitableForRural: false,
@@ -300,7 +310,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
             />
 
             <div>
-              <FormLabel className="text-sm font-medium">Disponibilidad (Lunes a Viernes)</FormLabel>
+              <FormLabel className="text-sm font-medium">Disponibilidad (Lunes a Domingo)</FormLabel>
               <FormFieldDescription className="text-xs">
                 Marca los bloques horarios en que la casa estaría disponible.
               </FormFieldDescription>
