@@ -4,20 +4,20 @@
 import { useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Menu, XCircle } from 'lucide-react'; // Added XCircle
+import { Loader2, Menu, XCircle } from 'lucide-react'; 
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { UserNav } from '@/components/layout/user-nav';
 import { AppLogo } from '@/components/layout/app-logo';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'; // Added SheetHeader, SheetTitle
 import { PermissionsProvider, usePermissions } from '@/hooks/use-permissions';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Added Alert components
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
 
 function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const { 
-    userProfile, // This will be the effective profile (original or impersonated)
+    userProfile, 
     isLoadingPermissions, 
     isImpersonating, 
     stopImpersonation 
@@ -41,7 +41,7 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
 
   const handleStopImpersonation = () => {
     stopImpersonation();
-    router.push('/usuarios'); // Redirect back to users page after stopping
+    router.push('/usuarios'); 
   };
 
   return (
@@ -68,9 +68,15 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="flex flex-col p-0 md:hidden w-72 bg-sidebar">
-          <div className="flex h-16 items-center border-b px-6 shrink-0">
+          <SheetHeader className="flex h-16 items-center border-b px-6 shrink-0">
             <AppLogo href="/dashboard" />
-          </div>
+            {/* Added SheetTitle for accessibility, though AppLogo is visually the header.
+                It can be visually hidden if needed using Radix VisuallyHidden,
+                but for now, a simple, possibly visually redundant title is better than none.
+                Alternatively, AppLogo itself could be wrapped or provide an aria-label.
+            */}
+            <SheetTitle className="sr-only">Menú Principal</SheetTitle>
+          </SheetHeader>
           <SidebarNav />
            <div className="mt-auto p-4 border-t">
             <p className="text-xs text-sidebar-foreground/60 text-center">
