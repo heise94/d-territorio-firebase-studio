@@ -10,14 +10,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddTerritoryDialog } from "@/components/territorios/add-territory-dialog";
 import { TerritoryCard } from "@/components/territorios/territory-card";
 import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert } from "lucide-react";
-import type { Territory, TerritoryType } from "@/types";
+import type { Territory, TerritoryType, Casa, PreachingGroup } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, FieldValue } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, FieldValue, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Link from "next/link";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"; // Removed AlertDialogTrigger as it's implicitly handled by AlertDialog
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES } from "@/lib/constants";
@@ -36,17 +36,25 @@ export default function TerritoriosPage() {
   const [territoryToBlock, setTerritoryToBlock] = useState<Territory | null>(null);
   const [blockReason, setBlockReason] = useState("");
 
+  const [availableCasas, setAvailableCasas] = useState<Casa[]>([]);
+  const [isLoadingCasas, setIsLoadingCasas] = useState(true);
+  const [availableGroups, setAvailableGroups] = useState<PreachingGroup[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+
+
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       setIsLoadingTerritories(false);
+      setIsLoadingCasas(false);
+      setIsLoadingGroups(false);
       return;
     }
+
     setIsLoadingTerritories(true);
     const territoriesCollectionRef = collection(db, "territories");
-    const q = query(territoriesCollectionRef, orderBy("createdAt", "desc"));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const qTerritories = query(territoriesCollectionRef, orderBy("createdAt", "desc"));
+    const unsubscribeTerritories = onSnapshot(qTerritories, (snapshot) => {
       const fetchedTerritories = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -61,7 +69,44 @@ export default function TerritoriosPage() {
       setIsLoadingTerritories(false);
     });
 
-    return () => unsubscribe();
+    setIsLoadingCasas(true);
+    const casasCollectionRef = collection(db, "casas");
+    const qCasas = query(casasCollectionRef, orderBy("ownerName", "asc")); // Order by name for select dropdown
+    const unsubscribeCasas = onSnapshot(qCasas, (snapshot) => {
+        const fetchedCasas = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as Casa));
+        setAvailableCasas(fetchedCasas);
+        setIsLoadingCasas(false);
+    }, (error) => {
+        console.error("Error fetching casas for territory dialog:", error);
+        toast({ title: "Error al Cargar Casas", description: "No se pudieron cargar las casas disponibles.", variant: "destructive" });
+        setIsLoadingCasas(false);
+    });
+
+    setIsLoadingGroups(true);
+    const groupsCollectionRef = collection(db, "preachingGroups");
+    const qGroups = query(groupsCollectionRef, orderBy("name", "asc")); // Order by name for select dropdown
+    const unsubscribeGroups = onSnapshot(qGroups, (snapshot) => {
+        const fetchedGroups = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as PreachingGroup));
+        setAvailableGroups(fetchedGroups);
+        setIsLoadingGroups(false);
+    }, (error) => {
+        console.error("Error fetching groups for territory dialog:", error);
+        toast({ title: "Error al Cargar Grupos", description: "No se pudieron cargar los grupos disponibles.", variant: "destructive" });
+        setIsLoadingGroups(false);
+    });
+
+
+    return () => {
+        unsubscribeTerritories();
+        unsubscribeCasas();
+        unsubscribeGroups();
+    };
   }, [toast]);
 
   useEffect(() => {
@@ -80,7 +125,7 @@ export default function TerritoriosPage() {
     setIsTerritoryDialogOpen(true);
   };
 
-  const handleTerritorySubmit = async (submittedTerritoryData: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt'>) => {
+  const handleTerritorySubmit = async (submittedTerritoryData: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'>) => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Base de Datos", description: "No se pudo conectar a la base de datos.", variant: "destructive" });
       return;
@@ -92,7 +137,7 @@ export default function TerritoriosPage() {
     const dataForFirestore: { [key: string]: any } = {
       type: submittedTerritoryData.type,
       name: submittedTerritoryData.name,
-      isBlocked: submittedTerritoryData.isBlocked, // Use the original isBlocked state passed from the dialog
+      isBlocked: submittedTerritoryData.isBlocked,
       updatedAt: Timestamp.now(),
       createdAt: (isEditing && territoryToEdit?.createdAt) ? territoryToEdit.createdAt : Timestamp.now(),
     };
@@ -115,16 +160,13 @@ export default function TerritoriosPage() {
         }
     });
 
-    // Explicitly handle blockReason to preserve it if the territory remains blocked
     if (submittedTerritoryData.isBlocked) {
       if (submittedTerritoryData.blockReason && submittedTerritoryData.blockReason.trim() !== "") {
         dataForFirestore.blockReason = submittedTerritoryData.blockReason.trim();
       } else {
-        // If it's blocked but no reason is provided (e.g., cleared or was never set), remove the field
         dataForFirestore.blockReason = deleteField();
       }
     } else {
-      // If it's not blocked, ensure blockReason is removed
       dataForFirestore.blockReason = deleteField();
     }
 
@@ -213,7 +255,7 @@ export default function TerritoriosPage() {
   const canViewBlockStatusDetails = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || userProfile?.role === USER_ROLES.SS;
   
   const renderTerritoryGrid = (tabType: TerritoryType) => {
-    if (isLoadingTerritories || isLoadingPermissions) {
+    if (isLoadingTerritories || isLoadingPermissions || isLoadingCasas || isLoadingGroups) {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(3)].map((_, i) => (
@@ -299,7 +341,8 @@ export default function TerritoriosPage() {
                     <a><Upload className="mr-2 h-5 w-5" /> Importar CSV</a>
                 </Button>
             </Link>
-            <Button onClick={handleOpenAddDialog} size="lg" className="w-full sm:w-auto">
+            <Button onClick={handleOpenAddDialog} size="lg" className="w-full sm:w-auto" disabled={isLoadingCasas || isLoadingGroups}>
+              {(isLoadingCasas || isLoadingGroups) && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
               <PlusCircle className="mr-2 h-5 w-5" />
               Añadir Nuevo Territorio
             </Button>
@@ -351,6 +394,8 @@ export default function TerritoriosPage() {
           onOpenChange={setIsTerritoryDialogOpen}
           onTerritorySubmit={handleTerritorySubmit}
           territoryToEdit={territoryToEdit}
+          availableCasas={availableCasas}
+          availableGroups={availableGroups}
         />
 
         {territoryToBlock && (

@@ -28,30 +28,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Territory, TerritoryType } from "@/types";
+import type { Territory, TerritoryType, Casa, PreachingGroup } from "@/types"; // Added Casa, PreachingGroup
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, UploadCloud, XCircle, ChevronDown } from "lucide-react";
 import { useState, useEffect, ChangeEvent } from "react";
 import Image from 'next/image';
 import { cn } from "@/lib/utils";
-
-// MOCK DATA - In a real app, this would be fetched or passed as props
-const MOCK_AVAILABLE_CASAS: { id: string; name: string; address?: string }[] = [
-  { id: 'casa1', name: 'Familia Pérez', address: 'Calle Sol 123' },
-  { id: 'casa2', name: 'Hogar Dulce Hogar', address: 'Av. Luna 456' },
-  { id: 'casa3', name: 'Casa de Esquina', address: 'Pasaje Estrella 789' },
-  { id: 'casa4', name: 'Residencia Los Álamos', address: 'Roble 789' },
-  { id: 'casa5', name: 'Hogar Los Sauces', address: 'Sauce 101' },
-];
-
-const MOCK_AVAILABLE_GROUPS: { id: string; name: string }[] = [
-  { id: 'G1', name: 'Grupo Los Pioneros' },
-  { id: 'G2', name: 'Grupo Betel' },
-  { id: 'G3', name: 'Grupo Emanuel' },
-  { id: 'G4', name: 'Grupo Sinaí' },
-  { id: 'G5', name: 'Grupo Exploradores del Reino' },
-];
 
 const territoryFormSchema = z.object({
   type: z.enum(["urban", "rural"], { required_error: "El tipo es obligatorio." }),
@@ -65,7 +48,6 @@ const territoryFormSchema = z.object({
   warningsString: z.string().optional(),
   groupIds: z.array(z.string()).optional().default([]),
   associatedCasaIds: z.array(z.string()).optional().default([]),
-  // blockReason is not directly edited here but passed if exists
 }).superRefine((data, ctx) => {
   if (data.type === "urban" && (!data.number || data.number.trim() === "")) {
     ctx.addIssue({
@@ -81,11 +63,20 @@ type TerritoryFormValues = z.infer<typeof territoryFormSchema>;
 interface AddTerritoryDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onTerritorySubmit: (territory: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt'>) => void;
+  onTerritorySubmit: (territory: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'>) => void;
   territoryToEdit?: Territory | null;
+  availableCasas: Casa[]; // Changed from mock to prop
+  availableGroups: PreachingGroup[]; // Changed from mock to prop
 }
 
-export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, territoryToEdit }: AddTerritoryDialogProps) {
+export function AddTerritoryDialog({ 
+    isOpen, 
+    onOpenChange, 
+    onTerritorySubmit, 
+    territoryToEdit,
+    availableCasas, 
+    availableGroups 
+}: AddTerritoryDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mapImagePreview, setMapImagePreview] = useState<string | null>(null);
@@ -202,7 +193,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     const blockHouseCounts = values.blockHouseCounts || [];
     const approxHouseCount = blockHouseCounts.reduce((sum, count) => sum + count, 0);
 
-    const territoryDataToSubmit: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt'> = {
+    const territoryDataToSubmit: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'> = {
       id: isEditMode && territoryToEdit ? territoryToEdit.id : crypto.randomUUID(),
       type: values.type,
       name: values.name,
@@ -211,12 +202,13 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       approxHouseCount: approxHouseCount,
       doNotCallAddresses: values.doNotCallAddressesString?.split('\n').map(s => s.trim()).filter(s => s) || [],
       warnings: values.warningsString?.split('\n').map(s => s.trim()).filter(s => s) || [],
-      isBlocked: isEditMode && territoryToEdit ? territoryToEdit.isBlocked : false, // Pass original blocked state
+      isBlocked: isEditMode && territoryToEdit ? territoryToEdit.isBlocked : false, 
       groupIds: values.groupIds || [],
       associatedCasaIds: values.associatedCasaIds || [],
       createdAt: isEditMode && territoryToEdit ? territoryToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
       dataAiHint: "map sketch", 
+      blockReason: isEditMode && territoryToEdit?.isBlocked && territoryToEdit.blockReason ? territoryToEdit.blockReason : undefined,
     };
 
     if (values.type === "urban" && values.number && values.number.trim() !== "") {
@@ -230,9 +222,6 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     }
     if (isEditMode && territoryToEdit && territoryToEdit.lastWorked) {
       territoryDataToSubmit.lastWorked = territoryToEdit.lastWorked;
-    }
-    if (isEditMode && territoryToEdit && territoryToEdit.isBlocked && territoryToEdit.blockReason) {
-      territoryDataToSubmit.blockReason = territoryToEdit.blockReason; // Pass original reason if blocked
     }
     if (isEditMode && territoryToEdit && territoryToEdit.unblockDate) {
       territoryDataToSubmit.unblockDate = territoryToEdit.unblockDate;
@@ -459,8 +448,8 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <FormControl>
-                        <Button variant="outline" className="w-full justify-between">
-                          {getSelectedItemsText(field.value, MOCK_AVAILABLE_CASAS, "Seleccionar casas...")}
+                        <Button variant="outline" className="w-full justify-between" disabled={availableCasas.length === 0}>
+                          {getSelectedItemsText(field.value, availableCasas.map(c => ({id:c.id, name: c.ownerName})), availableCasas.length === 0 ? "No hay casas" : "Seleccionar casas...")}
                           <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
                         </Button>
                       </FormControl>
@@ -468,7 +457,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
                     <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]" align="start">
                       <DropdownMenuLabel>Casas Disponibles</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      {MOCK_AVAILABLE_CASAS.map((casa) => (
+                      {availableCasas.map((casa) => (
                         <DropdownMenuCheckboxItem
                           key={casa.id}
                           checked={field.value?.includes(casa.id)}
@@ -480,10 +469,10 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
                           }}
                           onSelect={(e) => e.preventDefault()} // Prevent closing on select
                         >
-                          {casa.name} {casa.address ? `(${casa.address})` : ''}
+                          {casa.ownerName} {casa.address ? `(${casa.address})` : ''}
                         </DropdownMenuCheckboxItem>
                       ))}
-                      {MOCK_AVAILABLE_CASAS.length === 0 && <DropdownMenuLabel className="text-xs text-muted-foreground text-center py-2">No hay casas disponibles</DropdownMenuLabel>}
+                      {availableCasas.length === 0 && <DropdownMenuLabel className="text-xs text-muted-foreground text-center py-2">No hay casas disponibles</DropdownMenuLabel>}
                     </DropdownMenuContent>
                   </DropdownMenu>
                   <FormFieldDescription>Selecciona las casas de reunión cercanas o relevantes.</FormFieldDescription>
@@ -501,8 +490,8 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
                    <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <FormControl>
-                        <Button variant="outline" className="w-full justify-between">
-                           {getSelectedItemsText(field.value, MOCK_AVAILABLE_GROUPS, "Seleccionar grupos...")}
+                        <Button variant="outline" className="w-full justify-between" disabled={availableGroups.length === 0}>
+                           {getSelectedItemsText(field.value, availableGroups, availableGroups.length === 0 ? "No hay grupos" : "Seleccionar grupos...")}
                           <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
                         </Button>
                       </FormControl>
@@ -510,7 +499,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
                     <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]" align="start">
                       <DropdownMenuLabel>Grupos Disponibles</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      {MOCK_AVAILABLE_GROUPS.map((group) => (
+                      {availableGroups.map((group) => (
                         <DropdownMenuCheckboxItem
                           key={group.id}
                           checked={field.value?.includes(group.id)}
@@ -525,7 +514,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
                           {group.name}
                         </DropdownMenuCheckboxItem>
                       ))}
-                      {MOCK_AVAILABLE_GROUPS.length === 0 && <DropdownMenuLabel className="text-xs text-muted-foreground text-center py-2">No hay grupos disponibles</DropdownMenuLabel>}
+                      {availableGroups.length === 0 && <DropdownMenuLabel className="text-xs text-muted-foreground text-center py-2">No hay grupos disponibles</DropdownMenuLabel>}
                     </DropdownMenuContent>
                   </DropdownMenu>
                   <FormFieldDescription>Selecciona los grupos de predicación que trabajan este territorio.</FormFieldDescription>
