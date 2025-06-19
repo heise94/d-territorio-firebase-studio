@@ -10,7 +10,7 @@ import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone,
 import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, getDoc } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, getDoc, FieldValue } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -19,17 +19,16 @@ import { es } from "date-fns/locale";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES } from "@/lib/constants";
 
-const DAY_ORDER: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-const DAY_LABELS: Record<DayOfWeek, string> = {
+const DAY_ORDER_AVAILABILITY: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const DAY_LABELS_AVAILABILITY: Record<DayOfWeek, string> = {
   monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi', saturday: 'Sá', sunday: 'Do'
 };
 
 const PreachingTypeIconSmall = ({ type, className }: { type: PreachingType, className?: string }) => {
-  const defaultClass = "mr-1 h-3 w-3 shrink-0"; 
+  const defaultClass = "mr-1 h-3 w-3 shrink-0";
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
-  // Zoom type is intentionally omitted as it's not relevant for physical house availability
   return null;
 };
 
@@ -44,23 +43,22 @@ function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramSched
   };
 
   availableSlotIds.forEach(slotId => {
-    const slotDetail = allSlots.find(s => s.id === slotId && s.type !== 'zoom'); // Exclude zoom slots
+    const slotDetail = allSlots.find(s => s.id === slotId && s.type !== 'zoom');
     if (slotDetail) {
       groupedByDay[slotDetail.dayOfWeek].push(slotDetail);
     }
   });
 
   const parts: string[] = [];
-  DAY_ORDER.forEach(dayKey => {
+  DAY_ORDER_AVAILABILITY.forEach(dayKey => {
     const daySlots = groupedByDay[dayKey].sort((a, b) => a.startTime.localeCompare(b.startTime));
     if (daySlots.length > 0) {
       const slotStrings = daySlots.map(s => {
-        let typeAbbreviation = 'G'; 
+        let typeAbbreviation = 'G';
         if (s.type === 'rural') typeAbbreviation = 'R';
-        
         return `${s.startTime} (${typeAbbreviation})`;
       });
-      parts.push(`${DAY_LABELS[dayKey]}: ${slotStrings.join(', ')}`);
+      parts.push(`${DAY_LABELS_AVAILABILITY[dayKey]}: ${slotStrings.join(', ')}`);
     }
   });
 
@@ -116,6 +114,7 @@ export default function CasasPage() {
         updatedAt: doc.data().updatedAt instanceof Timestamp ? doc.data().updatedAt : Timestamp.now(),
         unavailabilityPeriods: (doc.data().unavailabilityPeriods || []).map((p: any) => ({
             ...p,
+            id: p.id || crypto.randomUUID(), // Ensure ID for key prop
             startDate: p.startDate instanceof Timestamp ? p.startDate.toDate() : new Date(p.startDate),
             endDate: p.endDate instanceof Timestamp ? p.endDate.toDate() : new Date(p.endDate),
         }))
@@ -143,7 +142,7 @@ export default function CasasPage() {
         toast({ title: "Error al Cargar Grupos", description: "No se pudieron cargar los grupos de predicación.", variant: "destructive" });
         setIsLoadingGroups(false);
     });
-    
+
     setIsLoadingProgramSlots(true);
     const settingsDocRef = doc(db, "settings", "programConfig");
     const unsubscribeSlots = onSnapshot(settingsDocRef, (docSnap) => {
@@ -151,7 +150,7 @@ export default function CasasPage() {
           const settingsData = docSnap.data() as SettingsDoc;
           const slots = settingsData.programScheduleSlots || [];
           setProgramScheduleSlots(slots.sort((a,b) => {
-            const dayCompare = DAY_ORDER.indexOf(a.dayOfWeek) - DAY_ORDER.indexOf(b.dayOfWeek);
+            const dayCompare = DAY_ORDER_AVAILABILITY.indexOf(a.dayOfWeek) - DAY_ORDER_AVAILABILITY.indexOf(b.dayOfWeek);
             if (dayCompare !== 0) return dayCompare;
             return a.startTime.localeCompare(b.startTime);
           }));
@@ -195,38 +194,58 @@ export default function CasasPage() {
       return;
     }
 
-    const sanitizedData: { [key: string]: any } = {};
-    for (const key in submittedCasaData) {
-        if (submittedCasaData[key as keyof typeof submittedCasaData] !== undefined) {
-            (sanitizedData as any)[key] = submittedCasaData[key as keyof typeof submittedCasaData];
-        } else {
-            if (key === 'addedByGroupId' && (submittedCasaData.addedByGroupId === "" || submittedCasaData.addedByGroupId === undefined)) {
-                 sanitizedData[key] = deleteField();
-            } else if (key === 'unavailabilityPeriods' && (!submittedCasaData.unavailabilityPeriods || submittedCasaData.unavailabilityPeriods.length === 0)){
-                 sanitizedData[key] = deleteField();
-            } else if (key === 'availableDays' && (!submittedCasaData.availableDays || !submittedCasaData.availableDays.availableProgramSlotIds || submittedCasaData.availableDays.availableProgramSlotIds.length === 0)) {
-                 sanitizedData[key] = deleteField(); 
-            } else if (key === 'notesForSS' && (submittedCasaData.notesForSS === "" || submittedCasaData.notesForSS === undefined)) {
-                 sanitizedData[key] = deleteField();
-            } else if (key === 'notes' && (submittedCasaData.notes === "" || submittedCasaData.notes === undefined)) {
-                 sanitizedData[key] = deleteField();
-            }
-        }
-    }
-    
-    if (sanitizedData.unavailabilityPeriods) {
-      sanitizedData.unavailabilityPeriods = sanitizedData.unavailabilityPeriods.map((p: UnavailabilityPeriod) => ({
-        ...p,
-        startDate: p.startDate instanceof Date ? Timestamp.fromDate(p.startDate) : p.startDate,
-        endDate: p.endDate instanceof Date ? Timestamp.fromDate(p.endDate) : p.endDate,
-      }));
-    }
-    
     const isEditing = !!casas.find(c => c.id === submittedCasaData.id);
     const docRef = doc(db, "casas", submittedCasaData.id);
 
+    const dataForFirestore: { [key: string]: any } = {
+        ownerName: submittedCasaData.ownerName,
+        address: submittedCasaData.address,
+        isBlocked: submittedCasaData.isBlocked || false,
+        updatedAt: Timestamp.now(),
+        createdAt: (isEditing && submittedCasaData.createdAt) ? submittedCasaData.createdAt : Timestamp.now(),
+        type: submittedCasaData.type, // Assuming type is always passed from dialog now
+    };
+
+    // Optional fields handling
+    const optionalFields: (keyof Casa)[] = ['phoneNumber', 'notes', 'notesForSS', 'addedByGroupId', 'isSuitableForRural', 'lastVisitedAt'];
+    optionalFields.forEach(key => {
+        if (submittedCasaData[key] === undefined || submittedCasaData[key] === "") {
+            dataForFirestore[key] = deleteField();
+        } else if (submittedCasaData[key] !== null) { // Ensure not to pass null if dialog sends it for some reason
+            dataForFirestore[key] = submittedCasaData[key];
+        }
+    });
+
+    // Handle unavailabilityPeriods
+    if (submittedCasaData.unavailabilityPeriods && submittedCasaData.unavailabilityPeriods.length > 0) {
+        dataForFirestore.unavailabilityPeriods = submittedCasaData.unavailabilityPeriods.map((p: UnavailabilityPeriod) => ({
+            id: p.id || crypto.randomUUID(),
+            startDate: p.startDate instanceof Date ? Timestamp.fromDate(p.startDate) : p.startDate,
+            endDate: p.endDate instanceof Date ? Timestamp.fromDate(p.endDate) : p.endDate,
+            reason: p.reason || undefined,
+        }));
+    } else {
+        dataForFirestore.unavailabilityPeriods = deleteField();
+    }
+
+    // Handle availableDays (ProgramScheduleSlot IDs)
+    if (submittedCasaData.availableDays && submittedCasaData.availableDays.availableProgramSlotIds && submittedCasaData.availableDays.availableProgramSlotIds.length > 0) {
+        dataForFirestore.availableDays = submittedCasaData.availableDays;
+    } else {
+        dataForFirestore.availableDays = deleteField();
+    }
+    
+    // Remove any top-level undefined properties from dataForFirestore that were not explicitly set to deleteField()
+    // This is a final safeguard, though the explicit handling above should cover most cases.
+    Object.keys(dataForFirestore).forEach(k => {
+        if (dataForFirestore[k] === undefined && !(dataForFirestore[k] instanceof FieldValue) ) {
+            delete dataForFirestore[k];
+        }
+    });
+
+
     try {
-      await setDoc(docRef, sanitizedData, { merge: true });
+      await setDoc(docRef, dataForFirestore, { merge: true });
       toast({
         title: isEditing ? "Casa Actualizada" : "Casa Añadida",
         description: `La casa de ${submittedCasaData.ownerName} ha sido ${isEditing ? 'actualizada' : 'guardada'} en Firestore.`,
@@ -252,7 +271,7 @@ export default function CasasPage() {
       toast({ title: "Error al Eliminar", description: "No se pudo eliminar la casa.", variant: "destructive" });
     }
   };
-  
+
   const handleToggleBlockCasa = async (casaId: string) => {
      if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
@@ -279,7 +298,7 @@ export default function CasasPage() {
 
   const filteredCasas = useMemo(() => {
     if (!searchTerm) return casas;
-    return casas.filter(casa => 
+    return casas.filter(casa =>
       casa.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       casa.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (casa.addedByGroupId && getGroupNameById(casa.addedByGroupId).toLowerCase().includes(searchTerm.toLowerCase()))
@@ -311,14 +330,14 @@ export default function CasasPage() {
           Añadir Nueva Casa
         </Button>
       </div>
-      
+
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Lista de Casas</CardTitle>
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
             <CardDescription>
-              {isLoadingAny ? "Cargando información..." : 
-                (filteredCasas.length > 0 
+              {isLoadingAny ? "Cargando información..." :
+                (filteredCasas.length > 0
                   ? `Mostrando ${filteredCasas.length} de ${casas.length} casa(s) registradas.`
                   : casas.length > 0 ? "Ninguna casa coincide con la búsqueda."
                   : "Actualmente no hay casas registradas."
@@ -379,16 +398,16 @@ export default function CasasPage() {
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                         <CardTitle className="text-xl font-semibold">{casa.ownerName}</CardTitle>
-                        <Badge variant={casa.isBlocked ? 'destructive' : 'default'}>
+                        <Badge variant={casa.isBlocked ? 'destructive' : 'default'} className={`${casa.isBlocked ? '' : ''}`}>
                             {casa.isBlocked ? 'Bloqueada' : 'Disponible'}
                         </Badge>
                     </div>
-                    <CardDescription className="text-sm pt-1 flex items-center"><MapPin size={14} className="mr-1.5 text-muted-foreground shrink-0" /> {casa.address}</CardDescription>
+                    <CardDescription className={`text-sm pt-1 flex items-center ${casa.isBlocked ? 'opacity-60' : ''}`}><MapPin size={14} className="mr-1.5 text-muted-foreground shrink-0" /> {casa.address}</CardDescription>
                     {casa.phoneNumber && (
-                        <p className="text-xs text-muted-foreground flex items-center"><Phone size={12} className="mr-1.5 shrink-0" /> {casa.phoneNumber}</p>
+                        <p className={`text-xs text-muted-foreground flex items-center ${casa.isBlocked ? 'opacity-60' : ''}`}><Phone size={12} className="mr-1.5 shrink-0" /> {casa.phoneNumber}</p>
                     )}
                     {casa.addedByGroupId && (
-                         <p className="text-xs text-muted-foreground flex items-center pt-1"><GroupIcon size={12} className="mr-1.5 shrink-0 text-blue-600" /> Grupo: <span className="font-medium text-blue-700 dark:text-blue-400 ml-1">{getGroupNameById(casa.addedByGroupId)}</span></p>
+                         <p className={`text-xs text-muted-foreground flex items-center pt-1 ${casa.isBlocked ? 'opacity-60' : ''}`}><GroupIcon size={12} className="mr-1.5 shrink-0 text-blue-600" /> Grupo: <span className="font-medium text-blue-700 dark:text-blue-400 ml-1">{getGroupNameById(casa.addedByGroupId)}</span></p>
                     )}
                   </CardHeader>
                   <CardContent className={`flex-grow space-y-3 pt-2 text-sm ${casa.isBlocked ? 'opacity-60' : ''}`}>
@@ -430,13 +449,13 @@ export default function CasasPage() {
                       </TooltipTrigger>
                       <TooltipContent><p>Editar</p></TooltipContent>
                     </Tooltip>
-                    
+
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => handleToggleBlockCasa(casa.id)} 
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleToggleBlockCasa(casa.id)}
                             aria-label={casa.isBlocked ? "Desbloquear casa" : "Bloquear casa"}
                             className={`h-8 w-8 ${!casa.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
                         >
@@ -482,8 +501,8 @@ export default function CasasPage() {
         </CardContent>
       </Card>
 
-      <AddCasaDialog 
-        isOpen={isCasaDialogOpen} 
+      <AddCasaDialog
+        isOpen={isCasaDialogOpen}
         onOpenChange={setIsCasaDialogOpen}
         onCasaSubmit={handleCasaSubmit}
         casaToEdit={casaToEdit}
@@ -495,5 +514,4 @@ export default function CasasPage() {
   );
 }
 
-    
     
