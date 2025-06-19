@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddTerritoryDialog } from "@/components/territorios/add-territory-dialog";
 import { TerritoryCard } from "@/components/territorios/territory-card";
-import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert, Copy } from "lucide-react";
+import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert, Copy, Home } from "lucide-react";
 import type { Territory, TerritoryType, Casa, PreachingGroup } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, FieldValue, getDocs } from "firebase/firestore";
@@ -127,22 +127,20 @@ export default function TerritoriosPage() {
   
   const handleOpenDuplicateDialog = (territory: Territory) => {
     const duplicatedTerritoryData: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'> = {
-      ...territory, // Spread all properties first
-      id: crypto.randomUUID(), // Generate a new ID for the duplicate
+      ...territory, 
+      id: crypto.randomUUID(), 
       name: `Copia de ${territory.name}`,
-      number: territory.type === 'urban' ? "" : undefined, // Urban territories need a new number
-      createdAt: Timestamp.now(), // New creation timestamp
-      updatedAt: Timestamp.now(), // New update timestamp
-      isBlocked: false, // Duplicates are not blocked by default
-      blockReason: undefined, // Clear block reason
-      lastWorked: undefined, // Reset last worked date
-      unblockDate: undefined, // Reset unblock date
+      number: territory.type === 'urban' ? "" : undefined, 
+      createdAt: Timestamp.now(), 
+      updatedAt: Timestamp.now(), 
+      isBlocked: false, 
+      blockReason: undefined, 
+      lastWorked: undefined, 
+      unblockDate: undefined, 
     };
-    // Ensure no 'id' field from the original territory object is present in the partial before setting it as 'territoryToEdit'
-    // as the dialog logic for `isEditMode` relies on `territoryToEdit.id` to differentiate edit vs new
     const { id: originalId, ...dataForDialog } = duplicatedTerritoryData;
 
-    setTerritoryToEdit(dataForDialog as Territory); // Cast as Territory for the dialog, ID will be handled on submit
+    setTerritoryToEdit(dataForDialog as Territory); 
     setIsTerritoryDialogOpen(true);
   };
 
@@ -158,24 +156,25 @@ export default function TerritoriosPage() {
     const docRef = doc(db, "territories", docId);
 
     const dataForFirestore: { [key: string]: any } = {
-      id: docId, // Ensure the ID is set for new documents too
+      id: docId, 
       type: submittedTerritoryData.type,
       name: submittedTerritoryData.name,
       isBlocked: submittedTerritoryData.isBlocked,
       updatedAt: Timestamp.now(),
-      // Preserve createdAt if editing, otherwise set new one.
-      // For duplication, territoryToEdit might have a createdAt, but it's a new entity, so reset it.
       createdAt: isEditingReal ? submittedTerritoryData.createdAt : Timestamp.now(),
     };
     
     if (submittedTerritoryData.isBlocked) {
-      if (submittedTerritoryData.blockReason && submittedTerritoryData.blockReason.trim() !== "") {
-        dataForFirestore.blockReason = submittedTerritoryData.blockReason.trim();
-      } else {
-        dataForFirestore.blockReason = deleteField();
-      }
+        if (submittedTerritoryData.blockReason && submittedTerritoryData.blockReason.trim() !== "") {
+            dataForFirestore.blockReason = submittedTerritoryData.blockReason.trim();
+        } else {
+            // If it's blocked but no reason is provided (e.g. editing other fields of an already blocked territory)
+            // we need to ensure we don't accidentally delete an existing reason.
+            // The submittedTerritoryData should carry the original blockReason if it's just an edit.
+            dataForFirestore.blockReason = submittedTerritoryData.blockReason || deleteField();
+        }
     } else {
-      dataForFirestore.blockReason = deleteField();
+        dataForFirestore.blockReason = deleteField();
     }
     
     const optionalFields: (keyof Territory)[] = [
@@ -186,6 +185,9 @@ export default function TerritoriosPage() {
 
     optionalFields.forEach(key => {
         const K = key as keyof typeof submittedTerritoryData;
+        // Skip blockReason as it's handled above
+        if (key === 'blockReason') return;
+
         if (submittedTerritoryData[K] === undefined || 
             (typeof submittedTerritoryData[K] === 'string' && (submittedTerritoryData[K] as string).trim() === "") ||
             (Array.isArray(submittedTerritoryData[K]) && (submittedTerritoryData[K] as any[]).length === 0)
@@ -280,6 +282,13 @@ export default function TerritoriosPage() {
   const canManageBlocking = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
   const canViewBlockStatusDetails = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || userProfile?.role === USER_ROLES.SS;
   
+  const totalApproximateHousesAllTerritories = useMemo(() => {
+    return territories.reduce((sum, terr) => {
+      const count = terr.approxHouseCount ?? terr.blockHouseCounts?.reduce((a, b) => a + (b || 0), 0) ?? 0;
+      return sum + count;
+    }, 0);
+  }, [territories]);
+
   const renderTerritoryGrid = (tabType: TerritoryType) => {
     if (isLoadingTerritories || isLoadingPermissions || isLoadingCasas || isLoadingGroups) {
       return (
@@ -390,6 +399,10 @@ export default function TerritoriosPage() {
                     : `Actualmente no hay territorios ${activeTab === 'urban' ? 'urbanos' : 'rurales'} registrados.`
                   )
                 }
+                 <span className="block mt-1 text-xs text-muted-foreground">
+                    <Home className="inline-block h-3.5 w-3.5 mr-1" />
+                    Total aproximado de casas en todos los territorios: <strong className="text-foreground">{totalApproximateHousesAllTerritories}</strong>.
+                </span>
               </CardDescription>
               <div className="relative w-full sm:w-64 md:w-72">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

@@ -32,7 +32,7 @@ import type { Territory, TerritoryType, Casa, PreachingGroup } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, UploadCloud, XCircle, ChevronDown } from "lucide-react";
-import { useState, useEffect, ChangeEvent } from "react";
+import { useState, useEffect, ChangeEvent, useMemo } from "react";
 import Image from 'next/image';
 import { cn } from "@/lib/utils";
 
@@ -43,7 +43,10 @@ const territoryFormSchema = z.object({
   mapImageUrl: z.string().optional().or(z.literal('')),
   googleMapsLink: z.string().url({ message: "Debe ser una URL válida." }).optional().or(z.literal('')),
   totalBlocks: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().default(0),
-  blockHouseCounts: z.array(z.coerce.number().int().min(0, "Debe ser 0 o más.")).optional(),
+  blockHouseCounts: z.array(z.preprocess(
+    (val) => (val === "" || val === undefined || val === null || isNaN(Number(val))) ? undefined : Number(val),
+    z.number().int().min(0, "Debe ser un número >= 0.").optional()
+  )).optional(),
   doNotCallAddressesString: z.string().optional(),
   warningsString: z.string().optional(),
   groupIds: z.array(z.string()).optional().default([]),
@@ -55,6 +58,10 @@ const territoryFormSchema = z.object({
       message: "El número es obligatorio para territorios urbanos.",
       path: ["number"],
     });
+  }
+  if (data.blockHouseCounts && data.totalBlocks !== undefined && data.blockHouseCounts.length !== data.totalBlocks) {
+    // This validation might be too strict if we allow partial saves or dynamic row changes.
+    // For now, let's assume totalBlocks drives the array length.
   }
 });
 
@@ -80,7 +87,7 @@ export function AddTerritoryDialog({
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mapImagePreview, setMapImagePreview] = useState<string | null>(null);
-  const isEditMode = !!territoryToEdit?.id; // Check if territoryToEdit has an ID to determine edit mode
+  const isEditMode = !!territoryToEdit?.id;
 
   const form = useForm<TerritoryFormValues>({
     resolver: zodResolver(territoryFormSchema),
@@ -101,17 +108,31 @@ export function AddTerritoryDialog({
 
   const watchedType = form.watch("type");
   const watchedTotalBlocks = form.watch("totalBlocks");
+  const watchedBlockHouseCounts = form.watch("blockHouseCounts");
 
   useEffect(() => {
     if (territoryToEdit && isOpen) {
+      const initialTotalBlocks = territoryToEdit.totalBlocks || 0;
+      let initialBlockCounts: (number | undefined)[] = [];
+
+      if (territoryToEdit.blockHouseCounts && territoryToEdit.blockHouseCounts.length > 0) {
+          initialBlockCounts = territoryToEdit.blockHouseCounts.map(c => (c === null || c === undefined) ? undefined : Number(c));
+      }
+      // Ensure array length matches totalBlocks, filling with undefined if necessary
+      if (initialBlockCounts.length < initialTotalBlocks) {
+          initialBlockCounts = [...initialBlockCounts, ...Array(initialTotalBlocks - initialBlockCounts.length).fill(undefined)];
+      } else if (initialBlockCounts.length > initialTotalBlocks) {
+          initialBlockCounts = initialBlockCounts.slice(0, initialTotalBlocks);
+      }
+      
       form.reset({
         type: territoryToEdit.type || "urban",
-        number: territoryToEdit.number || "", // For duplication, this might be empty if urban
+        number: territoryToEdit.number || "",
         name: territoryToEdit.name || "",
         mapImageUrl: territoryToEdit.mapImageUrl || "",
         googleMapsLink: territoryToEdit.googleMapsLink || "",
-        totalBlocks: territoryToEdit.totalBlocks || 0,
-        blockHouseCounts: territoryToEdit.blockHouseCounts || [],
+        totalBlocks: initialTotalBlocks,
+        blockHouseCounts: initialBlockCounts,
         doNotCallAddressesString: territoryToEdit.doNotCallAddresses?.join("\n") || "",
         warningsString: territoryToEdit.warnings?.join("\n") || "",
         groupIds: territoryToEdit.groupIds || [],
@@ -124,35 +145,31 @@ export function AddTerritoryDialog({
       }
     } else if (!isOpen) {
       form.reset({
-        type: "urban",
-        number: "",
-        name: "",
-        mapImageUrl: "",
-        googleMapsLink: "",
-        totalBlocks: 0,
-        blockHouseCounts: [],
-        doNotCallAddressesString: "",
-        warningsString: "",
-        groupIds: [],
-        associatedCasaIds: [],
+        type: "urban", number: "", name: "", mapImageUrl: "", googleMapsLink: "",
+        totalBlocks: 0, blockHouseCounts: [], doNotCallAddressesString: "", warningsString: "",
+        groupIds: [], associatedCasaIds: [],
       });
       setMapImagePreview(null);
     }
   }, [territoryToEdit, isOpen, form]);
 
   useEffect(() => {
+    if (!isOpen) return;
     const currentBlockCounts = form.getValues("blockHouseCounts") || [];
-    const newTotal = watchedTotalBlocks || 0;
-
-    if (newTotal < 0) return;
-
-    const newCounts = Array(newTotal);
-    for (let i = 0; i < newTotal; i++) {
-      newCounts[i] = currentBlockCounts[i] || 0;
+    const newTotal = Math.max(0, watchedTotalBlocks || 0);
+  
+    if (currentBlockCounts.length !== newTotal) {
+      const newCountsArray: (number | undefined)[] = Array(newTotal);
+      for (let i = 0; i < newTotal; i++) {
+        const existingVal = currentBlockCounts[i];
+        newCountsArray[i] = (existingVal === undefined || existingVal === null || isNaN(Number(existingVal)))
+          ? undefined
+          : Number(existingVal);
+      }
+      form.setValue("blockHouseCounts", newCountsArray, { shouldValidate: true, shouldDirty: form.formState.isDirty });
     }
-    form.setValue("blockHouseCounts", newCounts, { shouldValidate: true, shouldDirty: form.formState.isDirty });
+  }, [watchedTotalBlocks, isOpen, form]);
 
-  }, [watchedTotalBlocks, form, isOpen]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -190,11 +207,10 @@ export function AddTerritoryDialog({
   async function onSubmit(values: TerritoryFormValues) {
     setIsSubmitting(true);
 
-    const blockHouseCounts = values.blockHouseCounts || [];
-    const approxHouseCount = blockHouseCounts.reduce((sum, count) => sum + count, 0);
-
-    // Use territoryToEdit.id if it exists (edit or duplication prefill), otherwise generate new.
-    // The key is that for duplication, territoryToEdit might not have an ID if it's a fresh "copy" object.
+    const processedBlockHouseCounts = (values.blockHouseCounts || []).map(count => 
+      count === undefined || count === null || isNaN(count) ? 0 : count
+    );
+    const approxHouseCount = processedBlockHouseCounts.reduce((sum, count) => sum + count, 0);
     const idForSubmit = territoryToEdit?.id && isEditMode ? territoryToEdit.id : crypto.randomUUID();
     
     const territoryDataToSubmit: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'> = {
@@ -202,16 +218,14 @@ export function AddTerritoryDialog({
       type: values.type,
       name: values.name,
       totalBlocks: values.totalBlocks,
-      blockHouseCounts: blockHouseCounts,
+      blockHouseCounts: processedBlockHouseCounts,
       approxHouseCount: approxHouseCount,
       doNotCallAddresses: values.doNotCallAddressesString?.split('\n').map(s => s.trim()).filter(s => s) || [],
       warnings: values.warningsString?.split('\n').map(s => s.trim()).filter(s => s) || [],
-      // For isBlocked and blockReason, use original values from territoryToEdit if editing, otherwise defaults for new/duplicate
       isBlocked: territoryToEdit?.id && isEditMode ? territoryToEdit.isBlocked : false,
       blockReason: territoryToEdit?.id && isEditMode && territoryToEdit.isBlocked ? territoryToEdit.blockReason : undefined,
       groupIds: values.groupIds || [],
       associatedCasaIds: values.associatedCasaIds || [],
-      // For createdAt, use original if editing, otherwise new. For duplication, territoryToEdit.createdAt is the original's
       createdAt: territoryToEdit?.id && isEditMode ? territoryToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
       dataAiHint: "map sketch", 
@@ -227,23 +241,21 @@ export function AddTerritoryDialog({
       territoryDataToSubmit.googleMapsLink = values.googleMapsLink.trim();
     }
 
-    // Ensure these are not carried over from an original item during duplication
-    if (!isEditMode) { // True for both new and duplicated items
+    if (!isEditMode) {
         territoryDataToSubmit.lastWorked = undefined;
         territoryDataToSubmit.unblockDate = undefined;
-    } else if (isEditMode && territoryToEdit?.lastWorked) { // Preserve if truly editing
+    } else if (isEditMode && territoryToEdit?.lastWorked) {
         territoryDataToSubmit.lastWorked = territoryToEdit.lastWorked;
-    } else if (isEditMode && territoryToEdit?.unblockDate) { // Preserve if truly editing
+    } else if (isEditMode && territoryToEdit?.unblockDate) {
         territoryDataToSubmit.unblockDate = territoryToEdit.unblockDate;
     }
     
     onTerritorySubmit(territoryDataToSubmit);
 
-    if (!isEditMode) { // Reset form only if creating new or after duplication
+    if (!isEditMode) {
         form.reset();
         setMapImagePreview(null);
     }
-    // Dialog closing is handled by parent page
     setIsSubmitting(false);
   }
 
@@ -256,12 +268,13 @@ export function AddTerritoryDialog({
     return `${selectedIds.length} seleccionados`;
   };
 
+  const currentApproxHouseCountInDialog = useMemo(() => {
+    return (watchedBlockHouseCounts || []).reduce((sum, count) => sum + (Number(count) || 0), 0);
+  }, [watchedBlockHouseCounts]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) {
-            // Reset only if not truly editing an existing record.
-            // For duplication, territoryToEdit might be set, but it's a 'new' record scenario.
             if (!isEditMode) form.reset(); 
             setMapImagePreview(null);
         }
@@ -391,35 +404,48 @@ export function AddTerritoryDialog({
                 </FormItem>
               )}
             />
+            
+            {(watchedTotalBlocks || 0) > 0 && (
+              <p className="text-sm text-muted-foreground -mt-3 mb-1 ml-1">
+                Suma de casas ingresadas: <span className="font-semibold text-foreground">{currentApproxHouseCountInDialog}</span>
+              </p>
+            )}
+
 
             {(watchedTotalBlocks || 0) > 0 && (
               <div className="space-y-3 rounded-md border p-3 shadow-sm bg-muted/20">
                 <FormLabel className="text-sm font-medium">Conteo de Casas por Manzana</FormLabel>
-                {Array.from({ length: watchedTotalBlocks || 0 }, (_, index) => (
-                  <FormField
-                    key={`blockHouseCounts-${index}`}
-                    control={form.control}
-                    name={`blockHouseCounts.${index}`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-normal">
-                          Casas en Manzana {index + 1}
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="0"
-                            placeholder="Ej: 10"
-                            {...field}
-                            onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)}
-                            value={field.value || 0}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ))}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-48 overflow-y-auto">
+                  {Array.from({ length: watchedTotalBlocks || 0 }, (_, index) => (
+                    <FormField
+                      key={`blockHouseCounts-${index}`}
+                      control={form.control}
+                      name={`blockHouseCounts.${index}`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-normal">
+                            Mz. {index + 1}
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              placeholder="0"
+                              value={field.value === undefined || field.value === null ? '' : String(field.value)}
+                              onChange={e => {
+                                const val = e.target.value;
+                                field.onChange(val === '' ? undefined : parseInt(val, 10));
+                              }}
+                              className="h-9 text-sm"
+                            />
+                          </FormControl>
+                          <FormMessage className="text-xs" />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 
