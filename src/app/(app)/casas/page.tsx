@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning } from "lucide-react";
 import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, getDoc, FieldValue } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, getDoc, FieldValue, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -31,6 +31,7 @@ const PreachingTypeIconSmall = ({ type, className }: { type: PreachingType, clas
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
+  // Zoom is excluded as casas are not for zoom
   return null;
 };
 
@@ -45,6 +46,7 @@ function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramSched
   };
 
   availableSlotIds.forEach(slotId => {
+    // Ensure we only consider non-zoom slots for house availability display
     const slotDetail = allSlots.find(s => s.id === slotId && s.type !== 'zoom');
     if (slotDetail) {
       groupedByDay[slotDetail.dayOfWeek].push(slotDetail);
@@ -56,8 +58,9 @@ function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramSched
     const daySlots = groupedByDay[dayKey].sort((a, b) => a.startTime.localeCompare(b.startTime));
     if (daySlots.length > 0) {
       const slotStrings = daySlots.map(s => {
-        let typeAbbreviation = 'G';
+        let typeAbbreviation = 'G'; // General
         if (s.type === 'rural') typeAbbreviation = 'R';
+        // Zoom type is already filtered out, so no need for 'Z' here
         return `${s.startTime} (${typeAbbreviation})`;
       });
       parts.push(`${DAY_LABELS_AVAILABILITY[dayKey]}: ${slotStrings.join(', ')}`);
@@ -87,7 +90,7 @@ export default function CasasPage() {
   const [isLoadingCasas, setIsLoadingCasas] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
-  const { userProfile, isLoadingPermissions: isLoadingUserProfile } = usePermissions();
+  const { userProfile, isLoadingPermissions: isLoadingUserProfile, hasPermission } = usePermissions();
 
   const [availableGroups, setAvailableGroups] = useState<PreachingGroup[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
@@ -120,7 +123,7 @@ export default function CasasPage() {
         updatedAt: doc.data().updatedAt instanceof Timestamp ? doc.data().updatedAt : Timestamp.now(),
         unavailabilityPeriods: (doc.data().unavailabilityPeriods || []).map((p: any) => ({
             ...p,
-            id: p.id || crypto.randomUUID(), // Ensure ID for key prop
+            id: p.id || crypto.randomUUID(), 
             startDate: p.startDate instanceof Timestamp ? p.startDate.toDate() : new Date(p.startDate),
             endDate: p.endDate instanceof Timestamp ? p.endDate.toDate() : new Date(p.endDate),
         }))
@@ -215,17 +218,17 @@ export default function CasasPage() {
     optionalFields.forEach(key => {
         if (submittedCasaData[key] === undefined || (typeof submittedCasaData[key] === 'string' && (submittedCasaData[key] as string).trim() === "")) {
             dataForFirestore[key] = deleteField();
-        } else if (submittedCasaData[key] !== null) {
+        } else if (submittedCasaData[key] !== null) { // Check for null specifically, as it might be a valid "cleared" state for some fields
             dataForFirestore[key] = submittedCasaData[key];
         }
     });
-
+    
     if (submittedCasaData.unavailabilityPeriods && submittedCasaData.unavailabilityPeriods.length > 0) {
         dataForFirestore.unavailabilityPeriods = submittedCasaData.unavailabilityPeriods.map((p: UnavailabilityPeriod) => ({
             id: p.id || crypto.randomUUID(),
             startDate: p.startDate instanceof Date ? Timestamp.fromDate(p.startDate) : p.startDate,
             endDate: p.endDate instanceof Date ? Timestamp.fromDate(p.endDate) : p.endDate,
-            reason: p.reason || deleteField(),
+            reason: p.reason?.trim() ? p.reason.trim() : deleteField(),
         }));
     } else {
         dataForFirestore.unavailabilityPeriods = deleteField();
@@ -239,9 +242,10 @@ export default function CasasPage() {
     
     Object.keys(dataForFirestore).forEach(k => {
         if (dataForFirestore[k] === undefined && !(dataForFirestore[k] instanceof FieldValue) ) {
-            delete dataForFirestore[k];
+            delete dataForFirestore[k]; // Remove undefined, but keep FieldValue (like deleteField())
         }
     });
+
 
     try {
       await setDoc(docRef, dataForFirestore, { merge: true });
@@ -324,6 +328,7 @@ export default function CasasPage() {
   }, [availableGroups]);
 
   const isLoadingAny = isLoadingCasas || isLoadingGroups || isLoadingProgramSlots || isLoadingUserProfile;
+  
   const canManageBlocking = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
   const canViewBlockDetails = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || userProfile?.role === USER_ROLES.SS;
 
@@ -406,7 +411,9 @@ export default function CasasPage() {
               {filteredCasas.map((casa) => {
                 const formattedUnavailability = formatUnavailabilityPeriods(casa.unavailabilityPeriods);
                 const formattedAvailability = formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots);
-                const showBlockedState = casa.isBlocked && canViewBlockDetails;
+                const isCasaActuallyBlocked = casa.isBlocked;
+                const showBlockedState = isCasaActuallyBlocked && canViewBlockDetails;
+
                 return (
                 <Card key={casa.id} className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${showBlockedState ? 'bg-muted/50' : ''}`}>
                   <CardHeader className="pb-3">
@@ -460,7 +467,7 @@ export default function CasasPage() {
                         </div>
                     )}
                   </CardContent>
-                  <CardFooter className={`border-t pt-4 pb-4 flex justify-center gap-1 ${showBlockedState ? 'opacity-80' : ''}`}>
+                  <CardFooter className={`border-t pt-4 pb-4 flex justify-center gap-1 ${showBlockedState && !canManageBlocking ? 'opacity-80' : ''}`}> {/* Apply opacity to footer only if blocked and not manager */}
                     {canManageBlocking && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -479,11 +486,11 @@ export default function CasasPage() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => {
-                                    if (casa.isBlocked) {
-                                        setCasaToBlock(casa);
-                                        setBlockReasonCasa(""); 
-                                        confirmToggleBlockCasa();
-                                    } else {
+                                    if (casa.isBlocked) { // If currently blocked, unblock directly
+                                        setCasaToBlock(casa); // Set for context, but action is direct
+                                        setBlockReasonCasa(""); // Clear reason as we are unblocking
+                                        confirmToggleBlockCasa(); 
+                                    } else { // If currently active, open dialog to ask for reason
                                         handleOpenBlockReasonCasaDialog(casa);
                                     }
                                 }}
