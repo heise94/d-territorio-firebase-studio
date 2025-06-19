@@ -29,24 +29,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import type { Casa, CasaAvailability, PreachingGroup, UnavailabilityPeriod } from "@/types";
+import type { Casa, CasaAvailability, PreachingGroup, UnavailabilityPeriod, ProgramScheduleSlot, DayOfWeek, PreachingType } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CalendarIcon, PlusCircle, Trash2 } from "lucide-react";
+import { Loader2, CalendarIcon, PlusCircle, Trash2, AlertTriangle, Users as UsersTypeIcon, MountainSnow, Video } from "lucide-react";
 import { useState, useEffect } from "react";
 import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 const NO_GROUP_SELECTED_VALUE = "__NO_GROUP_SELECTED__";
 
-const dayAvailabilitySchema = z.object({
-  am: z.boolean().optional().default(false),
-  pm: z.boolean().optional().default(false),
-});
-
 const unavailabilityPeriodSchema = z.object({
-  id: z.string().optional(), // For React key, not stored in Firestore directly with this ID
+  id: z.string().optional(), 
   startDate: z.date({ required_error: "Fecha de inicio es obligatoria." }),
   endDate: z.date({ required_error: "Fecha de fin es obligatoria." }),
   reason: z.string().max(100, "Máximo 100 caracteres.").optional().or(z.literal('')),
@@ -59,15 +55,7 @@ const casaFormSchema = z.object({
   ownerName: z.string().min(2, { message: "El nombre debe tener al menos 2 caracteres." }).max(100),
   address: z.string().min(5, { message: "La dirección debe tener al menos 5 caracteres." }).max(200),
   phoneNumber: z.string().max(20).optional().or(z.literal('')),
-  availableDays: z.object({
-    monday: dayAvailabilitySchema,
-    tuesday: dayAvailabilitySchema,
-    wednesday: dayAvailabilitySchema,
-    thursday: dayAvailabilitySchema,
-    friday: dayAvailabilitySchema,
-    saturday: dayAvailabilitySchema, // Added Saturday
-    sunday: dayAvailabilitySchema,   // Added Sunday
-  }).optional(),
+  availableProgramSlotIds: z.array(z.string()).optional().default([]),
   notes: z.string().max(1000).optional().or(z.literal('')),
   isSuitableForRural: z.boolean().optional().default(false),
   addedByGroupId: z.string().optional().or(z.literal('')),
@@ -76,15 +64,21 @@ const casaFormSchema = z.object({
 
 type CasaFormValues = z.infer<typeof casaFormSchema>;
 
-const WEEK_DAYS = [
-  { id: 'monday', label: 'Lunes' },
-  { id: 'tuesday', label: 'Martes' },
-  { id: 'wednesday', label: 'Miércoles' },
-  { id: 'thursday', label: 'Jueves' },
-  { id: 'friday', label: 'Viernes' },
-  { id: 'saturday', label: 'Sábado' }, // Added Saturday
-  { id: 'sunday', label: 'Domingo' },   // Added Sunday
-] as const;
+const WEEK_DAYS_ORDERED: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const dayOfWeekLabels: Record<DayOfWeek, string> = {
+  monday: "Lunes", tuesday: "Martes", wednesday: "Miércoles", thursday: "Jueves",
+  friday: "Viernes", saturday: "Sábado", sunday: "Domingo",
+};
+
+const PreachingTypeIconDialog = ({ type, className }: { type: PreachingType, className?: string }) => {
+  const defaultClass = "mr-2 h-5 w-5 shrink-0"; 
+  const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
+  if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
+  if (type === 'rural') return <MountainSnow className={combinedClass} />;
+  if (type === 'zoom') return <Video className={combinedClass} />;
+  return null;
+};
+
 
 interface AddCasaDialogProps {
   isOpen: boolean;
@@ -92,9 +86,17 @@ interface AddCasaDialogProps {
   onCasaSubmit: (casa: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'>) => void;
   casaToEdit?: Casa | null;
   availableGroups: PreachingGroup[];
+  programScheduleSlots: ProgramScheduleSlot[];
 }
 
-export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, availableGroups }: AddCasaDialogProps) {
+export function AddCasaDialog({ 
+  isOpen, 
+  onOpenChange, 
+  onCasaSubmit, 
+  casaToEdit, 
+  availableGroups,
+  programScheduleSlots 
+}: AddCasaDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = !!casaToEdit;
@@ -105,15 +107,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
       ownerName: "",
       address: "",
       phoneNumber: "",
-      availableDays: {
-        monday: { am: false, pm: false },
-        tuesday: { am: false, pm: false },
-        wednesday: { am: false, pm: false },
-        thursday: { am: false, pm: false },
-        friday: { am: false, pm: false },
-        saturday: { am: false, pm: false }, // Default for Saturday
-        sunday: { am: false, pm: false },   // Default for Sunday
-      },
+      availableProgramSlotIds: [],
       notes: "",
       isSuitableForRural: false,
       addedByGroupId: "",
@@ -121,7 +115,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields: unavailabilityFields, append: appendUnavailability, remove: removeUnavailability } = useFieldArray({
     control: form.control,
     name: "unavailabilityPeriods",
   });
@@ -132,20 +126,12 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
         ownerName: casaToEdit.ownerName || "",
         address: casaToEdit.address || "",
         phoneNumber: casaToEdit.phoneNumber || "",
-        availableDays: casaToEdit.availableDays || {
-          monday: { am: false, pm: false },
-          tuesday: { am: false, pm: false },
-          wednesday: { am: false, pm: false },
-          thursday: { am: false, pm: false },
-          friday: { am: false, pm: false },
-          saturday: { am: false, pm: false },
-          sunday: { am: false, pm: false },
-        },
+        availableProgramSlotIds: casaToEdit.availableDays?.availableProgramSlotIds || [],
         notes: casaToEdit.notes || "",
         isSuitableForRural: casaToEdit.isSuitableForRural || false,
         addedByGroupId: casaToEdit.addedByGroupId || "",
         unavailabilityPeriods: (casaToEdit.unavailabilityPeriods || []).map(p => ({
-          id: p.id, // Keep original ID for React key
+          id: p.id,
           startDate: p.startDate instanceof Timestamp ? p.startDate.toDate() : new Date(p.startDate),
           endDate: p.endDate instanceof Timestamp ? p.endDate.toDate() : new Date(p.endDate),
           reason: p.reason || "",
@@ -156,15 +142,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
         ownerName: "",
         address: "",
         phoneNumber: "",
-        availableDays: {
-          monday: { am: false, pm: false },
-          tuesday: { am: false, pm: false },
-          wednesday: { am: false, pm: false },
-          thursday: { am: false, pm: false },
-          friday: { am: false, pm: false },
-          saturday: { am: false, pm: false },
-          sunday: { am: false, pm: false },
-        },
+        availableProgramSlotIds: [],
         notes: "",
         isSuitableForRural: false,
         addedByGroupId: "",
@@ -188,9 +166,9 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
     if (values.phoneNumber && values.phoneNumber.trim() !== "") {
       submittedCasaData.phoneNumber = values.phoneNumber;
     }
-    if (values.availableDays) {
-        submittedCasaData.availableDays = values.availableDays as CasaAvailability;
-    }
+    
+    submittedCasaData.availableDays = { availableProgramSlotIds: values.availableProgramSlotIds || [] };
+    
     if (values.notes && values.notes.trim() !== "") {
       submittedCasaData.notes = values.notes;
     }
@@ -208,7 +186,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
     }
 
     submittedCasaData.unavailabilityPeriods = (values.unavailabilityPeriods || []).map(p => ({
-      id: p.id || crypto.randomUUID(), // Ensure new periods get an ID for internal use if needed
+      id: p.id || crypto.randomUUID(),
       startDate: Timestamp.fromDate(p.startDate),
       endDate: Timestamp.fromDate(p.endDate),
       reason: p.reason || undefined,
@@ -227,7 +205,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
         }
         onOpenChange(open);
     }}>
-      <DialogContent className="sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg md:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Editar Casa" : "Añadir Nueva Casa"}</DialogTitle>
           <DialogDescription>
@@ -235,7 +213,7 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2 pr-2">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-2 pr-2">
             <FormField
               control={form.control}
               name="ownerName"
@@ -309,50 +287,73 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
               )}
             />
 
-            <div>
-              <FormLabel className="text-sm font-medium">Disponibilidad (Lunes a Domingo)</FormLabel>
+            <div className="space-y-3">
+              <FormLabel className="text-sm font-medium">Disponibilidad por Horarios del Programa</FormLabel>
               <FormFieldDescription className="text-xs">
-                Marca los bloques horarios en que la casa estaría disponible.
+                Selecciona los horarios específicos del programa en los que esta casa estaría disponible.
               </FormFieldDescription>
-              <div className="mt-2 space-y-2 rounded-md border p-3 shadow-sm bg-muted/20">
-                {WEEK_DAYS.map(day => (
-                  <div key={day.id} className="grid grid-cols-1 sm:grid-cols-3 items-center gap-x-3 gap-y-1.5">
-                    <FormLabel className="font-normal col-span-1 sm:text-right sm:pr-2 text-sm">{day.label}</FormLabel>
-                    <FormField
-                      control={form.control}
-                      name={`availableDays.${day.id}.am`}
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-1">
-                          <FormControl>
-                            <Checkbox checked={field.value} onCheckedChange={field.onChange} id={`${day.id}-am`} />
-                          </FormControl>
-                          <FormLabel htmlFor={`${day.id}-am`} className="font-normal text-sm cursor-pointer">AM</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`availableDays.${day.id}.pm`}
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-1">
-                          <FormControl>
-                            <Checkbox checked={field.value} onCheckedChange={field.onChange} id={`${day.id}-pm`} />
-                          </FormControl>
-                          <FormLabel htmlFor={`${day.id}-pm`} className="font-normal text-sm cursor-pointer">PM</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                ))}
-              </div>
+              {programScheduleSlots.length === 0 ? (
+                 <p className="text-sm text-muted-foreground text-center py-3 border rounded-md bg-muted/30">No hay horarios de programa configurados en Ajustes.</p>
+              ) : (
+                <div className="max-h-72 overflow-y-auto space-y-3 p-3 border rounded-md shadow-sm bg-muted/20">
+                  {WEEK_DAYS_ORDERED.map(dayKey => {
+                    const slotsForDay = programScheduleSlots.filter(slot => slot.dayOfWeek === dayKey);
+                    if (slotsForDay.length === 0) return null;
+                    return (
+                      <div key={dayKey} className="space-y-2">
+                        <h4 className="text-sm font-medium text-foreground/90 pt-1">{dayOfWeekLabels[dayKey]}</h4>
+                        {slotsForDay.map(slot => (
+                          <FormField
+                            key={slot.id}
+                            control={form.control}
+                            name="availableProgramSlotIds"
+                            render={({ field }) => (
+                              <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-2.5 rounded-md bg-card hover:bg-card/90 transition-colors shadow-sm">
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value?.includes(slot.id)}
+                                    onCheckedChange={(checked) => {
+                                      const currentSelection = field.value || [];
+                                      return checked
+                                        ? field.onChange([...currentSelection, slot.id])
+                                        : field.onChange(currentSelection.filter(id => id !== slot.id));
+                                    }}
+                                    id={`casa-slot-${slot.id}`}
+                                  />
+                                </FormControl>
+                                <FormLabel htmlFor={`casa-slot-${slot.id}`} className="font-normal text-sm cursor-pointer flex-grow flex items-center justify-between w-full">
+                                  <div className="flex items-center">
+                                    <PreachingTypeIconDialog type={slot.type} className="text-foreground/80"/>
+                                    <span className="font-medium">{slot.startTime}</span>
+                                    <span className="text-muted-foreground mx-1.5">-</span>
+                                    <span className="capitalize text-foreground/90">{slot.type}</span>
+                                  </div>
+                                  {slot.status === 'tentative' && (
+                                    <Badge variant="outline" className="ml-auto text-amber-600 border-amber-500 px-1.5 py-0.5 text-xs">
+                                      <AlertTriangle className="mr-1 h-3 w-3" />
+                                      Tentativo
+                                    </Badge>
+                                  )}
+                                </FormLabel>
+                              </FormItem>
+                            )}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+               <FormMessage>{form.formState.errors.availableProgramSlotIds?.message}</FormMessage>
             </div>
+
 
             <div className="space-y-3 rounded-md border p-4 shadow-sm">
               <FormLabel className="text-sm font-medium">Períodos de Indisponibilidad</FormLabel>
               <FormFieldDescription className="text-xs">
                 Define fechas en las que la casa no estará disponible (ej: vacaciones).
               </FormFieldDescription>
-              {fields.map((item, index) => (
+              {unavailabilityFields.map((item, index) => (
                 <div key={item.id} className="space-y-3 p-3 border rounded-md bg-muted/20 relative">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <FormField
@@ -395,10 +396,10 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
                       </FormItem>
                     )}
                   />
-                  <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="absolute top-1 right-1 h-6 w-6 text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeUnavailability(index)} className="absolute top-1 right-1 h-6 w-6 text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => append({ id: crypto.randomUUID(), startDate: new Date(), endDate: new Date(), reason: '' })} className="mt-2 text-xs"><PlusCircle className="mr-2 h-4 w-4" /> Añadir Período</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => appendUnavailability({ id: crypto.randomUUID(), startDate: new Date(), endDate: new Date(), reason: '' })} className="mt-2 text-xs"><PlusCircle className="mr-2 h-4 w-4" /> Añadir Período</Button>
             </div>
             
             <FormField
@@ -441,11 +442,14 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, 
                   Cancelar
                 </Button>
               </DialogClose>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting || programScheduleSlots.length === 0 && !isEditMode}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isEditMode ? "Guardar Cambios" : "Añadir Casa"}
               </Button>
             </DialogFooter>
+            {programScheduleSlots.length === 0 && (
+                 <p className="text-xs text-destructive text-center pt-2">No se pueden añadir casas nuevas sin horarios de programa definidos en Ajustes.</p>
+            )}
           </form>
         </Form>
       </DialogContent>

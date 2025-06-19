@@ -84,24 +84,13 @@ export interface SettingsDoc {
 }
 
 
-export interface DayAvailability {
-  am?: boolean;
-  pm?: boolean;
-}
-
 export interface CasaAvailability {
-  monday?: DayAvailability;
-  tuesday?: DayAvailability;
-  wednesday?: DayAvailability;
-  thursday?: DayAvailability;
-  friday?: DayAvailability;
-  saturday?: DayAvailability;
-  sunday?: DayAvailability;
+ availableProgramSlotIds?: string[]; // Array of ProgramScheduleSlot IDs
 }
 
 export interface UserAvailability {
   availableSlotIds?: string[];
-  general?: CasaAvailability;
+  general?: CasaAvailability; // This nested 'general' seems legacy, consider if needed.
 }
 
 export interface UnavailabilityPeriod {
@@ -116,7 +105,7 @@ export interface Casa {
   ownerName: string;
   address: string;
   phoneNumber?: string;
-  availableDays?: CasaAvailability;
+  availableDays?: CasaAvailability; // Changed structure
   isBlocked: boolean;
   notes?: string;
   isSuitableForRural?: boolean;

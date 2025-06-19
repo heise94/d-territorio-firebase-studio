@@ -5,38 +5,61 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info } from "lucide-react";
-import type { Casa, CasaAvailability, PreachingGroup, UnavailabilityPeriod } from "@/types";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video } from "lucide-react";
+import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
-function formatAvailability(availability?: CasaAvailability): string {
-  if (!availability) return "No especificada";
-  
-  const dayLabels: Record<keyof CasaAvailability, string> = {
-    monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi', saturday: 'Sá', sunday: 'Do'
-  };
-  const daysOrder: (keyof CasaAvailability)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const DAY_ORDER: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const DAY_LABELS: Record<DayOfWeek, string> = {
+  monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi', saturday: 'Sá', sunday: 'Do'
+};
 
-  const parts: string[] = [];
-  daysOrder.forEach(dayKey => {
-    const daySlots = availability[dayKey];
-    if (daySlots && (daySlots.am || daySlots.pm)) {
-      const slots: string[] = [];
-      if (daySlots.am) slots.push("AM");
-      if (daySlots.pm) slots.push("PM");
-      parts.push(`${dayLabels[dayKey]}: ${slots.join('/')}`);
+const PreachingTypeIconSmall = ({ type, className }: { type: PreachingType, className?: string }) => {
+  const defaultClass = "mr-1 h-3 w-3 shrink-0"; 
+  const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
+  if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
+  if (type === 'rural') return <MountainSnow className={combinedClass} />;
+  if (type === 'zoom') return <Video className={combinedClass} />;
+  return null;
+};
+
+
+function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramScheduleSlot[]): string {
+  if (!availableSlotIds || availableSlotIds.length === 0 || !allSlots || allSlots.length === 0) {
+    return "No especificada";
+  }
+
+  const groupedByDay: Record<DayOfWeek, ProgramScheduleSlot[]> = {
+    monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: []
+  };
+
+  availableSlotIds.forEach(slotId => {
+    const slotDetail = allSlots.find(s => s.id === slotId);
+    if (slotDetail) {
+      groupedByDay[slotDetail.dayOfWeek].push(slotDetail);
     }
   });
+
+  const parts: string[] = [];
+  DAY_ORDER.forEach(dayKey => {
+    const daySlots = groupedByDay[dayKey].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    if (daySlots.length > 0) {
+      const slotStrings = daySlots.map(s => `${s.startTime} (${s.type === 'general' ? 'G' : s.type === 'rural' ? 'R' : 'Z'})`);
+      parts.push(`${DAY_LABELS[dayKey]}: ${slotStrings.join(', ')}`);
+    }
+  });
+
   return parts.length > 0 ? parts.join('; ') : "Disponibilidad no detallada";
 }
+
 
 function formatUnavailabilityPeriods(periods?: UnavailabilityPeriod[]): string | null {
     if (!periods || periods.length === 0) return null;
@@ -61,11 +84,15 @@ export default function CasasPage() {
   const [availableGroups, setAvailableGroups] = useState<PreachingGroup[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
 
+  const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
+  const [isLoadingProgramSlots, setIsLoadingProgramSlots] = useState(true);
+
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       setIsLoadingCasas(false);
       setIsLoadingGroups(false);
+      setIsLoadingProgramSlots(false);
       return;
     }
     setIsLoadingCasas(true);
@@ -107,11 +134,33 @@ export default function CasasPage() {
         toast({ title: "Error al Cargar Grupos", description: "No se pudieron cargar los grupos de predicación.", variant: "destructive" });
         setIsLoadingGroups(false);
     });
+    
+    setIsLoadingProgramSlots(true);
+    const settingsDocRef = doc(db, "settings", "programConfig");
+    const unsubscribeSlots = onSnapshot(settingsDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const settingsData = docSnap.data() as SettingsDoc;
+          const slots = settingsData.programScheduleSlots || [];
+          setProgramScheduleSlots(slots.sort((a,b) => {
+            const dayCompare = DAY_ORDER.indexOf(a.dayOfWeek) - DAY_ORDER.indexOf(b.dayOfWeek);
+            if (dayCompare !== 0) return dayCompare;
+            return a.startTime.localeCompare(b.startTime);
+          }));
+        } else {
+          setProgramScheduleSlots([]);
+        }
+        setIsLoadingProgramSlots(false);
+    }, (error) => {
+        console.error("Error fetching program schedule slots for Casa Dialog:", error);
+        toast({ title: "Error al Cargar Horarios", description: "No se pudieron cargar los horarios del programa.", variant: "destructive" });
+        setIsLoadingProgramSlots(false);
+    });
 
 
     return () => {
       unsubscribeCasas();
       unsubscribeGroups();
+      unsubscribeSlots();
     };
   }, [toast]);
 
@@ -142,15 +191,17 @@ export default function CasasPage() {
         if (submittedCasaData[key as keyof typeof submittedCasaData] !== undefined) {
             (sanitizedData as any)[key] = submittedCasaData[key as keyof typeof submittedCasaData];
         } else {
+            // Handle specific fields that should be removed if empty/undefined
             if (key === 'addedByGroupId' && (submittedCasaData.addedByGroupId === "" || submittedCasaData.addedByGroupId === undefined)) {
-                 sanitizedData[key] = deleteField(); // Explicitly remove if empty/undefined
+                 sanitizedData[key] = deleteField();
             } else if (key === 'unavailabilityPeriods' && (!submittedCasaData.unavailabilityPeriods || submittedCasaData.unavailabilityPeriods.length === 0)){
+                 sanitizedData[key] = deleteField();
+            } else if (key === 'availableDays' && (!submittedCasaData.availableDays || !submittedCasaData.availableDays.availableProgramSlotIds || submittedCasaData.availableDays.availableProgramSlotIds.length === 0)) {
                  sanitizedData[key] = deleteField();
             }
         }
     }
     
-    // Ensure unavailabilityPeriods are Timestamps before saving
     if (sanitizedData.unavailabilityPeriods) {
       sanitizedData.unavailabilityPeriods = sanitizedData.unavailabilityPeriods.map((p: UnavailabilityPeriod) => ({
         ...p,
@@ -229,6 +280,8 @@ export default function CasasPage() {
     return group ? group.name : groupId;
   }, [availableGroups]);
 
+  const isLoadingAny = isLoadingCasas || isLoadingGroups || isLoadingProgramSlots;
+
 
   return (
     <TooltipProvider>
@@ -240,8 +293,8 @@ export default function CasasPage() {
             Administra las casas disponibles para las reuniones de grupos de predicación.
           </p>
         </div>
-        <Button onClick={handleOpenAddDialog} size="lg" disabled={isLoadingGroups}>
-          {isLoadingGroups ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
+        <Button onClick={handleOpenAddDialog} size="lg" disabled={isLoadingAny}>
+          {isLoadingAny ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
           Añadir Nueva Casa
         </Button>
       </div>
@@ -251,7 +304,7 @@ export default function CasasPage() {
           <CardTitle>Lista de Casas</CardTitle>
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
             <CardDescription>
-              {isLoadingCasas || isLoadingGroups ? "Cargando información..." : 
+              {isLoadingAny ? "Cargando información..." : 
                 (filteredCasas.length > 0 
                   ? `Mostrando ${filteredCasas.length} de ${casas.length} casa(s) registradas.`
                   : casas.length > 0 ? "Ninguna casa coincide con la búsqueda."
@@ -272,7 +325,7 @@ export default function CasasPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoadingCasas || isLoadingGroups ? (
+          {isLoadingAny ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(3)].map((_, i) => (
                 <Card key={i} className="flex flex-col">
@@ -307,6 +360,7 @@ export default function CasasPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredCasas.map((casa) => {
                 const formattedUnavailability = formatUnavailabilityPeriods(casa.unavailabilityPeriods);
+                const formattedAvailability = formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots);
                 return (
                 <Card key={casa.id} className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${casa.isBlocked ? 'opacity-60 bg-muted/50' : ''}`}>
                   <CardHeader className="pb-3">
@@ -326,8 +380,8 @@ export default function CasasPage() {
                   </CardHeader>
                   <CardContent className="flex-grow space-y-3 pt-2 text-sm">
                     <div>
-                        <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad (Lu-Do):</span>
-                        <p className="text-foreground pl-1 text-xs">{formatAvailability(casa.availableDays)}</p>
+                        <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad (Horarios Programa):</span>
+                        <p className="text-foreground pl-1 text-xs">{formattedAvailability}</p>
                     </div>
                     {formattedUnavailability && (
                         <div>
@@ -415,6 +469,7 @@ export default function CasasPage() {
         onCasaSubmit={handleCasaSubmit}
         casaToEdit={casaToEdit}
         availableGroups={availableGroups}
+        programScheduleSlots={programScheduleSlots}
       />
     </div>
     </TooltipProvider>
