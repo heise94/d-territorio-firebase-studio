@@ -105,9 +105,10 @@ export interface Casa {
   ownerName: string;
   address: string;
   phoneNumber?: string;
-  availableDays?: CasaAvailability; // Changed structure
+  availableDays?: CasaAvailability; 
   isBlocked: boolean;
   notes?: string;
+  notesForSS?: string; // New field for SS notes
   isSuitableForRural?: boolean;
   addedByGroupId?: string; // FK to preachingGroups, group that owns/manages this casa
   unavailabilityPeriods?: UnavailabilityPeriod[];

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video } from "lucide-react";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning } from "lucide-react";
 import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { usePermissions } from "@/hooks/use-permissions";
+import { USER_ROLES } from "@/lib/constants";
 
 const DAY_ORDER: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS: Record<DayOfWeek, string> = {
@@ -53,9 +55,9 @@ function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramSched
     const daySlots = groupedByDay[dayKey].sort((a, b) => a.startTime.localeCompare(b.startTime));
     if (daySlots.length > 0) {
       const slotStrings = daySlots.map(s => {
-        let typeAbbreviation = 'G'; // Default for 'general'
+        let typeAbbreviation = 'G'; 
         if (s.type === 'rural') typeAbbreviation = 'R';
-        // Zoom is excluded, no need for 'Z'
+        
         return `${s.startTime} (${typeAbbreviation})`;
       });
       parts.push(`${DAY_LABELS[dayKey]}: ${slotStrings.join(', ')}`);
@@ -85,6 +87,8 @@ export default function CasasPage() {
   const [isLoadingCasas, setIsLoadingCasas] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
+  const { userProfile, isLoadingPermissions: isLoadingUserProfile } = usePermissions();
+
 
   const [availableGroups, setAvailableGroups] = useState<PreachingGroup[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
@@ -196,12 +200,17 @@ export default function CasasPage() {
         if (submittedCasaData[key as keyof typeof submittedCasaData] !== undefined) {
             (sanitizedData as any)[key] = submittedCasaData[key as keyof typeof submittedCasaData];
         } else {
+            // Handle specific fields that should be deleted if empty/undefined
             if (key === 'addedByGroupId' && (submittedCasaData.addedByGroupId === "" || submittedCasaData.addedByGroupId === undefined)) {
                  sanitizedData[key] = deleteField();
             } else if (key === 'unavailabilityPeriods' && (!submittedCasaData.unavailabilityPeriods || submittedCasaData.unavailabilityPeriods.length === 0)){
                  sanitizedData[key] = deleteField();
             } else if (key === 'availableDays' && (!submittedCasaData.availableDays || !submittedCasaData.availableDays.availableProgramSlotIds || submittedCasaData.availableDays.availableProgramSlotIds.length === 0)) {
                  sanitizedData[key] = deleteField(); 
+            } else if (key === 'notesForSS' && (submittedCasaData.notesForSS === "" || submittedCasaData.notesForSS === undefined)) {
+                 sanitizedData[key] = deleteField();
+            } else if (key === 'notes' && (submittedCasaData.notes === "" || submittedCasaData.notes === undefined)) {
+                 sanitizedData[key] = deleteField();
             }
         }
     }
@@ -284,7 +293,8 @@ export default function CasasPage() {
     return group ? group.name : groupId;
   }, [availableGroups]);
 
-  const isLoadingAny = isLoadingCasas || isLoadingGroups || isLoadingProgramSlots;
+  const isLoadingAny = isLoadingCasas || isLoadingGroups || isLoadingProgramSlots || isLoadingUserProfile;
+  const canViewSSNotes = userProfile?.role === USER_ROLES.SS || userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
 
 
   return (
@@ -403,6 +413,12 @@ export default function CasasPage() {
                         <div>
                             <span className="font-medium text-muted-foreground flex items-center"><Info size={14} className="mr-2"/>Notas:</span>
                             <p className="text-foreground pl-1 text-xs italic">{casa.notes}</p>
+                        </div>
+                    )}
+                    {canViewSSNotes && casa.notesForSS && (
+                         <div>
+                            <span className="font-medium text-purple-600 dark:text-purple-400 flex items-center"><MessageSquareWarning size={14} className="mr-2"/>Notas para SS:</span>
+                            <p className="text-purple-700 dark:text-purple-300 pl-1 text-xs italic">{casa.notesForSS}</p>
                         </div>
                     )}
                   </CardContent>

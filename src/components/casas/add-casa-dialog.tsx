@@ -32,7 +32,7 @@ import { Calendar } from "@/components/ui/calendar";
 import type { Casa, CasaAvailability, PreachingGroup, UnavailabilityPeriod, ProgramScheduleSlot, DayOfWeek, PreachingType } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CalendarIcon, PlusCircle, Trash2, AlertTriangle, Users as UsersTypeIcon, MountainSnow, Video } from "lucide-react";
+import { Loader2, CalendarIcon, PlusCircle, Trash2, AlertTriangle, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
@@ -57,6 +57,7 @@ const casaFormSchema = z.object({
   phoneNumber: z.string().max(20).optional().or(z.literal('')),
   availableProgramSlotIds: z.array(z.string()).optional().default([]),
   notes: z.string().max(1000).optional().or(z.literal('')),
+  notesForSS: z.string().max(1000).optional().or(z.literal('')), // New field
   isSuitableForRural: z.boolean().optional().default(false),
   addedByGroupId: z.string().optional().or(z.literal('')),
   unavailabilityPeriods: z.array(unavailabilityPeriodSchema).optional().default([]),
@@ -75,7 +76,7 @@ const PreachingTypeIconDialog = ({ type, className }: { type: PreachingType, cla
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
-  if (type === 'zoom') return <Video className={combinedClass} />; // Should not be used here anymore
+  // Zoom type is intentionally omitted as it's not relevant for physical house availability
   return null;
 };
 
@@ -95,7 +96,7 @@ export function AddCasaDialog({
   onCasaSubmit, 
   casaToEdit, 
   availableGroups,
-  programScheduleSlots // Now receives all slots
+  programScheduleSlots 
 }: AddCasaDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -109,6 +110,7 @@ export function AddCasaDialog({
       phoneNumber: "",
       availableProgramSlotIds: [],
       notes: "",
+      notesForSS: "", // Initialize new field
       isSuitableForRural: false,
       addedByGroupId: "",
       unavailabilityPeriods: [],
@@ -120,7 +122,6 @@ export function AddCasaDialog({
     name: "unavailabilityPeriods",
   });
 
-  // Filter programScheduleSlots to exclude 'zoom' type for house availability
   const casaSpecificScheduleSlots = useMemo(() => {
     return programScheduleSlots.filter(slot => slot.type !== 'zoom');
   }, [programScheduleSlots]);
@@ -133,9 +134,10 @@ export function AddCasaDialog({
         address: casaToEdit.address || "",
         phoneNumber: casaToEdit.phoneNumber || "",
         availableProgramSlotIds: casaToEdit.availableDays?.availableProgramSlotIds?.filter(slotId => 
-          casaSpecificScheduleSlots.some(s => s.id === slotId) // Ensure only non-zoom slots are pre-filled
+          casaSpecificScheduleSlots.some(s => s.id === slotId)
         ) || [],
         notes: casaToEdit.notes || "",
+        notesForSS: casaToEdit.notesForSS || "", // Populate new field
         isSuitableForRural: casaToEdit.isSuitableForRural || false,
         addedByGroupId: casaToEdit.addedByGroupId || "",
         unavailabilityPeriods: (casaToEdit.unavailabilityPeriods || []).map(p => ({
@@ -152,6 +154,7 @@ export function AddCasaDialog({
         phoneNumber: "",
         availableProgramSlotIds: [],
         notes: "",
+        notesForSS: "", // Reset new field
         isSuitableForRural: false,
         addedByGroupId: "",
         unavailabilityPeriods: [],
@@ -180,6 +183,12 @@ export function AddCasaDialog({
     if (values.notes && values.notes.trim() !== "") {
       submittedCasaData.notes = values.notes;
     }
+    if (values.notesForSS && values.notesForSS.trim() !== "") { // Handle new field
+      submittedCasaData.notesForSS = values.notesForSS;
+    } else {
+      submittedCasaData.notesForSS = undefined; // Explicitly set to undefined if empty for Firestore
+    }
+
     if (values.isSuitableForRural !== undefined) {
       submittedCasaData.isSuitableForRural = values.isSuitableForRural;
     }
@@ -436,7 +445,7 @@ export function AddCasaDialog({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notas Adicionales (Opcional)</FormLabel>
+                  <FormLabel>Notas Adicionales (Visibles para todos)</FormLabel>
                   <FormControl>
                     <Textarea placeholder="Ej: Entrada por el pasaje, preguntar por citófono 1A, etc." {...field} rows={2}/>
                   </FormControl>
@@ -444,6 +453,25 @@ export function AddCasaDialog({
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="notesForSS"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center">
+                    <MessageSquareWarning className="mr-2 h-4 w-4 text-amber-600" />
+                    Notas para SS (Superintendente de Servicio) (Opcional)
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Información específica para el Superintendente de Servicio..." {...field} rows={2}/>
+                  </FormControl>
+                  <FormFieldDescription className="text-xs">Estas notas solo serán visibles para el SS y el Encargado de Territorio.</FormFieldDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <DialogFooter className="pt-4">
               <DialogClose asChild>
                 <Button type="button" variant="outline" disabled={isSubmitting}>
