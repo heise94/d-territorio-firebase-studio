@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, Filter, X as XIcon } from "lucide-react";
 import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, getDoc, FieldValue, getDocs } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, FieldValue, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -20,6 +20,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES } from "@/lib/constants";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const DAY_ORDER_AVAILABILITY: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS_AVAILABILITY: Record<DayOfWeek, string> = {
@@ -58,6 +59,7 @@ function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramSched
       const slotStrings = daySlots.map(s => {
         let typeAbbreviation = 'G'; 
         if (s.type === 'rural') typeAbbreviation = 'R';
+        // No incluimos 'Zoom' porque ya están filtrados
         return `${s.startTime} (${typeAbbreviation})`;
       });
       parts.push(`${DAY_LABELS_AVAILABILITY[dayKey]}: ${slotStrings.join(', ')}`);
@@ -98,6 +100,36 @@ export default function CasasPage() {
   const [isBlockReasonCasaDialogOpen, setIsBlockReasonCasaDialogOpen] = useState(false);
   const [casaToBlock, setCasaToBlock] = useState<Casa | null>(null);
   const [blockReasonCasa, setBlockReasonCasa] = useState("");
+
+  // State for filters
+  const [filterGroupId, setFilterGroupId] = useState<string>("ALL_GROUPS");
+  const [filterStatus, setFilterStatus] = useState<string>("all"); // "all", "available", "blocked"
+  const [filterAvailabilityDay, setFilterAvailabilityDay] = useState<string>("ALL_DAYS"); // DayOfWeek or "ALL_DAYS"
+  const [filterAvailabilitySlotId, setFilterAvailabilitySlotId] = useState<string>("ALL_SLOTS"); // ProgramScheduleSlot ID or "ALL_SLOTS"
+  const [filterSuitableForRural, setFilterSuitableForRural] = useState<string>("all"); // "all", "yes", "no"
+
+  const nonZoomProgramSlots = useMemo(() => {
+    return programScheduleSlots.filter(slot => slot.type !== 'zoom');
+  }, [programScheduleSlots]);
+
+  const availabilitySlotOptions = useMemo(() => {
+    if (filterAvailabilityDay === "ALL_DAYS") {
+      // Show all unique non-zoom slot times if no day is selected for simplicity, or could be disabled
+      const uniqueSlots = new Map<string, { id: string; label: string }>();
+      nonZoomProgramSlots.forEach(slot => {
+        const label = `${slot.startTime} (${slot.type === 'rural' ? 'R' : 'G'})`;
+        if (!uniqueSlots.has(label)) { // Use label to group same time/type across different days
+           uniqueSlots.set(label, { id: slot.id, label: `${label} - ${dayOfWeekLabels[slot.dayOfWeek].substring(0,2)}` }); // Add day abbreviation for context
+        }
+      });
+      return Array.from(uniqueSlots.values()).sort((a,b) => a.label.localeCompare(b.label));
+    }
+    // Filter slots based on selected day
+    return nonZoomProgramSlots
+      .filter(slot => slot.dayOfWeek === filterAvailabilityDay)
+      .map(slot => ({ id: slot.id, label: `${slot.startTime} (${slot.type === 'rural' ? 'R' : 'G'})` }))
+      .sort((a,b) => a.label.localeCompare(b.label));
+  }, [nonZoomProgramSlots, filterAvailabilityDay]);
 
 
   useEffect(() => {
@@ -206,10 +238,27 @@ export default function CasasPage() {
     const dataForFirestore: { [key: string]: any } = {
         ownerName: submittedCasaData.ownerName,
         address: submittedCasaData.address,
-        isBlocked: submittedCasaData.isBlocked, // This comes from submittedCasaData, reflecting original state for edit
         updatedAt: Timestamp.now(),
         createdAt: (isEditing && casaToEdit?.createdAt) ? casaToEdit.createdAt : Timestamp.now(),
+        isBlocked: submittedCasaData.isBlocked, // Crucial: use the isBlocked state from submitted data
     };
+    
+    // Handle blockReason based on the isBlocked state
+    if (submittedCasaData.isBlocked) {
+      // If it is blocked, we want to preserve the reason if it came from the dialog.
+      // The dialog for editing general info does not touch blockReason directly.
+      // So, if it's blocked, we check if casaToEdit (original data) had a blockReason.
+      if (casaToEdit?.isBlocked && casaToEdit?.blockReason) {
+        dataForFirestore.blockReason = casaToEdit.blockReason;
+      } else if (submittedCasaData.blockReason) { // This might come if the submit data explicitly includes it
+        dataForFirestore.blockReason = submittedCasaData.blockReason;
+      } else {
+        dataForFirestore.blockReason = deleteField(); // No reason, or was unblocked then re-blocked without reason
+      }
+    } else {
+      // If it's not blocked, ensure blockReason is removed.
+      dataForFirestore.blockReason = deleteField();
+    }
 
     const optionalFields: (keyof Casa)[] = ['phoneNumber', 'notes', 'notesForSS', 'addedByGroupId', 'isSuitableForRural', 'lastVisitedAt'];
     optionalFields.forEach(key => {
@@ -225,7 +274,7 @@ export default function CasasPage() {
             id: p.id || crypto.randomUUID(),
             startDate: p.startDate instanceof Date ? Timestamp.fromDate(p.startDate) : p.startDate,
             endDate: p.endDate instanceof Date ? Timestamp.fromDate(p.endDate) : p.endDate,
-            reason: p.reason?.trim() ? p.reason.trim() : deleteField(),
+            reason: (p.reason && p.reason.trim() !== "") ? p.reason.trim() : deleteField(),
         }));
     } else {
         dataForFirestore.unavailabilityPeriods = deleteField();
@@ -235,19 +284,6 @@ export default function CasasPage() {
         dataForFirestore.availableDays = { availableProgramSlotIds: submittedCasaData.availableDays.availableProgramSlotIds };
     } else {
         dataForFirestore.availableDays = deleteField();
-    }
-
-    // Explicitly handle blockReason to preserve it if the casa is still blocked
-    if (submittedCasaData.isBlocked) {
-      if (submittedCasaData.blockReason && submittedCasaData.blockReason.trim() !== "") {
-        dataForFirestore.blockReason = submittedCasaData.blockReason.trim();
-      } else {
-        // If it's blocked but no reason is provided (e.g., cleared or was never set), remove the field
-        dataForFirestore.blockReason = deleteField();
-      }
-    } else {
-      // If it's not blocked, ensure blockReason is removed
-      dataForFirestore.blockReason = deleteField();
     }
     
     Object.keys(dataForFirestore).forEach(k => {
@@ -322,19 +358,61 @@ export default function CasasPage() {
   };
 
   const filteredCasas = useMemo(() => {
-    if (!searchTerm) return casas;
-    return casas.filter(casa =>
-      casa.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      casa.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (casa.addedByGroupId && getGroupNameById(casa.addedByGroupId).toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [casas, searchTerm, availableGroups]);
+    return casas.filter(casa => {
+        // Search term filter
+        const searchMatch = searchTerm === "" ||
+            casa.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            casa.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (casa.addedByGroupId && getGroupNameById(casa.addedByGroupId).toLowerCase().includes(searchTerm.toLowerCase()));
+        if (!searchMatch) return false;
+
+        // Group filter
+        const groupMatch = filterGroupId === "ALL_GROUPS" || casa.addedByGroupId === filterGroupId;
+        if (!groupMatch) return false;
+
+        // Status filter
+        const statusMatch = filterStatus === "all" ||
+            (filterStatus === "available" && !casa.isBlocked) ||
+            (filterStatus === "blocked" && casa.isBlocked);
+        if (!statusMatch) return false;
+        
+        // Suitable for rural filter
+        const ruralMatch = filterSuitableForRural === "all" ||
+            (filterSuitableForRural === "yes" && casa.isSuitableForRural === true) ||
+            (filterSuitableForRural === "no" && (casa.isSuitableForRural === false || casa.isSuitableForRural === undefined));
+        if (!ruralMatch) return false;
+        
+        // Availability filter
+        const casaAvailableSlots = casa.availableDays?.availableProgramSlotIds || [];
+        if (filterAvailabilitySlotId !== "ALL_SLOTS") { // Specific slot selected
+            if (!casaAvailableSlots.includes(filterAvailabilitySlotId)) return false;
+        } else if (filterAvailabilityDay !== "ALL_DAYS") { // Only day selected
+            const dayMatch = casaAvailableSlots.some(slotId => {
+                const slotDetail = programScheduleSlots.find(s => s.id === slotId);
+                return slotDetail && slotDetail.dayOfWeek === filterAvailabilityDay && slotDetail.type !== 'zoom';
+            });
+            if (!dayMatch) return false;
+        }
+        return true;
+    });
+  }, [casas, searchTerm, availableGroups, filterGroupId, filterStatus, filterAvailabilityDay, filterAvailabilitySlotId, filterSuitableForRural, programScheduleSlots]);
 
   const getGroupNameById = useCallback((groupId?: string) => {
     if (!groupId) return 'N/A';
     const group = availableGroups.find(g => g.id === groupId);
     return group ? group.name : groupId;
   }, [availableGroups]);
+
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setFilterGroupId("ALL_GROUPS");
+    setFilterStatus("all");
+    setFilterAvailabilityDay("ALL_DAYS");
+    setFilterAvailabilitySlotId("ALL_SLOTS");
+    setFilterSuitableForRural("all");
+    toast({ title: "Filtros Limpiados", description: "Se han restablecido todos los filtros." });
+  };
+
 
   const isLoadingAny = isLoadingCasas || isLoadingGroups || isLoadingProgramSlots || isLoadingUserProfile;
   
@@ -361,26 +439,85 @@ export default function CasasPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Lista de Casas</CardTitle>
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
-            <CardDescription>
+          <div className="space-y-4 pt-3">
+             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 items-end">
+                <div className="relative sm:col-span-2 md:col-span-1 xl:col-span-1">
+                    <Label htmlFor="searchTermInput" className="text-xs">Buscar General</Label>
+                    <Search className="absolute left-2.5 top-[calc(0.75rem+14px)] -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        id="searchTermInput"
+                        type="search"
+                        placeholder="Propietario, dirección, grupo..."
+                        className="pl-8 w-full h-9 text-sm"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <div className="space-y-1">
+                    <Label htmlFor="filterGroup" className="text-xs">Grupo</Label>
+                    <Select value={filterGroupId} onValueChange={setFilterGroupId} disabled={availableGroups.length === 0}>
+                        <SelectTrigger id="filterGroup" className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL_GROUPS">Todos los Grupos</SelectItem>
+                            {availableGroups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-1">
+                    <Label htmlFor="filterStatus" className="text-xs">Estado</Label>
+                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                        <SelectTrigger id="filterStatus" className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Todos</SelectItem>
+                            <SelectItem value="available">Disponibles</SelectItem>
+                            <SelectItem value="blocked">Bloqueadas</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                 <div className="space-y-1">
+                    <Label htmlFor="filterAvailabilityDay" className="text-xs">Día Disponible</Label>
+                    <Select value={filterAvailabilityDay} onValueChange={(value) => { setFilterAvailabilityDay(value); setFilterAvailabilitySlotId("ALL_SLOTS");}}>
+                        <SelectTrigger id="filterAvailabilityDay" className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL_DAYS">Cualquier Día</SelectItem>
+                            {DAY_ORDER_AVAILABILITY.map(dayKey => <SelectItem key={dayKey} value={dayKey}>{dayOfWeekLabels[dayKey]}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-1">
+                    <Label htmlFor="filterAvailabilitySlot" className="text-xs">Horario Específico</Label>
+                    <Select value={filterAvailabilitySlotId} onValueChange={setFilterAvailabilitySlotId} disabled={availabilitySlotOptions.length === 0 && filterAvailabilityDay === "ALL_DAYS"}>
+                        <SelectTrigger id="filterAvailabilitySlot" className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL_SLOTS">Cualquier Horario</SelectItem>
+                            {availabilitySlotOptions.map(opt => <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-1">
+                    <Label htmlFor="filterSuitableRural" className="text-xs">Apta para Rural</Label>
+                    <Select value={filterSuitableForRural} onValueChange={setFilterSuitableForRural}>
+                        <SelectTrigger id="filterSuitableRural" className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Ambos</SelectItem>
+                            <SelectItem value="yes">Sí</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <Button onClick={handleClearFilters} variant="outline" size="sm" className="h-9 self-end">
+                    <XIcon className="mr-1.5 h-4 w-4" /> Limpiar
+                </Button>
+            </div>
+             <CardDescription className="pt-2">
               {isLoadingAny ? "Cargando información..." :
                 (filteredCasas.length > 0
-                  ? `Mostrando ${filteredCasas.length} de ${casas.length} casa(s) registradas.`
-                  : casas.length > 0 ? "Ninguna casa coincide con la búsqueda."
+                  ? `Mostrando ${filteredCasas.length} de ${casas.length} casa(s) según filtros.`
+                  : casas.length > 0 ? "Ninguna casa coincide con los filtros."
                   : "Actualmente no hay casas registradas."
                 )
               }
             </CardDescription>
-            <div className="relative w-full sm:w-64 md:w-72">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    type="search"
-                    placeholder="Buscar por propietario, dirección o grupo..."
-                    className="pl-8 w-full"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -399,7 +536,7 @@ export default function CasasPage() {
                 </Card>
               ))}
             </div>
-          ) : casas.length === 0 && !searchTerm ? (
+          ) : casas.length === 0 && !searchTerm && filterGroupId === "ALL_GROUPS" && filterStatus === "all" && filterAvailabilityDay === "ALL_DAYS" && filterAvailabilitySlotId === "ALL_SLOTS" && filterSuitableForRural === "all" ? (
             <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
               <Building className="h-20 w-20 text-muted-foreground/70 mb-6" />
               <p className="text-xl font-medium text-muted-foreground mb-2">No hay casas para mostrar.</p>
@@ -407,12 +544,12 @@ export default function CasasPage() {
                 Haz clic en "Añadir Nueva Casa" para registrar la primera.
               </p>
             </div>
-          ) : filteredCasas.length === 0 && searchTerm ? (
+          ) : filteredCasas.length === 0 ? (
              <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
-                <Search className="h-20 w-20 text-muted-foreground/70 mb-6" />
-                <p className="text-xl font-medium text-muted-foreground mb-2">Sin resultados</p>
+                <Filter className="h-20 w-20 text-muted-foreground/70 mb-6" />
+                <p className="text-xl font-medium text-muted-foreground mb-2">Sin resultados para los filtros</p>
                 <p className="text-sm text-muted-foreground">
-                    No se encontraron casas que coincidan con "{searchTerm}".
+                    Intenta ajustar o limpiar los filtros para encontrar casas.
                 </p>
             </div>
           ) : (
@@ -421,14 +558,19 @@ export default function CasasPage() {
                 const formattedUnavailability = formatUnavailabilityPeriods(casa.unavailabilityPeriods);
                 const formattedAvailability = formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots);
                 const isCasaActuallyBlocked = casa.isBlocked;
-                const showBlockedState = isCasaActuallyBlocked && canViewBlockDetails;
                 
+                let cardBaseClass = "flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg";
                 let cardContentClass = "flex-grow space-y-3 pt-2 text-sm";
                 let cardDescriptionClass = "text-sm pt-1 flex items-center";
                 let cardPhoneClass = "text-xs text-muted-foreground flex items-center";
                 let cardGroupClass = "text-xs text-muted-foreground flex items-center pt-1";
-
-                if (showBlockedState && !canManageBlocking) { // Not admin, just viewing a blocked state
+                
+                let showBlockedBadge = false;
+                if (isCasaActuallyBlocked && canViewBlockDetails) {
+                    cardBaseClass += ' bg-muted/50';
+                    showBlockedBadge = true;
+                }
+                 if (isCasaActuallyBlocked && !canManageBlocking && canViewBlockDetails) { // Not admin, just viewing a blocked state with details
                     cardContentClass += " opacity-70";
                     cardDescriptionClass += " opacity-70";
                     cardPhoneClass += " opacity-70";
@@ -437,11 +579,11 @@ export default function CasasPage() {
 
 
                 return (
-                <Card key={casa.id} className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${showBlockedState ? 'bg-muted/50' : ''}`}>
+                <Card key={casa.id} className={cardBaseClass}>
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                         <CardTitle className="text-xl font-semibold">{casa.ownerName}</CardTitle>
-                        {showBlockedState && (
+                        {showBlockedBadge && (
                             <Badge variant='destructive' className="capitalize">Bloqueada</Badge>
                         )}
                     </div>
@@ -482,14 +624,14 @@ export default function CasasPage() {
                             <p className="text-purple-700 dark:text-purple-300 pl-1 text-xs italic">{casa.notesForSS}</p>
                         </div>
                     )}
-                     {showBlockedState && casa.blockReason && (
+                     {showBlockedBadge && casa.blockReason && (
                         <div className="mt-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
                             <p className="text-xs font-medium text-destructive flex items-center"><MessageSquareWarning size={13} className="mr-1.5"/> Razón Bloqueo:</p>
                             <p className="text-xs text-destructive/90 italic">{casa.blockReason}</p>
                         </div>
                     )}
                   </CardContent>
-                  <CardFooter className={`border-t pt-4 pb-4 flex justify-center gap-1 ${showBlockedState && !canManageBlocking ? 'opacity-60 pointer-events-none' : ''}`}>
+                   <CardFooter className={`border-t pt-4 pb-4 flex justify-center gap-1 ${isCasaActuallyBlocked && !canManageBlocking && canViewBlockDetails ? 'opacity-60 pointer-events-none' : ''}`}>
                     {canManageBlocking && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -510,7 +652,7 @@ export default function CasasPage() {
                                 onClick={() => {
                                     if (casa.isBlocked) { 
                                         setCasaToBlock(casa); 
-                                        setBlockReasonCasa(casa.blockReason || ""); // Keep existing reason if unblocking
+                                        setBlockReasonCasa(casa.blockReason || ""); 
                                         confirmToggleBlockCasa(); 
                                     } else { 
                                         handleOpenBlockReasonCasaDialog(casa);
@@ -607,3 +749,4 @@ export default function CasasPage() {
     </TooltipProvider>
   );
 }
+
