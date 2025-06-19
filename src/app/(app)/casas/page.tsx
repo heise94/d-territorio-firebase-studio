@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video } from "lucide-react";
 import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType } from "@/types";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +52,12 @@ function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramSched
   DAY_ORDER.forEach(dayKey => {
     const daySlots = groupedByDay[dayKey].sort((a, b) => a.startTime.localeCompare(b.startTime));
     if (daySlots.length > 0) {
-      const slotStrings = daySlots.map(s => `${s.startTime} (${s.type === 'general' ? 'G' : s.type === 'rural' ? 'R' : 'Z'})`);
+      const slotStrings = daySlots.map(s => {
+        let typeAbbreviation = 'G'; // Default for 'general'
+        if (s.type === 'rural') typeAbbreviation = 'R';
+        else if (s.type === 'zoom') typeAbbreviation = 'Z';
+        return `${s.startTime} (${typeAbbreviation})`;
+      });
       parts.push(`${DAY_LABELS[dayKey]}: ${slotStrings.join(', ')}`);
     }
   });
@@ -197,7 +202,7 @@ export default function CasasPage() {
             } else if (key === 'unavailabilityPeriods' && (!submittedCasaData.unavailabilityPeriods || submittedCasaData.unavailabilityPeriods.length === 0)){
                  sanitizedData[key] = deleteField();
             } else if (key === 'availableDays' && (!submittedCasaData.availableDays || !submittedCasaData.availableDays.availableProgramSlotIds || submittedCasaData.availableDays.availableProgramSlotIds.length === 0)) {
-                 sanitizedData[key] = deleteField();
+                 sanitizedData[key] = deleteField(); // This will remove the entire availableDays object
             }
         }
     }
