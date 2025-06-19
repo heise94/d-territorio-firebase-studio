@@ -2,13 +2,13 @@
 "use client";
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useMemo } from 'react'; // Added useMemo
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Share2, Building, ShieldCheck, BarChart3, MessageSquareWarning } from "lucide-react";
-import type { Territory } from "@/types";
+import type { Territory, Casa, PreachingGroup } from "@/types"; // Added Casa, PreachingGroup
 import { ViewImageDialog } from './view-image-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
@@ -17,15 +17,42 @@ interface TerritoryCardProps {
   territory: Territory;
   onEdit: () => void;
   onDelete: () => void;
-  onBlockToggle: () => void; // Parent will handle dialog for reason if blocking
-  canManage: boolean; // True if Encargado Territorio
-  canViewBlockDetails: boolean; // True if Encargado Territorio or SS
+  onBlockToggle: () => void; 
+  canManage: boolean; 
+  canViewBlockDetails: boolean; 
+  availableCasas: Casa[]; // Added prop
+  availableGroups: PreachingGroup[]; // Added prop
 }
 
-export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle, canManage, canViewBlockDetails }: TerritoryCardProps) {
+export function TerritoryCard({ 
+    territory, 
+    onEdit, 
+    onDelete, 
+    onBlockToggle, 
+    canManage, 
+    canViewBlockDetails,
+    availableCasas,
+    availableGroups 
+}: TerritoryCardProps) {
   const approxHouseCountDisplay = territory.approxHouseCount ?? territory.blockHouseCounts?.reduce((a, b) => a + b, 0) ?? 'N/A';
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  const getCasaNamesByIds = (ids?: string[]): string => {
+    if (!ids || ids.length === 0) return 'N/A';
+    return ids.map(id => availableCasas.find(casa => casa.id === id)?.ownerName || id).join(', ');
+  };
+
+  const getGroupNamesByIds = (ids?: string[]): string => {
+    if (!ids || ids.length === 0) return 'N/A';
+    return ids.map(id => availableGroups.find(group => group.id === id)?.name || id).join(', ');
+  };
+
+  const groupLabel = useMemo(() => {
+    if (!territory.groupIds || territory.groupIds.length === 0) return "Grupos";
+    return territory.groupIds.length === 1 ? "Grupo" : "Grupos";
+  }, [territory.groupIds]);
+
 
   const handleShare = async () => {
     let textToShare = `Territorio: `;
@@ -104,7 +131,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle, canM
             )}
           </CardDescription>
         </CardHeader>
-        <CardContent className={`flex-grow space-y-2 pt-2 text-sm ${showBlockedState ? 'opacity-70' : ''}`}>
+        <CardContent className={`flex-grow space-y-2 pt-2 text-sm ${showBlockedState && !canManage ? 'opacity-70' : ''}`}>
           {territory.mapImageUrl && (
             <div className="relative aspect-video w-full rounded-md overflow-hidden mb-2 border">
               <Image
@@ -120,10 +147,10 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle, canM
               {territory.totalBlocks !== undefined && <p className="flex items-center"><BarChart3 size={12} className="mr-1.5 shrink-0 text-muted-foreground"/> Manzanas: {territory.totalBlocks}</p>}
               <p className="flex items-center"><Home size={12} className="mr-1.5 shrink-0 text-muted-foreground"/> Casas Aprox: {approxHouseCountDisplay}</p>
               {territory.groupIds && territory.groupIds.length > 0 && (
-                  <p className="flex items-center"><Users size={12} className="mr-1.5 shrink-0 text-muted-foreground"/> Grupos: {territory.groupIds.join(', ')}</p>
+                  <p className="flex items-center"><Users size={12} className="mr-1.5 shrink-0 text-muted-foreground"/> {groupLabel}: {getGroupNamesByIds(territory.groupIds)}</p>
               )}
               {territory.associatedCasaIds && territory.associatedCasaIds.length > 0 && (
-                  <p className="flex items-center"><Building size={12} className="mr-1.5 shrink-0 text-muted-foreground"/> Casas Cercanas: {territory.associatedCasaIds.join(', ')}</p>
+                  <p className="flex items-center"><Building size={12} className="mr-1.5 shrink-0 text-muted-foreground"/> Casas Cercanas: {getCasaNamesByIds(territory.associatedCasaIds)}</p>
               )}
            </div>
            {territory.warnings && territory.warnings.length > 0 && (
@@ -142,7 +169,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle, canM
             </div>
           )}
         </CardContent>
-        <CardFooter className={`border-t pt-3 pb-3 flex flex-wrap justify-center gap-1 ${showBlockedState ? 'opacity-80' : ''}`}>
+        <CardFooter className={`border-t pt-3 pb-3 flex flex-wrap justify-center gap-1 ${showBlockedState && !canManage ? 'opacity-80 pointer-events-none' : ''}`}>
           {canManage && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -221,7 +248,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle, canM
               <TooltipContent><p>Ver en Google Maps</p></TooltipContent>
             </Tooltip>
           )}
-           {(navigator.share || (typeof window !== 'undefined' && 'Clipboard' in window) ) && ( // Check for share API or clipboard
+           {(navigator.share || (typeof window !== 'undefined' && 'Clipboard' in window) ) && ( 
             <Tooltip>
                 <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" onClick={handleShare} aria-label="Compartir territorio" className="h-8 w-8">
@@ -246,3 +273,4 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle, canM
     </>
   );
 }
+

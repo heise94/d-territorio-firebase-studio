@@ -17,7 +17,7 @@ import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Link from "next/link";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"; // Removed AlertDialogTrigger as it's implicitly handled by AlertDialog
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES } from "@/lib/constants";
@@ -137,10 +137,26 @@ export default function TerritoriosPage() {
     const dataForFirestore: { [key: string]: any } = {
       type: submittedTerritoryData.type,
       name: submittedTerritoryData.name,
-      isBlocked: submittedTerritoryData.isBlocked,
+      isBlocked: submittedTerritoryData.isBlocked, // This comes from the original entity if editing
       updatedAt: Timestamp.now(),
       createdAt: (isEditing && territoryToEdit?.createdAt) ? territoryToEdit.createdAt : Timestamp.now(),
     };
+    
+    // Handle blockReason carefully based on isBlocked state
+    if (submittedTerritoryData.isBlocked) {
+      // If it was blocked and still is, preserve or set the blockReason.
+      // The blockReason in submittedTerritoryData is the *original* one if editing non-block fields.
+      // The blockReason is set/cleared via the specific block/unblock dialog.
+      if (submittedTerritoryData.blockReason && submittedTerritoryData.blockReason.trim() !== "") {
+        dataForFirestore.blockReason = submittedTerritoryData.blockReason.trim();
+      } else {
+         // If it's blocked but no reason was passed (e.g. original entity had no reason), ensure it's not an empty string
+        dataForFirestore.blockReason = deleteField();
+      }
+    } else {
+      // If it's not blocked (either newly created, was unblocked, or edited while unblocked), ensure blockReason is removed
+      dataForFirestore.blockReason = deleteField();
+    }
     
     const optionalFields: (keyof Territory)[] = [
         'number', 'mapImageUrl', 'dataAiHint', 'googleMapsLink', 
@@ -160,22 +176,13 @@ export default function TerritoriosPage() {
         }
     });
 
-    if (submittedTerritoryData.isBlocked) {
-      if (submittedTerritoryData.blockReason && submittedTerritoryData.blockReason.trim() !== "") {
-        dataForFirestore.blockReason = submittedTerritoryData.blockReason.trim();
-      } else {
-        dataForFirestore.blockReason = deleteField();
-      }
-    } else {
-      dataForFirestore.blockReason = deleteField();
-    }
-
+    // Ensure undefined values are not sent, as setDoc with merge treats them as "do not change"
     Object.keys(dataForFirestore).forEach(k => {
-        if (dataForFirestore[k] === undefined && !(dataForFirestore[k] instanceof FieldValue) ) {
-            delete dataForFirestore[k]; 
+        if (dataForFirestore[k] === undefined && !(dataForFirestore[k] instanceof FieldValue)) {
+            delete dataForFirestore[k];
         }
     });
-
+    
     try {
       await setDoc(docRef, dataForFirestore, { merge: true }); 
       toast({
@@ -318,6 +325,8 @@ export default function TerritoriosPage() {
             }}
             canManage={canManageBlocking}
             canViewBlockDetails={canViewBlockStatusDetails}
+            availableCasas={availableCasas}
+            availableGroups={availableGroups}
           />
         ))}
       </div>
@@ -431,3 +440,4 @@ export default function TerritoriosPage() {
     </TooltipProvider>
   );
 }
+
