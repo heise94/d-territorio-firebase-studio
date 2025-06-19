@@ -4,11 +4,13 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning } from "lucide-react";
 import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType } from "@/types";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, getDoc, FieldValue } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -87,12 +89,16 @@ export default function CasasPage() {
   const { toast } = useToast();
   const { userProfile, isLoadingPermissions: isLoadingUserProfile } = usePermissions();
 
-
   const [availableGroups, setAvailableGroups] = useState<PreachingGroup[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
 
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [isLoadingProgramSlots, setIsLoadingProgramSlots] = useState(true);
+
+  const [isBlockReasonCasaDialogOpen, setIsBlockReasonCasaDialogOpen] = useState(false);
+  const [casaToBlock, setCasaToBlock] = useState<Casa | null>(null);
+  const [blockReasonCasa, setBlockReasonCasa] = useState("");
+
 
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
@@ -203,46 +209,39 @@ export default function CasasPage() {
         isBlocked: submittedCasaData.isBlocked || false,
         updatedAt: Timestamp.now(),
         createdAt: (isEditing && submittedCasaData.createdAt) ? submittedCasaData.createdAt : Timestamp.now(),
-        type: submittedCasaData.type, // Assuming type is always passed from dialog now
     };
 
-    // Optional fields handling
-    const optionalFields: (keyof Casa)[] = ['phoneNumber', 'notes', 'notesForSS', 'addedByGroupId', 'isSuitableForRural', 'lastVisitedAt'];
+    const optionalFields: (keyof Casa)[] = ['phoneNumber', 'notes', 'notesForSS', 'addedByGroupId', 'isSuitableForRural', 'lastVisitedAt', 'blockReason'];
     optionalFields.forEach(key => {
-        if (submittedCasaData[key] === undefined || submittedCasaData[key] === "") {
+        if (submittedCasaData[key] === undefined || (typeof submittedCasaData[key] === 'string' && (submittedCasaData[key] as string).trim() === "")) {
             dataForFirestore[key] = deleteField();
-        } else if (submittedCasaData[key] !== null) { // Ensure not to pass null if dialog sends it for some reason
+        } else if (submittedCasaData[key] !== null) {
             dataForFirestore[key] = submittedCasaData[key];
         }
     });
 
-    // Handle unavailabilityPeriods
     if (submittedCasaData.unavailabilityPeriods && submittedCasaData.unavailabilityPeriods.length > 0) {
         dataForFirestore.unavailabilityPeriods = submittedCasaData.unavailabilityPeriods.map((p: UnavailabilityPeriod) => ({
             id: p.id || crypto.randomUUID(),
             startDate: p.startDate instanceof Date ? Timestamp.fromDate(p.startDate) : p.startDate,
             endDate: p.endDate instanceof Date ? Timestamp.fromDate(p.endDate) : p.endDate,
-            reason: p.reason || undefined,
+            reason: p.reason || deleteField(),
         }));
     } else {
         dataForFirestore.unavailabilityPeriods = deleteField();
     }
 
-    // Handle availableDays (ProgramScheduleSlot IDs)
     if (submittedCasaData.availableDays && submittedCasaData.availableDays.availableProgramSlotIds && submittedCasaData.availableDays.availableProgramSlotIds.length > 0) {
-        dataForFirestore.availableDays = submittedCasaData.availableDays;
+        dataForFirestore.availableDays = { availableProgramSlotIds: submittedCasaData.availableDays.availableProgramSlotIds };
     } else {
         dataForFirestore.availableDays = deleteField();
     }
     
-    // Remove any top-level undefined properties from dataForFirestore that were not explicitly set to deleteField()
-    // This is a final safeguard, though the explicit handling above should cover most cases.
     Object.keys(dataForFirestore).forEach(k => {
         if (dataForFirestore[k] === undefined && !(dataForFirestore[k] instanceof FieldValue) ) {
             delete dataForFirestore[k];
         }
     });
-
 
     try {
       await setDoc(docRef, dataForFirestore, { merge: true });
@@ -272,27 +271,40 @@ export default function CasasPage() {
     }
   };
 
-  const handleToggleBlockCasa = async (casaId: string) => {
-     if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
-      return;
-    }
-    const casa = casas.find(c => c.id === casaId);
-    if (!casa) return;
+  const handleOpenBlockReasonCasaDialog = (casa: Casa) => {
+    setCasaToBlock(casa);
+    setBlockReasonCasa(casa.blockReason || "");
+    setIsBlockReasonCasaDialogOpen(true);
+  };
 
-    const newBlockStatus = !casa.isBlocked;
+  const confirmToggleBlockCasa = async () => {
+    if (!casaToBlock || !db || Object.keys(db).length === 0) return;
+
+    const newBlockStatus = !casaToBlock.isBlocked;
+    const updateData: { isBlocked: boolean; updatedAt: Timestamp; blockReason?: any } = {
+      isBlocked: newBlockStatus,
+      updatedAt: Timestamp.now(),
+    };
+
+    if (newBlockStatus) {
+      updateData.blockReason = blockReasonCasa.trim() || deleteField();
+    } else {
+      updateData.blockReason = deleteField();
+    }
+
     try {
-      await updateDoc(doc(db, "casas", casaId), {
-        isBlocked: newBlockStatus,
-        updatedAt: Timestamp.now()
-      });
+      await updateDoc(doc(db, "casas", casaToBlock.id), updateData);
       toast({
         title: newBlockStatus ? "Casa Bloqueada" : "Casa Desbloqueada",
-        description: `La casa de ${casa.ownerName} ha sido ${newBlockStatus ? 'bloqueada' : 'desbloqueada'}.`
+        description: `La casa de ${casaToBlock.ownerName} ha sido ${newBlockStatus ? 'bloqueada' : 'desbloqueada'}.`
       });
     } catch (error) {
-      console.error("Error toggling block status:", error);
-      toast({ title: "Error al Actualizar", description: "No se pudo cambiar el estado de bloqueo.", variant: "destructive" });
+      console.error("Error toggling block status for casa:", error);
+      toast({ title: "Error al Actualizar", description: "No se pudo cambiar el estado de bloqueo de la casa.", variant: "destructive" });
+    } finally {
+      setIsBlockReasonCasaDialogOpen(false);
+      setCasaToBlock(null);
+      setBlockReasonCasa("");
     }
   };
 
@@ -312,7 +324,8 @@ export default function CasasPage() {
   }, [availableGroups]);
 
   const isLoadingAny = isLoadingCasas || isLoadingGroups || isLoadingProgramSlots || isLoadingUserProfile;
-  const canViewSSNotes = userProfile?.role === USER_ROLES.SS || userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
+  const canManageBlocking = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
+  const canViewBlockDetails = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || userProfile?.role === USER_ROLES.SS;
 
 
   return (
@@ -393,24 +406,25 @@ export default function CasasPage() {
               {filteredCasas.map((casa) => {
                 const formattedUnavailability = formatUnavailabilityPeriods(casa.unavailabilityPeriods);
                 const formattedAvailability = formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots);
+                const showBlockedState = casa.isBlocked && canViewBlockDetails;
                 return (
-                <Card key={casa.id} className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${casa.isBlocked ? 'bg-muted/50' : ''}`}>
+                <Card key={casa.id} className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${showBlockedState ? 'bg-muted/50' : ''}`}>
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                         <CardTitle className="text-xl font-semibold">{casa.ownerName}</CardTitle>
-                        <Badge variant={casa.isBlocked ? 'destructive' : 'default'} className={`${casa.isBlocked ? '' : ''}`}>
-                            {casa.isBlocked ? 'Bloqueada' : 'Disponible'}
-                        </Badge>
+                        {showBlockedState && (
+                            <Badge variant='destructive' className="capitalize">Bloqueada</Badge>
+                        )}
                     </div>
-                    <CardDescription className={`text-sm pt-1 flex items-center ${casa.isBlocked ? 'opacity-60' : ''}`}><MapPin size={14} className="mr-1.5 text-muted-foreground shrink-0" /> {casa.address}</CardDescription>
+                    <CardDescription className={`text-sm pt-1 flex items-center ${showBlockedState ? 'opacity-70' : ''}`}><MapPin size={14} className="mr-1.5 text-muted-foreground shrink-0" /> {casa.address}</CardDescription>
                     {casa.phoneNumber && (
-                        <p className={`text-xs text-muted-foreground flex items-center ${casa.isBlocked ? 'opacity-60' : ''}`}><Phone size={12} className="mr-1.5 shrink-0" /> {casa.phoneNumber}</p>
+                        <p className={`text-xs text-muted-foreground flex items-center ${showBlockedState ? 'opacity-70' : ''}`}><Phone size={12} className="mr-1.5 shrink-0" /> {casa.phoneNumber}</p>
                     )}
                     {casa.addedByGroupId && (
-                         <p className={`text-xs text-muted-foreground flex items-center pt-1 ${casa.isBlocked ? 'opacity-60' : ''}`}><GroupIcon size={12} className="mr-1.5 shrink-0 text-blue-600" /> Grupo: <span className="font-medium text-blue-700 dark:text-blue-400 ml-1">{getGroupNameById(casa.addedByGroupId)}</span></p>
+                         <p className={`text-xs text-muted-foreground flex items-center pt-1 ${showBlockedState ? 'opacity-70' : ''}`}><GroupIcon size={12} className="mr-1.5 shrink-0 text-blue-600" /> Grupo: <span className="font-medium text-blue-700 dark:text-blue-400 ml-1">{getGroupNameById(casa.addedByGroupId)}</span></p>
                     )}
                   </CardHeader>
-                  <CardContent className={`flex-grow space-y-3 pt-2 text-sm ${casa.isBlocked ? 'opacity-60' : ''}`}>
+                  <CardContent className={`flex-grow space-y-3 pt-2 text-sm ${showBlockedState ? 'opacity-70' : ''}`}>
                     <div>
                         <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad (Horarios Programa):</span>
                         <p className="text-foreground pl-1 text-xs">{formattedAvailability}</p>
@@ -433,65 +447,85 @@ export default function CasasPage() {
                             <p className="text-foreground pl-1 text-xs italic">{casa.notes}</p>
                         </div>
                     )}
-                    {canViewSSNotes && casa.notesForSS && (
+                    {canViewBlockDetails && casa.notesForSS && (
                          <div>
                             <span className="font-medium text-purple-600 dark:text-purple-400 flex items-center"><MessageSquareWarning size={14} className="mr-2"/>Notas para SS:</span>
                             <p className="text-purple-700 dark:text-purple-300 pl-1 text-xs italic">{casa.notesForSS}</p>
                         </div>
                     )}
+                     {showBlockedState && casa.blockReason && (
+                        <div className="mt-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
+                            <p className="text-xs font-medium text-destructive flex items-center"><MessageSquareWarning size={13} className="mr-1.5"/> Razón Bloqueo:</p>
+                            <p className="text-xs text-destructive/90 italic">{casa.blockReason}</p>
+                        </div>
+                    )}
                   </CardContent>
-                  <CardFooter className={`border-t pt-4 pb-4 flex justify-center gap-1 ${casa.isBlocked ? 'opacity-60' : ''}`}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Editar</p></TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleToggleBlockCasa(casa.id)}
-                            aria-label={casa.isBlocked ? "Desbloquear casa" : "Bloquear casa"}
-                            className={`h-8 w-8 ${!casa.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
-                        >
-                          {casa.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p>{casa.isBlocked ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
-                    </Tooltip>
-
-                    <AlertDialog>
+                  <CardFooter className={`border-t pt-4 pb-4 flex justify-center gap-1 ${showBlockedState ? 'opacity-80' : ''}`}>
+                    {canManageBlocking && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label="Eliminar casa" className="h-8 w-8 text-destructive hover:bg-destructive/10">
-                                  <Trash2 className="h-4 w-4" />
-                              </Button>
-                          </AlertDialogTrigger>
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                         </TooltipTrigger>
-                        <TooltipContent><p>Eliminar</p></TooltipContent>
+                        <TooltipContent><p>Editar</p></TooltipContent>
                       </Tooltip>
-                      <AlertDialogContent>
-                          <AlertDialogHeader>
-                          <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                              Esta acción no se puede deshacer. Esto eliminará permanentemente la casa
-                              de los registros.
-                          </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeleteCasa(casa.id)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                              Sí, eliminar
-                          </AlertDialogAction>
-                          </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    )}
+
+                    {canManageBlocking && (
+                        <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                    if (casa.isBlocked) {
+                                        setCasaToBlock(casa);
+                                        setBlockReasonCasa(""); 
+                                        confirmToggleBlockCasa();
+                                    } else {
+                                        handleOpenBlockReasonCasaDialog(casa);
+                                    }
+                                }}
+                                aria-label={casa.isBlocked ? "Desbloquear casa" : "Bloquear casa"}
+                                className={`h-8 w-8 ${!casa.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
+                            >
+                            {casa.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>{casa.isBlocked ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
+                        </Tooltip>
+                    )}
+
+                    {canManageBlocking && (
+                        <AlertDialog>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" aria-label="Eliminar casa" className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </AlertDialogTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Eliminar</p></TooltipContent>
+                        </Tooltip>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Esta acción no se puede deshacer. Esto eliminará permanentemente la casa
+                                de los registros.
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeleteCasa(casa.id)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                Sí, eliminar
+                            </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                        </AlertDialog>
+                    )}
                   </CardFooter>
                 </Card>
               );
@@ -509,6 +543,37 @@ export default function CasasPage() {
         availableGroups={availableGroups}
         programScheduleSlots={programScheduleSlots}
       />
+
+      {casaToBlock && (
+        <AlertDialog open={isBlockReasonCasaDialogOpen} onOpenChange={setIsBlockReasonCasaDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center"><ShieldAlert className="mr-2 h-5 w-5 text-amber-500"/>Bloquear Casa: {casaToBlock.ownerName}</AlertDialogTitle>
+              <AlertDialogDescription>
+                Estás a punto de bloquear esta casa. Si lo deseas, puedes añadir una razón (opcional).
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-2">
+              <Label htmlFor="blockReasonCasaInput" className="text-sm font-medium">Razón del Bloqueo (Opcional)</Label>
+              <Textarea
+                id="blockReasonCasaInput"
+                placeholder="Ej: No disponible temporalmente, renovaciones, etc."
+                value={blockReasonCasa}
+                onChange={(e) => setBlockReasonCasa(e.target.value)}
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setIsBlockReasonCasaDialogOpen(false); setCasaToBlock(null); setBlockReasonCasa(""); }}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmToggleBlockCasa} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                Confirmar Bloqueo
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
     </div>
     </TooltipProvider>
   );

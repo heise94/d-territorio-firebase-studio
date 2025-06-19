@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Share2, Building, ShieldCheck, BarChart3 } from "lucide-react";
+import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Share2, Building, ShieldCheck, BarChart3, MessageSquareWarning } from "lucide-react";
 import type { Territory } from "@/types";
 import { ViewImageDialog } from './view-image-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -17,10 +17,12 @@ interface TerritoryCardProps {
   territory: Territory;
   onEdit: () => void;
   onDelete: () => void;
-  onBlockToggle: () => void;
+  onBlockToggle: () => void; // Parent will handle dialog for reason if blocking
+  canManage: boolean; // True if Encargado Territorio
+  canViewBlockDetails: boolean; // True if Encargado Territorio or SS
 }
 
-export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: TerritoryCardProps) {
+export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle, canManage, canViewBlockDetails }: TerritoryCardProps) {
   const approxHouseCountDisplay = territory.approxHouseCount ?? territory.blockHouseCounts?.reduce((a, b) => a + b, 0) ?? 'N/A';
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -60,7 +62,6 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
             variant: "default",
           });
         } else {
-          // Fallback a WhatsApp si navigator.share falla por otras razones (ej. PermissionDenied)
           const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(textToShare)}`;
           window.open(whatsappUrl, '_blank');
           toast({
@@ -70,7 +71,6 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
         }
       }
     } else {
-      // Fallback a WhatsApp si navigator.share no está disponible
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(textToShare)}`;
       window.open(whatsappUrl, '_blank');
       toast({
@@ -80,19 +80,22 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
     }
   };
 
+  const showBlockedState = territory.isBlocked && canViewBlockDetails;
 
   return (
     <>
-      <Card className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${territory.isBlocked ? 'opacity-60 bg-muted/50' : 'bg-card'}`}>
+      <Card className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${showBlockedState ? 'bg-muted/50' : 'bg-card'}`}>
         <CardHeader className="pb-3">
           <div className="flex justify-between items-start">
             <CardTitle className="text-xl font-semibold">
               {territory.type === 'urban' && territory.number ? `U-${territory.number}: ` : ''}
               {territory.name}
             </CardTitle>
-            <Badge variant={territory.isBlocked ? 'destructive' : 'default'} className="capitalize">
-              {territory.isBlocked ? 'Bloqueado' : 'Activo'}
-            </Badge>
+            {showBlockedState && (
+              <Badge variant='destructive' className="capitalize">
+                Bloqueado
+              </Badge>
+            )}
           </div>
           <CardDescription className="text-xs pt-1 flex items-center">
             <Badge variant="outline" className="mr-2 capitalize">{territory.type}</Badge>
@@ -101,7 +104,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
             )}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex-grow space-y-2 pt-2 text-sm">
+        <CardContent className={`flex-grow space-y-2 pt-2 text-sm ${showBlockedState ? 'opacity-70' : ''}`}>
           {territory.mapImageUrl && (
             <div className="relative aspect-video w-full rounded-md overflow-hidden mb-2 border">
               <Image
@@ -132,65 +135,71 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
                   </ul>
               </div>
           )}
+          {showBlockedState && territory.blockReason && (
+             <div className="mt-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
+                <p className="text-xs font-medium text-destructive flex items-center"><MessageSquareWarning size={13} className="mr-1.5"/> Razón Bloqueo:</p>
+                <p className="text-xs text-destructive/90 italic">{territory.blockReason}</p>
+            </div>
+          )}
         </CardContent>
-        <CardFooter className="border-t pt-3 pb-3 flex flex-wrap justify-center gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Editar territorio" className="h-8 w-8">
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Editar</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onBlockToggle}
-                aria-label={territory.isBlocked ? "Desbloquear territorio" : "Bloquear territorio"}
-                className={`h-8 w-8 ${!territory.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
-              >
-                {territory.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{territory.isBlocked ? 'Desbloquear' : 'Bloquear'}</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <AlertDialog>
+        <CardFooter className={`border-t pt-3 pb-3 flex flex-wrap justify-center gap-1 ${showBlockedState ? 'opacity-80' : ''}`}>
+          {canManage && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Eliminar territorio" className="h-8 w-8 text-destructive hover:bg-destructive/10">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
+                <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Editar territorio" className="h-8 w-8">
+                  <Pencil className="h-4 w-4" />
+                </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>Eliminar</p>
-              </TooltipContent>
+              <TooltipContent><p>Editar</p></TooltipContent>
             </Tooltip>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta acción no se puede deshacer. Esto eliminará permanentemente el territorio
-                  de los registros.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                  Sí, eliminar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          )}
+
+          {canManage && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onBlockToggle}
+                  aria-label={territory.isBlocked ? "Desbloquear territorio" : "Bloquear territorio"}
+                  className={`h-8 w-8 ${!territory.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
+                >
+                  {territory.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>{territory.isBlocked ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
+            </Tooltip>
+          )}
+
+          {canManage && (
+            <AlertDialog>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label="Eliminar territorio" className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent><p>Eliminar</p></TooltipContent>
+              </Tooltip>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción no se puede deshacer. Esto eliminará permanentemente el territorio
+                    de los registros.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                    Sí, eliminar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
 
           {territory.mapImageUrl && (
             <Tooltip>
@@ -199,9 +208,7 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
                     <Eye className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>Ver Imagen</p>
-              </TooltipContent>
+              <TooltipContent><p>Ver Imagen</p></TooltipContent>
             </Tooltip>
           )}
           {territory.googleMapsLink && (
@@ -211,21 +218,21 @@ export function TerritoryCard({ territory, onEdit, onDelete, onBlockToggle }: Te
                     <MapPin className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>Ver en Google Maps</p>
-              </TooltipContent>
+              <TooltipContent><p>Ver en Google Maps</p></TooltipContent>
             </Tooltip>
           )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={handleShare} aria-label="Compartir territorio" className="h-8 w-8">
-                  <Share2 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Compartir</p>
-            </TooltipContent>
-          </Tooltip>
+           {(navigator.share || (typeof window !== 'undefined' && 'Clipboard' in window) ) && ( // Check for share API or clipboard
+            <Tooltip>
+                <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={handleShare} aria-label="Compartir territorio" className="h-8 w-8">
+                    <Share2 className="h-4 w-4" />
+                </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                <p>Compartir</p>
+                </TooltipContent>
+            </Tooltip>
+            )}
         </CardFooter>
       </Card>
       {territory.mapImageUrl && (

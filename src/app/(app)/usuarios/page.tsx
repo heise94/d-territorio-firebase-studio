@@ -5,11 +5,13 @@ import { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, Send, CalendarClock, UserCog, CheckSquare } from "lucide-react"; // Added CheckSquare
+import { Textarea } from "@/components/ui/textarea";
+import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, Send, CalendarClock, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning } from "lucide-react"; // Added CheckSquare
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import type { UserProfile } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, doc, updateDoc, deleteField } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { USER_ROLES, USER_ROLES_LIST } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -22,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,27 +44,28 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 export default function UsuariosPage() {
   const [isInviteUserDialogOpen, setIsInviteUserDialogOpen] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>([
-    // Datos de ejemplo iniciales
     { id: '1', name: 'Elena Campos', email: 'elena.campos@example.com', phoneNumber: '+56911111111', role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uidElena', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved' },
     { id: '2', name: 'Carlos Rivas', email: 'carlos.rivas@example.com', phoneNumber: '+56922222222', role: USER_ROLES.PUBLICADOR, status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uidCarlos', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G2', adminApprovalStatus: 'approved' },
-    { id: '3', name: 'Laura Méndez (SG)', email: 'laura.mendez@example.com', role: USER_ROLES.SG, status: 'Bloqueado', invitationStatus: 'accepted', firebaseAuthUid: 'uidLaura', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved'},
+    { id: '3', name: 'Laura Méndez (SG)', email: 'laura.mendez@example.com', role: USER_ROLES.SG, status: 'Bloqueado', blockReason: "Inactividad prolongada", invitationStatus: 'accepted', firebaseAuthUid: 'uidLaura', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved'},
     { id: '4', name: 'Pedro Herrera', email: 'pedro.herrera@example.com', phoneNumber: '56944444444', role: USER_ROLES.PUBLICADOR, status: 'Activo', invitationStatus: 'pending', firebaseAuthUid: 'uidPedro', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), adminApprovalStatus: 'approved' },
     { id: '5', name: 'Nuevo Publicador (Desde Grupo)', email: 'nuevo.grupo@example.com', phoneNumber: '+56933333333', role: USER_ROLES.PUBLICADOR, status: 'Pendiente Aprobación Admin', invitationStatus: 'pending', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), addedByGroupId: 'G1', adminApprovalStatus: 'pending' },
   ]);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const router = useRouter();
-  const { startImpersonation, actualUserRole } = usePermissions();
+  const { userProfile: currentUserProfile, startImpersonation, actualUserRole } = usePermissions();
+
+  const [isBlockReasonUserDialogOpen, setIsBlockReasonUserDialogOpen] = useState(false);
+  const [userToBlock, setUserToBlock] = useState<UserProfile | null>(null);
+  const [blockReasonUser, setBlockReasonUser] = useState("");
+
 
   const handleOpenInviteDialog = () => {
     setIsInviteUserDialogOpen(true);
   };
 
   const handleManagePermissions = () => {
-    toast({
-      title: "Próximamente",
-      description: "La gestión de permisos de roles estará disponible pronto.",
-    });
+    router.push('/settings');
   };
 
   const handleUserInvited = (invitedUser: Pick<UserProfile, 'name' | 'email' | 'role' | 'assignedGroupId' | 'phoneNumber'>) => {
@@ -72,8 +76,8 @@ export default function UsuariosPage() {
       phoneNumber: invitedUser.phoneNumber,
       role: invitedUser.role,
       assignedGroupId: invitedUser.assignedGroupId,
-      status: 'Activo', // Directly active if invited by admin
-      adminApprovalStatus: 'approved', // Approved by default if admin invites
+      status: 'Activo', 
+      adminApprovalStatus: 'approved',
       invitationStatus: 'pending',
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -82,28 +86,46 @@ export default function UsuariosPage() {
     setIsInviteUserDialogOpen(false);
   };
 
-  const handleToggleBlockUser = (userId: string) => {
-    setUsers(prevUsers =>
-      prevUsers.map(user => {
-        if (user.id === userId) {
-          // Cannot block a user pending admin approval, they must be approved first then can be blocked.
-          if (user.adminApprovalStatus === 'pending') {
-            toast({ title: "Acción no permitida", description: "Debes aprobar al usuario antes de bloquearlo.", variant: "default" });
-            return user;
-          }
-          return { ...user, status: user.status === 'Activo' ? 'Bloqueado' : 'Activo', updatedAt: Timestamp.now() };
-        }
-        return user;
-      })
-    );
-    const user = users.find(u => u.id === userId);
-    if (user && user.adminApprovalStatus !== 'pending') {
-      toast({
-        title: `Usuario ${user.status === 'Activo' ? 'Bloqueado' : 'Desbloqueado'}`,
-        description: `${user.name} ha sido ${user.status === 'Activo' ? 'bloqueado' : 'desbloqueado'} (simulación).`,
-      });
-    }
+  const handleOpenBlockReasonUserDialog = (user: UserProfile) => {
+    setUserToBlock(user);
+    setBlockReasonUser(user.blockReason || "");
+    setIsBlockReasonUserDialogOpen(true);
   };
+
+  const confirmToggleBlockUser = async () => {
+    if (!userToBlock || !db || Object.keys(db).length === 0) return;
+
+    const newStatus = userToBlock.status === 'Activo' ? 'Bloqueado' : 'Activo';
+    const updateData: { status: UserProfile['status']; updatedAt: Timestamp; blockReason?: any } = {
+      status: newStatus,
+      updatedAt: Timestamp.now(),
+    };
+
+    if (newStatus === 'Bloqueado') {
+      updateData.blockReason = blockReasonUser.trim() || deleteField();
+    } else {
+      updateData.blockReason = deleteField();
+    }
+    
+    // Simulating Firestore update for now
+    setUsers(prevUsers =>
+      prevUsers.map(u =>
+        u.id === userToBlock.id
+          ? { ...u, status: newStatus, blockReason: newStatus === 'Bloqueado' ? (blockReasonUser.trim() || undefined) : undefined, updatedAt: Timestamp.now() }
+          : u
+      )
+    );
+    
+    toast({
+      title: `Usuario ${newStatus === 'Bloqueado' ? 'Bloqueado' : 'Desbloqueado'}`,
+      description: `${userToBlock.name} ha sido ${newStatus === 'Bloqueado' ? 'bloqueado' : 'desbloqueado'} (simulación).`,
+    });
+
+    setIsBlockReasonUserDialogOpen(false);
+    setUserToBlock(null);
+    setBlockReasonUser("");
+  };
+
 
   const handleDeleteUser = (userId: string) => {
     setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
@@ -148,7 +170,7 @@ export default function UsuariosPage() {
       toast({title: "Acción no permitida", description: "No puedes suplantar a otro administrador o a ti mismo.", variant: "destructive"});
       return;
     }
-    if (userToImpersonate.adminApprovalStatus === 'pending') {
+     if (userToImpersonate.adminApprovalStatus === 'pending' || userToImpersonate.status === 'Pendiente Aprobación Admin') {
       toast({title: "Acción no permitida", description: "Este usuario está pendiente de aprobación. Apruébalo primero para poder suplantarlo.", variant: "default"});
       return;
     }
@@ -160,7 +182,7 @@ export default function UsuariosPage() {
     setUsers(prevUsers =>
       prevUsers.map(user =>
         user.id === userId
-          ? { ...user, adminApprovalStatus: 'approved', status: 'Activo', invitationStatus: 'pending', updatedAt: Timestamp.now() } // Also set to pending for invitation flow
+          ? { ...user, adminApprovalStatus: 'approved', status: 'Activo', invitationStatus: 'pending', updatedAt: Timestamp.now() } 
           : user
       )
     );
@@ -181,12 +203,17 @@ export default function UsuariosPage() {
     return name.substring(0, 2).toUpperCase();
   };
 
+  const canManageUsers = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
+  const canViewSensitiveUserDetails = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || currentUserProfile?.role === USER_ROLES.SS;
+
+
   const filteredUsers = useMemo(() => {
-    // Sort users so that 'Pendiente Aprobación Admin' are at the top
     const sortedUsers = [...users].sort((a, b) => {
+      if (a.adminApprovalStatus === 'pending' && b.adminApprovalStatus !== 'pending') return -1;
+      if (a.adminApprovalStatus !== 'pending' && b.adminApprovalStatus === 'pending') return 1;
       if (a.status === 'Pendiente Aprobación Admin' && b.status !== 'Pendiente Aprobación Admin') return -1;
       if (a.status !== 'Pendiente Aprobación Admin' && b.status === 'Pendiente Aprobación Admin') return 1;
-      return 0;
+      return (a.name || "").localeCompare(b.name || "");
     });
 
     if (!searchTerm) return sortedUsers;
@@ -275,7 +302,12 @@ export default function UsuariosPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredUsers.map((user) => (
+                    {filteredUsers.map((user) => {
+                      const isUserAdmin = user.role === USER_ROLES.ENCARGADO_TERRITORIO;
+                      const displayStatus = (canViewSensitiveUserDetails || user.status !== 'Bloqueado') ? user.status : 'Activo';
+                      const showBlockReasonTooltip = canViewSensitiveUserDetails && user.status === 'Bloqueado' && user.blockReason;
+
+                      return (
                       <TableRow key={user.id} className={user.adminApprovalStatus === 'pending' ? 'bg-amber-500/10 hover:bg-amber-500/15' : ''}>
                         <TableCell>
                           <div className="flex items-center gap-3">
@@ -301,17 +333,27 @@ export default function UsuariosPage() {
                         <TableCell><Badge variant="outline">{user.role}</Badge></TableCell>
                         <TableCell>{user.assignedGroupId || 'N/A'}</TableCell>
                         <TableCell>
-                          <Badge variant={
-                              user.status === 'Activo' ? 'default'
-                              : user.status === 'Pendiente Aprobación Admin' ? 'outline'
-                              : 'destructive'
-                            }
-                            className={
-                                user.status === 'Pendiente Aprobación Admin' ? 'border-blue-500 text-blue-600 bg-blue-500/10' : ''
-                            }
-                          >
-                            {user.status}
-                          </Badge>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant={
+                                  displayStatus === 'Activo' ? 'default'
+                                  : displayStatus === 'Pendiente Aprobación Admin' ? 'outline'
+                                  : 'destructive' // Only shown to admins/SS
+                                }
+                                className={
+                                    displayStatus === 'Pendiente Aprobación Admin' ? 'border-blue-500 text-blue-600 bg-blue-500/10' : ''
+                                }
+                              >
+                                {displayStatus}
+                              </Badge>
+                            </TooltipTrigger>
+                            {showBlockReasonTooltip && (
+                               <TooltipContent side="bottom" className="max-w-xs bg-destructive text-destructive-foreground p-2 rounded-md shadow-lg">
+                                  <p className="text-xs font-semibold flex items-center"><MessageSquareWarning size={13} className="mr-1.5"/>Razón del bloqueo:</p>
+                                  <p className="text-xs italic">{user.blockReason}</p>
+                               </TooltipContent>
+                            )}
+                          </Tooltip>
                         </TableCell>
                         <TableCell>
                           <Badge variant={user.invitationStatus === 'accepted' ? 'secondary' : 'outline'} className={user.invitationStatus === 'pending' ? 'text-amber-600 border-amber-500' : ''}>
@@ -320,7 +362,7 @@ export default function UsuariosPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-0.5">
-                            {user.adminApprovalStatus === 'pending' && (
+                            {user.adminApprovalStatus === 'pending' && canManageUsers && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700" onClick={() => handleApproveUser(user.id)}>
@@ -331,23 +373,41 @@ export default function UsuariosPage() {
                               </Tooltip>
                             )}
 
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user.id)} disabled={user.adminApprovalStatus === 'pending'}>
-                                  <Edit3 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Editar Usuario</TooltipContent>
-                            </Tooltip>
+                           {canManageUsers && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user.id)} disabled={user.adminApprovalStatus === 'pending'}>
+                                    <Edit3 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Editar Usuario</TooltipContent>
+                              </Tooltip>
+                           )}
 
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleToggleBlockUser(user.id)} disabled={user.adminApprovalStatus === 'pending' || user.role === USER_ROLES.ENCARGADO_TERRITORIO}>
-                                  {user.status === 'Activo' ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{user.status === 'Activo' ? 'Bloquear Usuario' : 'Desbloquear Usuario'}</TooltipContent>
-                            </Tooltip>
+                            {canManageUsers && !isUserAdmin && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" 
+                                   onClick={() => {
+                                      if (user.adminApprovalStatus === 'pending') {
+                                          toast({ title: "Acción no permitida", description: "Debes aprobar al usuario antes de bloquearlo.", variant: "default" });
+                                          return;
+                                      }
+                                      if (user.status === 'Activo') {
+                                          handleOpenBlockReasonUserDialog(user);
+                                      } else if (user.status === 'Bloqueado') {
+                                          setUserToBlock(user); // Set context for confirmToggleBlockUser
+                                          setBlockReasonUser(""); // Clear reason for unblocking
+                                          confirmToggleBlockUser();
+                                      }
+                                  }}
+                                  disabled={user.adminApprovalStatus === 'pending' || isUserAdmin}>
+                                    {user.status === 'Activo' ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{user.status === 'Activo' ? 'Bloquear Usuario' : 'Desbloquear Usuario'}</TooltipContent>
+                              </Tooltip>
+                            )}
 
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -358,7 +418,7 @@ export default function UsuariosPage() {
                               <TooltipContent>Ver Disponibilidad</TooltipContent>
                             </Tooltip>
 
-                            {canImpersonate && user.role !== USER_ROLES.ENCARGADO_TERRITORIO && user.status === 'Activo' && user.adminApprovalStatus === 'approved' && (
+                            {canImpersonate && !isUserAdmin && user.status === 'Activo' && user.adminApprovalStatus === 'approved' && (
                                 <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleImpersonateUser(user)}>
@@ -369,7 +429,7 @@ export default function UsuariosPage() {
                                 </Tooltip>
                             )}
 
-                            {user.invitationStatus === 'pending' && (
+                            {user.invitationStatus === 'pending' && user.adminApprovalStatus === 'approved' && canManageUsers && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleResendInvitation(user.email)}>
@@ -380,39 +440,41 @@ export default function UsuariosPage() {
                               </Tooltip>
                             )}
 
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
-                                    disabled={user.role === USER_ROLES.ENCARGADO_TERRITORIO} >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>{user.role === USER_ROLES.ENCARGADO_TERRITORIO ? "No se puede eliminar al administrador" : "Eliminar Usuario"}</TooltipContent>
-                                </Tooltip>
-                              </AlertDialogTrigger>
-                              {user.role !== USER_ROLES.ENCARGADO_TERRITORIO && (
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario '{user.name}' de tus registros (simulación).
-                                    </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className={buttonVariants({variant: "destructive"})}>
-                                        Sí, eliminar
-                                    </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                              )}
-                            </AlertDialog>
+                            {canManageUsers && !isUserAdmin && (
+                                <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
+                                        disabled={isUserAdmin} >
+                                        <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{isUserAdmin ? "No se puede eliminar al administrador" : "Eliminar Usuario"}</TooltipContent>
+                                    </Tooltip>
+                                </AlertDialogTrigger>
+                                {!isUserAdmin && (
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario '{user.name}' de tus registros (simulación).
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className={buttonVariants({variant: "destructive"})}>
+                                            Sí, eliminar
+                                        </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                )}
+                                </AlertDialog>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )})}
                   </TableBody>
                 </Table>
               </div>
@@ -425,6 +487,37 @@ export default function UsuariosPage() {
           onOpenChange={setIsInviteUserDialogOpen}
           onUserInvited={handleUserInvited}
         />
+
+        {userToBlock && (
+          <AlertDialog open={isBlockReasonUserDialogOpen} onOpenChange={setIsBlockReasonUserDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center"><ShieldAlert className="mr-2 h-5 w-5 text-amber-500"/>Bloquear Usuario: {userToBlock.name}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Estás a punto de bloquear a este usuario. Si lo deseas, puedes añadir una razón (opcional).
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="py-2">
+                <Label htmlFor="blockReasonUserInput" className="text-sm font-medium">Razón del Bloqueo (Opcional)</Label>
+                <Textarea
+                  id="blockReasonUserInput"
+                  placeholder="Ej: Inactividad, solicitud del usuario, etc."
+                  value={blockReasonUser}
+                  onChange={(e) => setBlockReasonUser(e.target.value)}
+                  className="mt-1"
+                  rows={3}
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => { setIsBlockReasonUserDialogOpen(false); setUserToBlock(null); setBlockReasonUser(""); }}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmToggleBlockUser} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                  Confirmar Bloqueo
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
       </div>
     </TooltipProvider>
   );

@@ -9,6 +9,7 @@ export interface UserProfile {
   phoneNumber?: string;
   role: UserRole;
   status: 'Activo' | 'Bloqueado' | 'Pendiente Aprobación Admin'; // Enum for status, added new status
+  blockReason?: string; // New field for block reason
   assignedGroupId?: string; // FK to preachingGroups
   invitationToken?: string | null; // Can be null after acceptance
   invitationStatus?: 'pending' | 'accepted'; // Enum for invitation status
@@ -107,6 +108,7 @@ export interface Casa {
   phoneNumber?: string;
   availableDays?: CasaAvailability; 
   isBlocked: boolean;
+  blockReason?: string; // New field for block reason
   notes?: string;
   notesForSS?: string; // New field for SS notes
   isSuitableForRural?: boolean;
@@ -137,7 +139,7 @@ export interface Territory {
   doNotCallAddresses?: string[];
   warnings?: string[];
   isBlocked: boolean;
-  blockReason?: string;
+  blockReason?: string; // New field for block reason
   unblockDate?: Timestamp;
   groupIds?: string[];
   associatedCasaIds?: string[];
