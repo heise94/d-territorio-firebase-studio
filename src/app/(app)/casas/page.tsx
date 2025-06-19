@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, Filter, X as XIcon } from "lucide-react";
 import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType } from "@/types";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const DAY_ORDER_AVAILABILITY: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS_AVAILABILITY: Record<DayOfWeek, string> = {
   monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi', saturday: 'Sá', sunday: 'Do'
+};
+
+// Define dayOfWeekLabels here as it was missing
+const dayOfWeekLabels: Record<DayOfWeek, string> = {
+  monday: "Lunes",
+  tuesday: "Martes",
+  wednesday: "Miércoles",
+  thursday: "Jueves",
+  friday: "Viernes",
+  saturday: "Sábado",
+  sunday: "Domingo",
 };
 
 const PreachingTypeIconSmall = ({ type, className }: { type: PreachingType, className?: string }) => {
@@ -238,26 +249,15 @@ export default function CasasPage() {
     const dataForFirestore: { [key: string]: any } = {
         ownerName: submittedCasaData.ownerName,
         address: submittedCasaData.address,
+        isBlocked: submittedCasaData.isBlocked, 
         updatedAt: Timestamp.now(),
         createdAt: (isEditing && casaToEdit?.createdAt) ? casaToEdit.createdAt : Timestamp.now(),
-        isBlocked: submittedCasaData.isBlocked, // Crucial: use the isBlocked state from submitted data
     };
     
-    // Handle blockReason based on the isBlocked state
     if (submittedCasaData.isBlocked) {
-      // If it is blocked, we want to preserve the reason if it came from the dialog.
-      // The dialog for editing general info does not touch blockReason directly.
-      // So, if it's blocked, we check if casaToEdit (original data) had a blockReason.
-      if (casaToEdit?.isBlocked && casaToEdit?.blockReason) {
-        dataForFirestore.blockReason = casaToEdit.blockReason;
-      } else if (submittedCasaData.blockReason) { // This might come if the submit data explicitly includes it
-        dataForFirestore.blockReason = submittedCasaData.blockReason;
-      } else {
-        dataForFirestore.blockReason = deleteField(); // No reason, or was unblocked then re-blocked without reason
-      }
+        dataForFirestore.blockReason = submittedCasaData.blockReason || deleteField();
     } else {
-      // If it's not blocked, ensure blockReason is removed.
-      dataForFirestore.blockReason = deleteField();
+        dataForFirestore.blockReason = deleteField();
     }
 
     const optionalFields: (keyof Casa)[] = ['phoneNumber', 'notes', 'notesForSS', 'addedByGroupId', 'isSuitableForRural', 'lastVisitedAt'];
@@ -567,10 +567,10 @@ export default function CasasPage() {
                 
                 let showBlockedBadge = false;
                 if (isCasaActuallyBlocked && canViewBlockDetails) {
-                    cardBaseClass += ' bg-muted/50';
+                    cardBaseClass += ' bg-muted/50'; // Apply muted background if viewer can see it's blocked
                     showBlockedBadge = true;
                 }
-                 if (isCasaActuallyBlocked && !canManageBlocking && canViewBlockDetails) { // Not admin, just viewing a blocked state with details
+                 if (isCasaActuallyBlocked && !canManageBlocking && canViewBlockDetails) { 
                     cardContentClass += " opacity-70";
                     cardDescriptionClass += " opacity-70";
                     cardPhoneClass += " opacity-70";
