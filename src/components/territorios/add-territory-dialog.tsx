@@ -28,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Territory, TerritoryType, Casa, PreachingGroup } from "@/types"; // Added Casa, PreachingGroup
+import type { Territory, TerritoryType, Casa, PreachingGroup } from "@/types"; 
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, UploadCloud, XCircle, ChevronDown } from "lucide-react";
@@ -65,8 +65,8 @@ interface AddTerritoryDialogProps {
   onOpenChange: (isOpen: boolean) => void;
   onTerritorySubmit: (territory: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'>) => void;
   territoryToEdit?: Territory | null;
-  availableCasas: Casa[]; // Changed from mock to prop
-  availableGroups: PreachingGroup[]; // Changed from mock to prop
+  availableCasas: Casa[]; 
+  availableGroups: PreachingGroup[]; 
 }
 
 export function AddTerritoryDialog({ 
@@ -80,7 +80,7 @@ export function AddTerritoryDialog({
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mapImagePreview, setMapImagePreview] = useState<string | null>(null);
-  const isEditMode = !!territoryToEdit;
+  const isEditMode = !!territoryToEdit?.id; // Check if territoryToEdit has an ID to determine edit mode
 
   const form = useForm<TerritoryFormValues>({
     resolver: zodResolver(territoryFormSchema),
@@ -106,7 +106,7 @@ export function AddTerritoryDialog({
     if (territoryToEdit && isOpen) {
       form.reset({
         type: territoryToEdit.type || "urban",
-        number: territoryToEdit.number || "",
+        number: territoryToEdit.number || "", // For duplication, this might be empty if urban
         name: territoryToEdit.name || "",
         mapImageUrl: territoryToEdit.mapImageUrl || "",
         googleMapsLink: territoryToEdit.googleMapsLink || "",
@@ -193,8 +193,12 @@ export function AddTerritoryDialog({
     const blockHouseCounts = values.blockHouseCounts || [];
     const approxHouseCount = blockHouseCounts.reduce((sum, count) => sum + count, 0);
 
+    // Use territoryToEdit.id if it exists (edit or duplication prefill), otherwise generate new.
+    // The key is that for duplication, territoryToEdit might not have an ID if it's a fresh "copy" object.
+    const idForSubmit = territoryToEdit?.id && isEditMode ? territoryToEdit.id : crypto.randomUUID();
+    
     const territoryDataToSubmit: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'> = {
-      id: isEditMode && territoryToEdit ? territoryToEdit.id : crypto.randomUUID(),
+      id: idForSubmit,
       type: values.type,
       name: values.name,
       totalBlocks: values.totalBlocks,
@@ -202,13 +206,15 @@ export function AddTerritoryDialog({
       approxHouseCount: approxHouseCount,
       doNotCallAddresses: values.doNotCallAddressesString?.split('\n').map(s => s.trim()).filter(s => s) || [],
       warnings: values.warningsString?.split('\n').map(s => s.trim()).filter(s => s) || [],
-      isBlocked: isEditMode && territoryToEdit ? territoryToEdit.isBlocked : false, 
+      // For isBlocked and blockReason, use original values from territoryToEdit if editing, otherwise defaults for new/duplicate
+      isBlocked: territoryToEdit?.id && isEditMode ? territoryToEdit.isBlocked : false,
+      blockReason: territoryToEdit?.id && isEditMode && territoryToEdit.isBlocked ? territoryToEdit.blockReason : undefined,
       groupIds: values.groupIds || [],
       associatedCasaIds: values.associatedCasaIds || [],
-      createdAt: isEditMode && territoryToEdit ? territoryToEdit.createdAt : Timestamp.now(),
+      // For createdAt, use original if editing, otherwise new. For duplication, territoryToEdit.createdAt is the original's
+      createdAt: territoryToEdit?.id && isEditMode ? territoryToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
       dataAiHint: "map sketch", 
-      blockReason: isEditMode && territoryToEdit?.isBlocked && territoryToEdit.blockReason ? territoryToEdit.blockReason : undefined,
     };
 
     if (values.type === "urban" && values.number && values.number.trim() !== "") {
@@ -220,19 +226,24 @@ export function AddTerritoryDialog({
     if (values.googleMapsLink && values.googleMapsLink.trim() !== "") {
       territoryDataToSubmit.googleMapsLink = values.googleMapsLink.trim();
     }
-    if (isEditMode && territoryToEdit && territoryToEdit.lastWorked) {
-      territoryDataToSubmit.lastWorked = territoryToEdit.lastWorked;
-    }
-    if (isEditMode && territoryToEdit && territoryToEdit.unblockDate) {
-      territoryDataToSubmit.unblockDate = territoryToEdit.unblockDate;
+
+    // Ensure these are not carried over from an original item during duplication
+    if (!isEditMode) { // True for both new and duplicated items
+        territoryDataToSubmit.lastWorked = undefined;
+        territoryDataToSubmit.unblockDate = undefined;
+    } else if (isEditMode && territoryToEdit?.lastWorked) { // Preserve if truly editing
+        territoryDataToSubmit.lastWorked = territoryToEdit.lastWorked;
+    } else if (isEditMode && territoryToEdit?.unblockDate) { // Preserve if truly editing
+        territoryDataToSubmit.unblockDate = territoryToEdit.unblockDate;
     }
     
     onTerritorySubmit(territoryDataToSubmit);
 
-    if (!isEditMode) {
+    if (!isEditMode) { // Reset form only if creating new or after duplication
         form.reset();
         setMapImagePreview(null);
     }
+    // Dialog closing is handled by parent page
     setIsSubmitting(false);
   }
 
@@ -249,7 +260,9 @@ export function AddTerritoryDialog({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) {
-            if (!isEditMode) form.reset();
+            // Reset only if not truly editing an existing record.
+            // For duplication, territoryToEdit might be set, but it's a 'new' record scenario.
+            if (!isEditMode) form.reset(); 
             setMapImagePreview(null);
         }
         onOpenChange(open);
@@ -259,6 +272,7 @@ export function AddTerritoryDialog({
           <DialogTitle>{isEditMode ? "Editar Territorio" : "Añadir Nuevo Territorio"}</DialogTitle>
           <DialogDescription>
             {isEditMode ? "Modifica los detalles del territorio." : "Completa los detalles del nuevo territorio."}
+            {territoryToEdit && !isEditMode && <span className="block text-sm text-blue-600 mt-1">Estás creando una copia de "{territoryToEdit.name}". Ajusta el nombre y el número.</span>}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -269,7 +283,7 @@ export function AddTerritoryDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipo de Territorio</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona un tipo" />
@@ -467,7 +481,7 @@ export function AddTerritoryDialog({
                               ? field.onChange([...currentSelection, casa.id])
                               : field.onChange(currentSelection.filter(id => id !== casa.id));
                           }}
-                          onSelect={(e) => e.preventDefault()} // Prevent closing on select
+                          onSelect={(e) => e.preventDefault()} 
                         >
                           {casa.ownerName} {casa.address ? `(${casa.address})` : ''}
                         </DropdownMenuCheckboxItem>
@@ -540,3 +554,4 @@ export function AddTerritoryDialog({
     </Dialog>
   );
 }
+

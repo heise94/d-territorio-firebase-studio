@@ -2,13 +2,13 @@
 "use client";
 
 import Image from 'next/image';
-import { useState, useMemo } from 'react'; // Added useMemo
+import { useState, useMemo } from 'react'; 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Share2, Building, ShieldCheck, BarChart3, MessageSquareWarning } from "lucide-react";
-import type { Territory, Casa, PreachingGroup } from "@/types"; // Added Casa, PreachingGroup
+import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Share2, Building, ShieldCheck, BarChart3, MessageSquareWarning, Copy } from "lucide-react";
+import type { Territory, Casa, PreachingGroup } from "@/types"; 
 import { ViewImageDialog } from './view-image-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
@@ -17,17 +17,19 @@ interface TerritoryCardProps {
   territory: Territory;
   onEdit: () => void;
   onDelete: () => void;
+  onDuplicate: () => void; // New prop for duplication
   onBlockToggle: () => void; 
   canManage: boolean; 
   canViewBlockDetails: boolean; 
-  availableCasas: Casa[]; // Added prop
-  availableGroups: PreachingGroup[]; // Added prop
+  availableCasas: Casa[]; 
+  availableGroups: PreachingGroup[]; 
 }
 
 export function TerritoryCard({ 
     territory, 
     onEdit, 
-    onDelete, 
+    onDelete,
+    onDuplicate, 
     onBlockToggle, 
     canManage, 
     canViewBlockDetails,
@@ -171,61 +173,68 @@ export function TerritoryCard({
         </CardContent>
         <CardFooter className={`border-t pt-3 pb-3 flex flex-wrap justify-center gap-1 ${showBlockedState && !canManage ? 'opacity-80 pointer-events-none' : ''}`}>
           {canManage && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Editar territorio" className="h-8 w-8">
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>Editar</p></TooltipContent>
-            </Tooltip>
-          )}
-
-          {canManage && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onBlockToggle}
-                  aria-label={territory.isBlocked ? "Desbloquear territorio" : "Bloquear territorio"}
-                  className={`h-8 w-8 ${!territory.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
-                >
-                  {territory.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p>{territory.isBlocked ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
-            </Tooltip>
-          )}
-
-          {canManage && (
-            <AlertDialog>
+            <>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="Eliminar territorio" className="h-8 w-8 text-destructive hover:bg-destructive/10">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
+                  <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Editar territorio" className="h-8 w-8">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                 </TooltipTrigger>
-                <TooltipContent><p>Eliminar</p></TooltipContent>
+                <TooltipContent><p>Editar</p></TooltipContent>
               </Tooltip>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta acción no se puede deshacer. Esto eliminará permanentemente el territorio
-                    de los registros.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                    Sí, eliminar
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={onDuplicate} aria-label="Duplicar territorio" className="h-8 w-8">
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Duplicar</p></TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onBlockToggle}
+                    aria-label={territory.isBlocked ? "Desbloquear territorio" : "Bloquear territorio"}
+                    className={`h-8 w-8 ${!territory.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
+                  >
+                    {territory.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>{territory.isBlocked ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
+              </Tooltip>
+
+              <AlertDialog>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" aria-label="Eliminar territorio" className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Eliminar</p></TooltipContent>
+                </Tooltip>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Esto eliminará permanentemente el territorio
+                      de los registros.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                      Sí, eliminar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
           )}
 
           {territory.mapImageUrl && (

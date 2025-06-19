@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddTerritoryDialog } from "@/components/territorios/add-territory-dialog";
 import { TerritoryCard } from "@/components/territorios/territory-card";
-import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert } from "lucide-react";
+import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert, Copy } from "lucide-react";
 import type { Territory, TerritoryType, Casa, PreachingGroup } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, FieldValue, getDocs } from "firebase/firestore";
@@ -71,7 +71,7 @@ export default function TerritoriosPage() {
 
     setIsLoadingCasas(true);
     const casasCollectionRef = collection(db, "casas");
-    const qCasas = query(casasCollectionRef, orderBy("ownerName", "asc")); // Order by name for select dropdown
+    const qCasas = query(casasCollectionRef, orderBy("ownerName", "asc"));
     const unsubscribeCasas = onSnapshot(qCasas, (snapshot) => {
         const fetchedCasas = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -87,7 +87,7 @@ export default function TerritoriosPage() {
 
     setIsLoadingGroups(true);
     const groupsCollectionRef = collection(db, "preachingGroups");
-    const qGroups = query(groupsCollectionRef, orderBy("name", "asc")); // Order by name for select dropdown
+    const qGroups = query(groupsCollectionRef, orderBy("name", "asc"));
     const unsubscribeGroups = onSnapshot(qGroups, (snapshot) => {
         const fetchedGroups = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -124,6 +124,28 @@ export default function TerritoriosPage() {
     setTerritoryToEdit(territory);
     setIsTerritoryDialogOpen(true);
   };
+  
+  const handleOpenDuplicateDialog = (territory: Territory) => {
+    const duplicatedTerritoryData: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'> = {
+      ...territory, // Spread all properties first
+      id: crypto.randomUUID(), // Generate a new ID for the duplicate
+      name: `Copia de ${territory.name}`,
+      number: territory.type === 'urban' ? "" : undefined, // Urban territories need a new number
+      createdAt: Timestamp.now(), // New creation timestamp
+      updatedAt: Timestamp.now(), // New update timestamp
+      isBlocked: false, // Duplicates are not blocked by default
+      blockReason: undefined, // Clear block reason
+      lastWorked: undefined, // Reset last worked date
+      unblockDate: undefined, // Reset unblock date
+    };
+    // Ensure no 'id' field from the original territory object is present in the partial before setting it as 'territoryToEdit'
+    // as the dialog logic for `isEditMode` relies on `territoryToEdit.id` to differentiate edit vs new
+    const { id: originalId, ...dataForDialog } = duplicatedTerritoryData;
+
+    setTerritoryToEdit(dataForDialog as Territory); // Cast as Territory for the dialog, ID will be handled on submit
+    setIsTerritoryDialogOpen(true);
+  };
+
 
   const handleTerritorySubmit = async (submittedTerritoryData: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'>) => {
     if (!db || Object.keys(db).length === 0) {
@@ -131,30 +153,28 @@ export default function TerritoriosPage() {
       return;
     }
     
-    const isEditing = !!territories.find(t => t.id === submittedTerritoryData.id);
-    const docRef = doc(db, "territories", submittedTerritoryData.id);
+    const isEditingReal = !!territories.find(t => t.id === submittedTerritoryData.id) && !!territoryToEdit?.id;
+    const docId = isEditingReal ? submittedTerritoryData.id : crypto.randomUUID();
+    const docRef = doc(db, "territories", docId);
 
     const dataForFirestore: { [key: string]: any } = {
+      id: docId, // Ensure the ID is set for new documents too
       type: submittedTerritoryData.type,
       name: submittedTerritoryData.name,
-      isBlocked: submittedTerritoryData.isBlocked, // This comes from the original entity if editing
+      isBlocked: submittedTerritoryData.isBlocked,
       updatedAt: Timestamp.now(),
-      createdAt: (isEditing && territoryToEdit?.createdAt) ? territoryToEdit.createdAt : Timestamp.now(),
+      // Preserve createdAt if editing, otherwise set new one.
+      // For duplication, territoryToEdit might have a createdAt, but it's a new entity, so reset it.
+      createdAt: isEditingReal ? submittedTerritoryData.createdAt : Timestamp.now(),
     };
     
-    // Handle blockReason carefully based on isBlocked state
     if (submittedTerritoryData.isBlocked) {
-      // If it was blocked and still is, preserve or set the blockReason.
-      // The blockReason in submittedTerritoryData is the *original* one if editing non-block fields.
-      // The blockReason is set/cleared via the specific block/unblock dialog.
       if (submittedTerritoryData.blockReason && submittedTerritoryData.blockReason.trim() !== "") {
         dataForFirestore.blockReason = submittedTerritoryData.blockReason.trim();
       } else {
-         // If it's blocked but no reason was passed (e.g. original entity had no reason), ensure it's not an empty string
         dataForFirestore.blockReason = deleteField();
       }
     } else {
-      // If it's not blocked (either newly created, was unblocked, or edited while unblocked), ensure blockReason is removed
       dataForFirestore.blockReason = deleteField();
     }
     
@@ -176,7 +196,6 @@ export default function TerritoriosPage() {
         }
     });
 
-    // Ensure undefined values are not sent, as setDoc with merge treats them as "do not change"
     Object.keys(dataForFirestore).forEach(k => {
         if (dataForFirestore[k] === undefined && !(dataForFirestore[k] instanceof FieldValue)) {
             delete dataForFirestore[k];
@@ -186,8 +205,8 @@ export default function TerritoriosPage() {
     try {
       await setDoc(docRef, dataForFirestore, { merge: true }); 
       toast({
-        title: isEditing ? "Territorio Actualizado" : "Territorio Añadido",
-        description: `El territorio "${dataForFirestore.name}" ha sido ${isEditing ? 'actualizado' : 'guardado'} en Firestore.`,
+        title: isEditingReal ? "Territorio Actualizado" : "Territorio Creado",
+        description: `El territorio "${dataForFirestore.name}" ha sido ${isEditingReal ? 'actualizado' : 'creado'} en Firestore.`,
       });
       setIsTerritoryDialogOpen(false);
     } catch (error) {
@@ -314,6 +333,7 @@ export default function TerritoriosPage() {
             territory={territory}
             onEdit={() => handleOpenEditDialog(territory)}
             onDelete={() => handleDeleteTerritory(territory.id)}
+            onDuplicate={() => handleOpenDuplicateDialog(territory)}
             onBlockToggle={() => {
               if (territory.isBlocked) { 
                 setTerritoryToBlock(territory); 
