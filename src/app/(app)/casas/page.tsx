@@ -200,7 +200,6 @@ export default function CasasPage() {
         if (submittedCasaData[key as keyof typeof submittedCasaData] !== undefined) {
             (sanitizedData as any)[key] = submittedCasaData[key as keyof typeof submittedCasaData];
         } else {
-            // Handle specific fields that should be deleted if empty/undefined
             if (key === 'addedByGroupId' && (submittedCasaData.addedByGroupId === "" || submittedCasaData.addedByGroupId === undefined)) {
                  sanitizedData[key] = deleteField();
             } else if (key === 'unavailabilityPeriods' && (!submittedCasaData.unavailabilityPeriods || submittedCasaData.unavailabilityPeriods.length === 0)){
@@ -376,7 +375,7 @@ export default function CasasPage() {
                 const formattedUnavailability = formatUnavailabilityPeriods(casa.unavailabilityPeriods);
                 const formattedAvailability = formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots);
                 return (
-                <Card key={casa.id} className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${casa.isBlocked ? 'opacity-60 bg-muted/50' : ''}`}>
+                <Card key={casa.id} className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${casa.isBlocked ? 'bg-muted/50' : ''}`}>
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                         <CardTitle className="text-xl font-semibold">{casa.ownerName}</CardTitle>
@@ -392,7 +391,7 @@ export default function CasasPage() {
                          <p className="text-xs text-muted-foreground flex items-center pt-1"><GroupIcon size={12} className="mr-1.5 shrink-0 text-blue-600" /> Grupo: <span className="font-medium text-blue-700 dark:text-blue-400 ml-1">{getGroupNameById(casa.addedByGroupId)}</span></p>
                     )}
                   </CardHeader>
-                  <CardContent className="flex-grow space-y-3 pt-2 text-sm">
+                  <CardContent className={`flex-grow space-y-3 pt-2 text-sm ${casa.isBlocked ? 'opacity-60' : ''}`}>
                     <div>
                         <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad (Horarios Programa):</span>
                         <p className="text-foreground pl-1 text-xs">{formattedAvailability}</p>
@@ -422,7 +421,7 @@ export default function CasasPage() {
                         </div>
                     )}
                   </CardContent>
-                  <CardFooter className="border-t pt-4 pb-4 flex justify-center gap-1">
+                  <CardFooter className={`border-t pt-4 pb-4 flex justify-center gap-1 ${casa.isBlocked ? 'opacity-60' : ''}`}>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
