@@ -65,6 +65,7 @@ const territoryFormSchema = z.object({
   warningsString: z.string().optional(),
   groupIds: z.array(z.string()).optional().default([]),
   associatedCasaIds: z.array(z.string()).optional().default([]),
+  // blockReason is not directly edited here but passed if exists
 }).superRefine((data, ctx) => {
   if (data.type === "urban" && (!data.number || data.number.trim() === "")) {
     ctx.addIssue({
@@ -80,7 +81,7 @@ type TerritoryFormValues = z.infer<typeof territoryFormSchema>;
 interface AddTerritoryDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onTerritorySubmit: (territory: Territory) => void;
+  onTerritorySubmit: (territory: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt'>) => void;
   territoryToEdit?: Territory | null;
 }
 
@@ -109,8 +110,6 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
 
   const watchedType = form.watch("type");
   const watchedTotalBlocks = form.watch("totalBlocks");
-  const watchedAssociatedCasaIds = form.watch("associatedCasaIds");
-  const watchedGroupIds = form.watch("groupIds");
 
   useEffect(() => {
     if (territoryToEdit && isOpen) {
@@ -203,7 +202,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     const blockHouseCounts = values.blockHouseCounts || [];
     const approxHouseCount = blockHouseCounts.reduce((sum, count) => sum + count, 0);
 
-    const territoryData: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt'> = {
+    const territoryDataToSubmit: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt'> = {
       id: isEditMode && territoryToEdit ? territoryToEdit.id : crypto.randomUUID(),
       type: values.type,
       name: values.name,
@@ -212,7 +211,7 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
       approxHouseCount: approxHouseCount,
       doNotCallAddresses: values.doNotCallAddressesString?.split('\n').map(s => s.trim()).filter(s => s) || [],
       warnings: values.warningsString?.split('\n').map(s => s.trim()).filter(s => s) || [],
-      isBlocked: isEditMode && territoryToEdit ? territoryToEdit.isBlocked : false,
+      isBlocked: isEditMode && territoryToEdit ? territoryToEdit.isBlocked : false, // Pass original blocked state
       groupIds: values.groupIds || [],
       associatedCasaIds: values.associatedCasaIds || [],
       createdAt: isEditMode && territoryToEdit ? territoryToEdit.createdAt : Timestamp.now(),
@@ -221,25 +220,25 @@ export function AddTerritoryDialog({ isOpen, onOpenChange, onTerritorySubmit, te
     };
 
     if (values.type === "urban" && values.number && values.number.trim() !== "") {
-      territoryData.number = values.number.trim();
+      territoryDataToSubmit.number = values.number.trim();
     }
     if (values.mapImageUrl && values.mapImageUrl.trim() !== "") {
-      territoryData.mapImageUrl = values.mapImageUrl.trim();
+      territoryDataToSubmit.mapImageUrl = values.mapImageUrl.trim();
     }
     if (values.googleMapsLink && values.googleMapsLink.trim() !== "") {
-      territoryData.googleMapsLink = values.googleMapsLink.trim();
+      territoryDataToSubmit.googleMapsLink = values.googleMapsLink.trim();
     }
     if (isEditMode && territoryToEdit && territoryToEdit.lastWorked) {
-      territoryData.lastWorked = territoryToEdit.lastWorked;
+      territoryDataToSubmit.lastWorked = territoryToEdit.lastWorked;
     }
-     if (isEditMode && territoryToEdit && territoryToEdit.blockReason) {
-      territoryData.blockReason = territoryToEdit.blockReason;
+    if (isEditMode && territoryToEdit && territoryToEdit.isBlocked && territoryToEdit.blockReason) {
+      territoryDataToSubmit.blockReason = territoryToEdit.blockReason; // Pass original reason if blocked
     }
     if (isEditMode && territoryToEdit && territoryToEdit.unblockDate) {
-      territoryData.unblockDate = territoryToEdit.unblockDate;
+      territoryDataToSubmit.unblockDate = territoryToEdit.unblockDate;
     }
-
-    onTerritorySubmit(territoryData as Territory);
+    
+    onTerritorySubmit(territoryDataToSubmit);
 
     if (!isEditMode) {
         form.reset();

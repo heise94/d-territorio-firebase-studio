@@ -12,12 +12,12 @@ import { TerritoryCard } from "@/components/territorios/territory-card";
 import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert } from "lucide-react";
 import type { Territory, TerritoryType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, FieldValue } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Link from "next/link";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES } from "@/lib/constants";
@@ -89,24 +89,50 @@ export default function TerritoriosPage() {
     const isEditing = !!territories.find(t => t.id === submittedTerritoryData.id);
     const docRef = doc(db, "territories", submittedTerritoryData.id);
 
-    const dataForFirestore: { [key: string]: any } = {};
-    Object.keys(submittedTerritoryData).forEach(key => {
-      const fieldKey = key as keyof Territory;
-      if (fieldKey !== 'id' && submittedTerritoryData[fieldKey] !== undefined) {
-        dataForFirestore[fieldKey] = submittedTerritoryData[fieldKey];
-      } else if (submittedTerritoryData[fieldKey] === undefined) {
-        // Handle fields that should be removed if undefined (e.g., optional fields cleared by user)
-        if (['number', 'mapImageUrl', 'googleMapsLink', 'blockReason', 'doNotCallAddresses', 'warnings', 'groupIds', 'associatedCasaIds'].includes(fieldKey)) {
-             dataForFirestore[fieldKey] = deleteField();
-        }
-      }
-    });
+    const dataForFirestore: { [key: string]: any } = {
+      type: submittedTerritoryData.type,
+      name: submittedTerritoryData.name,
+      isBlocked: submittedTerritoryData.isBlocked, // Use the original isBlocked state passed from the dialog
+      updatedAt: Timestamp.now(),
+      createdAt: (isEditing && territoryToEdit?.createdAt) ? territoryToEdit.createdAt : Timestamp.now(),
+    };
     
-    dataForFirestore.updatedAt = Timestamp.now();
-    if (!isEditing || !submittedTerritoryData.createdAt) {
-      dataForFirestore.createdAt = submittedTerritoryData.createdAt || Timestamp.now();
+    const optionalFields: (keyof Territory)[] = [
+        'number', 'mapImageUrl', 'dataAiHint', 'googleMapsLink', 
+        'lastWorked', 'totalBlocks', 'blockHouseCounts', 'approxHouseCount', 
+        'doNotCallAddresses', 'warnings', 'groupIds', 'associatedCasaIds', 'unblockDate'
+    ];
+
+    optionalFields.forEach(key => {
+        const K = key as keyof typeof submittedTerritoryData;
+        if (submittedTerritoryData[K] === undefined || 
+            (typeof submittedTerritoryData[K] === 'string' && (submittedTerritoryData[K] as string).trim() === "") ||
+            (Array.isArray(submittedTerritoryData[K]) && (submittedTerritoryData[K] as any[]).length === 0)
+           ) {
+            dataForFirestore[key] = deleteField();
+        } else if (submittedTerritoryData[K] !== null) {
+            dataForFirestore[key] = submittedTerritoryData[K];
+        }
+    });
+
+    // Explicitly handle blockReason to preserve it if the territory remains blocked
+    if (submittedTerritoryData.isBlocked) {
+      if (submittedTerritoryData.blockReason && submittedTerritoryData.blockReason.trim() !== "") {
+        dataForFirestore.blockReason = submittedTerritoryData.blockReason.trim();
+      } else {
+        // If it's blocked but no reason is provided (e.g., cleared or was never set), remove the field
+        dataForFirestore.blockReason = deleteField();
+      }
+    } else {
+      // If it's not blocked, ensure blockReason is removed
+      dataForFirestore.blockReason = deleteField();
     }
 
+    Object.keys(dataForFirestore).forEach(k => {
+        if (dataForFirestore[k] === undefined && !(dataForFirestore[k] instanceof FieldValue) ) {
+            delete dataForFirestore[k]; 
+        }
+    });
 
     try {
       await setDoc(docRef, dataForFirestore, { merge: true }); 
@@ -138,7 +164,7 @@ export default function TerritoriosPage() {
 
   const handleOpenBlockReasonDialog = (territory: Territory) => {
     setTerritoryToBlock(territory);
-    setBlockReason(territory.blockReason || ""); // Pre-fill if reason exists
+    setBlockReason(territory.blockReason || ""); 
     setIsBlockReasonDialogOpen(true);
   };
 
@@ -152,9 +178,9 @@ export default function TerritoriosPage() {
     };
 
     if (newBlockStatus) {
-      updateData.blockReason = blockReason.trim() || deleteField(); // Save reason or delete if empty
+      updateData.blockReason = blockReason.trim() ? blockReason.trim() : deleteField();
     } else {
-      updateData.blockReason = deleteField(); // Clear reason on unblock
+      updateData.blockReason = deleteField(); 
     }
 
     try {
@@ -184,7 +210,7 @@ export default function TerritoriosPage() {
   }, [territories, searchTerm, activeTab]);
 
   const canManageBlocking = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
-  const canViewBlockStatus = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || userProfile?.role === USER_ROLES.SS;
+  const canViewBlockStatusDetails = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || userProfile?.role === USER_ROLES.SS;
   
   const renderTerritoryGrid = (tabType: TerritoryType) => {
     if (isLoadingTerritories || isLoadingPermissions) {
@@ -240,16 +266,16 @@ export default function TerritoriosPage() {
             onEdit={() => handleOpenEditDialog(territory)}
             onDelete={() => handleDeleteTerritory(territory.id)}
             onBlockToggle={() => {
-              if (territory.isBlocked) { // If currently blocked, unblock directly
-                setTerritoryToBlock(territory); // Set for context, but action is direct
-                setBlockReason(""); // Clear reason as we are unblocking
+              if (territory.isBlocked) { 
+                setTerritoryToBlock(territory); 
+                setBlockReason(territory.blockReason || ""); 
                 confirmToggleBlockTerritory(); 
-              } else { // If currently active, open dialog to ask for reason
+              } else { 
                 handleOpenBlockReasonDialog(territory);
               }
             }}
             canManage={canManageBlocking}
-            canViewBlockDetails={canViewBlockStatus}
+            canViewBlockDetails={canViewBlockStatusDetails}
           />
         ))}
       </div>
@@ -323,7 +349,7 @@ export default function TerritoriosPage() {
         <AddTerritoryDialog
           isOpen={isTerritoryDialogOpen}
           onOpenChange={setIsTerritoryDialogOpen}
-          onTerritorySubmit={handleTerritorySubmit as any}
+          onTerritorySubmit={handleTerritorySubmit}
           territoryToEdit={territoryToEdit}
         />
 
@@ -360,5 +386,3 @@ export default function TerritoriosPage() {
     </TooltipProvider>
   );
 }
-
-    

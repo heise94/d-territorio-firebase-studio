@@ -57,10 +57,11 @@ const casaFormSchema = z.object({
   phoneNumber: z.string().max(20).optional().or(z.literal('')),
   availableProgramSlotIds: z.array(z.string()).optional().default([]),
   notes: z.string().max(1000).optional().or(z.literal('')),
-  notesForSS: z.string().max(1000).optional().or(z.literal('')), // New field
+  notesForSS: z.string().max(1000).optional().or(z.literal('')),
   isSuitableForRural: z.boolean().optional().default(false),
   addedByGroupId: z.string().optional().or(z.literal('')),
   unavailabilityPeriods: z.array(unavailabilityPeriodSchema).optional().default([]),
+  // blockReason is not directly edited here, but passed if exists
 });
 
 type CasaFormValues = z.infer<typeof casaFormSchema>;
@@ -76,7 +77,6 @@ const PreachingTypeIconDialog = ({ type, className }: { type: PreachingType, cla
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
-  // Zoom type is intentionally omitted as it's not relevant for physical house availability
   return null;
 };
 
@@ -110,7 +110,7 @@ export function AddCasaDialog({
       phoneNumber: "",
       availableProgramSlotIds: [],
       notes: "",
-      notesForSS: "", // Initialize new field
+      notesForSS: "",
       isSuitableForRural: false,
       addedByGroupId: "",
       unavailabilityPeriods: [],
@@ -137,7 +137,7 @@ export function AddCasaDialog({
           casaSpecificScheduleSlots.some(s => s.id === slotId)
         ) || [],
         notes: casaToEdit.notes || "",
-        notesForSS: casaToEdit.notesForSS || "", // Populate new field
+        notesForSS: casaToEdit.notesForSS || "",
         isSuitableForRural: casaToEdit.isSuitableForRural || false,
         addedByGroupId: casaToEdit.addedByGroupId || "",
         unavailabilityPeriods: (casaToEdit.unavailabilityPeriods || []).map(p => ({
@@ -154,7 +154,7 @@ export function AddCasaDialog({
         phoneNumber: "",
         availableProgramSlotIds: [],
         notes: "",
-        notesForSS: "", // Reset new field
+        notesForSS: "",
         isSuitableForRural: false,
         addedByGroupId: "",
         unavailabilityPeriods: [],
@@ -183,10 +183,10 @@ export function AddCasaDialog({
     if (values.notes && values.notes.trim() !== "") {
       submittedCasaData.notes = values.notes;
     }
-    if (values.notesForSS && values.notesForSS.trim() !== "") { // Handle new field
+    if (values.notesForSS && values.notesForSS.trim() !== "") {
       submittedCasaData.notesForSS = values.notesForSS;
     } else {
-      submittedCasaData.notesForSS = undefined; // Explicitly set to undefined if empty for Firestore
+      submittedCasaData.notesForSS = undefined;
     }
 
     if (values.isSuitableForRural !== undefined) {
@@ -208,6 +208,11 @@ export function AddCasaDialog({
       endDate: Timestamp.fromDate(p.endDate),
       reason: p.reason || undefined,
     }));
+
+    // Preserve blockReason if editing and was blocked
+    if (isEditMode && casaToEdit && casaToEdit.isBlocked && casaToEdit.blockReason) {
+        submittedCasaData.blockReason = casaToEdit.blockReason;
+    }
     
     onCasaSubmit(submittedCasaData);
     
@@ -492,6 +497,3 @@ export function AddCasaDialog({
     </Dialog>
   );
 }
-
-    
-    

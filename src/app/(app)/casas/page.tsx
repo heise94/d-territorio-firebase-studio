@@ -31,7 +31,6 @@ const PreachingTypeIconSmall = ({ type, className }: { type: PreachingType, clas
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
-  // Zoom is excluded as casas are not for zoom
   return null;
 };
 
@@ -46,7 +45,6 @@ function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramSched
   };
 
   availableSlotIds.forEach(slotId => {
-    // Ensure we only consider non-zoom slots for house availability display
     const slotDetail = allSlots.find(s => s.id === slotId && s.type !== 'zoom');
     if (slotDetail) {
       groupedByDay[slotDetail.dayOfWeek].push(slotDetail);
@@ -58,9 +56,8 @@ function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramSched
     const daySlots = groupedByDay[dayKey].sort((a, b) => a.startTime.localeCompare(b.startTime));
     if (daySlots.length > 0) {
       const slotStrings = daySlots.map(s => {
-        let typeAbbreviation = 'G'; // General
+        let typeAbbreviation = 'G'; 
         if (s.type === 'rural') typeAbbreviation = 'R';
-        // Zoom type is already filtered out, so no need for 'Z' here
         return `${s.startTime} (${typeAbbreviation})`;
       });
       parts.push(`${DAY_LABELS_AVAILABILITY[dayKey]}: ${slotStrings.join(', ')}`);
@@ -205,20 +202,20 @@ export default function CasasPage() {
 
     const isEditing = !!casas.find(c => c.id === submittedCasaData.id);
     const docRef = doc(db, "casas", submittedCasaData.id);
-
+    
     const dataForFirestore: { [key: string]: any } = {
         ownerName: submittedCasaData.ownerName,
         address: submittedCasaData.address,
-        isBlocked: submittedCasaData.isBlocked || false,
+        isBlocked: submittedCasaData.isBlocked, // This comes from submittedCasaData, reflecting original state for edit
         updatedAt: Timestamp.now(),
-        createdAt: (isEditing && submittedCasaData.createdAt) ? submittedCasaData.createdAt : Timestamp.now(),
+        createdAt: (isEditing && casaToEdit?.createdAt) ? casaToEdit.createdAt : Timestamp.now(),
     };
 
-    const optionalFields: (keyof Casa)[] = ['phoneNumber', 'notes', 'notesForSS', 'addedByGroupId', 'isSuitableForRural', 'lastVisitedAt', 'blockReason'];
+    const optionalFields: (keyof Casa)[] = ['phoneNumber', 'notes', 'notesForSS', 'addedByGroupId', 'isSuitableForRural', 'lastVisitedAt'];
     optionalFields.forEach(key => {
         if (submittedCasaData[key] === undefined || (typeof submittedCasaData[key] === 'string' && (submittedCasaData[key] as string).trim() === "")) {
             dataForFirestore[key] = deleteField();
-        } else if (submittedCasaData[key] !== null) { // Check for null specifically, as it might be a valid "cleared" state for some fields
+        } else if (submittedCasaData[key] !== null) { 
             dataForFirestore[key] = submittedCasaData[key];
         }
     });
@@ -239,13 +236,25 @@ export default function CasasPage() {
     } else {
         dataForFirestore.availableDays = deleteField();
     }
+
+    // Explicitly handle blockReason to preserve it if the casa is still blocked
+    if (submittedCasaData.isBlocked) {
+      if (submittedCasaData.blockReason && submittedCasaData.blockReason.trim() !== "") {
+        dataForFirestore.blockReason = submittedCasaData.blockReason.trim();
+      } else {
+        // If it's blocked but no reason is provided (e.g., cleared or was never set), remove the field
+        dataForFirestore.blockReason = deleteField();
+      }
+    } else {
+      // If it's not blocked, ensure blockReason is removed
+      dataForFirestore.blockReason = deleteField();
+    }
     
     Object.keys(dataForFirestore).forEach(k => {
         if (dataForFirestore[k] === undefined && !(dataForFirestore[k] instanceof FieldValue) ) {
-            delete dataForFirestore[k]; // Remove undefined, but keep FieldValue (like deleteField())
+            delete dataForFirestore[k]; 
         }
     });
-
 
     try {
       await setDoc(docRef, dataForFirestore, { merge: true });
@@ -291,7 +300,7 @@ export default function CasasPage() {
     };
 
     if (newBlockStatus) {
-      updateData.blockReason = blockReasonCasa.trim() || deleteField();
+      updateData.blockReason = blockReasonCasa.trim() ? blockReasonCasa.trim() : deleteField();
     } else {
       updateData.blockReason = deleteField();
     }
@@ -413,6 +422,19 @@ export default function CasasPage() {
                 const formattedAvailability = formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots);
                 const isCasaActuallyBlocked = casa.isBlocked;
                 const showBlockedState = isCasaActuallyBlocked && canViewBlockDetails;
+                
+                let cardContentClass = "flex-grow space-y-3 pt-2 text-sm";
+                let cardDescriptionClass = "text-sm pt-1 flex items-center";
+                let cardPhoneClass = "text-xs text-muted-foreground flex items-center";
+                let cardGroupClass = "text-xs text-muted-foreground flex items-center pt-1";
+
+                if (showBlockedState && !canManageBlocking) { // Not admin, just viewing a blocked state
+                    cardContentClass += " opacity-70";
+                    cardDescriptionClass += " opacity-70";
+                    cardPhoneClass += " opacity-70";
+                    cardGroupClass += " opacity-70";
+                }
+
 
                 return (
                 <Card key={casa.id} className={`flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg ${showBlockedState ? 'bg-muted/50' : ''}`}>
@@ -423,15 +445,15 @@ export default function CasasPage() {
                             <Badge variant='destructive' className="capitalize">Bloqueada</Badge>
                         )}
                     </div>
-                    <CardDescription className={`text-sm pt-1 flex items-center ${showBlockedState ? 'opacity-70' : ''}`}><MapPin size={14} className="mr-1.5 text-muted-foreground shrink-0" /> {casa.address}</CardDescription>
+                    <CardDescription className={cardDescriptionClass}><MapPin size={14} className="mr-1.5 text-muted-foreground shrink-0" /> {casa.address}</CardDescription>
                     {casa.phoneNumber && (
-                        <p className={`text-xs text-muted-foreground flex items-center ${showBlockedState ? 'opacity-70' : ''}`}><Phone size={12} className="mr-1.5 shrink-0" /> {casa.phoneNumber}</p>
+                        <p className={cardPhoneClass}><Phone size={12} className="mr-1.5 shrink-0" /> {casa.phoneNumber}</p>
                     )}
                     {casa.addedByGroupId && (
-                         <p className={`text-xs text-muted-foreground flex items-center pt-1 ${showBlockedState ? 'opacity-70' : ''}`}><GroupIcon size={12} className="mr-1.5 shrink-0 text-blue-600" /> Grupo: <span className="font-medium text-blue-700 dark:text-blue-400 ml-1">{getGroupNameById(casa.addedByGroupId)}</span></p>
+                         <p className={cardGroupClass}><GroupIcon size={12} className="mr-1.5 shrink-0 text-blue-600" /> Grupo: <span className="font-medium text-blue-700 dark:text-blue-400 ml-1">{getGroupNameById(casa.addedByGroupId)}</span></p>
                     )}
                   </CardHeader>
-                  <CardContent className={`flex-grow space-y-3 pt-2 text-sm ${showBlockedState ? 'opacity-70' : ''}`}>
+                  <CardContent className={cardContentClass}>
                     <div>
                         <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad (Horarios Programa):</span>
                         <p className="text-foreground pl-1 text-xs">{formattedAvailability}</p>
@@ -467,7 +489,7 @@ export default function CasasPage() {
                         </div>
                     )}
                   </CardContent>
-                  <CardFooter className={`border-t pt-4 pb-4 flex justify-center gap-1 ${showBlockedState && !canManageBlocking ? 'opacity-80' : ''}`}> {/* Apply opacity to footer only if blocked and not manager */}
+                  <CardFooter className={`border-t pt-4 pb-4 flex justify-center gap-1 ${showBlockedState && !canManageBlocking ? 'opacity-60 pointer-events-none' : ''}`}>
                     {canManageBlocking && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -486,11 +508,11 @@ export default function CasasPage() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => {
-                                    if (casa.isBlocked) { // If currently blocked, unblock directly
-                                        setCasaToBlock(casa); // Set for context, but action is direct
-                                        setBlockReasonCasa(""); // Clear reason as we are unblocking
+                                    if (casa.isBlocked) { 
+                                        setCasaToBlock(casa); 
+                                        setBlockReasonCasa(casa.blockReason || ""); // Keep existing reason if unblocking
                                         confirmToggleBlockCasa(); 
-                                    } else { // If currently active, open dialog to ask for reason
+                                    } else { 
                                         handleOpenBlockReasonCasaDialog(casa);
                                     }
                                 }}
@@ -585,5 +607,3 @@ export default function CasasPage() {
     </TooltipProvider>
   );
 }
-
-    
