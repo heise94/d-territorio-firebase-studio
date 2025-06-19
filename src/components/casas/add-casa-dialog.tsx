@@ -29,10 +29,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import type { Casa, CasaAvailability, PreachingGroup, UnavailabilityPeriod, ProgramScheduleSlot, DayOfWeek, PreachingType } from "@/types";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import type { Casa, CasaAvailability, PreachingGroup, UnavailabilityPeriod, ProgramScheduleSlot, DayOfWeek, PreachingType, Territory } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CalendarIcon, PlusCircle, Trash2, AlertTriangle, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning } from "lucide-react";
+import { Loader2, CalendarIcon, PlusCircle, Trash2, AlertTriangle, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, ChevronDown } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
@@ -61,7 +62,7 @@ const casaFormSchema = z.object({
   isSuitableForRural: z.boolean().optional().default(false),
   addedByGroupId: z.string().optional().or(z.literal('')),
   unavailabilityPeriods: z.array(unavailabilityPeriodSchema).optional().default([]),
-  // blockReason is not directly edited here, but passed if exists
+  selectedNearbyTerritoryIds: z.array(z.string()).optional().default([]), // New field for dialog
 });
 
 type CasaFormValues = z.infer<typeof casaFormSchema>;
@@ -84,10 +85,11 @@ const PreachingTypeIconDialog = ({ type, className }: { type: PreachingType, cla
 interface AddCasaDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onCasaSubmit: (casa: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'>) => void;
+  onCasaSubmit: (casa: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] }) => void;
   casaToEdit?: Casa | null;
   availableGroups: PreachingGroup[];
   programScheduleSlots: ProgramScheduleSlot[]; 
+  availableTerritories: Territory[];
 }
 
 export function AddCasaDialog({ 
@@ -96,7 +98,8 @@ export function AddCasaDialog({
   onCasaSubmit, 
   casaToEdit, 
   availableGroups,
-  programScheduleSlots 
+  programScheduleSlots,
+  availableTerritories,
 }: AddCasaDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -114,6 +117,7 @@ export function AddCasaDialog({
       isSuitableForRural: false,
       addedByGroupId: "",
       unavailabilityPeriods: [],
+      selectedNearbyTerritoryIds: [],
     },
   });
 
@@ -129,6 +133,10 @@ export function AddCasaDialog({
 
   useEffect(() => {
     if (casaToEdit && isOpen) {
+      const nearbyTerritoryIdsForForm = availableTerritories
+        .filter(t => t.associatedCasaIds?.includes(casaToEdit.id))
+        .map(t => t.id);
+
       form.reset({
         ownerName: casaToEdit.ownerName || "",
         address: casaToEdit.address || "",
@@ -146,6 +154,7 @@ export function AddCasaDialog({
           endDate: p.endDate instanceof Timestamp ? p.endDate.toDate() : new Date(p.endDate),
           reason: p.reason || "",
         })),
+        selectedNearbyTerritoryIds: nearbyTerritoryIdsForForm,
       });
     } else if (!isOpen) {
       form.reset({ 
@@ -158,20 +167,22 @@ export function AddCasaDialog({
         isSuitableForRural: false,
         addedByGroupId: "",
         unavailabilityPeriods: [],
+        selectedNearbyTerritoryIds: [],
       });
     }
-  }, [casaToEdit, isOpen, form, casaSpecificScheduleSlots]);
+  }, [casaToEdit, isOpen, form, casaSpecificScheduleSlots, availableTerritories]);
 
   async function onSubmit(values: CasaFormValues) {
     setIsSubmitting(true);
 
-    const submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'> = {
+    const submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] } = {
       id: isEditMode && casaToEdit ? casaToEdit.id : crypto.randomUUID(),
       ownerName: values.ownerName,
       address: values.address,
       isBlocked: isEditMode && casaToEdit ? casaToEdit.isBlocked : false, 
       createdAt: isEditMode && casaToEdit ? casaToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
+      selectedNearbyTerritoryIds: values.selectedNearbyTerritoryIds || [],
     };
 
     if (values.phoneNumber && values.phoneNumber.trim() !== "") {
@@ -209,7 +220,6 @@ export function AddCasaDialog({
       reason: p.reason || undefined,
     }));
 
-    // Preserve blockReason if editing and was blocked
     if (isEditMode && casaToEdit && casaToEdit.isBlocked && casaToEdit.blockReason) {
         submittedCasaData.blockReason = casaToEdit.blockReason;
     }
@@ -219,6 +229,16 @@ export function AddCasaDialog({
     if (!isEditMode) form.reset(); 
     setIsSubmitting(false);
   }
+
+  const getSelectedTerritoriesText = (selectedIds: string[] | undefined) => {
+    if (!selectedIds || selectedIds.length === 0) return "Seleccionar territorios...";
+    if (selectedIds.length === 1) {
+      const terr = availableTerritories.find(t => t.id === selectedIds[0]);
+      return terr ? terr.name : "Seleccionar territorios...";
+    }
+    return `${selectedIds.length} territorios seleccionados`;
+  };
+
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -369,6 +389,47 @@ export function AddCasaDialog({
                <FormMessage>{form.formState.errors.availableProgramSlotIds?.message}</FormMessage>
             </div>
 
+            <FormField
+              control={form.control}
+              name="selectedNearbyTerritoryIds"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Territorios Cercanos (Opcional)</FormLabel>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <FormControl>
+                        <Button variant="outline" className="w-full justify-between" disabled={availableTerritories.length === 0}>
+                          {getSelectedTerritoriesText(field.value)}
+                          <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]" align="start">
+                      <DropdownMenuLabel>Territorios Disponibles</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {availableTerritories.map((territory) => (
+                        <DropdownMenuCheckboxItem
+                          key={territory.id}
+                          checked={field.value?.includes(territory.id)}
+                          onCheckedChange={(checked) => {
+                            const currentSelection = field.value || [];
+                            return checked
+                              ? field.onChange([...currentSelection, territory.id])
+                              : field.onChange(currentSelection.filter(id => id !== territory.id));
+                          }}
+                          onSelect={(e) => e.preventDefault()} 
+                        >
+                          {territory.name} {territory.number ? `(U-${territory.number})` : `(Rural)`}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      {availableTerritories.length === 0 && <DropdownMenuLabel className="text-xs text-muted-foreground text-center py-2">No hay territorios disponibles</DropdownMenuLabel>}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <FormFieldDescription className="text-xs">Selecciona los territorios que están cerca de esta casa. Esto actualizará los territorios seleccionados.</FormFieldDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="space-y-3 rounded-md border p-4 shadow-sm">
               <FormLabel className="text-sm font-medium">Períodos de Indisponibilidad</FormLabel>
@@ -497,3 +558,4 @@ export function AddCasaDialog({
     </Dialog>
   );
 }
+

@@ -8,11 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, Filter, X as XIcon } from "lucide-react";
-import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType } from "@/types";
+import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType, Territory } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, FieldValue, getDocs } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, FieldValue, getDocs, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -27,7 +27,6 @@ const DAY_LABELS_AVAILABILITY: Record<DayOfWeek, string> = {
   monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi', saturday: 'Sá', sunday: 'Do'
 };
 
-// Define dayOfWeekLabels here as it was missing
 const dayOfWeekLabels: Record<DayOfWeek, string> = {
   monday: "Lunes",
   tuesday: "Martes",
@@ -70,7 +69,6 @@ function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramSched
       const slotStrings = daySlots.map(s => {
         let typeAbbreviation = 'G'; 
         if (s.type === 'rural') typeAbbreviation = 'R';
-        // No incluimos 'Zoom' porque ya están filtrados
         return `${s.startTime} (${typeAbbreviation})`;
       });
       parts.push(`${DAY_LABELS_AVAILABILITY[dayKey]}: ${slotStrings.join(', ')}`);
@@ -108,16 +106,18 @@ export default function CasasPage() {
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [isLoadingProgramSlots, setIsLoadingProgramSlots] = useState(true);
 
+  const [availableTerritories, setAvailableTerritories] = useState<Territory[]>([]);
+  const [isLoadingTerritories, setIsLoadingTerritories] = useState(true);
+
   const [isBlockReasonCasaDialogOpen, setIsBlockReasonCasaDialogOpen] = useState(false);
   const [casaToBlock, setCasaToBlock] = useState<Casa | null>(null);
   const [blockReasonCasa, setBlockReasonCasa] = useState("");
 
-  // State for filters
   const [filterGroupId, setFilterGroupId] = useState<string>("ALL_GROUPS");
-  const [filterStatus, setFilterStatus] = useState<string>("all"); // "all", "available", "blocked"
-  const [filterAvailabilityDay, setFilterAvailabilityDay] = useState<string>("ALL_DAYS"); // DayOfWeek or "ALL_DAYS"
-  const [filterAvailabilitySlotId, setFilterAvailabilitySlotId] = useState<string>("ALL_SLOTS"); // ProgramScheduleSlot ID or "ALL_SLOTS"
-  const [filterSuitableForRural, setFilterSuitableForRural] = useState<string>("all"); // "all", "yes", "no"
+  const [filterStatus, setFilterStatus] = useState<string>("all"); 
+  const [filterAvailabilityDay, setFilterAvailabilityDay] = useState<string>("ALL_DAYS"); 
+  const [filterAvailabilitySlotId, setFilterAvailabilitySlotId] = useState<string>("ALL_SLOTS"); 
+  const [filterSuitableForRural, setFilterSuitableForRural] = useState<string>("all"); 
 
   const nonZoomProgramSlots = useMemo(() => {
     return programScheduleSlots.filter(slot => slot.type !== 'zoom');
@@ -125,17 +125,15 @@ export default function CasasPage() {
 
   const availabilitySlotOptions = useMemo(() => {
     if (filterAvailabilityDay === "ALL_DAYS") {
-      // Show all unique non-zoom slot times if no day is selected for simplicity, or could be disabled
       const uniqueSlots = new Map<string, { id: string; label: string }>();
       nonZoomProgramSlots.forEach(slot => {
         const label = `${slot.startTime} (${slot.type === 'rural' ? 'R' : 'G'})`;
-        if (!uniqueSlots.has(label)) { // Use label to group same time/type across different days
-           uniqueSlots.set(label, { id: slot.id, label: `${label} - ${dayOfWeekLabels[slot.dayOfWeek].substring(0,2)}` }); // Add day abbreviation for context
+        if (!uniqueSlots.has(label)) { 
+           uniqueSlots.set(label, { id: slot.id, label: `${label} - ${dayOfWeekLabels[slot.dayOfWeek].substring(0,2)}` }); 
         }
       });
       return Array.from(uniqueSlots.values()).sort((a,b) => a.label.localeCompare(b.label));
     }
-    // Filter slots based on selected day
     return nonZoomProgramSlots
       .filter(slot => slot.dayOfWeek === filterAvailabilityDay)
       .map(slot => ({ id: slot.id, label: `${slot.startTime} (${slot.type === 'rural' ? 'R' : 'G'})` }))
@@ -149,12 +147,13 @@ export default function CasasPage() {
       setIsLoadingCasas(false);
       setIsLoadingGroups(false);
       setIsLoadingProgramSlots(false);
+      setIsLoadingTerritories(false);
       return;
     }
+    // Casas
     setIsLoadingCasas(true);
     const casasCollectionRef = collection(db, "casas");
     const qCasas = query(casasCollectionRef, orderBy("createdAt", "desc"));
-
     const unsubscribeCasas = onSnapshot(qCasas, (snapshot) => {
       const fetchedCasas = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -176,14 +175,12 @@ export default function CasasPage() {
       setIsLoadingCasas(false);
     });
 
+    // Grupos
     setIsLoadingGroups(true);
     const groupsCollectionRef = collection(db, "preachingGroups");
     const qGroups = query(groupsCollectionRef, orderBy("name", "asc"));
     const unsubscribeGroups = onSnapshot(qGroups, (snapshot) => {
-        const fetchedGroups = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        } as PreachingGroup));
+        const fetchedGroups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PreachingGroup));
         setAvailableGroups(fetchedGroups);
         setIsLoadingGroups(false);
     }, (error) => {
@@ -192,6 +189,7 @@ export default function CasasPage() {
         setIsLoadingGroups(false);
     });
 
+    // Horarios del Programa
     setIsLoadingProgramSlots(true);
     const settingsDocRef = doc(db, "settings", "programConfig");
     const unsubscribeSlots = onSnapshot(settingsDocRef, (docSnap) => {
@@ -213,11 +211,26 @@ export default function CasasPage() {
         setIsLoadingProgramSlots(false);
     });
 
+    // Territorios
+    setIsLoadingTerritories(true);
+    const territoriesCollectionRef = collection(db, "territories");
+    const qTerritories = query(territoriesCollectionRef, orderBy("name", "asc"));
+    const unsubscribeTerritories = onSnapshot(qTerritories, (snapshot) => {
+        const fetchedTerritories = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Territory));
+        setAvailableTerritories(fetchedTerritories);
+        setIsLoadingTerritories(false);
+    }, (error) => {
+        console.error("Error fetching territories for Casa Dialog:", error);
+        toast({ title: "Error al Cargar Territorios", description: "No se pudieron cargar los territorios disponibles.", variant: "destructive" });
+        setIsLoadingTerritories(false);
+    });
+
 
     return () => {
       unsubscribeCasas();
       unsubscribeGroups();
       unsubscribeSlots();
+      unsubscribeTerritories();
     };
   }, [toast]);
 
@@ -237,71 +250,121 @@ export default function CasasPage() {
     setIsCasaDialogOpen(true);
   };
 
-  const handleCasaSubmit = async (submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'>) => {
+  const handleCasaSubmit = async (
+    submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] }
+  ) => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
       return;
     }
-
-    const isEditing = !!casas.find(c => c.id === submittedCasaData.id);
-    const docRef = doc(db, "casas", submittedCasaData.id);
     
-    const dataForFirestore: { [key: string]: any } = {
+    const casaId = (isEditMode && casaToEdit) ? casaToEdit.id : crypto.randomUUID();
+    const isActuallyEditing = !!(isEditMode && casaToEdit);
+
+    const dataForCasaDoc: { [key: string]: any } = {
+        id: casaId,
         ownerName: submittedCasaData.ownerName,
         address: submittedCasaData.address,
         isBlocked: submittedCasaData.isBlocked, 
         updatedAt: Timestamp.now(),
-        createdAt: (isEditing && casaToEdit?.createdAt) ? casaToEdit.createdAt : Timestamp.now(),
+        createdAt: isActuallyEditing ? submittedCasaData.createdAt : Timestamp.now(),
     };
     
     if (submittedCasaData.isBlocked) {
-        dataForFirestore.blockReason = submittedCasaData.blockReason || deleteField();
+        dataForCasaDoc.blockReason = submittedCasaData.blockReason || (isActuallyEditing && casaToEdit?.blockReason ? casaToEdit.blockReason : deleteField());
     } else {
-        dataForFirestore.blockReason = deleteField();
+        dataForCasaDoc.blockReason = deleteField();
     }
 
     const optionalFields: (keyof Casa)[] = ['phoneNumber', 'notes', 'notesForSS', 'addedByGroupId', 'isSuitableForRural', 'lastVisitedAt'];
     optionalFields.forEach(key => {
-        if (submittedCasaData[key] === undefined || (typeof submittedCasaData[key] === 'string' && (submittedCasaData[key] as string).trim() === "")) {
-            dataForFirestore[key] = deleteField();
-        } else if (submittedCasaData[key] !== null) { 
-            dataForFirestore[key] = submittedCasaData[key];
+        const K = key as keyof typeof submittedCasaData;
+        if (submittedCasaData[K] === undefined || (typeof submittedCasaData[K] === 'string' && (submittedCasaData[K] as string).trim() === "")) {
+            dataForCasaDoc[key] = deleteField();
+        } else if (submittedCasaData[K] !== null) { 
+            dataForCasaDoc[key] = submittedCasaData[K];
         }
     });
     
     if (submittedCasaData.unavailabilityPeriods && submittedCasaData.unavailabilityPeriods.length > 0) {
-        dataForFirestore.unavailabilityPeriods = submittedCasaData.unavailabilityPeriods.map((p: UnavailabilityPeriod) => ({
+        dataForCasaDoc.unavailabilityPeriods = submittedCasaData.unavailabilityPeriods.map((p: UnavailabilityPeriod) => ({
             id: p.id || crypto.randomUUID(),
             startDate: p.startDate instanceof Date ? Timestamp.fromDate(p.startDate) : p.startDate,
             endDate: p.endDate instanceof Date ? Timestamp.fromDate(p.endDate) : p.endDate,
             reason: (p.reason && p.reason.trim() !== "") ? p.reason.trim() : deleteField(),
         }));
     } else {
-        dataForFirestore.unavailabilityPeriods = deleteField();
+        dataForCasaDoc.unavailabilityPeriods = deleteField();
     }
 
     if (submittedCasaData.availableDays && submittedCasaData.availableDays.availableProgramSlotIds && submittedCasaData.availableDays.availableProgramSlotIds.length > 0) {
-        dataForFirestore.availableDays = { availableProgramSlotIds: submittedCasaData.availableDays.availableProgramSlotIds };
+        dataForCasaDoc.availableDays = { availableProgramSlotIds: submittedCasaData.availableDays.availableProgramSlotIds };
     } else {
-        dataForFirestore.availableDays = deleteField();
+        dataForCasaDoc.availableDays = deleteField();
     }
     
-    Object.keys(dataForFirestore).forEach(k => {
-        if (dataForFirestore[k] === undefined && !(dataForFirestore[k] instanceof FieldValue) ) {
-            delete dataForFirestore[k]; 
+    Object.keys(dataForCasaDoc).forEach(k => {
+        if (dataForCasaDoc[k] === undefined && !(dataForCasaDoc[k] instanceof FieldValue) ) {
+            delete dataForCasaDoc[k]; 
         }
     });
 
+    const batch = writeBatch(db);
+    const casaDocRef = doc(db, "casas", casaId);
+    batch.set(casaDocRef, dataForCasaDoc, { merge: true });
+
+    // Territory synchronization logic
+    const newSelectedTerritoryIds = new Set(submittedCasaData.selectedNearbyTerritoryIds || []);
+    const territoriesToUpdate: Map<string, Partial<Territory>> = new Map();
+
+    // Determine previously associated territories if editing
+    const previouslyAssociatedTerritoryIds = new Set<string>();
+    if (isActuallyEditing) {
+      availableTerritories.forEach(terr => {
+        if (terr.associatedCasaIds?.includes(casaId)) {
+          previouslyAssociatedTerritoryIds.add(terr.id);
+        }
+      });
+    }
+
+    // Check all territories
+    availableTerritories.forEach(terr => {
+      const currentAssociations = new Set(terr.associatedCasaIds || []);
+      let needsUpdate = false;
+
+      if (newSelectedTerritoryIds.has(terr.id)) { // Should be associated
+        if (!currentAssociations.has(casaId)) {
+          currentAssociations.add(casaId);
+          needsUpdate = true;
+        }
+      } else { // Should NOT be associated
+        if (currentAssociations.has(casaId)) {
+          currentAssociations.delete(casaId);
+          needsUpdate = true;
+        }
+      }
+
+      if (needsUpdate) {
+        const terrUpdateRef = doc(db, "territories", terr.id);
+        const updatedAssociatedCasaIds = Array.from(currentAssociations);
+        if (updatedAssociatedCasaIds.length > 0) {
+            batch.update(terrUpdateRef, { associatedCasaIds: updatedAssociatedCasaIds, updatedAt: Timestamp.now() });
+        } else {
+            batch.update(terrUpdateRef, { associatedCasaIds: deleteField(), updatedAt: Timestamp.now() });
+        }
+      }
+    });
+
     try {
-      await setDoc(docRef, dataForFirestore, { merge: true });
+      await batch.commit();
       toast({
-        title: isEditing ? "Casa Actualizada" : "Casa Añadida",
-        description: `La casa de ${submittedCasaData.ownerName} ha sido ${isEditing ? 'actualizada' : 'guardada'} en Firestore.`,
+        title: isActuallyEditing ? "Casa Actualizada" : "Casa Añadida",
+        description: `La casa de ${submittedCasaData.ownerName} ha sido ${isActuallyEditing ? 'actualizada' : 'guardada'}. Territorios cercanos sincronizados.`,
       });
       setIsCasaDialogOpen(false);
     } catch (error) {
-      console.error("Error saving casa:", error);
-      toast({ title: "Error al Guardar", description: "No se pudo guardar la casa.", variant: "destructive" });
+      console.error("Error saving casa and updating territories:", error);
+      toast({ title: "Error al Guardar", description: "No se pudo guardar la casa o sincronizar los territorios.", variant: "destructive" });
     }
   };
 
@@ -311,12 +374,29 @@ export default function CasasPage() {
       return;
     }
     const casaToDelete = casas.find(c => c.id === casaId);
+    const batch = writeBatch(db);
+
+    // Remove this casa's ID from all territories that might be associated with it
+    availableTerritories.forEach(terr => {
+      if (terr.associatedCasaIds?.includes(casaId)) {
+        const updatedAssociatedCasaIds = terr.associatedCasaIds.filter(id => id !== casaId);
+        const terrUpdateRef = doc(db, "territories", terr.id);
+        if (updatedAssociatedCasaIds.length > 0) {
+            batch.update(terrUpdateRef, { associatedCasaIds: updatedAssociatedCasaIds, updatedAt: Timestamp.now() });
+        } else {
+             batch.update(terrUpdateRef, { associatedCasaIds: deleteField(), updatedAt: Timestamp.now() });
+        }
+      }
+    });
+
+    batch.delete(doc(db, "casas", casaId));
+
     try {
-      await deleteDoc(doc(db, "casas", casaId));
-      toast({ title: "Casa Eliminada", description: `La casa de ${casaToDelete?.ownerName || casaId} ha sido eliminada de Firestore.`, variant: "default" });
+      await batch.commit();
+      toast({ title: "Casa Eliminada", description: `La casa de ${casaToDelete?.ownerName || casaId} ha sido eliminada y desvinculada de los territorios.`, variant: "default" });
     } catch (error) {
-      console.error("Error deleting casa:", error);
-      toast({ title: "Error al Eliminar", description: "No se pudo eliminar la casa.", variant: "destructive" });
+      console.error("Error deleting casa and updating territories:", error);
+      toast({ title: "Error al Eliminar", description: "No se pudo eliminar la casa o actualizar los territorios.", variant: "destructive" });
     }
   };
 
@@ -359,34 +439,29 @@ export default function CasasPage() {
 
   const filteredCasas = useMemo(() => {
     return casas.filter(casa => {
-        // Search term filter
         const searchMatch = searchTerm === "" ||
             casa.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
             casa.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (casa.addedByGroupId && getGroupNameById(casa.addedByGroupId).toLowerCase().includes(searchTerm.toLowerCase()));
         if (!searchMatch) return false;
 
-        // Group filter
         const groupMatch = filterGroupId === "ALL_GROUPS" || casa.addedByGroupId === filterGroupId;
         if (!groupMatch) return false;
 
-        // Status filter
         const statusMatch = filterStatus === "all" ||
             (filterStatus === "available" && !casa.isBlocked) ||
             (filterStatus === "blocked" && casa.isBlocked);
         if (!statusMatch) return false;
         
-        // Suitable for rural filter
         const ruralMatch = filterSuitableForRural === "all" ||
             (filterSuitableForRural === "yes" && casa.isSuitableForRural === true) ||
             (filterSuitableForRural === "no" && (casa.isSuitableForRural === false || casa.isSuitableForRural === undefined));
         if (!ruralMatch) return false;
         
-        // Availability filter
         const casaAvailableSlots = casa.availableDays?.availableProgramSlotIds || [];
-        if (filterAvailabilitySlotId !== "ALL_SLOTS") { // Specific slot selected
+        if (filterAvailabilitySlotId !== "ALL_SLOTS") { 
             if (!casaAvailableSlots.includes(filterAvailabilitySlotId)) return false;
-        } else if (filterAvailabilityDay !== "ALL_DAYS") { // Only day selected
+        } else if (filterAvailabilityDay !== "ALL_DAYS") { 
             const dayMatch = casaAvailableSlots.some(slotId => {
                 const slotDetail = programScheduleSlots.find(s => s.id === slotId);
                 return slotDetail && slotDetail.dayOfWeek === filterAvailabilityDay && slotDetail.type !== 'zoom';
@@ -414,7 +489,7 @@ export default function CasasPage() {
   };
 
 
-  const isLoadingAny = isLoadingCasas || isLoadingGroups || isLoadingProgramSlots || isLoadingUserProfile;
+  const isLoadingAny = isLoadingCasas || isLoadingGroups || isLoadingProgramSlots || isLoadingUserProfile || isLoadingTerritories;
   
   const canManageBlocking = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
   const canViewBlockDetails = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || userProfile?.role === USER_ROLES.SS;
@@ -567,7 +642,7 @@ export default function CasasPage() {
                 
                 let showBlockedBadge = false;
                 if (isCasaActuallyBlocked && canViewBlockDetails) {
-                    cardBaseClass += ' bg-muted/50'; // Apply muted background if viewer can see it's blocked
+                    cardBaseClass += ' bg-muted/50'; 
                     showBlockedBadge = true;
                 }
                  if (isCasaActuallyBlocked && !canManageBlocking && canViewBlockDetails) { 
@@ -576,7 +651,6 @@ export default function CasasPage() {
                     cardPhoneClass += " opacity-70";
                     cardGroupClass += " opacity-70";
                 }
-
 
                 return (
                 <Card key={casa.id} className={cardBaseClass}>
@@ -713,6 +787,7 @@ export default function CasasPage() {
         casaToEdit={casaToEdit}
         availableGroups={availableGroups}
         programScheduleSlots={programScheduleSlots}
+        availableTerritories={availableTerritories}
       />
 
       {casaToBlock && (
