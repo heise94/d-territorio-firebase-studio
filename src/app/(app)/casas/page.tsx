@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon } from "lucide-react";
-import type { Casa, CasaAvailability } from "@/types";
+import type { Casa, CasaAvailability, PreachingGroup } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy } from "firebase/firestore";
@@ -44,17 +44,21 @@ export default function CasasPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
+  const [availableGroups, setAvailableGroups] = useState<PreachingGroup[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       setIsLoadingCasas(false);
+      setIsLoadingGroups(false);
       return;
     }
     setIsLoadingCasas(true);
     const casasCollectionRef = collection(db, "casas");
-    const q = query(casasCollectionRef, orderBy("createdAt", "desc"));
+    const qCasas = query(casasCollectionRef, orderBy("createdAt", "desc"));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeCasas = onSnapshot(qCasas, (snapshot) => {
       const fetchedCasas = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -69,7 +73,27 @@ export default function CasasPage() {
       setIsLoadingCasas(false);
     });
 
-    return () => unsubscribe();
+    setIsLoadingGroups(true);
+    const groupsCollectionRef = collection(db, "preachingGroups");
+    const qGroups = query(groupsCollectionRef, orderBy("name", "asc"));
+    const unsubscribeGroups = onSnapshot(qGroups, (snapshot) => {
+        const fetchedGroups = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as PreachingGroup));
+        setAvailableGroups(fetchedGroups);
+        setIsLoadingGroups(false);
+    }, (error) => {
+        console.error("Error fetching preaching groups:", error);
+        toast({ title: "Error al Cargar Grupos", description: "No se pudieron cargar los grupos de predicación.", variant: "destructive" });
+        setIsLoadingGroups(false);
+    });
+
+
+    return () => {
+      unsubscribeCasas();
+      unsubscribeGroups();
+    };
   }, [toast]);
 
   useEffect(() => {
@@ -99,11 +123,8 @@ export default function CasasPage() {
         if (submittedCasaData[key as keyof typeof submittedCasaData] !== undefined) {
             (sanitizedData as any)[key] = submittedCasaData[key as keyof typeof submittedCasaData];
         } else {
-            // Firestore does not like 'undefined'. If a field might be legitimately cleared, 
-            // explicitly set to null or ensure it's omitted if it shouldn't be in Firestore.
-            // For `addedByGroupId`, if it's an empty string from form, we might want to store null or remove it.
-            if (key === 'addedByGroupId' && submittedCasaData.addedByGroupId === "") {
-                 delete sanitizedData[key as keyof typeof sanitizedData]; // Or set to null if schema expects it
+            if (key === 'addedByGroupId' && (submittedCasaData.addedByGroupId === "" || submittedCasaData.addedByGroupId === undefined)) {
+                 delete sanitizedData[key as keyof typeof sanitizedData];
             }
         }
     }
@@ -168,22 +189,15 @@ export default function CasasPage() {
     return casas.filter(casa => 
       casa.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       casa.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (casa.addedByGroupId && casa.addedByGroupId.toLowerCase().includes(searchTerm.toLowerCase()))
+      (casa.addedByGroupId && getGroupNameById(casa.addedByGroupId).toLowerCase().includes(searchTerm.toLowerCase()))
     );
-  }, [casas, searchTerm]);
+  }, [casas, searchTerm, availableGroups]); // Added availableGroups dependency
 
-  // MOCK_GROUPS_FOR_DISPLAY - Ideally this comes from a context or fetched data
-  const MOCK_GROUPS_FOR_DISPLAY: { id: string, name: string }[] = [
-    { id: 'G1', name: 'Grupo Los Pioneros' },
-    { id: 'G2', name: 'Grupo Betel' },
-    { id: 'G3', name: 'Grupo Emanuel' },
-  ];
-
-  const getGroupNameById = (groupId?: string) => {
+  const getGroupNameById = useCallback((groupId?: string) => {
     if (!groupId) return 'N/A';
-    const group = MOCK_GROUPS_FOR_DISPLAY.find(g => g.id === groupId);
+    const group = availableGroups.find(g => g.id === groupId);
     return group ? group.name : groupId; // Fallback to ID if name not found
-  };
+  }, [availableGroups]);
 
 
   return (
@@ -196,8 +210,8 @@ export default function CasasPage() {
             Administra las casas disponibles para las reuniones de grupos de predicación.
           </p>
         </div>
-        <Button onClick={handleOpenAddDialog} size="lg">
-          <PlusCircle className="mr-2 h-5 w-5" />
+        <Button onClick={handleOpenAddDialog} size="lg" disabled={isLoadingGroups}>
+          {isLoadingGroups ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
           Añadir Nueva Casa
         </Button>
       </div>
@@ -207,7 +221,7 @@ export default function CasasPage() {
           <CardTitle>Lista de Casas</CardTitle>
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
             <CardDescription>
-              {isLoadingCasas ? "Cargando casas..." : 
+              {isLoadingCasas || isLoadingGroups ? "Cargando información..." : 
                 (filteredCasas.length > 0 
                   ? `Mostrando ${filteredCasas.length} de ${casas.length} casa(s) registradas.`
                   : casas.length > 0 ? "Ninguna casa coincide con la búsqueda."
@@ -228,7 +242,7 @@ export default function CasasPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoadingCasas ? (
+          {isLoadingCasas || isLoadingGroups ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(3)].map((_, i) => (
                 <Card key={i} className="flex flex-col">
@@ -361,9 +375,9 @@ export default function CasasPage() {
         onOpenChange={setIsCasaDialogOpen}
         onCasaSubmit={handleCasaSubmit}
         casaToEdit={casaToEdit}
+        availableGroups={availableGroups}
       />
     </div>
     </TooltipProvider>
   );
 }
-

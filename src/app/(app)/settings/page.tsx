@@ -40,7 +40,7 @@ import { Loader2 } from "lucide-react";
 import { AddCampaignDialog } from "@/components/settings/campaigns/add-campaign-dialog";
 import { AddHolidayDialog } from "@/components/settings/holidays/add-holiday-dialog";
 import { AddAssemblyDialog } from "@/components/settings/assemblies/add-assembly-dialog";
-import { Timestamp, doc, getDoc, setDoc, serverTimestamp, updateDoc, deleteField, writeBatch } from "firebase/firestore";
+import { Timestamp, doc, getDoc, setDoc, serverTimestamp, updateDoc, deleteField, writeBatch, collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   Table,
@@ -109,14 +109,6 @@ const CampaignTypeLabels: Record<CampaignType, string> = {
   special: "Campaña Especial"
 };
 
-const MOCK_GROUPS_FOR_ROTATION_SELECT: Pick<PreachingGroup, 'id' | 'name' | 'superintendentId'>[] = [
-    { id: 'G1', name: 'Grupo Los Pioneros', superintendentId: 'uidElena' },
-    { id: 'G2', name: 'Grupo Betel', superintendentId: 'uidPedro' },
-    { id: 'G3', name: 'Grupo Emanuel', superintendentId: 'uidLaura' },
-    { id: 'G4', name: 'Grupo Sinai', superintendentId: 'uidCarlos' },
-    { id: 'G5', name: 'Grupo Jerusalen', superintendentId: 'uidAna' },
-];
-
 type SettingsSectionId = "permissions" | "weeklyProgram" | "specialEvents" | "ruralRotation";
 
 interface SettingsSectionInfo {
@@ -165,8 +157,9 @@ export default function SettingsPage() {
   const [isLoadingSpecialEvents, setIsLoadingSpecialEvents] = useState(false);
   const [isSavingSpecialEvents, setIsSavingSpecialEvents] = useState(false);
 
-
-  const [selectedLastRuralGroupId, setSelectedLastRuralGroupId] = useState<string | null | undefined>(undefined); // null for "NONE", undefined for initial load
+  const [lastRuralWeekendLeadingGroupIdFromDB, setLastRuralWeekendLeadingGroupIdFromDB] = useState<string | null | undefined>(undefined);
+  const [availablePreachingGroupsForRotation, setAvailablePreachingGroupsForRotation] = useState<PreachingGroup[]>([]);
+  const [isLoadingPreachingGroupsForRotation, setIsLoadingPreachingGroupsForRotation] = useState(true);
   const [isSavingRuralRotation, setIsSavingRuralRotation] = useState(false);
 
   const [editableRolePermissions, setEditableRolePermissions] = useState<RoleConfiguration>(DEFAULT_ROLE_PERMISSIONS);
@@ -219,9 +212,11 @@ export default function SettingsPage() {
     if (!db || Object.keys(db).length === 0) {
         toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
         setIsLoadingProgramSettings(false);
+        setIsLoadingPreachingGroupsForRotation(false);
         return;
     }
     setIsLoadingProgramSettings(true);
+    setIsLoadingPreachingGroupsForRotation(true);
     try {
         const docRef = doc(db, "settings", "programConfig");
         const docSnap = await getDoc(docRef);
@@ -229,21 +224,29 @@ export default function SettingsPage() {
             const data = docSnap.data() as Partial<SettingsDoc>;
             setScheduleSlots(data.programScheduleSlots || []);
             setGroupOrganizedDays(data.groupOrganizedDays || []);
-            setSelectedLastRuralGroupId(data.lastRuralWeekendLeadingGroupId === undefined ? null : data.lastRuralWeekendLeadingGroupId);
+            setLastRuralWeekendLeadingGroupIdFromDB(data.lastRuralWeekendLeadingGroupId === undefined ? null : data.lastRuralWeekendLeadingGroupId);
         } else {
             setScheduleSlots([]);
             setGroupOrganizedDays([]);
-            setSelectedLastRuralGroupId(null); 
+            setLastRuralWeekendLeadingGroupIdFromDB(null); 
             console.log("Program config document (settings/programConfig) does not exist. Initializing with empty/default values.");
         }
+
+        const groupsQuery = query(collection(db, "preachingGroups"), orderBy("name", "asc"));
+        const groupsSnapshot = await getDocs(groupsQuery);
+        const fetchedGroups = groupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PreachingGroup));
+        setAvailablePreachingGroupsForRotation(fetchedGroups);
+
     } catch (error) {
-        console.error("Error fetching program configuration:", error);
-        toast({ title: "Error al Cargar Config. Programa", description: "No se pudo cargar la configuración del programa.", variant: "destructive" });
+        console.error("Error fetching program configuration or groups:", error);
+        toast({ title: "Error al Cargar Config. Programa", description: "No se pudo cargar la configuración del programa o los grupos.", variant: "destructive" });
         setScheduleSlots([]);
         setGroupOrganizedDays([]);
-        setSelectedLastRuralGroupId(null);
+        setLastRuralWeekendLeadingGroupIdFromDB(null);
+        setAvailablePreachingGroupsForRotation([]);
     } finally {
         setIsLoadingProgramSettings(false);
+        setIsLoadingPreachingGroupsForRotation(false);
     }
   }, [toast]);
   
@@ -376,12 +379,12 @@ export default function SettingsPage() {
     }
     if (configToSave.hasOwnProperty('lastRuralWeekendLeadingGroupId')) {
         dataToSave.lastRuralWeekendLeadingGroupId = configToSave.lastRuralWeekendLeadingGroupId === undefined 
-            ? deleteField() // Use deleteField() if undefined means "remove field"
-            : configToSave.lastRuralWeekendLeadingGroupId; // Can be null if that's the intended "empty" state
+            ? deleteField() 
+            : configToSave.lastRuralWeekendLeadingGroupId; 
     }
     
     const sanitizedData = Object.entries(dataToSave).reduce((acc, [key, value]) => {
-        if (value !== undefined) { // Still filter undefined for the root object properties if any
+        if (value !== undefined) { 
             (acc as any)[key] = value;
         }
         return acc;
@@ -416,25 +419,23 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
             console.warn(`Invalid date found for field ${field} in item:`, item);
             newItem[field] = null; 
           }
-        } else if (newItem[field] === undefined) { // Handle cases where a date might be cleared
+        } else if (newItem[field] === undefined) { 
             newItem[field] = null;
         }
       });
       return newItem;
     };
 
-    // Function to sanitize optional fields, ensuring null is used instead of undefined
     const sanitizeEvent = (event: any, dateFields: string[], optionalFields: string[]) => {
         let sanitizedEvent = { ...event };
         sanitizedEvent = convertDatesToTimestamps(sanitizedEvent, dateFields);
         
         optionalFields.forEach(field => {
             if (sanitizedEvent[field] === undefined || sanitizedEvent[field] === '' || (typeof sanitizedEvent[field] === 'number' && isNaN(sanitizedEvent[field]))) {
-                 sanitizedEvent[field] = null; // Explicitly set to null for Firestore
+                 sanitizedEvent[field] = null; 
             }
         });
         
-        // Filter out any top-level undefined properties, although `null` is now preferred for cleared optional fields
         return Object.fromEntries(Object.entries(sanitizedEvent).filter(([_, v]) => v !== undefined));
     };
     
@@ -459,7 +460,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     setIsSavingSpecialEvents(true);
     try {
       const docRef = doc(db, "settings", "specialEventsConfig");
-      await setDoc(docRef, payloadToSave, { merge: true }); // Use setDoc with merge to handle potential new document
+      await setDoc(docRef, payloadToSave, { merge: true }); 
       return true;
     } catch (error: any) {
       console.error("Error saving special events configuration:", error, error.code, error.message);
@@ -542,8 +543,8 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     const campaignToSave = {
       ...submittedCampaignData,
       id: submittedCampaignData.id || crypto.randomUUID(),
-      superintendentName: submittedCampaignData.superintendentName?.trim() || null, // Ensure null if empty
-      description: submittedCampaignData.description?.trim() || null, // Ensure null if empty
+      superintendentName: submittedCampaignData.superintendentName?.trim() || null, 
+      description: submittedCampaignData.description?.trim() || null, 
       specialCampaignTerritoriesPerDay: submittedCampaignData.specialCampaignTerritoriesPerDay === undefined ? null : submittedCampaignData.specialCampaignTerritoriesPerDay,
       createdAt: isEdit && campaignToEdit?.createdAt ? campaignToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -595,7 +596,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
      const assemblyToSave = {
         ...submittedAssemblyData,
         id: submittedAssemblyData.id || crypto.randomUUID(),
-        description: submittedAssemblyData.description?.trim() || null, // Ensure null if empty
+        description: submittedAssemblyData.description?.trim() || null, 
         createdAt: isEdit && assemblyToEdit?.createdAt ? assemblyToEdit.createdAt : Timestamp.now(),
         updatedAt: Timestamp.now(),
     };
@@ -644,7 +645,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
      const holidayToSave = {
         ...submittedHolidayData,
         id: submittedHolidayData.id || crypto.randomUUID(),
-        description: submittedHolidayData.description?.trim() || null, // Ensure null if empty
+        description: submittedHolidayData.description?.trim() || null, 
         createdAt: isEdit && holidayToEdit?.createdAt ? holidayToEdit.createdAt : Timestamp.now(),
         updatedAt: Timestamp.now(),
     };
@@ -805,7 +806,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
 
   const handleSaveRuralRotation = async () => {
     setIsSavingRuralRotation(true);
-    const valueToSave = selectedLastRuralGroupId === undefined ? deleteField() : selectedLastRuralGroupId;
+    const valueToSave = lastRuralWeekendLeadingGroupIdFromDB === undefined ? deleteField() : lastRuralWeekendLeadingGroupIdFromDB;
     const success = await saveProgramConfigToFirestore({ lastRuralWeekendLeadingGroupId: valueToSave as string | null | undefined });
     
     if (success) {
@@ -1206,7 +1207,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                 <CardDescription>Define el último grupo que se hizo cargo de la predicación rural de fin de semana para una rotación equitativa.</CardDescription>
               </CardHeader>
               <CardContent>
-                {isLoadingProgramSettings ? (
+                {isLoadingProgramSettings || isLoadingPreachingGroupsForRotation ? (
                   <div className="space-y-3 py-6">
                     <Skeleton className="h-6 w-1/2" />
                     <Skeleton className="h-10 w-full sm:w-[300px]" />
@@ -1216,13 +1217,16 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                   <div className="space-y-2">
                     <Label htmlFor="ruralRotationSelect">Último grupo que dirigió el rural de fin de semana</Label>
                     <Select
-                        value={selectedLastRuralGroupId === null ? "NONE_OR_RESET" : selectedLastRuralGroupId || "NONE_OR_RESET"}
-                        onValueChange={(value) => setSelectedLastRuralGroupId(value === "NONE_OR_RESET" ? null : value)}
+                        value={lastRuralWeekendLeadingGroupIdFromDB === null ? "NONE_OR_RESET" : lastRuralWeekendLeadingGroupIdFromDB || "NONE_OR_RESET"}
+                        onValueChange={(value) => setLastRuralWeekendLeadingGroupIdFromDB(value === "NONE_OR_RESET" ? null : value)}
+                        disabled={availablePreachingGroupsForRotation.length === 0 && !lastRuralWeekendLeadingGroupIdFromDB}
                     >
-                      <SelectTrigger className="w-full sm:w-[300px]" id="ruralRotationSelect"><SelectValue placeholder="Seleccionar grupo..." /></SelectTrigger>
+                      <SelectTrigger className="w-full sm:w-[300px]" id="ruralRotationSelect">
+                        <SelectValue placeholder={availablePreachingGroupsForRotation.length === 0 ? "No hay grupos para seleccionar" : "Seleccionar grupo..."} />
+                        </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="NONE_OR_RESET">Ninguno / Reiniciar Rotación</SelectItem>
-                        {MOCK_GROUPS_FOR_ROTATION_SELECT.map(group => (<SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>))}
+                        {availablePreachingGroupsForRotation.map(group => (<SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>))}
                       </SelectContent>
                     </Select>
                     <p className="text-sm text-muted-foreground">Selecciona el grupo más reciente. Si es la primera vez, selecciona "Ninguno".</p>
@@ -1230,7 +1234,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                 )}
               </CardContent>
               <CardFooter className="border-t pt-4">
-                <Button onClick={handleSaveRuralRotation} disabled={isSavingRuralRotation || isLoadingProgramSettings}>
+                <Button onClick={handleSaveRuralRotation} disabled={isSavingRuralRotation || isLoadingProgramSettings || isLoadingPreachingGroupsForRotation}>
                   {isSavingRuralRotation && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}<Save className="mr-2 h-4 w-4" /> Guardar Rotación Rural
                 </Button>
               </CardFooter>
@@ -1264,5 +1268,3 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     </TooltipProvider>
   );
 }
-    
-    

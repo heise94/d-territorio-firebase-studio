@@ -25,11 +25,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Users as UsersTypeIcon, MountainSnow, Video, AlertTriangle, CalendarOff } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import type { UserAvailability, ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus } from "@/types";
+import type { UserAvailability, ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, SettingsDoc } from "@/types";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Badge } from "@/components/ui/badge";
+import { db } from "@/lib/firebase";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Re-defining or importing constants similar to settings page for consistency
 const dayOfWeekLabels: Record<DayOfWeek, string> = {
   monday: "Lunes",
   tuesday: "Martes",
@@ -49,21 +51,6 @@ const PreachingTypeIcon = ({ type, className }: { type: PreachingType, className
   return null;
 };
 
-// Mock data for program schedule slots - replace with actual data fetching later
-const MOCK_PROGRAM_SCHEDULE_SLOTS: ProgramScheduleSlot[] = [
-  { id: 'mon-0900-gen', dayOfWeek: 'monday', startTime: '09:00', type: 'general', status: 'fixed' },
-  { id: 'mon-1500-zoom', dayOfWeek: 'monday', startTime: '15:00', type: 'zoom', status: 'tentative' },
-  { id: 'tue-1000-rur', dayOfWeek: 'tuesday', startTime: '10:00', type: 'rural', status: 'fixed' },
-  { id: 'wed-0930-gen', dayOfWeek: 'wednesday', startTime: '09:30', type: 'general', status: 'fixed' },
-  { id: 'wed-1600-gen', dayOfWeek: 'wednesday', startTime: '16:00', type: 'general', status: 'tentative' },
-  { id: 'thu-1400-zoom', dayOfWeek: 'thursday', startTime: '14:00', type: 'zoom', status: 'fixed' },
-  { id: 'fri-1000-gen', dayOfWeek: 'friday', startTime: '10:00', type: 'general', status: 'fixed' },
-  { id: 'fri-1700-rur', dayOfWeek: 'friday', startTime: '17:00', type: 'rural', status: 'tentative' },
-  { id: 'sat-1000-gen', dayOfWeek: 'saturday', startTime: '10:00', type: 'general', status: 'fixed' },
-  { id: 'sat-1100-rur', dayOfWeek: 'saturday', startTime: '11:00', type: 'rural', status: 'fixed' },
-  { id: 'sun-1500-zoom', dayOfWeek: 'sunday', startTime: '15:00', type: 'zoom', status: 'fixed' },
-];
-
 const availabilityFormSchema = z.object({
   availableSlotIds: z.array(z.string()).optional().default([]),
 });
@@ -75,15 +62,10 @@ const WEEK_DAYS_ORDERED: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thurs
 export default function DisponibilidadPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { userProfile, isLoadingPermissions } = usePermissions();
+  const { userProfile, isLoadingPermissions: isLoadingUserProfile } = usePermissions();
 
-  // TODO: Fetch programScheduleSlots from Firestore settings instead of MOCK_PROGRAM_SCHEDULE_SLOTS
-  const programScheduleSlots = useMemo(() => MOCK_PROGRAM_SCHEDULE_SLOTS.sort((a,b) => {
-    const dayCompare = WEEK_DAYS_ORDERED.indexOf(a.dayOfWeek) - WEEK_DAYS_ORDERED.indexOf(b.dayOfWeek);
-    if (dayCompare !== 0) return dayCompare;
-    return a.startTime.localeCompare(b.startTime);
-  }), []);
-
+  const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
+  const [isLoadingProgramSlots, setIsLoadingProgramSlots] = useState(true);
 
   const form = useForm<AvailabilityFormValues>({
     resolver: zodResolver(availabilityFormSchema),
@@ -93,39 +75,93 @@ export default function DisponibilidadPage() {
   });
 
   useEffect(() => {
-    if (userProfile?.availability?.general && !isLoadingPermissions) { // Temp check for old structure, can be removed later
-        console.warn("User has old availability structure. Please migrate to slot IDs.");
+    async function fetchProgramSlots() {
+      if (!db || Object.keys(db).length === 0) {
+        toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+        setIsLoadingProgramSlots(false);
+        return;
+      }
+      setIsLoadingProgramSlots(true);
+      try {
+        const settingsDocRef = doc(db, "settings", "programConfig");
+        const docSnap = await getDoc(settingsDocRef);
+        if (docSnap.exists()) {
+          const settingsData = docSnap.data() as SettingsDoc;
+          const slots = settingsData.programScheduleSlots || [];
+          setProgramScheduleSlots(slots.sort((a,b) => {
+            const dayCompare = WEEK_DAYS_ORDERED.indexOf(a.dayOfWeek) - WEEK_DAYS_ORDERED.indexOf(b.dayOfWeek);
+            if (dayCompare !== 0) return dayCompare;
+            return a.startTime.localeCompare(b.startTime);
+          }));
+        } else {
+          setProgramScheduleSlots([]);
+          toast({ title: "Ajustes no encontrados", description: "No se encontraron los ajustes del programa. Contacta al administrador.", variant: "default" });
+        }
+      } catch (error) {
+        console.error("Error fetching program schedule slots:", error);
+        toast({ title: "Error al Cargar Horarios", description: "No se pudieron cargar los horarios del programa.", variant: "destructive" });
+        setProgramScheduleSlots([]);
+      } finally {
+        setIsLoadingProgramSlots(false);
+      }
     }
+    fetchProgramSlots();
+  }, [toast]);
 
-    if (userProfile?.availability?.availableSlotIds && !isLoadingPermissions) {
+  useEffect(() => {
+    if (userProfile?.availability?.availableSlotIds && !isLoadingUserProfile) {
       form.reset({
         availableSlotIds: userProfile.availability.availableSlotIds || [],
       });
-    } else if (!isLoadingPermissions) {
+    } else if (!isLoadingUserProfile) {
       form.reset({ availableSlotIds: [] });
     }
-  }, [userProfile, form, isLoadingPermissions]);
+  }, [userProfile, form, isLoadingUserProfile]);
 
   async function onSubmit(values: AvailabilityFormValues) {
+    if (!userProfile || !userProfile.id) {
+      toast({ title: "Error de Usuario", description: "No se pudo identificar al usuario.", variant: "destructive" });
+      return;
+    }
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      return;
+    }
     setIsSubmitting(true);
-    console.log("Disponibilidad guardada (simulación):", values.availableSlotIds);
     
-    // TODO: Aquí iría la lógica para guardar `values.availableSlotIds` en Firestore para el usuario actual
-    // Ejemplo: await updateDoc(doc(db, "users", userProfile.id), { "availability.availableSlotIds": values.availableSlotIds, updatedAt: serverTimestamp() });
+    try {
+      const userDocRef = doc(db, "users", userProfile.id);
+      await updateDoc(userDocRef, {
+        "availability.availableSlotIds": values.availableSlotIds || [],
+        updatedAt: serverTimestamp()
+      });
 
-    await new Promise(resolve => setTimeout(resolve, 700)); 
-
-    toast({
-      title: "Disponibilidad Actualizada",
-      description: "Tus horarios disponibles han sido guardados (simulación).",
-    });
-    setIsSubmitting(false);
+      toast({
+        title: "Disponibilidad Actualizada",
+        description: "Tus horarios disponibles han sido guardados.",
+      });
+    } catch (error) {
+      console.error("Error saving availability:", error);
+      toast({ title: "Error al Guardar", description: "No se pudo guardar tu disponibilidad.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  if (isLoadingPermissions) {
+  if (isLoadingUserProfile || isLoadingProgramSlots) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      <div className="space-y-8">
+         <div>
+            <h1 className="text-3xl font-headline font-bold tracking-tight">Mi Disponibilidad</h1>
+            <p className="text-muted-foreground mt-1">Cargando configuración...</p>
+        </div>
+        <Card className="shadow-lg max-w-3xl mx-auto">
+            <CardHeader><Skeleton className="h-8 w-3/4" /><Skeleton className="h-4 w-1/2 mt-2" /></CardHeader>
+            <CardContent className="space-y-6 py-4">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-md" />)}
+            </CardContent>
+            <CardFooter className="border-t pt-6"><Skeleton className="h-10 w-36" /></CardFooter>
+        </Card>
       </div>
     );
   }

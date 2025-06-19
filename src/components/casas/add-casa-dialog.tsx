@@ -33,12 +33,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 
-// MOCK: Replace with actual data fetching if needed for a real select list
-const MOCK_AVAILABLE_GROUPS_FOR_SELECT: Pick<PreachingGroup, 'id' | 'name'>[] = [
-    { id: 'G1', name: 'Grupo Los Pioneros' },
-    { id: 'G2', name: 'Grupo Betel' },
-    { id: 'G3', name: 'Grupo Emanuel' },
-];
 const NO_GROUP_SELECTED_VALUE = "__NO_GROUP_SELECTED__";
 
 
@@ -78,9 +72,10 @@ interface AddCasaDialogProps {
   onOpenChange: (isOpen: boolean) => void;
   onCasaSubmit: (casa: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'>) => void;
   casaToEdit?: Casa | null;
+  availableGroups: PreachingGroup[];
 }
 
-export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }: AddCasaDialogProps) {
+export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit, availableGroups }: AddCasaDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = !!casaToEdit;
@@ -167,10 +162,9 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
     if (values.addedByGroupId && values.addedByGroupId !== NO_GROUP_SELECTED_VALUE && values.addedByGroupId.trim() !== "") {
         submittedCasaData.addedByGroupId = values.addedByGroupId;
     } else {
-        submittedCasaData.addedByGroupId = undefined; // Ensure it's undefined if not selected or empty
+        submittedCasaData.addedByGroupId = undefined; 
     }
     
-    // Default values for other fields if not editing
     if (!isEditMode) {
         submittedCasaData.lastVisitedAt = undefined;
     }
@@ -246,15 +240,16 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
                   <Select 
                     onValueChange={(value) => field.onChange(value === NO_GROUP_SELECTED_VALUE ? "" : value)} 
                     value={field.value || NO_GROUP_SELECTED_VALUE}
+                    disabled={availableGroups.length === 0}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar grupo" />
+                        <SelectValue placeholder={availableGroups.length === 0 ? "No hay grupos disponibles" : "Seleccionar grupo"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       <SelectItem value={NO_GROUP_SELECTED_VALUE}>Ningún grupo específico</SelectItem>
-                      {MOCK_AVAILABLE_GROUPS_FOR_SELECT.map(group => (
+                      {availableGroups.map(group => (
                         <SelectItem key={group.id} value={group.id}>
                           {group.name}
                         </SelectItem>
@@ -358,4 +353,3 @@ export function AddCasaDialog({ isOpen, onOpenChange, onCasaSubmit, casaToEdit }
     </Dialog>
   );
 }
-
