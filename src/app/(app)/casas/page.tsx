@@ -27,7 +27,7 @@ const PreachingTypeIconSmall = ({ type, className }: { type: PreachingType, clas
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
-  if (type === 'zoom') return <Video className={combinedClass} />;
+  // Zoom type is intentionally omitted as it's not relevant for physical house availability
   return null;
 };
 
@@ -42,7 +42,7 @@ function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramSched
   };
 
   availableSlotIds.forEach(slotId => {
-    const slotDetail = allSlots.find(s => s.id === slotId);
+    const slotDetail = allSlots.find(s => s.id === slotId && s.type !== 'zoom'); // Exclude zoom slots
     if (slotDetail) {
       groupedByDay[slotDetail.dayOfWeek].push(slotDetail);
     }
@@ -55,14 +55,14 @@ function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramSched
       const slotStrings = daySlots.map(s => {
         let typeAbbreviation = 'G'; // Default for 'general'
         if (s.type === 'rural') typeAbbreviation = 'R';
-        else if (s.type === 'zoom') typeAbbreviation = 'Z';
+        // Zoom is excluded, no need for 'Z'
         return `${s.startTime} (${typeAbbreviation})`;
       });
       parts.push(`${DAY_LABELS[dayKey]}: ${slotStrings.join(', ')}`);
     }
   });
 
-  return parts.length > 0 ? parts.join('; ') : "Disponibilidad no detallada";
+  return parts.length > 0 ? parts.join('; ') : "No especificada (o solo horarios Zoom)";
 }
 
 
@@ -196,13 +196,12 @@ export default function CasasPage() {
         if (submittedCasaData[key as keyof typeof submittedCasaData] !== undefined) {
             (sanitizedData as any)[key] = submittedCasaData[key as keyof typeof submittedCasaData];
         } else {
-            // Handle specific fields that should be removed if empty/undefined
             if (key === 'addedByGroupId' && (submittedCasaData.addedByGroupId === "" || submittedCasaData.addedByGroupId === undefined)) {
                  sanitizedData[key] = deleteField();
             } else if (key === 'unavailabilityPeriods' && (!submittedCasaData.unavailabilityPeriods || submittedCasaData.unavailabilityPeriods.length === 0)){
                  sanitizedData[key] = deleteField();
             } else if (key === 'availableDays' && (!submittedCasaData.availableDays || !submittedCasaData.availableDays.availableProgramSlotIds || submittedCasaData.availableDays.availableProgramSlotIds.length === 0)) {
-                 sanitizedData[key] = deleteField(); // This will remove the entire availableDays object
+                 sanitizedData[key] = deleteField(); 
             }
         }
     }
@@ -481,4 +480,5 @@ export default function CasasPage() {
   );
 }
 
+    
     

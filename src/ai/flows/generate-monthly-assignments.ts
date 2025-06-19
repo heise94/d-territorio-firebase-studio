@@ -116,9 +116,9 @@ const ExtendedMonthlyCaptainAssignmentItemSchema = z.object({
   time: z.string().describe('HH:MM'),
   status: z.string().describe("('not_sent', 'pending_confirmation', 'accepted', 'rejected') - Initially always 'pending' after generation, to be confirmed by user."),
   preachingType: z.string().describe("('publica', 'zoom', 'rural')"), // Should match values from TimeSlotAISchema.type
-  casaName: z.string().optional().describe('Optional casa name if preachingType is related to a casa'),
-  casaAddress: z.string().optional().describe('Optional casa address'),
-  territoryName: z.string().optional().describe('Optional territory name if preachingType is related to a territory'),
+  casaName: z.string().optional().nullable().describe('Optional casa name if preachingType is related to a casa. MUST be null/empty if preachingType is "zoom".'),
+  casaAddress: z.string().optional().nullable().describe('Optional casa address. MUST be null/empty if preachingType is "zoom".'),
+  territoryName: z.string().optional().nullable().describe('Optional territory name if preachingType is related to a territory. MUST be null/empty if preachingType is "zoom".'),
   assignedGroupId: z.string().optional().describe('If this assignment is for a specific group (e.g. rural weekend), include the group ID here.')
 });
 
@@ -249,7 +249,8 @@ const prompt = ai.definePrompt({
      - For each time slot in 'availableDaysWithTimeSlots' on a given day, assign ONE captain. Use 'publisherDetailedAvailabilities' to select a suitable publisher and set their 'id' as 'captainId' and 'name' as 'captainName'.
      - If a day has multiple time slots (e.g., morning and afternoon), aim to assign a DIFFERENT captain to each slot, based on their availability.
      - If no specific instructions are given for holidays, apply this general logic IF preaching is allowed on a holiday per 'additionalInstructions'.
-     - When assigning a 'casaName' or 'casaAddress', ensure the chosen house is NOT within one of its 'unavailabilityPeriods' for the assignment date. If all suitable houses are unavailable, do not assign a house.
+     - When assigning a 'casaName' or 'casaAddress' (for 'publica' or 'rural' types ONLY), ensure the chosen house is NOT within one of its 'unavailabilityPeriods' for the assignment date. If all suitable houses are unavailable, do not assign a house.
+     - IMPORTANT: If the 'preachingType' for a slot is 'zoom', then 'casaName', 'casaAddress', and 'territoryName' MUST be null or empty in the output. Zoom preaching does not use physical locations.
 
   2. Assembly Days & Holidays:
      - For any date that falls within the range of an assembly listed in 'assembliesInMonth', OR is listed in 'holidayDatesInMonth' (unless 'additionalInstructions' explicitly allows preaching on that holiday), NO preaching assignments should be made.
@@ -276,6 +277,7 @@ const prompt = ai.definePrompt({
      - For any day where 'groupPreachingDays' indicates it's a group-organized day, do NOT generate centralized captain assignments.
 
   Return the schedule in the following JSON format. Ensure 'status' is 'pending' for all new assignments. 'preachingType' should be 'publica', 'zoom', or 'rural'. For assembly days and holidays (unless overridden), the array for that date must be empty.
+  For 'zoom' preachingType, ensure 'casaName', 'casaAddress', and 'territoryName' are null or empty.
   {
     "captainAssignments": {
       "YYYY-MM-DD": [ 
@@ -290,9 +292,9 @@ const prompt = ai.definePrompt({
           "time": "HH:MM",
           "status": "pending", // Always pending after generation
           "preachingType": "publica", // or "zoom", "rural"
-          "casaName": "Optional casa name (ensure not unavailable)",
-          "casaAddress": "Optional casa address",
-          "territoryName": "Optional territory name",
+          "casaName": null, // Null or empty if preachingType is "zoom"
+          "casaAddress": null, // Null or empty if preachingType is "zoom"
+          "territoryName": null, // Null or empty if preachingType is "zoom"
           "assignedGroupId": "Optional group ID for rural weekend assignments"
         }
       ]
@@ -312,4 +314,5 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
   }
 );
 
+    
     

@@ -33,7 +33,7 @@ import type { Casa, CasaAvailability, PreachingGroup, UnavailabilityPeriod, Prog
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CalendarIcon, PlusCircle, Trash2, AlertTriangle, Users as UsersTypeIcon, MountainSnow, Video } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -75,7 +75,7 @@ const PreachingTypeIconDialog = ({ type, className }: { type: PreachingType, cla
   const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
-  if (type === 'zoom') return <Video className={combinedClass} />;
+  if (type === 'zoom') return <Video className={combinedClass} />; // Should not be used here anymore
   return null;
 };
 
@@ -86,7 +86,7 @@ interface AddCasaDialogProps {
   onCasaSubmit: (casa: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'>) => void;
   casaToEdit?: Casa | null;
   availableGroups: PreachingGroup[];
-  programScheduleSlots: ProgramScheduleSlot[];
+  programScheduleSlots: ProgramScheduleSlot[]; 
 }
 
 export function AddCasaDialog({ 
@@ -95,7 +95,7 @@ export function AddCasaDialog({
   onCasaSubmit, 
   casaToEdit, 
   availableGroups,
-  programScheduleSlots 
+  programScheduleSlots // Now receives all slots
 }: AddCasaDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,13 +120,21 @@ export function AddCasaDialog({
     name: "unavailabilityPeriods",
   });
 
+  // Filter programScheduleSlots to exclude 'zoom' type for house availability
+  const casaSpecificScheduleSlots = useMemo(() => {
+    return programScheduleSlots.filter(slot => slot.type !== 'zoom');
+  }, [programScheduleSlots]);
+
+
   useEffect(() => {
     if (casaToEdit && isOpen) {
       form.reset({
         ownerName: casaToEdit.ownerName || "",
         address: casaToEdit.address || "",
         phoneNumber: casaToEdit.phoneNumber || "",
-        availableProgramSlotIds: casaToEdit.availableDays?.availableProgramSlotIds || [],
+        availableProgramSlotIds: casaToEdit.availableDays?.availableProgramSlotIds?.filter(slotId => 
+          casaSpecificScheduleSlots.some(s => s.id === slotId) // Ensure only non-zoom slots are pre-filled
+        ) || [],
         notes: casaToEdit.notes || "",
         isSuitableForRural: casaToEdit.isSuitableForRural || false,
         addedByGroupId: casaToEdit.addedByGroupId || "",
@@ -149,7 +157,7 @@ export function AddCasaDialog({
         unavailabilityPeriods: [],
       });
     }
-  }, [casaToEdit, isOpen, form]);
+  }, [casaToEdit, isOpen, form, casaSpecificScheduleSlots]);
 
   async function onSubmit(values: CasaFormValues) {
     setIsSubmitting(true);
@@ -290,14 +298,14 @@ export function AddCasaDialog({
             <div className="space-y-3">
               <FormLabel className="text-sm font-medium">Disponibilidad por Horarios del Programa</FormLabel>
               <FormFieldDescription className="text-xs">
-                Selecciona los horarios específicos del programa en los que esta casa estaría disponible.
+                Selecciona los horarios específicos del programa (excepto Zoom) en los que esta casa estaría disponible.
               </FormFieldDescription>
-              {programScheduleSlots.length === 0 ? (
-                 <p className="text-sm text-muted-foreground text-center py-3 border rounded-md bg-muted/30">No hay horarios de programa configurados en Ajustes.</p>
+              {casaSpecificScheduleSlots.length === 0 ? (
+                 <p className="text-sm text-muted-foreground text-center py-3 border rounded-md bg-muted/30">No hay horarios de programa (no Zoom) configurados en Ajustes.</p>
               ) : (
                 <div className="max-h-72 overflow-y-auto space-y-3 p-3 border rounded-md shadow-sm bg-muted/20">
                   {WEEK_DAYS_ORDERED.map(dayKey => {
-                    const slotsForDay = programScheduleSlots.filter(slot => slot.dayOfWeek === dayKey);
+                    const slotsForDay = casaSpecificScheduleSlots.filter(slot => slot.dayOfWeek === dayKey);
                     if (slotsForDay.length === 0) return null;
                     return (
                       <div key={dayKey} className="space-y-2">
@@ -442,13 +450,13 @@ export function AddCasaDialog({
                   Cancelar
                 </Button>
               </DialogClose>
-              <Button type="submit" disabled={isSubmitting || programScheduleSlots.length === 0 && !isEditMode}>
+              <Button type="submit" disabled={isSubmitting || (casaSpecificScheduleSlots.length === 0 && programScheduleSlots.length > 0 && !isEditMode)}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isEditMode ? "Guardar Cambios" : "Añadir Casa"}
               </Button>
             </DialogFooter>
-            {programScheduleSlots.length === 0 && (
-                 <p className="text-xs text-destructive text-center pt-2">No se pueden añadir casas nuevas sin horarios de programa definidos en Ajustes.</p>
+            {casaSpecificScheduleSlots.length === 0 && programScheduleSlots.length > 0 && (
+                 <p className="text-xs text-destructive text-center pt-2">No se pueden añadir casas nuevas si solo hay horarios de tipo Zoom configurados en Ajustes, ya que las casas no aplican para Zoom.</p>
             )}
           </form>
         </Form>
@@ -457,4 +465,5 @@ export function AddCasaDialog({
   );
 }
 
+    
     
