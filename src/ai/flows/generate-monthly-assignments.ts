@@ -1,12 +1,9 @@
-/*
-// use server';
+
 'use server';
-// ... (todo el contenido original del archivo va aquí) ...
-// ... Asegúrate de comentar CADA LÍNEA original ...
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import type { DayOfWeek, PreachingType } from '@/types'; // Assuming PublisherDetail is defined
+import type { DayOfWeek, PreachingType } from '@/types'; 
 
 const PreachingGroupAISchema = z.object({
     id: z.string().describe("Unique ID of the preaching group."),
@@ -24,12 +21,11 @@ const AssemblyAISchema = z.object({
 const PublisherDetailForAISchema = z.object({
     id: z.string().describe("Firebase Auth UID of the publisher."),
     name: z.string().describe("Full name of the publisher."),
-    // Email y availability general no son cruciales para el prompt de asignación de capitán, se eliminan para simplificar
 }).describe("Detailed information about an available publisher, including their ID and name for captain assignment.");
 
 const TimeSlotAISchema = z.object({
   startTime: z.string().describe("Start time of the slot (HH:MM)."),
-  type: z.nativeEnum(['general', 'rural', 'zoom']).describe("Type of preaching for the slot."),
+  type: z.enum(['general', 'rural', 'zoom']).describe("Type of preaching for the slot."),
 });
 
 const AvailableDaysWithTimeSlotsAISchema = z.record(
@@ -66,7 +62,7 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
   availableTerritories: z
     .array(z.object({id: z.string(), name: z.string(), type: z.enum(["urban", "rural"]), number: z.string().optional() }))
     .describe('Available territories for assignment (urban/rural).'),
-  detailedTerritoryReports: z // This still needs real data from the page to be effective
+  detailedTerritoryReports: z 
     .array(z.any())
     .describe('Detailed reports for territories. Use this to prioritize territories less worked or needing attention. If empty, this factor cannot be heavily weighted.'),
   designatedRuralSundays: z 
@@ -110,7 +106,7 @@ const ExtendedMonthlyCaptainAssignmentItemSchema = z.object({
   captainName: z.string().describe('Name of the assigned captain.'),
   time: z.string().describe('HH:MM'),
   status: z.string().describe("('not_sent', 'pending_confirmation', 'accepted', 'rejected') - Initially always 'pending' after generation, to be confirmed by user."),
-  preachingType: z.string().describe("('publica', 'zoom', 'rural')"), // Should match values from TimeSlotAISchema.type
+  preachingType: z.string().describe("('publica', 'zoom', 'rural')"), 
   casaName: z.string().optional().nullable().describe('Optional casa name if preachingType is related to a casa. MUST be null/empty if preachingType is "zoom".'),
   casaAddress: z.string().optional().nullable().describe('Optional casa address. MUST be null/empty if preachingType is "zoom".'),
   territoryName: z.string().optional().nullable().describe('Optional territory name if preachingType is related to a territory. MUST be null/empty if preachingType is "zoom".'),
@@ -130,10 +126,7 @@ export type GenerateMonthlyAssignmentsOutput = z.infer<
 export async function generateMonthlyAssignments(
   input: GenerateMonthlyAssignmentsInput
 ): Promise<GenerateMonthlyAssignmentsOutput> {
-  // return generateMonthlyAssignmentsFlow(input); // Comentado
-   return Promise.resolve({ // Retorno mock para que la función siga exportable
-    captainAssignments: {}
-  });
+  return generateMonthlyAssignmentsFlow(input); 
 }
 
 const prompt = ai.definePrompt({
@@ -311,5 +304,3 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
     return output!;
   }
 );
-*/
-export {}; // Exportación vacía para que el archivo siga siendo un módulo

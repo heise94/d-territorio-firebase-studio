@@ -1,7 +1,5 @@
-/*
+
 'use server';
-// ... (todo el contenido original del archivo va aquí) ...
-// ... Asegúrate de comentar CADA LÍNEA original ...
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
@@ -37,13 +35,7 @@ export type FindReplacementCaptainOutput = z.infer<typeof FindReplacementCaptain
 export async function findReplacementCaptain(
   input: FindReplacementCaptainInput
 ): Promise<FindReplacementCaptainOutput> {
-  // return findReplacementCaptainFlow(input); // Comentado
-  return Promise.resolve({ // Retorno mock para que la función siga exportable
-    newCaptainId: null,
-    newCaptainName: null,
-    newCaptainEmail: null,
-    reasoning: "Flow temporalmente deshabilitado para diagnóstico."
-  });
+  return findReplacementCaptainFlow(input); 
 }
 
 const prompt = ai.definePrompt({
@@ -113,5 +105,3 @@ const findReplacementCaptainFlow = ai.defineFlow(
     return output!;
   }
 );
-*/
-export {}; // Exportación vacía para que el archivo siga siendo un módulo

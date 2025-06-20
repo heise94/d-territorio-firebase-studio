@@ -258,20 +258,29 @@ export default function CasasPage() {
       return;
     }
     
-    const casaId = (isEditMode && casaToEdit) ? casaToEdit.id : crypto.randomUUID();
-    const isActuallyEditing = !!(isEditMode && casaToEdit);
+    // `casaToEdit` (from CasasPage state) determines if this was an edit operation initiated from the page.
+    const isActualEditOperation = !!casaToEdit; 
+    const casaIdToUse = submittedCasaData.id; // The dialog ensures this ID is correct (new or existing).
 
     const dataForCasaDoc: { [key: string]: any } = {
-        id: casaId,
+        id: casaIdToUse,
         ownerName: submittedCasaData.ownerName,
         address: submittedCasaData.address,
-        isBlocked: submittedCasaData.isBlocked, 
+        isBlocked: submittedCasaData.isBlocked, // This is from the dialog submission.
         updatedAt: Timestamp.now(),
-        createdAt: isActuallyEditing ? submittedCasaData.createdAt : Timestamp.now(),
+        createdAt: submittedCasaData.createdAt, // Dialog ensures this is original if edit, or new if add.
     };
     
+    // Handle blockReason based on whether it's an edit of an already blocked casa.
+    // The AddCasaDialog itself doesn't manage blockReason.
     if (submittedCasaData.isBlocked) {
-        dataForCasaDoc.blockReason = submittedCasaData.blockReason || (isActuallyEditing && casaToEdit?.blockReason ? casaToEdit.blockReason : deleteField());
+        if (isActualEditOperation && casaToEdit?.isBlocked && casaToEdit.blockReason) {
+            dataForCasaDoc.blockReason = casaToEdit.blockReason; // Preserve existing reason if editing other fields.
+        } else {
+            // If newly blocked (or reason was cleared if that were possible via dialog), don't set a reason here.
+            // The explicit block/unblock dialog is responsible for setting/clearing the reason.
+            dataForCasaDoc.blockReason = deleteField(); 
+        }
     } else {
         dataForCasaDoc.blockReason = deleteField();
     }
@@ -310,36 +319,24 @@ export default function CasasPage() {
     });
 
     const batch = writeBatch(db);
-    const casaDocRef = doc(db, "casas", casaId);
+    const casaDocRef = doc(db, "casas", casaIdToUse);
     batch.set(casaDocRef, dataForCasaDoc, { merge: true });
 
     // Territory synchronization logic
     const newSelectedTerritoryIds = new Set(submittedCasaData.selectedNearbyTerritoryIds || []);
-    const territoriesToUpdate: Map<string, Partial<Territory>> = new Map();
-
-    // Determine previously associated territories if editing
-    const previouslyAssociatedTerritoryIds = new Set<string>();
-    if (isActuallyEditing) {
-      availableTerritories.forEach(terr => {
-        if (terr.associatedCasaIds?.includes(casaId)) {
-          previouslyAssociatedTerritoryIds.add(terr.id);
-        }
-      });
-    }
-
-    // Check all territories
+    
     availableTerritories.forEach(terr => {
       const currentAssociations = new Set(terr.associatedCasaIds || []);
       let needsUpdate = false;
 
-      if (newSelectedTerritoryIds.has(terr.id)) { // Should be associated
-        if (!currentAssociations.has(casaId)) {
-          currentAssociations.add(casaId);
+      if (newSelectedTerritoryIds.has(terr.id)) { 
+        if (!currentAssociations.has(casaIdToUse)) {
+          currentAssociations.add(casaIdToUse);
           needsUpdate = true;
         }
-      } else { // Should NOT be associated
-        if (currentAssociations.has(casaId)) {
-          currentAssociations.delete(casaId);
+      } else { 
+        if (currentAssociations.has(casaIdToUse)) {
+          currentAssociations.delete(casaIdToUse);
           needsUpdate = true;
         }
       }
@@ -358,10 +355,10 @@ export default function CasasPage() {
     try {
       await batch.commit();
       toast({
-        title: isActuallyEditing ? "Casa Actualizada" : "Casa Añadida",
-        description: `La casa de ${submittedCasaData.ownerName} ha sido ${isActuallyEditing ? 'actualizada' : 'guardada'}. Territorios cercanos sincronizados.`,
+        title: isActualEditOperation ? "Casa Actualizada" : "Casa Añadida",
+        description: `La casa de ${submittedCasaData.ownerName} ha sido ${isActualEditOperation ? 'actualizada' : 'guardada'}. Territorios cercanos sincronizados.`,
       });
-      setIsCasaDialogOpen(false);
+      setIsCasaDialogOpen(false); // This will trigger useEffect to setCasaToEdit(null)
     } catch (error) {
       console.error("Error saving casa and updating territories:", error);
       toast({ title: "Error al Guardar", description: "No se pudo guardar la casa o sincronizar los territorios.", variant: "destructive" });
@@ -376,7 +373,6 @@ export default function CasasPage() {
     const casaToDelete = casas.find(c => c.id === casaId);
     const batch = writeBatch(db);
 
-    // Remove this casa's ID from all territories that might be associated with it
     availableTerritories.forEach(terr => {
       if (terr.associatedCasaIds?.includes(casaId)) {
         const updatedAssociatedCasaIds = terr.associatedCasaIds.filter(id => id !== casaId);
@@ -824,4 +820,3 @@ export default function CasasPage() {
     </TooltipProvider>
   );
 }
-

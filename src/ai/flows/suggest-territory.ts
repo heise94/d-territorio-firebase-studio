@@ -1,8 +1,5 @@
-/*
-'use server';
 
-// ... (todo el contenido original del archivo va aquí) ...
-// ... Asegúrate de comentar CADA LÍNEA original ...
+'use server';
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
@@ -24,12 +21,7 @@ const SuggestTerritoryOutputSchema = z.object({
 export type SuggestTerritoryOutput = z.infer<typeof SuggestTerritoryOutputSchema>;
 
 export async function suggestTerritory(input: SuggestTerritoryInput): Promise<SuggestTerritoryOutput> {
-  // return suggestTerritoryFlow(input); // Comentado
-  return Promise.resolve({ // Retorno mock para que la función siga exportable
-    territoryId: "mock-territory-id",
-    territoryName: "Territorio Mock (Deshabilitado)",
-    reason: "Flow temporalmente deshabilitado para diagnóstico."
-  });
+  return suggestTerritoryFlow(input); 
 }
 
 const prompt = ai.definePrompt({
@@ -63,5 +55,3 @@ const suggestTerritoryFlow = ai.defineFlow(
     return output!;
   }
 );
-*/
-export {}; // Exportación vacía para que el archivo siga siendo un módulo
