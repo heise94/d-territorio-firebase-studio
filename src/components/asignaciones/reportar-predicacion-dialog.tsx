@@ -48,17 +48,19 @@ const reportFormSchema = z.object({
 });
 
 type ReportFormValues = z.infer<typeof reportFormSchema>;
+type FormReportItem = z.output<typeof singleTerritoryReportSchema>;
+
 
 interface TerritoryToReportDisplayInternal extends AdditionalTerritoryInfo {
     isMain: boolean;
-    displayableBlockNumbers: number[]; // Specific blocks to show for this report instance
+    displayableBlockNumbers: number[];
 }
 
 interface ReportarPredicacionDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   assignment: UserAssignment | null;
-  territory: Territory | null; // Main territory details
+  territory: Territory | null;
   onReportSubmit: (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => void;
   initialReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null;
 }
@@ -68,7 +70,7 @@ export function ReportarPredicacionDialog({
   isOpen,
   onOpenChange,
   assignment,
-  territory, 
+  territory,
   onReportSubmit,
   initialReportData,
 }: ReportarPredicacionDialogProps) {
@@ -92,15 +94,12 @@ export function ReportarPredicacionDialog({
     name: "reports",
   });
 
-  // Memoize the list of territories to report, including logic for displayable blocks
   const territoriesToReportForDialog = useMemo((): TerritoryToReportDisplayInternal[] => {
     if (!assignment) return [];
     const toReport: TerritoryToReportDisplayInternal[] = [];
 
-    if (territory) { // Main territory
+    if (territory) {
       let mainDisplayableBlocks: number[];
-      // For main territory, we don't have `isPartial` or `pendingBlockNumbers` directly on `UserAssignment` or `Territory` yet
-      // So, for now, it will always show all blocks. This could be enhanced if assignment creation specifies partial blocks.
       mainDisplayableBlocks = Array.from({ length: territory.totalBlocks || 0 }, (_, i) => i + 1);
       
       toReport.push({
@@ -113,10 +112,8 @@ export function ReportarPredicacionDialog({
         totalBlocks: territory.totalBlocks,
         isMain: true,
         displayableBlockNumbers: mainDisplayableBlocks,
-        // approxHouseCount will come from the main territory object
         approxHouseCount: territory.approxHouseCount,
         blockHouseCounts: territory.blockHouseCounts,
-
       });
     }
 
@@ -142,7 +139,7 @@ export function ReportarPredicacionDialog({
 
   useEffect(() => {
     if (isOpen && assignment) {
-      const initialReportsForForm: SingleTerritoryReportDetails[] = [];
+      const initialReportsForForm: FormReportItem[] = [];
       const initialOpenSections: Record<string, boolean> = {};
       const initialVisibleMaps: Record<string, boolean> = {};
 
@@ -150,15 +147,14 @@ export function ReportarPredicacionDialog({
         const existingReportForThisTerritory = initialReportData?.reports?.find(r => r.territoryId === terrInfo.id);
         initialReportsForForm.push({
           territoryId: terrInfo.id,
-          territoryName: terrInfo.name, // Ensure name is populated
-          territoryNotWorked: existingReportForThisTerritory?.territoryNotWorked || false,
+          territoryName: terrInfo.name, 
+          territoryNotWorked: existingReportForThisTerritory?.territoryNotWorked ?? false,
           workedBlocksIds: existingReportForThisTerritory?.workedBlocksIds || [],
         });
-        initialOpenSections[terrInfo.id] = true; // Open all sections by default
+        initialOpenSections[terrInfo.id] = true; 
         initialVisibleMaps[terrInfo.id] = false; 
       });
       
-      // Use replace from useFieldArray to set the form fields correctly
       replace(initialReportsForForm); 
       form.setValue("generalNotes", initialReportData?.generalNotes || "");
       form.setValue("additionalTerritorySelectedInAssignment", !!assignment?.additionalTerritorySelected);
@@ -167,7 +163,7 @@ export function ReportarPredicacionDialog({
       setVisibleMaps(initialVisibleMaps);
 
     } else if (!isOpen) {
-       replace([]); // Clear the field array
+       replace([]); 
        form.reset({ reports: [], generalNotes: "", additionalTerritorySelectedInAssignment: false });
        setOpenTerritorySections({});
        setVisibleMaps({});
@@ -209,7 +205,7 @@ export function ReportarPredicacionDialog({
       onReportSubmit({
         reports: values.reports.map(r => ({
             ...r,
-            workedBlocksIds: r.territoryNotWorked ? [] : r.workedBlocksIds || [] // Ensure workedBlocksIds is an array
+            workedBlocksIds: r.territoryNotWorked ? [] : r.workedBlocksIds || [] 
         })),
         generalNotes: values.generalNotes,
         additionalTerritorySelected: values.additionalTerritorySelectedInAssignment,
@@ -252,8 +248,6 @@ export function ReportarPredicacionDialog({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-5 py-1 pr-1">
             {fields.map((fieldItem, index) => {
-              // fieldItem here is from useFieldArray, it has an `id` for React key, but values are at form.watch(`reports.${index}`)
-              // We need to find the corresponding full territory info from our memoized `territoriesToReportForDialog`
               const currentTerritoryInfo = territoriesToReportForDialog.find(t => t.id === form.getValues(`reports.${index}.territoryId`));
 
               if (!currentTerritoryInfo) return null; 
@@ -436,6 +430,3 @@ export function ReportarPredicacionDialog({
     </Dialog>
   );
 }
-
-    
-    
