@@ -535,7 +535,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
   };
 
 
-  const handleCampaignSubmit = async (submittedCampaignData: Omit<Campaign, 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
+  const handleCampaignSubmit = async (submittedCampaignData: Omit<Campaign, 'id' | 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     setIsSavingSpecialEvents(true);
     let updatedCampaigns;
     const isEdit = !!submittedCampaignData.id;
@@ -543,18 +543,13 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     const campaignToSave = {
       ...submittedCampaignData,
       id: submittedCampaignData.id || crypto.randomUUID(),
-      superintendentName: submittedCampaignData.superintendentName?.trim() || null, 
-      description: submittedCampaignData.description?.trim() || null, 
-      specialCampaignTerritoriesPerDay: submittedCampaignData.specialCampaignTerritoriesPerDay === undefined || submittedCampaignData.specialCampaignTerritoriesPerDay === null ? 0 : submittedCampaignData.specialCampaignTerritoriesPerDay,
-      createdAt: isEdit && campaignToEdit?.createdAt ? campaignToEdit.createdAt : Timestamp.now(),
-      updatedAt: Timestamp.now(),
     };
     
     const existingIndex = campaigns.findIndex(c => c.id === campaignToSave.id);
     if (existingIndex > -1) {
-      updatedCampaigns = campaigns.map(c => c.id === campaignToSave.id ? campaignToSave : c);
+      updatedCampaigns = campaigns.map(c => c.id === campaignToSave.id ? { ...c, ...campaignToSave } : c);
     } else {
-      updatedCampaigns = [...campaigns, campaignToSave];
+      updatedCampaigns = [...campaigns, campaignToSave as Campaign];
     }
      updatedCampaigns.sort((a, b) => {
         const dateA = a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate);
@@ -562,11 +557,11 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         return dateB.getTime() - dateA.getTime();
     });
     
-    const success = await saveSpecialEventsToFirestore({ campaignsList: updatedCampaigns as Campaign[] }); // Cast to Campaign[]
+    const success = await saveSpecialEventsToFirestore({ campaignsList: updatedCampaigns });
     setIsSavingSpecialEvents(false);
 
     if (success) {
-        setCampaigns((updatedCampaigns as Campaign[]).map(c => ({
+        setCampaigns(updatedCampaigns.map(c => ({
             ...c, 
             startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), 
             endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate)
@@ -589,23 +584,20 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     }
   };
 
-  const handleAssemblySubmit = async (submittedAssemblyData: Omit<Assembly, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
+  const handleAssemblySubmit = async (submittedAssemblyData: Omit<Assembly, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     setIsSavingSpecialEvents(true);
     let updatedAssemblies;
     const isEdit = !!submittedAssemblyData.id;
      const assemblyToSave = {
         ...submittedAssemblyData,
         id: submittedAssemblyData.id || crypto.randomUUID(),
-        description: submittedAssemblyData.description?.trim() || null, 
-        createdAt: isEdit && assemblyToEdit?.createdAt ? assemblyToEdit.createdAt : Timestamp.now(),
-        updatedAt: Timestamp.now(),
     };
 
     const existingIndex = assemblies.findIndex(a => a.id === assemblyToSave.id);
     if (existingIndex > -1) {
-      updatedAssemblies = assemblies.map(a => a.id === assemblyToSave.id ? assemblyToSave : a);
+      updatedAssemblies = assemblies.map(a => a.id === assemblyToSave.id ? { ...a, ...assemblyToSave } : a);
     } else {
-      updatedAssemblies = [...assemblies, assemblyToSave];
+      updatedAssemblies = [...assemblies, assemblyToSave as Assembly];
     }
     updatedAssemblies.sort((a, b) => {
         const dateA = a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate);
@@ -613,10 +605,10 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         return dateB.getTime() - dateA.getTime();
     });
 
-    const success = await saveSpecialEventsToFirestore({ assembliesList: updatedAssemblies as Assembly[] }); // Cast
+    const success = await saveSpecialEventsToFirestore({ assembliesList: updatedAssemblies });
     setIsSavingSpecialEvents(false);
     if (success) {
-        setAssemblies((updatedAssemblies as Assembly[]).map(a => ({
+        setAssemblies(updatedAssemblies.map(a => ({
             ...a, 
             startDate: a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate), 
             endDate: a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate)
@@ -638,23 +630,20 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     }
   };
 
-  const handleHolidaySubmit = async (submittedHolidayData: Omit<CustomHoliday, 'createdAt' | 'updatedAt'> & { id?:string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
+  const handleHolidaySubmit = async (submittedHolidayData: Omit<CustomHoliday, 'id' | 'createdAt' | 'updatedAt'> & { id?:string }) => {
     setIsSavingSpecialEvents(true);
     let updatedHolidays;
     const isEdit = !!submittedHolidayData.id;
      const holidayToSave = {
         ...submittedHolidayData,
         id: submittedHolidayData.id || crypto.randomUUID(),
-        description: submittedHolidayData.description?.trim() || null, 
-        createdAt: isEdit && holidayToEdit?.createdAt ? holidayToEdit.createdAt : Timestamp.now(),
-        updatedAt: Timestamp.now(),
     };
 
     const existingIndex = customHolidays.findIndex(h => h.id === holidayToSave.id);
     if (existingIndex > -1) {
-      updatedHolidays = customHolidays.map(h => h.id === holidayToSave.id ? holidayToSave : h);
+      updatedHolidays = customHolidays.map(h => h.id === holidayToSave.id ? { ...h, ...holidayToSave } : h);
     } else {
-      updatedHolidays = [...customHolidays, holidayToSave];
+      updatedHolidays = [...customHolidays, holidayToSave as CustomHoliday];
     }
     updatedHolidays.sort((a,b) => {
         const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
@@ -662,10 +651,10 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         return dateA.getTime() - dateB.getTime();
     });
 
-    const success = await saveSpecialEventsToFirestore({ holidaysList: updatedHolidays as CustomHoliday[]}); // Cast
+    const success = await saveSpecialEventsToFirestore({ holidaysList: updatedHolidays });
     setIsSavingSpecialEvents(false);
     if (success) {
-        setCustomHolidays((updatedHolidays as CustomHoliday[]).map(h => ({...h, date: h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)})));
+        setCustomHolidays(updatedHolidays.map(h => ({...h, date: h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)})));
         toast({ title: isEdit ? "Festivo Actualizado" : "Festivo Añadido", description: `El festivo "\${holidayToSave.name}" ha sido guardado.` });
         setIsHolidayDialogOpen(false);
         setHolidayToEdit(null);
@@ -1280,5 +1269,3 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     </TooltipProvider>
   );
 }
-
-    

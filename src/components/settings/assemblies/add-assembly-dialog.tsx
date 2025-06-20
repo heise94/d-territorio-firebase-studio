@@ -55,7 +55,7 @@ type AssemblyFormValues = z.infer<typeof assemblyFormSchema>;
 interface AddAssemblyDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onAssemblySubmit: (assembly: Omit<Assembly, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => Promise<void>;
+  onAssemblySubmit: (assembly: Omit<Assembly, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<void>;
   assemblyToEdit?: Assembly | null;
 }
 
@@ -95,19 +95,13 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
   async function onSubmit(values: AssemblyFormValues) {
     setIsSubmitting(true);
 
-    const assemblyData: Omit<Assembly, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp } = {
+    const assemblyData: Omit<Assembly, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } = {
       id: isEditMode && assemblyToEdit ? assemblyToEdit.id : undefined,
       name: values.name,
       startDate: values.startDate, // Pass as Date
       endDate: values.endDate,     // Pass as Date
+      description: values.description || null,
     };
-    if (isEditMode && assemblyToEdit) {
-        assemblyData.createdAt = assemblyToEdit.createdAt; // Preserve original createdAt on edit
-    }
-
-    if (values.description && values.description.trim() !== "") {
-      assemblyData.description = values.description;
-    }
     
     try {
       await onAssemblySubmit(assemblyData);
@@ -268,4 +262,7 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
             </DialogFooter>
           </form>
         </Form>
-      
+      </DialogContent>
+    </Dialog>
+  );
+}

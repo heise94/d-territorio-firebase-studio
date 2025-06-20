@@ -47,7 +47,7 @@ type HolidayFormValues = z.infer<typeof holidayFormSchema>;
 interface AddHolidayDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onHolidaySubmit: (holiday: Omit<CustomHoliday, 'createdAt' | 'updatedAt'> & { id?:string; createdAt?: Timestamp; updatedAt?: Timestamp }) => Promise<void>;
+  onHolidaySubmit: (holiday: Omit<CustomHoliday, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<void>;
   holidayToEdit?: CustomHoliday | null;
 }
 
@@ -80,18 +80,12 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
   async function onSubmit(values: HolidayFormValues) {
     setIsSubmitting(true);
 
-    const holidayData: Omit<CustomHoliday, 'createdAt' | 'updatedAt'> & { id?:string; createdAt?: Timestamp; updatedAt?: Timestamp } = {
-      id: isEditMode && holidayToEdit ? holidayToEdit.id : undefined, // Let parent handle ID generation
+    const holidayData: Omit<CustomHoliday, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } = {
+      id: isEditMode && holidayToEdit ? holidayToEdit.id : undefined,
       name: values.name,
       date: values.date, // Pass as Date
+      description: values.description || null,
     };
-    if (isEditMode && holidayToEdit) {
-        holidayData.createdAt = holidayToEdit.createdAt; // Preserve original createdAt
-    }
-
-    if (values.description && values.description.trim() !== "") {
-      holidayData.description = values.description;
-    }
     
     try {
       await onHolidaySubmit(holidayData);
@@ -203,5 +197,3 @@ export function AddHolidayDialog({ isOpen, onOpenChange, onHolidaySubmit, holida
     </Dialog>
   );
 }
-
-

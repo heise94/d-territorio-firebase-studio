@@ -69,7 +69,7 @@ type CampaignFormValues = z.infer<typeof campaignFormSchema>;
 interface AddCampaignDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onCampaignSubmit: (campaign: Omit<Campaign, 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => Promise<void>;
+  onCampaignSubmit: (campaign: Omit<Campaign, 'id' | 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<void>;
   campaignToEdit?: Campaign | null;
 }
 
@@ -126,24 +126,16 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
   async function onSubmit(values: CampaignFormValues) {
     setIsSubmitting(true);
 
-    const campaignData: Omit<Campaign, 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp } = {
-      id: isEditMode && campaignToEdit ? campaignToEdit.id : undefined, // Let parent handle ID generation for new
+    const campaignData: Omit<Campaign, 'id' | 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string } = {
+      id: isEditMode && campaignToEdit ? campaignToEdit.id : undefined,
       name: values.name,
       type: values.type,
-      startDate: values.startDate, // Pass as Date, parent will convert to Timestamp
-      endDate: values.endDate,     // Pass as Date, parent will convert to Timestamp
+      startDate: values.startDate,
+      endDate: values.endDate,
       specialCampaignTerritoriesPerDay: values.specialCampaignTerritoriesPerDay,
+      description: values.description || null,
+      superintendentName: values.type === 'superintendent_visit' ? (values.superintendentName || null) : null,
     };
-    if (isEditMode && campaignToEdit) {
-        campaignData.createdAt = campaignToEdit.createdAt; // Preserve original createdAt on edit
-    }
-
-    if (values.description && values.description.trim() !== "") {
-      campaignData.description = values.description;
-    }
-    if (values.type === 'superintendent_visit' && values.superintendentName && values.superintendentName.trim() !== "") {
-      campaignData.superintendentName = values.superintendentName;
-    }
     
     try {
       await onCampaignSubmit(campaignData);
@@ -371,5 +363,3 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
     </Dialog>
   );
 }
-
-
