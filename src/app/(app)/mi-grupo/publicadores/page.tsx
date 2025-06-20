@@ -127,7 +127,6 @@ export default function MiGrupoPublicadoresPage() {
         assignedGroupId: currentGroupIdForManagement,
         status: 'Pendiente Aprobación Admin', // New status indicating admin needs to approve
         adminApprovalStatus: 'pending',
-        invitationStatus: 'pending', // They will need to accept an invitation
         addedByGroupId: currentGroupIdForManagement,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
