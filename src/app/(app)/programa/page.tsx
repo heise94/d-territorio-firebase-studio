@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { generateMonthlyAssignments, type GenerateMonthlyAssignmentsInput, type GenerateMonthlyAssignmentsOutput } from "@/ai/flows/generate-monthly-assignments";
 import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
 import { es } from "date-fns/locale";
-import { format, getDaysInMonth, startOfMonth, getDay, isWithinInterval, parseISO } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, getDay, isWithinInterval, parseISO, parse } from 'date-fns';
 import { Timestamp, writeBatch, collection, doc, getDoc, getDocs, query, where, orderBy, deleteField } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { ProgramScheduleSlot, PublisherDetail, PreachingType as TypePreachingType, SettingsDoc, Casa, Territory, PreachingGroup, DayOfWeek as TypeDayOfWeek, Campaign, Assembly, CustomHoliday, PreachingAssignedType } from "@/types";
@@ -115,7 +115,14 @@ export default function ProgramaMensualPage() {
       // Fetch collections
       const usersQuery = query(collection(db, "users"), where("status", "==", "Activo"), where("adminApprovalStatus", "==", "approved"));
       const usersSnap = await getDocs(usersQuery);
-      setPublishers(usersSnap.docs.map(d => ({ id: d.id, firebaseAuthUid: d.data().firebaseAuthUid || d.id, name: d.data().name, email: d.data().email, availability: d.data().availability || {} } as PublisherDetail)));
+      setPublishers(usersSnap.docs.map(d => ({ 
+        id: d.id, 
+        firebaseAuthUid: d.data().firebaseAuthUid || d.id, 
+        name: d.data().name, 
+        email: d.data().email, 
+        availability: d.data().availability || {},
+        assignedGroupId: d.data().assignedGroupId 
+      } as PublisherDetail)));
       
       const casasQuery = query(collection(db, "casas"), where("isBlocked", "==", false));
       const casasSnap = await getDocs(casasQuery);
@@ -186,7 +193,7 @@ export default function ProgramaMensualPage() {
           name: c.ownerName, 
           address: c.address,
           unavailabilityPeriods: (c.unavailabilityPeriods || []).map(up => ({
-              id: up.id || crypto.randomUUID(), // Ensure id exists
+              id: up.id || crypto.randomUUID(), 
               startDate: format(up.startDate instanceof Timestamp ? up.startDate.toDate() : new Date(up.startDate), "yyyy-MM-dd"),
               endDate: format(up.endDate instanceof Timestamp ? up.endDate.toDate() : new Date(up.endDate), "yyyy-MM-dd"),
               reason: up.reason
@@ -227,8 +234,9 @@ export default function ProgramaMensualPage() {
             const assemblyStartYear = assemblyStartDate.getFullYear();
             const assemblyEndMonth = assemblyEndDate.getMonth();
             const assemblyEndYear = assemblyEndDate.getFullYear();
+            // Ensure campaignEndYear comparison is correct
             return (assemblyStartYear < selectedYear || (assemblyStartYear === selectedYear && assemblyStartMonth <= selectedMonth)) &&
-                   (assemblyEndYear > selectedYear || (campaignEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
+                   (assemblyEndYear > selectedYear || (assemblyEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
         })
         .map(a => ({
             ...a, 
@@ -398,7 +406,7 @@ export default function ProgramaMensualPage() {
                   <Card key={dayString} className="shadow-md">
                     <CardHeader className="pb-2 bg-muted/30 rounded-t-md">
                       <CardTitle className="text-lg font-semibold">
-                        {format(parseISO(dayString), "EEEE, dd 'de' MMMM", { locale: es })}
+                        {format(parse(dayString, 'yyyy-MM-dd', new Date()), "EEEE, dd 'de' MMMM", { locale: es })}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4">
@@ -463,3 +471,4 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
+

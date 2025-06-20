@@ -20,20 +20,16 @@ export interface UserProfile {
   updatedAt?: Timestamp;
 }
 
-// Definición de PublisherDetail añadida
+// Definición de PublisherDetail corregida
 export interface PublisherDetail {
-  id: string;
+  id: string; // Document ID from Firestore users collection
   name: string;
   email: string;
-  // La estructura de availability debe coincidir con cómo se usa,
-  // MOCK_AVAILABLE_PUBLISHERS en gestion-asignaciones/page.tsx usa:
-  // availability: { availableSlotIds: string[] }
   availability: {
     availableSlotIds?: string[];
   };
-  assignedGroupId?: string; // Basado en MOCK_GROUP_PUBLISHERS
-  // phoneNumber?: string; // Podría añadirse si es necesario para el flujo
-  // role?: UserRole; // Podría añadirse si es necesario
+  assignedGroupId?: string;
+  firebaseAuthUid?: string; // UID from Firebase Authentication
 }
 
 
@@ -241,7 +237,7 @@ export interface GroupAssignment {
   id: string;
   groupId: string;
   date: string; // YYYY-MM-DD
-  preachingType: PreachingType;
+  preachingType: PreachingType; // Corrected from PreachingAssignedType, this is for group planning
   time: string; // HH:MM
   captainUserId: string;
   captainName?: string;
