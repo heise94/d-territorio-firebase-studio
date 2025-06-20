@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse, isAfter, isBefore as isBeforeDateFns } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek, CustomHoliday, TerritoryType, AdditionalTerritoryInfo } from "@/types";
-import { AddGroupAssignmentDialog } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
+import { AddGroupAssignmentDialog, type GroupAssignmentSubmitDataType } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
 import { SuggestTerritoryForGroupAssignmentDialog } from "@/components/mi-grupo/programa/suggest-territory-for-group-assignment-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Timestamp } from "firebase/firestore";
@@ -130,7 +130,7 @@ export default function MiGrupoProgramaPage() {
     setIsAddAssignmentDialogOpen(true);
   };
 
-  const handleAssignmentSubmit = (submittedData: Omit<GroupAssignment, 'groupId' | 'createdAt' | 'createdBy'> & { id?: string }) => {
+  const handleAssignmentSubmit = (submittedData: GroupAssignmentSubmitDataType) => {
     if (!currentGroupId || !userProfile?.firebaseAuthUid) {
       toast({ title: "Error", description: "No se pudo identificar el grupo o usuario.", variant: "destructive" });
       return;
@@ -140,7 +140,14 @@ export default function MiGrupoProgramaPage() {
       setGroupAssignments(prev =>
         prev.map(assign =>
           assign.id === submittedData.id
-            ? { ...assign, ...submittedData, groupId: currentGroupId, updatedAt: Timestamp.now() } as GroupAssignment 
+            ? { 
+                ...assign, // Spread existing fields first
+                ...submittedData, // Then overwrite with submitted data
+                // Ensure fields not in SubmittedDialogData but in GroupAssignment are preserved or set
+                groupId: currentGroupId, 
+                updatedAt: Timestamp.now(),
+                // assignedTerritoryId and assignedTerritoryName would be updated via suggest territory dialog
+              } as GroupAssignment // Cast might be needed if types are very specific
             : assign
         ).sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time))
       );
@@ -152,6 +159,7 @@ export default function MiGrupoProgramaPage() {
         groupId: currentGroupId,
         createdAt: Timestamp.now(),
         createdBy: userProfile.firebaseAuthUid,
+        // assignedTerritoryId and assignedTerritoryName will be added by suggest territory flow
       };
       setGroupAssignments(prev => [...prev, assignmentToAdd].sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time)));
       toast({ title: "Asignación Creada", description: "La nueva asignación ha sido creada." });
@@ -203,8 +211,6 @@ export default function MiGrupoProgramaPage() {
       notes: `Territorio asignado por SG para la salida de grupo. ${groupAssignmentContext.notes || ''}`.trim(),
     };
 
-    // En un escenario real, aquí se guardaría newUserAssignment en Firestore.
-    // Por ahora, solo mostraremos un toast.
     console.log("Simulando creación de UserAssignment:", newUserAssignment);
     toast({
       title: "Territorio Asignado al Grupo",

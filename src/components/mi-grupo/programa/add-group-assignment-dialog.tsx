@@ -53,10 +53,23 @@ const DAY_OF_WEEK_MAP_NUM_TO_KEY: Record<number, DayOfWeek> = {
 
 const NO_CASA_SELECTED_VALUE = "__NO_CASA_SELECTED__";
 
+// Define the shape of the data submitted by this dialog
+export type GroupAssignmentSubmitDataType = {
+    id?: string;
+    date: string; // "yyyy-MM-dd"
+    preachingType: PreachingType;
+    time: string;
+    captainUserId: string;
+    captainName: string;
+    casaId?: string;
+    casaName?: string;
+    notes?: string;
+};
+
 interface AddGroupAssignmentDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onAssignmentSubmit: (data: Omit<GroupAssignment, 'groupId' | 'createdAt' | 'createdBy'> & { id?: string }) => void;
+  onAssignmentSubmit: (data: GroupAssignmentSubmitDataType) => void;
   currentMonth: number; // 0-indexed
   currentYear: number;
   groupPublishers: PublisherDetail[];
@@ -138,7 +151,7 @@ export function AddGroupAssignmentDialog({
       return;
     }
 
-    const assignmentData: Omit<GroupAssignment, 'groupId' | 'createdAt' | 'createdBy'> & { id?: string } = {
+    const assignmentData: GroupAssignmentSubmitDataType = {
       id: isEditMode ? assignmentToEdit?.id : undefined, 
       date: format(values.date, "yyyy-MM-dd"),
       preachingType: values.preachingType,
