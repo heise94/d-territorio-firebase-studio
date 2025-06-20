@@ -40,7 +40,7 @@ import { Loader2 } from "lucide-react";
 import { AddCampaignDialog } from "@/components/settings/campaigns/add-campaign-dialog";
 import { AddHolidayDialog } from "@/components/settings/holidays/add-holiday-dialog";
 import { AddAssemblyDialog } from "@/components/settings/assemblies/add-assembly-dialog";
-import { Timestamp, doc, getDoc, setDoc, serverTimestamp, updateDoc, deleteField, writeBatch, collection, query, orderBy, onSnapshot, getDocs } from "firebase/firestore"; // Added getDocs
+import { Timestamp, doc, getDoc, setDoc, serverTimestamp, updateDoc, deleteField, writeBatch, collection, query, orderBy, onSnapshot, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   Table,
@@ -566,7 +566,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     setIsSavingSpecialEvents(false);
 
     if (success) {
-        setCampaigns(updatedCampaigns.map(c => ({
+        setCampaigns((updatedCampaigns as Campaign[]).map(c => ({
             ...c, 
             startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), 
             endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate)
@@ -616,7 +616,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     const success = await saveSpecialEventsToFirestore({ assembliesList: updatedAssemblies });
     setIsSavingSpecialEvents(false);
     if (success) {
-        setAssemblies(updatedAssemblies.map(a => ({
+        setAssemblies((updatedAssemblies as Assembly[]).map(a => ({
             ...a, 
             startDate: a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate), 
             endDate: a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate)
@@ -665,7 +665,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     const success = await saveSpecialEventsToFirestore({ holidaysList: updatedHolidays });
     setIsSavingSpecialEvents(false);
     if (success) {
-        setCustomHolidays(updatedHolidays.map(h => ({...h, date: h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)})));
+        setCustomHolidays((updatedHolidays as CustomHoliday[]).map(h => ({...h, date: h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)})));
         toast({ title: isEdit ? "Festivo Actualizado" : "Festivo Añadido", description: `El festivo "\${holidayToSave.name}" ha sido guardado.` });
         setIsHolidayDialogOpen(false);
         setHolidayToEdit(null);
@@ -746,7 +746,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         }));
 
         const currentCustomHolidaysAsDates = customHolidays.map(h => ({ ...h, date: (h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)) }));
-        const updatedHolidaysWithDates = [...currentCustomHolidaysAsDates, ...holidaysWithIdsAndTimestamps.map(h => ({...h, date: h.date.toDate()}))]
+        const updatedHolidaysWithDates = [...currentCustomHolidaysAsDates, ...holidaysWithIdsAndTimestamps.map(h => ({...h, date: (h.date instanceof Timestamp ? h.date.toDate() : h.date)}))]
           .sort((a,b) => a.date.getTime() - b.date.getTime());
         
         const success = await saveSpecialEventsToFirestore({ holidaysList: updatedHolidaysWithDates });
