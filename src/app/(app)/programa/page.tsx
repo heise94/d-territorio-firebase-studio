@@ -11,7 +11,7 @@ import { generateMonthlyAssignments, type GenerateMonthlyAssignmentsInput, type 
 import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, getDay, isWithinInterval, parseISO } from 'date-fns';
-import { Timestamp, writeBatch, collection, doc, getDoc, getDocs, query, where, orderBy } from "firebase/firestore"; 
+import { Timestamp, writeBatch, collection, doc, getDoc, getDocs, query, where, orderBy, deleteField } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { ProgramScheduleSlot, PublisherDetail, PreachingAssignedType, SettingsDoc, Casa, Territory, PreachingGroup, DayOfWeek as TypeDayOfWeek, Campaign, Assembly, CustomHoliday } from "@/types";
 import { USER_ROLES } from "@/lib/constants";
@@ -27,6 +27,16 @@ const DAY_OF_WEEK_MAP: Record<number, TypeDayOfWeek> = {
   0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday',
 };
 
+const initialGroupOrganizedDaysState: Record<TypeDayOfWeek, boolean> = {
+  monday: false,
+  tuesday: false,
+  wednesday: false,
+  thursday: false,
+  friday: false,
+  saturday: false,
+  sunday: false,
+};
+
 export default function ProgramaMensualPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
@@ -38,7 +48,7 @@ export default function ProgramaMensualPage() {
   const { toast } = useToast();
 
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
-  const [groupOrganizedDays, setGroupOrganizedDays] = useState<Record<TypeDayOfWeek, boolean>>({});
+  const [groupOrganizedDays, setGroupOrganizedDays] = useState<Record<TypeDayOfWeek, boolean>>(initialGroupOrganizedDaysState);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [holidays, setHolidays] = useState<CustomHoliday[]>([]);
   const [assemblies, setAssemblies] = useState<Assembly[]>([]);
@@ -63,29 +73,62 @@ export default function ProgramaMensualPage() {
         const config = programConfigSnap.data() as SettingsDoc;
         setProgramScheduleSlots(config.programScheduleSlots || []);
         
-        const organizedDaysMap: Record<TypeDayOfWeek, boolean> = {} as Record<TypeDayOfWeek, boolean>;
-        (config.groupOrganizedDays || []).forEach(day => { organizedDaysMap[day] = true; });
+        const organizedDaysMap: Record<TypeDayOfWeek, boolean> = { ...initialGroupOrganizedDaysState };
+        (config.groupOrganizedDays || []).forEach(day => { 
+            if (day in organizedDaysMap) {
+                organizedDaysMap[day] = true; 
+            }
+        });
         setGroupOrganizedDays(organizedDaysMap);
-        setLastRuralGroupId(config.lastRuralWeekendLeadingGroupId);
+        setLastRuralGroupId(config.lastRuralWeekendLeadingGroupId === undefined ? null : config.lastRuralWeekendLeadingGroupId);
+      } else {
+        setProgramScheduleSlots([]);
+        setGroupOrganizedDays(initialGroupOrganizedDaysState);
+        setLastRuralGroupId(null);
       }
 
       const specialEventsConfigRef = doc(db, "settings", "specialEventsConfig");
       const specialEventsConfigSnap = await getDoc(specialEventsConfigRef);
       if (specialEventsConfigSnap.exists()) {
         const eventsConfig = specialEventsConfigSnap.data() as SettingsDoc;
-        setCampaigns((eventsConfig.campaignsList || []).map(c => ({...c, startDate: (c.startDate as Timestamp).toDate(), endDate: (c.endDate as Timestamp).toDate()})));
-        setHolidays((eventsConfig.holidaysList || []).map(h => ({...h, date: (h.date as Timestamp).toDate()})));
-        setAssemblies((eventsConfig.assembliesList || []).map(a => ({...a, startDate: (a.startDate as Timestamp).toDate(), endDate: (a.endDate as Timestamp).toDate()})));
+        const convertTimestampToDate = (item: any, dateFields: string[]) => {
+            const newItem = { ...item };
+            dateFields.forEach(field => {
+                if (newItem[field] instanceof Timestamp) {
+                    newItem[field] = newItem[field].toDate();
+                } else if (typeof newItem[field] === 'string') { 
+                     try {
+                        const parsedDate = new Date(newItem[field]); // Handles ISO strings
+                        if (!isNaN(parsedDate.getTime())) {
+                           newItem[field] = parsedDate;
+                        }
+                    } catch (e) {/* ignore */}
+                }
+            });
+            return newItem;
+        };
+        setCampaigns((eventsConfig.campaignsList || []).map(c => convertTimestampToDate(c, ['startDate', 'endDate'])));
+        setHolidays((eventsConfig.holidaysList || []).map(h => convertTimestampToDate(h, ['date'])));
+        setAssemblies((eventsConfig.assembliesList || []).map(a => convertTimestampToDate(a, ['startDate', 'endDate'])));
       }
 
       // Fetch collections
       const usersQuery = query(collection(db, "users"), where("status", "==", "Activo"), where("adminApprovalStatus", "==", "approved"));
       const usersSnap = await getDocs(usersQuery);
-      setPublishers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as PublisherDetail)));
+      setPublishers(usersSnap.docs.map(d => ({ id: d.id, firebaseAuthUid: d.data().firebaseAuthUid || d.id, name: d.data().name, email: d.data().email, availability: d.data().availability || {} } as PublisherDetail)));
       
       const casasQuery = query(collection(db, "casas"), where("isBlocked", "==", false));
       const casasSnap = await getDocs(casasQuery);
-      setCasas(casasSnap.docs.map(d => ({ id: d.id, ...d.data() } as Casa)));
+      setCasas(casasSnap.docs.map(d => ({ 
+        id: d.id, 
+        ownerName: d.data().ownerName,
+        address: d.data().address,
+        unavailabilityPeriods: (d.data().unavailabilityPeriods || []).map((p: any) => ({
+          ...p,
+          startDate: p.startDate instanceof Timestamp ? p.startDate.toDate() : new Date(p.startDate),
+          endDate: p.endDate instanceof Timestamp ? p.endDate.toDate() : new Date(p.endDate),
+        }))
+      } as Casa)));
 
       const territoriesQuery = query(collection(db, "territories"), where("isBlocked", "==", false));
       const territoriesSnap = await getDocs(territoriesQuery);
@@ -119,7 +162,6 @@ export default function ProgramaMensualPage() {
     setIsLoading(true);
     setGeneratedAssignments(null);
 
-    // Process data for AI input
     const processedAvailableDays: Record<TypeDayOfWeek, {startTime: string; type: PreachingAssignedType}[]> = {} as Record<TypeDayOfWeek, {startTime: string; type: PreachingAssignedType}[]>;
     programScheduleSlots.forEach(slot => {
         if (!processedAvailableDays[slot.dayOfWeek]) {
@@ -136,44 +178,69 @@ export default function ProgramaMensualPage() {
       
       availableDaysWithTimeSlots: processedAvailableDays,
       groupPreachingDays: groupOrganizedDays,
-      lastRuralWeekendLeadingGroupId: lastRuralGroupId ?? undefined, // Pass undefined if null
+      lastRuralWeekendLeadingGroupId: lastRuralGroupId ?? undefined,
 
       publisherDetailedAvailabilities: publishers.map(p => ({ id: p.firebaseAuthUid || p.id, name: p.name })),
-      availableCasas: casas.map(c => ({ id: c.id, name: c.ownerName, address: c.address })),
+      availableCasas: casas.map(c => ({ 
+          id: c.id, 
+          name: c.ownerName, 
+          address: c.address,
+          unavailabilityPeriods: (c.unavailabilityPeriods || []).map(up => ({
+              id: up.id || crypto.randomUUID(), // Ensure id exists
+              startDate: format(up.startDate instanceof Timestamp ? up.startDate.toDate() : new Date(up.startDate), "yyyy-MM-dd"),
+              endDate: format(up.endDate instanceof Timestamp ? up.endDate.toDate() : new Date(up.endDate), "yyyy-MM-dd"),
+              reason: up.reason
+          }))
+      })),
       availableTerritories: territories.map(t => ({id: t.id, name: t.name, type: t.type, number: t.number})),
       preachingGroups: preachingGroups.map(g => ({id: g.id, name: g.name, superintendentId: g.superintendentId})),
       
       configuredCampaigns: campaigns
         .filter(c => {
-            const campaignStartMonth = c.startDate.getMonth();
-            const campaignStartYear = c.startDate.getFullYear();
-            const campaignEndMonth = c.endDate.getMonth();
-            const campaignEndYear = c.endDate.getFullYear();
+            const campaignStartDate = c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate);
+            const campaignEndDate = c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate);
+            const campaignStartMonth = campaignStartDate.getMonth();
+            const campaignStartYear = campaignStartDate.getFullYear();
+            const campaignEndMonth = campaignEndDate.getMonth();
+            const campaignEndYear = campaignEndDate.getFullYear();
             return (campaignStartYear < selectedYear || (campaignStartYear === selectedYear && campaignStartMonth <= selectedMonth)) &&
                    (campaignEndYear > selectedYear || (campaignEndYear === selectedYear && campaignEndMonth >= selectedMonth));
         })
-        .map(c => ({...c, startDate: format(c.startDate, "yyyy-MM-dd"), endDate: format(c.endDate, "yyyy-MM-dd")})),
+        .map(c => ({
+            ...c, 
+            startDate: format(c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), "yyyy-MM-dd"), 
+            endDate: format(c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate), "yyyy-MM-dd")
+        })),
       
       holidayDatesInMonth: holidays
-        .filter(h => h.date.getFullYear() === selectedYear && h.date.getMonth() === selectedMonth)
-        .map(h => format(h.date, "yyyy-MM-dd")),
+        .filter(h => {
+            const holidayDate = h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date);
+            return holidayDate.getFullYear() === selectedYear && holidayDate.getMonth() === selectedMonth;
+        })
+        .map(h => format(h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date), "yyyy-MM-dd")),
       
       assembliesInMonth: assemblies
          .filter(a => {
-            const assemblyStartMonth = a.startDate.getMonth();
-            const assemblyStartYear = a.startDate.getFullYear();
-            const assemblyEndMonth = a.endDate.getMonth();
-            const assemblyEndYear = a.endDate.getFullYear();
+            const assemblyStartDate = a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate);
+            const assemblyEndDate = a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate);
+            const assemblyStartMonth = assemblyStartDate.getMonth();
+            const assemblyStartYear = assemblyStartDate.getFullYear();
+            const assemblyEndMonth = assemblyEndDate.getMonth();
+            const assemblyEndYear = assemblyEndDate.getFullYear();
             return (assemblyStartYear < selectedYear || (assemblyStartYear === selectedYear && assemblyStartMonth <= selectedMonth)) &&
                    (assemblyEndYear > selectedYear || (assemblyEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
         })
-        .map(a => ({...a, startDate: format(a.startDate, "yyyy-MM-dd"), endDate: format(a.endDate, "yyyy-MM-dd")})),
+        .map(a => ({
+            ...a, 
+            startDate: format(a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate), "yyyy-MM-dd"), 
+            endDate: format(a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate), "yyyy-MM-dd")
+        })),
 
-      assignCasas: true, // Example, could be dynamic
-      assignTerritories: true, // Example
-      detailedTerritoryReports: [], // Placeholder - needs real data
-      predeterminedRuralSundayAssignments: [], // Placeholder
-      specialCampaignTerritoriesPerDay: 1, // Default, can be configurable
+      assignCasas: true,
+      assignTerritories: true, 
+      detailedTerritoryReports: [], 
+      predeterminedRuralSundayAssignments: [],
+      specialCampaignTerritoriesPerDay: 1,
     };
 
     try {
@@ -216,9 +283,9 @@ export default function ProgramaMensualPage() {
         Object.values(generatedAssignments.captainAssignments).flat().forEach(assign => {
             if (!assign.captainId || assign.captainId === "PENDING_CAPTAIN_ID") {
                 console.warn(`Saltando asignación para ${assign.date} a las ${assign.time} porque no tiene capitán asignado.`);
-                return; // Skip assignments with placeholder captainId
+                return; 
             }
-            const newAssignmentRef = doc(assignmentsCollectionRef); // Auto-generate ID
+            const newAssignmentRef = doc(assignmentsCollectionRef); 
             assignmentCount++;
             
             const captainUser = publishers.find(p => p.id === assign.captainId || p.firebaseAuthUid === assign.captainId);
@@ -226,7 +293,7 @@ export default function ProgramaMensualPage() {
             batch.set(newAssignmentRef, {
                 userId: assign.captainId,
                 userName: assign.captainName,
-                userEmail: captainUser?.email || null, // Add email if available
+                userEmail: captainUser?.email || null, 
                 date: assign.date,
                 time: assign.time,
                 type: assign.preachingType as PreachingAssignedType, 
@@ -390,12 +457,9 @@ export default function ProgramaMensualPage() {
           onSubmitGeneration={handleGenerateAssignments}
           year={selectedYear}
           month={selectedMonth}
-          programScheduleSlots={programScheduleSlots} // Pass fetched slots for rural day validation
+          programScheduleSlots={programScheduleSlots} 
         />
       )}
     </div>
   );
 }
-
-    
-
