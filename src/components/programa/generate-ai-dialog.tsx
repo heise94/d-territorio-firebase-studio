@@ -26,7 +26,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Bot, CalendarDays, AlertTriangle } from "lucide-react"; // Asegurando que AlertTriangle esté aquí
+import { Loader2, Bot, CalendarDays, Info } from "lucide-react"; // Changed AlertTriangle to Info
 import { useState, useEffect, useMemo } from "react";
 import { format, getDaysInMonth, getDay, startOfMonth, addDays } from "date-fns";
 import { es } from "date-fns/locale";
@@ -95,7 +95,6 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
         additionalInstructions: values.additionalInstructions || "",
         designatedRuralWeekendDays: values.designatedRuralWeekendDays || [],
       });
-      // The parent (programa/page.tsx) will handle closing the dialog on success/failure of the AI call.
     } catch (error) {
       console.error("Error in dialog submission that calls parent:", error);
       toast({
@@ -105,12 +104,11 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
       });
     } finally {
       setIsSubmitting(false);
-      // Do not call onOpenChange(false) here; let the parent decide based on AI call result.
     }
   }
 
   const handleDialogClose = (open: boolean) => {
-    if (!open && !isSubmitting) { // Only reset if not submitting, as parent might close it
+    if (!open && !isSubmitting) {
       form.reset({ additionalInstructions: "", designatedRuralWeekendDays: [] });
     }
     onOpenChange(open);
@@ -176,7 +174,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
               </div>
             ) : (
               <div className="p-3 border rounded-md bg-amber-50 border-amber-200 text-amber-700 text-sm">
-                <AlertTriangle className="inline h-4 w-4 mr-1.5" />
+                <Info className="inline h-4 w-4 mr-1.5" /> {/* Replaced AlertTriangle with Info */}
                  No hay Sábados o Domingos con horarios rurales configurados en Ajustes para el mes de {monthName}. La designación de días rurales especiales no está disponible.
               </div>
             )}
