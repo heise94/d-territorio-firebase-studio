@@ -1,16 +1,16 @@
+
 import { AcceptInvitationForm } from "@/components/auth/accept-invitation-form";
 import { AppLogo } from "@/components/layout/app-logo";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-// Define el tipo para las props de la página localmente
-type Props = {
-  params: {
-    token: string;
-  };
-  // searchParams?: { [key: string]: string | string[] | undefined }; // Opcional, si se necesitaran query params
-};
-
-export default function InvitationPage({ params }: Props) { // Usa el tipo Props definido localmente
+// Using standard inline prop typing for Next.js App Router pages
+export default function InvitationPage({
+  params,
+  searchParams, // Included searchParams for completeness, even if not used in this specific page
+}: {
+  params: { token: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
   const { token } = params;
 
   return (
