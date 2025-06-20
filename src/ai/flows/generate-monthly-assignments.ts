@@ -2,8 +2,8 @@
 'use server';
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-import type { DayOfWeek, PreachingType } from '@/types'; 
+import {z} from 'zod';
+import type { DayOfWeek, PreachingType } from '@/types';
 
 const PreachingGroupAISchema = z.object({
     id: z.string().describe("Unique ID of the preaching group."),
@@ -29,12 +29,12 @@ const TimeSlotAISchema = z.object({
 });
 
 const AvailableDaysWithTimeSlotsAISchema = z.record(
-  z.nativeEnum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+  z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
   z.array(TimeSlotAISchema)
 ).describe("Object where keys are days of the week (lowercase English) and values are arrays of time slots available for that day. Example: {'monday': [{startTime: '09:00', type: 'general'}, {startTime: '15:00', type: 'zoom'}]}");
 
 const GroupPreachingDaysAISchema = z.record(
-  z.nativeEnum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+  z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
   z.boolean()
 ).describe("Object where keys are days of the week (lowercase English) and value is true if preaching is organized by groups on that day, false or omitted otherwise. No centralized assignments should be made for true days.");
 
@@ -62,13 +62,13 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
   availableTerritories: z
     .array(z.object({id: z.string(), name: z.string(), type: z.enum(["urban", "rural"]), number: z.string().optional() }))
     .describe('Available territories for assignment (urban/rural).'),
-  detailedTerritoryReports: z 
+  detailedTerritoryReports: z
     .array(z.any())
     .describe('Detailed reports for territories. Use this to prioritize territories less worked or needing attention. If empty, this factor cannot be heavily weighted.'),
-  designatedRuralSundays: z 
+  designatedRuralSundays: z
     .array(z.string())
     .describe('Designated weekend days (Saturdays or Sundays) for special rural preaching (YYYY-MM-DD). These days should have a rural slot configured in availableDaysWithTimeSlots.'),
-  predeterminedRuralSundayAssignments: z 
+  predeterminedRuralSundayAssignments: z
     .array(z.any())
     .describe('Predefined assignments for rural weekend days (overrides standard rural rotation for these specific dates). If empty, use rotation logic.'),
   groupPreachingDays: GroupPreachingDaysAISchema.describe('Days when preaching is organized by groups. No centralized assignments for these days.'),
@@ -88,7 +88,7 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
   holidayDatesInMonth: z.array(z.string()).describe('Holiday dates in the month (YYYY-MM-DD format). No preaching on these days unless specified in additional instructions.'),
   assembliesInMonth: z.array(AssemblyAISchema).optional().describe('List of assemblies (Circuit, Regional, etc.) occurring in the scheduling month. No preaching should be scheduled on these dates.'),
   publisherDetailedAvailabilities: z
-    .array(PublisherDetailForAISchema) 
+    .array(PublisherDetailForAISchema)
     .describe('Detailed information for each available publisher, including their ID (for captainId) and name (for captainName). Crucial for assigning captains.'),
   additionalInstructions: z.string().optional().describe('Additional instructions for the AI, including how to handle holiday scheduling if different from normal days, or specific requests for rural weekend assignments if the standard rotation needs to be overridden.'),
   lastRuralWeekendLeadingGroupId: z.string().optional().describe('ID of the last preaching group that led weekend rural preaching. Helps determine the next group in rotation. If not set, start with the first group.'),
@@ -106,7 +106,7 @@ const ExtendedMonthlyCaptainAssignmentItemSchema = z.object({
   captainName: z.string().describe('Name of the assigned captain.'),
   time: z.string().describe('HH:MM'),
   status: z.string().describe("('not_sent', 'pending_confirmation', 'accepted', 'rejected') - Initially always 'pending' after generation, to be confirmed by user."),
-  preachingType: z.string().describe("('publica', 'zoom', 'rural')"), 
+  preachingType: z.string().describe("('publica', 'zoom', 'rural')"),
   casaName: z.string().optional().nullable().describe('Optional casa name if preachingType is related to a casa. MUST be null/empty if preachingType is "zoom".'),
   casaAddress: z.string().optional().nullable().describe('Optional casa address. MUST be null/empty if preachingType is "zoom".'),
   territoryName: z.string().optional().nullable().describe('Optional territory name if preachingType is related to a territory. MUST be null/empty if preachingType is "zoom".'),
@@ -115,9 +115,11 @@ const ExtendedMonthlyCaptainAssignmentItemSchema = z.object({
 
 const GenerateMonthlyAssignmentsOutputSchema = z.object({
   captainAssignments: z.record(
+    z.string(), // Key will be YYYY-MM-DD
     z.array(ExtendedMonthlyCaptainAssignmentItemSchema)
   ).describe('Object, key \"YYYY-MM-DD\", value array of ExtendedMonthlyCaptainAssignmentItem. For days with assemblies or holidays (unless overridden), this array should be empty.'),
 });
+
 
 export type GenerateMonthlyAssignmentsOutput = z.infer<
   typeof GenerateMonthlyAssignmentsOutputSchema
@@ -126,7 +128,7 @@ export type GenerateMonthlyAssignmentsOutput = z.infer<
 export async function generateMonthlyAssignments(
   input: GenerateMonthlyAssignmentsInput
 ): Promise<GenerateMonthlyAssignmentsOutput> {
-  return generateMonthlyAssignmentsFlow(input); 
+  return generateMonthlyAssignmentsFlow(input);
 }
 
 const prompt = ai.definePrompt({
@@ -304,3 +306,4 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
     return output!;
   }
 );
+
