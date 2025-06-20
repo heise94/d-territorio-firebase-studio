@@ -131,9 +131,10 @@ export default function ProgramaMensualPage() {
         ownerName: d.data().ownerName,
         address: d.data().address,
         unavailabilityPeriods: (d.data().unavailabilityPeriods || []).map((p: any) => ({
-          ...p,
+          id: p.id || crypto.randomUUID(), 
           startDate: p.startDate instanceof Timestamp ? p.startDate.toDate() : new Date(p.startDate),
           endDate: p.endDate instanceof Timestamp ? p.endDate.toDate() : new Date(p.endDate),
+          reason: p.reason
         }))
       } as Casa)));
 
@@ -214,9 +215,14 @@ export default function ProgramaMensualPage() {
                    (campaignEndYear > selectedYear || (campaignEndYear === selectedYear && campaignEndMonth >= selectedMonth));
         })
         .map(c => ({
-            ...c, 
+            id: c.id,
+            name: c.name,
+            type: c.type, // type is CampaignType, which is a string enum, compatible
             startDate: format(c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), "yyyy-MM-dd"), 
-            endDate: format(c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate), "yyyy-MM-dd")
+            endDate: format(c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate), "yyyy-MM-dd"),
+            superintendentName: c.superintendentName === null ? undefined : c.superintendentName,
+            specialCampaignTerritoriesPerDay: c.specialCampaignTerritoriesPerDay === null ? undefined : c.specialCampaignTerritoriesPerDay,
+            description: c.description === null ? undefined : c.description,
         })),
       
       holidayDatesInMonth: holidays
@@ -234,14 +240,14 @@ export default function ProgramaMensualPage() {
             const assemblyStartYear = assemblyStartDate.getFullYear();
             const assemblyEndMonth = assemblyEndDate.getMonth();
             const assemblyEndYear = assemblyEndDate.getFullYear();
-            // Ensure campaignEndYear comparison is correct
             return (assemblyStartYear < selectedYear || (assemblyStartYear === selectedYear && assemblyStartMonth <= selectedMonth)) &&
                    (assemblyEndYear > selectedYear || (assemblyEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
         })
         .map(a => ({
-            ...a, 
+            name: a.name,
             startDate: format(a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate), "yyyy-MM-dd"), 
-            endDate: format(a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate), "yyyy-MM-dd")
+            endDate: format(a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate), "yyyy-MM-dd"),
+            description: a.description === null ? undefined : a.description,
         })),
 
       assignCasas: true,
