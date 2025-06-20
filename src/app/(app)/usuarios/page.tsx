@@ -64,8 +64,8 @@ export default function UsuariosPage() {
     }
     setIsLoadingUsers(true);
     const usersCollectionRef = collection(db, "users");
-    // Consulta simplificada temporalmente para diagnóstico:
-    const q = query(usersCollectionRef, orderBy("name", "asc"));
+    // Consulta restaurada para usar el índice de Firestore
+    const q = query(usersCollectionRef, orderBy("adminApprovalStatus", "asc"), orderBy("name", "asc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedUsers = snapshot.docs.map(doc => ({
@@ -115,24 +115,28 @@ export default function UsuariosPage() {
 
     setIsSubmitting(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, newUserData.email, newUserData.password);
-      const firebaseUser = userCredential.user;
+      // SIMULACIÓN - Aquí iría la lógica real de Firebase Auth
+      // const userCredential = await createUserWithEmailAndPassword(auth, newUserData.email, newUserData.password);
+      // const firebaseUser = userCredential.user;
+      // if (firebaseUser) {
+      //   await updateAuthProfile(firebaseUser, { displayName: newUserData.name });
+      // }
+      // const firebaseAuthUid = firebaseUser.uid;
+      const mockFirebaseAuthUid = `mock-auth-${crypto.randomUUID()}`; // Para simulación
+      console.log(`Simulación: Usuario ${newUserData.name} creado en Auth con UID: ${mockFirebaseAuthUid}`);
 
-      if (firebaseUser) {
-        await updateAuthProfile(firebaseUser, { displayName: newUserData.name });
-      }
 
-      const newUserDocRef = doc(db, "users", firebaseUser.uid);
+      const newUserDocRef = doc(db, "users", mockFirebaseAuthUid); // Usar UID de Auth como ID de Firestore
       const newUserProfile: UserProfile = {
-        id: firebaseUser.uid, 
-        firebaseAuthUid: firebaseUser.uid,
+        id: mockFirebaseAuthUid,
+        firebaseAuthUid: mockFirebaseAuthUid,
         name: newUserData.name,
         email: newUserData.email,
         phoneNumber: newUserData.phoneNumber || undefined,
         role: newUserData.role,
         assignedGroupId: newUserData.assignedGroupId || undefined,
         status: 'Activo',
-        adminApprovalStatus: 'approved', // Los usuarios creados por admin se aprueban directamente
+        adminApprovalStatus: 'approved',
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
@@ -140,16 +144,16 @@ export default function UsuariosPage() {
       await setDoc(newUserDocRef, newUserProfile);
       
       toast({
-        title: "Usuario Creado Exitosamente",
-        description: `${newUserData.name} ha sido creado. Por favor, comunícale su email y la contraseña temporal de forma segura. Se recomienda que cambie su contraseña al iniciar sesión.`,
-        duration: 10000,
+        title: "Usuario Creado (Simulación)",
+        description: `${newUserData.name} ha sido creado. Comunícale su email y la contraseña temporal de forma segura.`,
+        duration: 7000,
       });
       setIsAddUserDialogOpen(false);
     } catch (error: any) {
       console.error("Error creating user:", error);
       let errorMessage = "No se pudo crear el usuario.";
       if (error.code === "auth/email-already-in-use") {
-        errorMessage = "Este email ya está registrado. Si el usuario existe, edita sus datos.";
+        errorMessage = "Este email ya está registrado.";
       } else if (error.code === "auth/weak-password") {
         errorMessage = "La contraseña proporcionada es demasiado débil.";
       }
@@ -204,7 +208,6 @@ export default function UsuariosPage() {
     const userToDelete = users.find(u => u.id === userId);
     try {
       await deleteDoc(doc(db, "users", userId));
-      // Aquí no se elimina el usuario de Firebase Auth. Eso debe hacerse manualmente o con Cloud Functions.
       toast({
         title: "Usuario Eliminado de Firestore",
         description: `${userToDelete?.name || 'El usuario'} ha sido eliminado de Firestore. La cuenta de Firebase Auth (si existe) debe eliminarse manualmente.`,
@@ -284,17 +287,30 @@ export default function UsuariosPage() {
   const canViewSensitiveUserDetails = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || currentUserProfile?.role === USER_ROLES.SS;
 
   const filteredUsers = useMemo(() => {
-    let sortedUsers = [...users]; // users ya viene de Firestore ordenado por 'name' con la consulta simplificada
+    // Firestore ya ordena por adminApprovalStatus y luego por name
+    // El sort cliente es para el status 'Pendiente Aprobación Admin' que es diferente de adminApprovalStatus
+    let clientSortedUsers = [...users].sort((a, b) => {
+      const statusOrder = (user: UserProfile) => {
+        if (user.status === 'Pendiente Aprobación Admin') return 0;
+        if (user.adminApprovalStatus === 'pending' && user.status !== 'Pendiente Aprobación Admin') return 1; // Users invited by SG, pending admin
+        if (user.status === 'Activo') return 2;
+        if (user.status === 'Bloqueado') return 3;
+        return 4; 
+      };
+
+      const statusComparison = statusOrder(a) - statusOrder(b);
+      if (statusComparison !== 0) return statusComparison;
+      return (a.name || '').localeCompare(b.name || ''); // Secondary sort by name if statuses are same
+    });
     
-    // Aplicar búsqueda si hay término
     if (searchTerm) {
-      sortedUsers = sortedUsers.filter(user =>
+      clientSortedUsers = clientSortedUsers.filter(user =>
           (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
           (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
           (user.role?.toLowerCase() || '').includes(searchTerm.toLowerCase())
       );
     }
-    return sortedUsers;
+    return clientSortedUsers;
   }, [users, searchTerm]);
 
   const canImpersonate = actualUserRole === USER_ROLES.ENCARGADO_TERRITORIO;
@@ -384,9 +400,10 @@ export default function UsuariosPage() {
                       const isUserAdmin = user.role === USER_ROLES.ENCARGADO_TERRITORIO;
                       const displayStatus = (canViewSensitiveUserDetails || user.status !== 'Bloqueado') ? user.status : 'Activo';
                       const showBlockReasonTooltip = canViewSensitiveUserDetails && user.status === 'Bloqueado' && user.blockReason;
+                      const isPendingAdminApprovalFromGroup = user.addedByGroupId && user.adminApprovalStatus === 'pending';
 
                       return (
-                      <TableRow key={user.id} className={user.adminApprovalStatus === 'pending' ? 'bg-amber-500/10 hover:bg-amber-500/15' : ''}>
+                      <TableRow key={user.id} className={isPendingAdminApprovalFromGroup ? 'bg-amber-500/10 hover:bg-amber-500/15' : ''}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9">
@@ -397,12 +414,12 @@ export default function UsuariosPage() {
                               <div className="font-medium">{user.name}</div>
                               <div className="text-xs text-muted-foreground">{user.email}</div>
                               {user.phoneNumber && <div className="text-xs text-muted-foreground/70 mt-0.5">{user.phoneNumber}</div>}
-                              {user.addedByGroupId && (
+                              {isPendingAdminApprovalFromGroup && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                     <p className="text-xs text-blue-600 mt-0.5 cursor-default">Añadido por Grupo: {user.addedByGroupId}</p>
+                                     <p className="text-xs text-amber-700 dark:text-amber-400 font-medium mt-0.5 cursor-default">Invitado por Grupo: {user.addedByGroupId}</p>
                                   </TooltipTrigger>
-                                  <TooltipContent>Este usuario fue invitado por el Superintendente del Grupo {user.addedByGroupId} y requiere aprobación.</TooltipContent>
+                                  <TooltipContent>Este usuario fue invitado por el SG del Grupo {user.addedByGroupId} y requiere aprobación del Encargado de Territorio.</TooltipContent>
                                 </Tooltip>
                               )}
                             </div>
@@ -415,14 +432,14 @@ export default function UsuariosPage() {
                             <TooltipTrigger asChild>
                               <Badge variant={
                                   displayStatus === 'Activo' ? 'default'
-                                  : displayStatus === 'Pendiente Aprobación Admin' ? 'outline'
+                                  : displayStatus === 'Pendiente Aprobación Admin' || isPendingAdminApprovalFromGroup ? 'outline'
                                   : 'destructive' 
                                 }
                                 className={
-                                    displayStatus === 'Pendiente Aprobación Admin' ? 'border-blue-500 text-blue-600 bg-blue-500/10' : ''
+                                    displayStatus === 'Pendiente Aprobación Admin' || isPendingAdminApprovalFromGroup ? 'border-blue-500 text-blue-600 bg-blue-500/10' : ''
                                 }
                               >
-                                {displayStatus}
+                                {isPendingAdminApprovalFromGroup ? 'Pendiente Aprobación Admin' : displayStatus}
                               </Badge>
                             </TooltipTrigger>
                             {showBlockReasonTooltip && (
@@ -431,11 +448,16 @@ export default function UsuariosPage() {
                                   <p className="text-xs italic">{user.blockReason}</p>
                                </TooltipContent>
                             )}
+                             {isPendingAdminApprovalFromGroup && (
+                                 <TooltipContent side="bottom" className="max-w-xs bg-blue-500/10 border border-blue-500 text-blue-700 p-2 rounded-md shadow-lg">
+                                    <p className="text-xs">Este usuario fue invitado por el SG del Grupo {user.addedByGroupId} y requiere aprobación.</p>
+                                </TooltipContent>
+                             )}
                           </Tooltip>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-0.5">
-                            {user.adminApprovalStatus === 'pending' && canManageUsers && (
+                            {(user.adminApprovalStatus === 'pending' || (user.addedByGroupId && user.status === 'Pendiente Aprobación Admin') ) && canManageUsers && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700" onClick={() => handleApproveUser(user.id)} disabled={isSubmitting}>
@@ -575,3 +597,5 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
+
+
