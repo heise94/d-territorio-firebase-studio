@@ -4,34 +4,65 @@
 import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building, PlusCircle, Pencil, Trash2, Ban, ShieldCheck, Users, Search, Phone, MapPin, CalendarClock, ShieldAlert, CheckCircle2, Users2 as GroupIcon, Loader2 } from "lucide-react";
-import type { Casa, CasaAvailability } from "@/types";
+import { Building, PlusCircle, Pencil, Trash2, Ban, ShieldCheck, Users, Search, Phone, MapPin, CalendarClock, ShieldAlert, CheckCircle2, Users2 as GroupIcon, Loader2, Users as UsersTypeIcon, MountainSnow, Video } from "lucide-react";
+import type { Casa, CasaAvailability, ProgramScheduleSlot, DayOfWeek, PreachingType, SettingsDoc } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, onSnapshot, query, where, orderBy } from "firebase/firestore";
+import { Timestamp, collection, onSnapshot, query, where, orderBy, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { USER_ROLES } from "@/lib/constants";
 
-function formatAvailability(availability?: CasaAvailability): string {
-  if (!availability) return "No especificada";
-  const dayLabels: Record<keyof Pick<Required<CasaAvailability>, 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday'>, string> = {
-    monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi'
+const DAY_ORDER_AVAILABILITY: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const DAY_LABELS_AVAILABILITY: Record<DayOfWeek, string> = {
+  monday: 'Lu', tuesday: 'Ma', wednesday: 'Mi', thursday: 'Ju', friday: 'Vi', saturday: 'Sá', sunday: 'Do'
+};
+
+const PreachingTypeIconSmall = ({ type, className }: { type: PreachingType, className?: string }) => {
+  const defaultClass = "mr-1 h-3 w-3 shrink-0";
+  const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
+  if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
+  if (type === 'rural') return <MountainSnow className={combinedClass} />;
+  // No icon for zoom as it's filtered out for casa availability
+  return null;
+};
+
+
+function formatCasaAvailabilityDisplay(availableSlotIds?: string[], allSlots?: ProgramScheduleSlot[]): string {
+  if (!availableSlotIds || availableSlotIds.length === 0 || !allSlots || allSlots.length === 0) {
+    return "No especificada";
+  }
+
+  const groupedByDay: Record<DayOfWeek, ProgramScheduleSlot[]> = {
+    monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: []
   };
-  const daysOrder: (keyof Pick<Required<CasaAvailability>, 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday'>)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-  const parts: string[] = [];
-  daysOrder.forEach(dayKey => {
-    const daySlots = availability[dayKey];
-    if (daySlots && (daySlots.am || daySlots.pm)) {
-      const slots: string[] = [];
-      if (daySlots.am) slots.push("AM");
-      if (daySlots.pm) slots.push("PM");
-      parts.push(`${dayLabels[dayKey]}: ${slots.join('/')}`);
+
+  availableSlotIds.forEach(slotId => {
+    // Only consider non-zoom slots for casa availability display
+    const slotDetail = allSlots.find(s => s.id === slotId && s.type !== 'zoom');
+    if (slotDetail) {
+      groupedByDay[slotDetail.dayOfWeek].push(slotDetail);
     }
   });
-  return parts.length > 0 ? parts.join('; ') : "Disponibilidad no detallada";
+
+  const parts: string[] = [];
+  DAY_ORDER_AVAILABILITY.forEach(dayKey => {
+    const daySlots = groupedByDay[dayKey].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    if (daySlots.length > 0) {
+      const slotStrings = daySlots.map(s => {
+        let typeAbbreviation = ''; // G for General, R for Rural. Zoom is filtered out.
+        if (s.type === 'general') typeAbbreviation = 'G';
+        else if (s.type === 'rural') typeAbbreviation = 'R';
+        
+        return `${s.startTime}${typeAbbreviation ? ` (${typeAbbreviation})` : ''}`;
+      });
+      parts.push(`${DAY_LABELS_AVAILABILITY[dayKey]}: ${slotStrings.join(', ')}`);
+    }
+  });
+
+  return parts.length > 0 ? parts.join('; ') : "No especificada (o solo horarios Zoom)";
 }
 
 
@@ -41,21 +72,51 @@ export default function MiGrupoCasasPage() {
   const [isLoadingGroupCasas, setIsLoadingGroupCasas] = useState(true);
   const { toast } = useToast();
 
+  const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
+  const [isLoadingProgramSlots, setIsLoadingProgramSlots] = useState(true);
+
   const currentGroupId = userProfile?.assignedGroupId;
 
   useEffect(() => {
-    if (isLoadingPermissions) return;
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      setIsLoadingProgramSlots(false);
+      return;
+    }
+    setIsLoadingProgramSlots(true);
+    const settingsDocRef = doc(db, "settings", "programConfig");
+    const unsubscribeSlots = onSnapshot(settingsDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const settingsData = docSnap.data() as SettingsDoc;
+          const slots = settingsData.programScheduleSlots || [];
+          setProgramScheduleSlots(slots.sort((a,b) => {
+            const dayCompare = DAY_ORDER_AVAILABILITY.indexOf(a.dayOfWeek) - DAY_ORDER_AVAILABILITY.indexOf(b.dayOfWeek);
+            if (dayCompare !== 0) return dayCompare;
+            return a.startTime.localeCompare(b.startTime);
+          }));
+        } else {
+          setProgramScheduleSlots([]);
+        }
+        setIsLoadingProgramSlots(false);
+    }, (error) => {
+        console.error("Error fetching program schedule slots for Mi Grupo Casas:", error);
+        toast({ title: "Error al Cargar Horarios", description: "No se pudieron cargar los horarios del programa.", variant: "destructive" });
+        setIsLoadingProgramSlots(false);
+    });
+     return () => unsubscribeSlots();
+  }, [toast]);
+
+
+  useEffect(() => {
+    if (isLoadingPermissions || isLoadingProgramSlots) return;
 
     if (!currentGroupId) {
       setIsLoadingGroupCasas(false);
-      if (userProfile?.role === USER_ROLES.SG || userProfile?.role === USER_ROLES.AUXILIAR_TERRITORIO) {
-        //toast({ title: "No Asignado", description: "No estás asignado a un grupo para ver sus casas.", variant: "default" });
-      }
       return;
     }
     
     if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      // Toast already shown by program slots effect
       setIsLoadingGroupCasas(false);
       return;
     }
@@ -65,11 +126,11 @@ export default function MiGrupoCasasPage() {
     const q = query(casasCollectionRef, where("addedByGroupId", "==", currentGroupId), orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedCasas = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt : Timestamp.now(),
-        updatedAt: doc.data().updatedAt instanceof Timestamp ? doc.data().updatedAt : Timestamp.now(),
+      const fetchedCasas = snapshot.docs.map(docSnap => ({ // Renamed doc to docSnap to avoid conflict
+        id: docSnap.id,
+        ...docSnap.data(),
+        createdAt: docSnap.data().createdAt instanceof Timestamp ? docSnap.data().createdAt : Timestamp.now(),
+        updatedAt: docSnap.data().updatedAt instanceof Timestamp ? docSnap.data().updatedAt : Timestamp.now(),
       } as Casa));
       setGroupCasas(fetchedCasas);
       setIsLoadingGroupCasas(false);
@@ -80,7 +141,7 @@ export default function MiGrupoCasasPage() {
     });
 
     return () => unsubscribe();
-  }, [currentGroupId, toast, isLoadingPermissions, userProfile?.role]);
+  }, [currentGroupId, toast, isLoadingPermissions, isLoadingProgramSlots]);
 
 
   const MOCK_GROUPS_FOR_DISPLAY: { id: string, name: string }[] = [
@@ -115,7 +176,7 @@ export default function MiGrupoCasasPage() {
             {currentGroupId ? `Casas del ${getGroupNameById(currentGroupId)}` : "Casas del Grupo"}
           </CardTitle>
           <CardDescription>
-            {isLoadingPermissions || isLoadingGroupCasas 
+            {isLoadingPermissions || isLoadingGroupCasas || isLoadingProgramSlots
                 ? "Cargando información..." 
                 : !currentGroupId 
                     ? (userProfile?.role === USER_ROLES.SG || userProfile?.role === USER_ROLES.AUXILIAR_TERRITORIO ? "No estás asignado a ningún grupo." : "Información de grupo no disponible.")
@@ -124,7 +185,7 @@ export default function MiGrupoCasasPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoadingPermissions || isLoadingGroupCasas ? (
+          {isLoadingPermissions || isLoadingGroupCasas || isLoadingProgramSlots ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(3)].map((_, i) => (
                 <Card key={i} className="flex flex-col">
@@ -151,7 +212,9 @@ export default function MiGrupoCasasPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {groupCasas.map((casa) => (
+              {groupCasas.map((casa) => {
+                const formattedAvailability = formatCasaAvailabilityDisplay(casa.availableDays?.availableProgramSlotIds, programScheduleSlots);
+                return (
                 <Card key={casa.id} className={`flex flex-col hover:shadow-md transition-shadow duration-200 rounded-md ${casa.isBlocked ? 'opacity-60 bg-muted/50' : ''}`}>
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
@@ -167,8 +230,8 @@ export default function MiGrupoCasasPage() {
                   </CardHeader>
                   <CardContent className="flex-grow space-y-2 pt-2 text-xs">
                     <div>
-                        <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={13} className="mr-1.5" /> Disponibilidad (Lu-Vi):</span>
-                        <p className="text-foreground pl-1 text-[0.7rem]">{formatAvailability(casa.availableDays)}</p>
+                        <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={13} className="mr-1.5" /> Disponibilidad (Horarios Programa):</span>
+                        <p className="text-foreground pl-1 text-[0.7rem]">{formattedAvailability}</p>
                     </div>
                     {casa.isSuitableForRural !== undefined && (
                         <div className="flex items-center">
@@ -183,9 +246,9 @@ export default function MiGrupoCasasPage() {
                         </div>
                     )}
                   </CardContent>
-                  {/* No actions from "Mi Grupo" view to avoid confusion with main Casa management */}
                 </Card>
-              ))}
+              );
+            })}
             </div>
           )}
         </CardContent>
