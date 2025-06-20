@@ -26,7 +26,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Bot, CalendarDays, AlertTriangle } from "lucide-react"; // Added AlertTriangle
+import { Loader2, Bot, CalendarDays, AlertTriangle } from "lucide-react"; // AlertTriangle added here
 import { useState, useEffect, useMemo } from "react";
 import { format, getDaysInMonth, getDay, startOfMonth, addDays } from "date-fns";
 import { es } from "date-fns/locale";
