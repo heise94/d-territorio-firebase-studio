@@ -2,15 +2,16 @@
 import { AcceptInvitationForm } from "@/components/auth/accept-invitation-form";
 import { AppLogo } from "@/components/layout/app-logo";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import type { FC } from 'react'; // Import FC
 
-// Using standard inline prop typing for Next.js App Router pages
-export default function InvitationPage({
-  params,
-  searchParams, // Included searchParams for completeness, even if not used in this specific page
-}: {
+// Definir una interfaz para las props de la página
+interface InvitationPageProps {
   params: { token: string };
   searchParams?: { [key: string]: string | string[] | undefined };
-}) {
+}
+
+// Tipar el componente usando FC<InvitationPageProps>
+const InvitationPage: FC<InvitationPageProps> = ({ params, searchParams }) => {
   const { token } = params;
 
   return (
@@ -32,4 +33,6 @@ export default function InvitationPage({
       </footer>
     </div>
   );
-}
+};
+
+export default InvitationPage;
