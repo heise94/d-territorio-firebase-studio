@@ -1,19 +1,19 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning } from "lucide-react";
+import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2 } from "lucide-react";
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import type { UserProfile } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, doc, updateDoc, deleteField } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase"; // Import auth
-import { createUserWithEmailAndPassword, updateProfile as updateAuthProfile } from "firebase/auth"; // Import firebase auth functions
-import { USER_ROLES, USER_ROLES_LIST } from "@/lib/constants";
+import { Timestamp, doc, updateDoc, deleteDoc, setDoc, collection, query, orderBy, onSnapshot, deleteField } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { createUserWithEmailAndPassword, updateProfile as updateAuthProfile } from "firebase/auth";
+import { USER_ROLES, USER_ROLES_LIST, UserRole } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
 
@@ -40,17 +40,22 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
+
+
+// MOCK_ALL_PUBLISHERS_COPY ahora se cargará desde Firestore
+// const MOCK_ALL_PUBLISHERS_COPY: UserProfile[] = [
+//     { id: '1', name: 'Elena Campos', email: 'elena.campos@example.com', phoneNumber: '+56911111111', role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo', firebaseAuthUid: 'uidElena', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved' },
+//     { id: '2', name: 'Carlos Rivas', email: 'carlos.rivas@example.com', phoneNumber: '+56922222222', role: USER_ROLES.PUBLICADOR, status: 'Activo', firebaseAuthUid: 'uidCarlos', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G2', adminApprovalStatus: 'approved' },
+//     { id: '3', name: 'Laura Méndez (SG)', email: 'laura.mendez@example.com', role: USER_ROLES.SG, status: 'Bloqueado', blockReason: "Inactividad prolongada", firebaseAuthUid: 'uidLaura', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved'},
+//     { id: '5', name: 'Nuevo Publicador (Desde Grupo)', email: 'nuevo.grupo@example.com', phoneNumber: '+56933333333', role: USER_ROLES.PUBLICADOR, status: 'Pendiente Aprobación Admin', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), addedByGroupId: 'G1', adminApprovalStatus: 'pending' },
+// ];
 
 
 export default function UsuariosPage() {
-  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false); // Renamed from isInviteUserDialogOpen
-  const [users, setUsers] = useState<UserProfile[]>([
-    { id: '1', name: 'Elena Campos', email: 'elena.campos@example.com', phoneNumber: '+56911111111', role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo', firebaseAuthUid: 'uidElena', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved' },
-    { id: '2', name: 'Carlos Rivas', email: 'carlos.rivas@example.com', phoneNumber: '+56922222222', role: USER_ROLES.PUBLICADOR, status: 'Activo', firebaseAuthUid: 'uidCarlos', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G2', adminApprovalStatus: 'approved' },
-    { id: '3', name: 'Laura Méndez (SG)', email: 'laura.mendez@example.com', role: USER_ROLES.SG, status: 'Bloqueado', blockReason: "Inactividad prolongada", firebaseAuthUid: 'uidLaura', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved'},
-    { id: '5', name: 'Nuevo Publicador (Desde Grupo)', email: 'nuevo.grupo@example.com', phoneNumber: '+56933333333', role: USER_ROLES.PUBLICADOR, status: 'Pendiente Aprobación Admin', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), addedByGroupId: 'G1', adminApprovalStatus: 'pending' },
-
-  ]);
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const router = useRouter();
@@ -60,8 +65,37 @@ export default function UsuariosPage() {
   const [userToBlock, setUserToBlock] = useState<UserProfile | null>(null);
   const [blockReasonUser, setBlockReasonUser] = useState("");
 
+  useEffect(() => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      setIsLoadingUsers(false);
+      return;
+    }
+    setIsLoadingUsers(true);
+    const usersCollectionRef = collection(db, "users");
+    // Ordenar para que los pendientes de aprobación aparezcan primero, luego por nombre
+    const q = query(usersCollectionRef, orderBy("adminApprovalStatus", "asc"), orderBy("name", "asc"));
 
-  const handleOpenAddUserDialog = () => { // Renamed from handleOpenInviteDialog
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedUsers = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt : Timestamp.now(),
+        updatedAt: doc.data().updatedAt instanceof Timestamp ? doc.data().updatedAt : Timestamp.now(),
+      } as UserProfile));
+      setUsers(fetchedUsers);
+      setIsLoadingUsers(false);
+    }, (error) => {
+      console.error("Error fetching users:", error);
+      toast({ title: "Error al Cargar Usuarios", description: "No se pudieron cargar los usuarios desde Firestore.", variant: "destructive" });
+      setIsLoadingUsers(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
+
+
+  const handleOpenAddUserDialog = () => {
     setIsAddUserDialogOpen(true);
   };
 
@@ -79,39 +113,38 @@ export default function UsuariosPage() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      // 1. Create user in Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(auth, newUserData.email, newUserData.password);
       const firebaseUser = userCredential.user;
 
-      // 2. Update Firebase Auth user profile (optional, but good practice)
       if (firebaseUser) {
         await updateAuthProfile(firebaseUser, { displayName: newUserData.name });
       }
 
-      // 3. Create user profile in Firestore
+      const newUserDocRef = doc(collection(db, "users")); // Firestore auto-generates ID
       const newUserProfile: UserProfile = {
-        id: crypto.randomUUID(), // Or use Firestore auto-ID: const newUserRef = doc(collection(db, "users")); newUserProfile.id = newUserRef.id;
+        id: newUserDocRef.id,
         firebaseAuthUid: firebaseUser.uid,
         name: newUserData.name,
         email: newUserData.email,
-        phoneNumber: newUserData.phoneNumber,
+        phoneNumber: newUserData.phoneNumber || undefined,
         role: newUserData.role,
-        assignedGroupId: newUserData.assignedGroupId,
+        assignedGroupId: newUserData.assignedGroupId || undefined,
         status: 'Activo',
-        adminApprovalStatus: 'approved', // Admin is creating, so auto-approved
+        adminApprovalStatus: 'approved',
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
-      // In a real app, save to Firestore: await setDoc(doc(db, "users", newUserProfile.id), newUserProfile);
-      setUsers(prev => [newUserProfile, ...prev]);
+      
+      await setDoc(newUserDocRef, newUserProfile);
       
       toast({
         title: "Usuario Creado Exitosamente",
         description: `${newUserData.name} ha sido creado. Por favor, comunícale su email y la contraseña temporal de forma segura. Se recomienda que cambie su contraseña al iniciar sesión.`,
-        duration: 10000, // Longer duration for this important message
+        duration: 10000,
       });
-
+      setIsAddUserDialogOpen(false);
     } catch (error: any) {
       console.error("Error creating user:", error);
       let errorMessage = "No se pudo crear el usuario.";
@@ -121,8 +154,9 @@ export default function UsuariosPage() {
         errorMessage = "La contraseña proporcionada es demasiado débil.";
       }
       toast({ title: "Error al Crear Usuario", description: errorMessage, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsAddUserDialogOpen(false);
   };
 
 
@@ -135,45 +169,53 @@ export default function UsuariosPage() {
   const confirmToggleBlockUser = async () => {
     if (!userToBlock || !db || Object.keys(db).length === 0) return;
 
+    setIsSubmitting(true);
     const newStatus = userToBlock.status === 'Activo' ? 'Bloqueado' : 'Activo';
+    const userDocRef = doc(db, "users", userToBlock.id);
     const updateData: { status: UserProfile['status']; updatedAt: Timestamp; blockReason?: any } = {
       status: newStatus,
       updatedAt: Timestamp.now(),
+      blockReason: newStatus === 'Bloqueado' ? (blockReasonUser.trim() || deleteField()) : deleteField(),
     };
 
-    if (newStatus === 'Bloqueado') {
-      updateData.blockReason = blockReasonUser.trim() || deleteField();
-    } else {
-      updateData.blockReason = deleteField();
+    try {
+      await updateDoc(userDocRef, updateData);
+      toast({
+        title: `Usuario ${newStatus === 'Bloqueado' ? 'Bloqueado' : 'Desbloqueado'}`,
+        description: `${userToBlock.name} ha sido ${newStatus === 'Bloqueado' ? 'bloqueado' : 'desbloqueado'}.`,
+      });
+    } catch (error) {
+      console.error("Error toggling user block status:", error);
+      toast({ title: "Error", description: "No se pudo actualizar el estado del usuario.", variant: "destructive" });
+    } finally {
+      setIsBlockReasonUserDialogOpen(false);
+      setUserToBlock(null);
+      setBlockReasonUser("");
+      setIsSubmitting(false);
     }
-
-    setUsers(prevUsers =>
-      prevUsers.map(u =>
-        u.id === userToBlock.id
-          ? { ...u, status: newStatus, blockReason: newStatus === 'Bloqueado' ? (blockReasonUser.trim() || undefined) : undefined, updatedAt: Timestamp.now() }
-          : u
-      )
-    );
-
-    toast({
-      title: `Usuario ${newStatus === 'Bloqueado' ? 'Bloqueado' : 'Desbloqueado'}`,
-      description: `${userToBlock.name} ha sido ${newStatus === 'Bloqueado' ? 'bloqueado' : 'desbloqueado'} (simulación).`,
-    });
-
-    setIsBlockReasonUserDialogOpen(false);
-    setUserToBlock(null);
-    setBlockReasonUser("");
   };
 
-
-  const handleDeleteUser = (userId: string) => {
-    setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
-    const user = users.find(u => u.id === userId);
-    toast({
-      title: "Usuario Eliminado",
-      description: `${user?.name || 'El usuario'} ha sido eliminado (simulación).`,
-      variant: "destructive"
-    });
+  const handleDeleteUser = async (userId: string) => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      return;
+    }
+    setIsSubmitting(true);
+    const userToDelete = users.find(u => u.id === userId);
+    try {
+      await deleteDoc(doc(db, "users", userId));
+      toast({
+        title: "Usuario Eliminado",
+        description: `${userToDelete?.name || 'El usuario'} ha sido eliminado de Firestore. Recuerda que la cuenta en Firebase Auth (si existe) debe eliminarse manualmente desde la consola de Firebase.`,
+        variant: "default",
+        duration: 7000,
+      });
+    } catch (error) {
+      console.error("Error deleting user from Firestore:", error);
+      toast({ title: "Error al Eliminar", description: "No se pudo eliminar el usuario de Firestore.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEditUser = (userId: string) => {
@@ -184,21 +226,13 @@ export default function UsuariosPage() {
     console.log(`Editando usuario ${userId}`);
   };
 
-  const handleViewAvailability = (userId: string) => {
-    toast({
-      title: "Función no implementada",
-      description: "La visualización de disponibilidad de usuario estará disponible pronto.",
-    });
-    console.log(`Viendo disponibilidad del usuario ${userId}`);
-  };
-
   const handleImpersonateUser = (userToImpersonate: UserProfile) => {
     if (actualUserRole !== USER_ROLES.ENCARGADO_TERRITORIO) {
       toast({title: "Acción no permitida", description: "Solo los administradores pueden suplantar usuarios.", variant: "destructive"});
       return;
     }
-    if (userToImpersonate.firebaseAuthUid === users.find(u => u.role === USER_ROLES.ENCARGADO_TERRITORIO)?.firebaseAuthUid) {
-      toast({title: "Acción no permitida", description: "No puedes suplantar a otro administrador o a ti mismo.", variant: "destructive"});
+    if (userToImpersonate.firebaseAuthUid === currentUserProfile?.firebaseAuthUid) {
+      toast({title: "Acción no permitida", description: "No puedes suplantarte a ti mismo.", variant: "destructive"});
       return;
     }
      if (userToImpersonate.adminApprovalStatus === 'pending' || userToImpersonate.status === 'Pendiente Aprobación Admin') {
@@ -209,21 +243,32 @@ export default function UsuariosPage() {
     router.push('/dashboard');
   };
 
-  const handleApproveUser = (userId: string) => {
-    setUsers(prevUsers =>
-      prevUsers.map(user =>
-        user.id === userId
-          ? { ...user, adminApprovalStatus: 'approved', status: 'Activo', updatedAt: Timestamp.now() }
-          : user
-      )
-    );
-    const user = users.find(u => u.id === userId);
-    toast({
-      title: "Usuario Aprobado",
-      description: `${user?.name || 'El usuario'} ha sido aprobado y ahora está activo. Deberás crear su cuenta en Firebase Auth y comunicarle sus credenciales.`,
-    });
+  const handleApproveUser = async (userId: string) => {
+     if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      return;
+    }
+    setIsSubmitting(true);
+    const userToApprove = users.find(u => u.id === userId);
+    const userDocRef = doc(db, "users", userId);
+    try {
+      await updateDoc(userDocRef, {
+        adminApprovalStatus: 'approved',
+        status: 'Activo',
+        updatedAt: Timestamp.now(),
+      });
+      toast({
+        title: "Usuario Aprobado",
+        description: `${userToApprove?.name || 'El usuario'} ha sido aprobado y ahora está activo. Si aún no tiene cuenta en Firebase Auth, debes crearla y comunicarle sus credenciales.`,
+        duration: 7000,
+      });
+    } catch (error) {
+      console.error("Error approving user:", error);
+      toast({ title: "Error al Aprobar", description: "No se pudo aprobar al usuario.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
 
   const getInitials = (name?: string) => {
     if (!name) return "??";
@@ -236,7 +281,6 @@ export default function UsuariosPage() {
 
   const canManageUsers = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
   const canViewSensitiveUserDetails = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || currentUserProfile?.role === USER_ROLES.SS;
-
 
   const filteredUsers = useMemo(() => {
     const sortedUsers = [...users].sort((a, b) => {
@@ -284,10 +328,12 @@ export default function UsuariosPage() {
             <CardTitle>Lista de Usuarios</CardTitle>
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
               <CardDescription>
-                {filteredUsers.length > 0
-                  ? `Mostrando ${filteredUsers.length} de ${users.length} usuario(s) registrados.`
-                  : users.length > 0 ? "Ningún usuario coincide con la búsqueda."
-                  : "Actualmente no hay usuarios registrados."
+                {isLoadingUsers ? "Cargando usuarios..." :
+                  (filteredUsers.length > 0
+                    ? `Mostrando ${filteredUsers.length} de ${users.length} usuario(s) registrados.`
+                    : users.length > 0 ? "Ningún usuario coincide con la búsqueda."
+                    : "Actualmente no hay usuarios registrados."
+                  )
                 }
               </CardDescription>
               <div className="relative w-full sm:w-64 md:w-72">
@@ -303,7 +349,11 @@ export default function UsuariosPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {users.length === 0 && !searchTerm ? (
+            {isLoadingUsers ? (
+                <div className="flex items-center justify-center py-16">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                </div>
+            ) : users.length === 0 && !searchTerm ? (
               <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
                 <Users className="h-20 w-20 text-muted-foreground/70 mb-6" />
                 <p className="text-xl font-medium text-muted-foreground mb-2">No hay usuarios para mostrar.</p>
@@ -328,7 +378,6 @@ export default function UsuariosPage() {
                       <TableHead>Rol</TableHead>
                       <TableHead>Grupo</TableHead>
                       <TableHead>Estado</TableHead>
-                      {/* Removed Invitation Status Column */}
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -386,13 +435,12 @@ export default function UsuariosPage() {
                             )}
                           </Tooltip>
                         </TableCell>
-                        {/* Removed Invitation Status TableCell */}
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-0.5">
                             {user.adminApprovalStatus === 'pending' && canManageUsers && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700" onClick={() => handleApproveUser(user.id)}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700" onClick={() => handleApproveUser(user.id)} disabled={isSubmitting}>
                                     <CheckSquare className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
@@ -403,11 +451,11 @@ export default function UsuariosPage() {
                            {canManageUsers && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user.id)} disabled={user.adminApprovalStatus === 'pending'}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user.id)} disabled={user.adminApprovalStatus === 'pending' || isSubmitting}>
                                     <Edit3 className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Editar Usuario</TooltipContent>
+                                <TooltipContent>Editar Usuario (Próximamente)</TooltipContent>
                               </Tooltip>
                            )}
 
@@ -428,7 +476,7 @@ export default function UsuariosPage() {
                                           confirmToggleBlockUser();
                                       }
                                   }}
-                                  disabled={user.adminApprovalStatus === 'pending' || isUserAdmin}>
+                                  disabled={user.adminApprovalStatus === 'pending' || isUserAdmin || isSubmitting}>
                                     {user.status === 'Activo' ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
                                   </Button>
                                 </TooltipTrigger>
@@ -436,10 +484,10 @@ export default function UsuariosPage() {
                               </Tooltip>
                             )}
 
-                            {canImpersonate && !isUserAdmin && user.status === 'Activo' && user.adminApprovalStatus === 'approved' && (
+                            {canImpersonate && user.id !== currentUserProfile?.id && !isUserAdmin && user.status === 'Activo' && user.adminApprovalStatus === 'approved' && (
                                 <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleImpersonateUser(user)}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleImpersonateUser(user)} disabled={isSubmitting}>
                                     <UserCog className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
@@ -453,7 +501,7 @@ export default function UsuariosPage() {
                                     <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
-                                        disabled={isUserAdmin} >
+                                        disabled={isUserAdmin || isSubmitting} >
                                         <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </TooltipTrigger>
@@ -465,13 +513,13 @@ export default function UsuariosPage() {
                                         <AlertDialogHeader>
                                         <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario '{user.name}' de tus registros (simulación).
+                                            Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario '{user.name}' de Firestore. La cuenta de Firebase Auth (si existe) deberá eliminarse manualmente.
                                         </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                         <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className={buttonVariants({variant: "destructive"})}>
-                                            Sí, eliminar
+                                            Sí, eliminar de Firestore
                                         </AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
@@ -517,8 +565,8 @@ export default function UsuariosPage() {
               </div>
               <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => { setIsBlockReasonUserDialogOpen(false); setUserToBlock(null); setBlockReasonUser(""); }}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmToggleBlockUser} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                  Confirmar Bloqueo
+                <AlertDialogAction onClick={confirmToggleBlockUser} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground" disabled={isSubmitting}>
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirmar Bloqueo
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
