@@ -69,7 +69,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { format as formatDate, getYear as getYearFromDateFn, getMonth as getMonthFromDateFn } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -1163,7 +1163,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                                 const holidayDate = holiday.date instanceof Timestamp ? holiday.date.toDate() : new Date(holiday.date);
                                 return (
                                 <TableRow key={holiday.id}>
-                                    <TableCell>{formatDate(holidayDate, "dd/MM/yyyy", { locale: es })}</TableCell>
+                                    <TableCell>{formatDate(holidayDate, "PPP", { locale: es })}</TableCell>
                                     <TableCell className="font-medium">{holiday.name}</TableCell>
                                     <TableCell className="text-xs italic text-muted-foreground truncate w-64" title={holiday.description || undefined}>
                                     {holiday.description || 'N/A'}

@@ -170,7 +170,7 @@ export default function ProgramaMensualPage() {
     setIsLoading(true);
     setGeneratedAssignments(null);
 
-    const processedAvailableDays: Record<TypeDayOfWeek, {startTime: string; type: PreachingType}[]> = {} as Record<TypeDayOfWeek, {startTime: string; type: PreachingType}[]>;
+    const processedAvailableDays: Record<TypeDayOfWeek, {startTime: string; type: TypePreachingType}[]> = {} as Record<TypeDayOfWeek, {startTime: string; type: TypePreachingType}[]>;
     programScheduleSlots.forEach(slot => {
         if (!processedAvailableDays[slot.dayOfWeek]) {
             processedAvailableDays[slot.dayOfWeek] = [];
@@ -478,3 +478,5 @@ export default function ProgramaMensualPage() {
   );
 }
 
+
+    
