@@ -430,3 +430,4 @@ export function ReportarPredicacionDialog({
     </Dialog>
   );
 }
+
