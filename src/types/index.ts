@@ -20,6 +20,23 @@ export interface UserProfile {
   updatedAt?: Timestamp;
 }
 
+// Definición de PublisherDetail añadida
+export interface PublisherDetail {
+  id: string;
+  name: string;
+  email: string;
+  // La estructura de availability debe coincidir con cómo se usa,
+  // MOCK_AVAILABLE_PUBLISHERS en gestion-asignaciones/page.tsx usa:
+  // availability: { availableSlotIds: string[] }
+  availability: {
+    availableSlotIds?: string[];
+  };
+  assignedGroupId?: string; // Basado en MOCK_GROUP_PUBLISHERS
+  // phoneNumber?: string; // Podría añadirse si es necesario para el flujo
+  // role?: UserRole; // Podría añadirse si es necesario
+}
+
+
 export interface RoleConfiguration {
   [roleName: string]: PermissionId[];
 }
