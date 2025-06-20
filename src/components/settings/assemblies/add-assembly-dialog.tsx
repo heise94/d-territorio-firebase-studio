@@ -55,7 +55,7 @@ type AssemblyFormValues = z.infer<typeof assemblyFormSchema>;
 interface AddAssemblyDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onAssemblySubmit: (assembly: Omit<Assembly, 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => Promise<void>;
+  onAssemblySubmit: (assembly: Omit<Assembly, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => Promise<void>;
   assemblyToEdit?: Assembly | null;
 }
 
@@ -95,8 +95,8 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
   async function onSubmit(values: AssemblyFormValues) {
     setIsSubmitting(true);
 
-    const assemblyData: Omit<Assembly, 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp } = {
-      id: isEditMode && assemblyToEdit ? assemblyToEdit.id : undefined, // Let parent handle ID generation for new
+    const assemblyData: Omit<Assembly, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp } = {
+      id: isEditMode && assemblyToEdit ? assemblyToEdit.id : undefined,
       name: values.name,
       startDate: values.startDate, // Pass as Date
       endDate: values.endDate,     // Pass as Date
@@ -268,9 +268,4 @@ export function AddAssemblyDialog({ isOpen, onOpenChange, onAssemblySubmit, asse
             </DialogFooter>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-
+      

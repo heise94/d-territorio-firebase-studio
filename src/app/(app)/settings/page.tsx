@@ -96,7 +96,7 @@ const dayOrder: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'fr
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingType, className?: string }) => {
   const defaultClass = "mr-1 h-4 w-4 shrink-0";
-  const combinedClass = className ? `\${defaultClass} \${className}` : defaultClass;
+  const combinedClass = `\${defaultClass} \${className}`;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
   if (type === 'zoom') return <Video className={combinedClass} />;
@@ -589,7 +589,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     }
   };
 
-  const handleAssemblySubmit = async (submittedAssemblyData: Omit<Assembly, 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
+  const handleAssemblySubmit = async (submittedAssemblyData: Omit<Assembly, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; createdAt?: Timestamp; updatedAt?: Timestamp }) => {
     setIsSavingSpecialEvents(true);
     let updatedAssemblies;
     const isEdit = !!submittedAssemblyData.id;
