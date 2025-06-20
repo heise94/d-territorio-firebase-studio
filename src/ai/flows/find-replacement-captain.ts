@@ -1,12 +1,7 @@
-
+/*
 'use server';
-/**
- * @fileOverview AI-powered flow to find a replacement captain for a preaching assignment.
- *
- * - findReplacementCaptain - A function that attempts to find a suitable replacement captain.
- * - FindReplacementCaptainInput - The input type for the findReplacementCaptain function.
- * - FindReplacementCaptainOutput - The return type for the findReplacementCaptain function.
- */
+// ... (todo el contenido original del archivo va aquí) ...
+// ... Asegúrate de comentar CADA LÍNEA original ...
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
@@ -42,7 +37,13 @@ export type FindReplacementCaptainOutput = z.infer<typeof FindReplacementCaptain
 export async function findReplacementCaptain(
   input: FindReplacementCaptainInput
 ): Promise<FindReplacementCaptainOutput> {
-  return findReplacementCaptainFlow(input);
+  // return findReplacementCaptainFlow(input); // Comentado
+  return Promise.resolve({ // Retorno mock para que la función siga exportable
+    newCaptainId: null,
+    newCaptainName: null,
+    newCaptainEmail: null,
+    reasoning: "Flow temporalmente deshabilitado para diagnóstico."
+  });
 }
 
 const prompt = ai.definePrompt({
@@ -99,10 +100,6 @@ const findReplacementCaptainFlow = ai.defineFlow(
     outputSchema: FindReplacementCaptainOutputSchema,
   },
   async (input: FindReplacementCaptainInput): Promise<FindReplacementCaptainOutput> => {
-    // In a real scenario, you might pre-process input here, e.g., fetch more detailed availability
-    // or convert date to dayOfWeek if not directly available.
-    // For now, the prompt handles deriving day of week.
-
     if (!input.availablePublishers || input.availablePublishers.length === 0 || !input.programScheduleSlots || input.programScheduleSlots.length === 0) {
         return {
             newCaptainId: null,
@@ -116,3 +113,5 @@ const findReplacementCaptainFlow = ai.defineFlow(
     return output!;
   }
 );
+*/
+export {}; // Exportación vacía para que el archivo siga siendo un módulo

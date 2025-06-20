@@ -1,13 +1,8 @@
-
+/*
 // use server';
 'use server';
-/**
- * @fileOverview AI-powered monthly preaching schedule generation flow.
- *
- * - generateMonthlyAssignments - A function that generates monthly preaching schedules.
- * - GenerateMonthlyAssignmentsInput - The input type for the generateMonthlyAssignments function.
- * - GenerateMonthlyAssignmentsOutput - The return type for the generateMonthlyAssignments function.
- */
+// ... (todo el contenido original del archivo va aquí) ...
+// ... Asegúrate de comentar CADA LÍNEA original ...
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
@@ -135,7 +130,10 @@ export type GenerateMonthlyAssignmentsOutput = z.infer<
 export async function generateMonthlyAssignments(
   input: GenerateMonthlyAssignmentsInput
 ): Promise<GenerateMonthlyAssignmentsOutput> {
-  return generateMonthlyAssignmentsFlow(input);
+  // return generateMonthlyAssignmentsFlow(input); // Comentado
+   return Promise.resolve({ // Retorno mock para que la función siga exportable
+    captainAssignments: {}
+  });
 }
 
 const prompt = ai.definePrompt({
@@ -313,6 +311,5 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
     return output!;
   }
 );
-
-    
-    
+*/
+export {}; // Exportación vacía para que el archivo siga siendo un módulo

@@ -1,14 +1,8 @@
+/*
 'use server';
 
-/**
- * @fileOverview This file defines a Genkit flow for suggesting territories to a preaching group.
- *
- * It takes into account the group's assigned territories, their last worked dates, and current status to recommend the most suitable territory for assignment.
- *
- * @exports suggestTerritory
- * @exports SuggestTerritoryInput
- * @exports SuggestTerritoryOutput
- */
+// ... (todo el contenido original del archivo va aquí) ...
+// ... Asegúrate de comentar CADA LÍNEA original ...
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
@@ -30,7 +24,12 @@ const SuggestTerritoryOutputSchema = z.object({
 export type SuggestTerritoryOutput = z.infer<typeof SuggestTerritoryOutputSchema>;
 
 export async function suggestTerritory(input: SuggestTerritoryInput): Promise<SuggestTerritoryOutput> {
-  return suggestTerritoryFlow(input);
+  // return suggestTerritoryFlow(input); // Comentado
+  return Promise.resolve({ // Retorno mock para que la función siga exportable
+    territoryId: "mock-territory-id",
+    territoryName: "Territorio Mock (Deshabilitado)",
+    reason: "Flow temporalmente deshabilitado para diagnóstico."
+  });
 }
 
 const prompt = ai.definePrompt({
@@ -64,3 +63,5 @@ const suggestTerritoryFlow = ai.defineFlow(
     return output!;
   }
 );
+*/
+export {}; // Exportación vacía para que el archivo siga siendo un módulo
