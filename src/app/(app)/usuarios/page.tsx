@@ -64,9 +64,8 @@ export default function UsuariosPage() {
     }
     setIsLoadingUsers(true);
     const usersCollectionRef = collection(db, "users");
-    // Modified query: Order only by name to avoid missing index error.
-    // The composite sorting (pending first, then by name) will be handled client-side in `filteredUsers`.
-    const q = query(usersCollectionRef, orderBy("name", "asc"));
+    // Restaurar la consulta con orderBy múltiple ahora que el índice está habilitado
+    const q = query(usersCollectionRef, orderBy("adminApprovalStatus", "asc"), orderBy("name", "asc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedUsers = snapshot.docs.map(doc => ({
@@ -79,7 +78,6 @@ export default function UsuariosPage() {
       setIsLoadingUsers(false);
     }, (error) => {
       console.error("Error fetching users:", error);
-      // Check if the error is due to a missing index
       if (error.message && error.message.includes("The query requires an index")) {
         toast({
             title: "Índice de Firestore Requerido",
@@ -120,35 +118,33 @@ export default function UsuariosPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, newUserData.email, newUserData.password);
       const firebaseUser = userCredential.user;
 
-      // It's good practice to update the auth profile if possible, though not strictly necessary for Firestore profile
       if (firebaseUser) {
         await updateAuthProfile(firebaseUser, { displayName: newUserData.name });
       }
 
-      // Create user profile in Firestore
-      const newUserDocRef = doc(collection(db, "users")); // Firestore auto-generates ID
+      const newUserDocRef = doc(db, "users", firebaseUser.uid); // Use Firebase Auth UID as Firestore doc ID
       const newUserProfile: UserProfile = {
-        id: newUserDocRef.id, // Use the auto-generated ID
+        id: firebaseUser.uid, 
         firebaseAuthUid: firebaseUser.uid,
         name: newUserData.name,
         email: newUserData.email,
         phoneNumber: newUserData.phoneNumber || undefined,
         role: newUserData.role,
         assignedGroupId: newUserData.assignedGroupId || undefined,
-        status: 'Activo', // New users created by admin are active by default
-        adminApprovalStatus: 'approved', // And approved
+        status: 'Activo',
+        adminApprovalStatus: 'approved',
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
       
-      await setDoc(newUserDocRef, newUserProfile); // Save the profile to Firestore
+      await setDoc(newUserDocRef, newUserProfile);
       
       toast({
         title: "Usuario Creado Exitosamente",
         description: `${newUserData.name} ha sido creado. Por favor, comunícale su email y la contraseña temporal de forma segura. Se recomienda que cambie su contraseña al iniciar sesión.`,
         duration: 10000,
       });
-      setIsAddUserDialogOpen(false); // Close dialog on success
+      setIsAddUserDialogOpen(false);
     } catch (error: any) {
       console.error("Error creating user:", error);
       let errorMessage = "No se pudo crear el usuario.";
@@ -207,7 +203,6 @@ export default function UsuariosPage() {
     setIsSubmitting(true);
     const userToDelete = users.find(u => u.id === userId);
     try {
-      // Note: This only deletes from Firestore. Deleting from Firebase Auth requires admin SDK or specific handling.
       await deleteDoc(doc(db, "users", userId));
       toast({
         title: "Usuario Eliminado",
@@ -287,17 +282,10 @@ export default function UsuariosPage() {
   const canManageUsers = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
   const canViewSensitiveUserDetails = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || currentUserProfile?.role === USER_ROLES.SS;
 
+  // Eliminamos el ordenamiento del lado del cliente ya que Firestore lo hará con el índice.
   const filteredUsers = useMemo(() => {
-    const clientSortedUsers = [...users].sort((a, b) => {
-      const aIsPending = a.adminApprovalStatus === 'pending' || a.status === 'Pendiente Aprobación Admin';
-      const bIsPending = b.adminApprovalStatus === 'pending' || b.status === 'Pendiente Aprobación Admin';
-      if (aIsPending && !bIsPending) return -1;
-      if (!aIsPending && bIsPending) return 1;
-      return (a.name || "").localeCompare(b.name || "");
-    });
-
-    if (!searchTerm) return clientSortedUsers;
-    return clientSortedUsers.filter(user =>
+    if (!searchTerm) return users; // 'users' ya viene ordenada de Firestore
+    return users.filter(user =>
         (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (user.role?.toLowerCase() || '').includes(searchTerm.toLowerCase())
@@ -582,3 +570,4 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
+
