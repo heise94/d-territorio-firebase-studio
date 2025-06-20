@@ -96,7 +96,7 @@ const dayOrder: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'fr
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingType, className?: string }) => {
   const defaultClass = "mr-1 h-4 w-4 shrink-0";
-  const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
+  const combinedClass = className ? `\${defaultClass} \${className}` : defaultClass;
   if (type === 'general') return <UsersTypeIcon className={combinedClass} />;
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
   if (type === 'zoom') return <Video className={combinedClass} />;
@@ -274,10 +274,10 @@ export default function SettingsPage() {
                         if (!isNaN(parsedDate.getTime())) {
                            newItem[field] = parsedDate;
                         } else {
-                            console.warn(`Could not parse date string "${newItem[field]}" for field "${field}". Leaving as is or set to null.`);
+                            console.warn(`Could not parse date string "\${newItem[field]}" for field "\${field}". Leaving as is or set to null.`);
                         }
                     } catch (e) {
-                        console.warn(`Error parsing date string "${newItem[field]}" for field "${field}":`, e);
+                        console.warn(`Error parsing date string "\${newItem[field]}" for field "\${field}":`, e);
                     }
                 }
             });
@@ -416,7 +416,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
           if (!isNaN(dateCandidate.getTime())) {
             newItem[field] = Timestamp.fromDate(dateCandidate);
           } else {
-            console.warn(`Invalid date found for field ${field} in item:`, item);
+            console.warn(`Invalid date found for field \${field} in item:`, item);
             newItem[field] = null; 
           }
         } else if (newItem[field] === undefined) { 
@@ -464,7 +464,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
       return true;
     } catch (error: any) {
       console.error("Error saving special events configuration:", error, error.code, error.message);
-      toast({ title: "Error al Guardar Eventos", description: `No se pudo guardar: ${error.message}`, variant: "destructive" });
+      toast({ title: "Error al Guardar Eventos", description: `No se pudo guardar: \${error.message}`, variant: "destructive" });
       return false;
     } finally {
       setIsSavingSpecialEvents(false);
@@ -501,7 +501,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
 
     if (success) {
         setScheduleSlots(updatedSlots);
-        toast({ title: "Horario Añadido", description: `Nuevo horario para ${dayOfWeekLabels[dayForNewSlot]} a las ${data.startTime} guardado.` });
+        toast({ title: "Horario Añadido", description: `Nuevo horario para \${dayOfWeekLabels[dayForNewSlot]} a las \${data.startTime} guardado.` });
         setIsAddSlotDialogOpen(false);
         slotForm.reset();
     }
@@ -571,7 +571,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
             startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), 
             endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate)
         })));
-        toast({ title: isEdit ? "Campaña Actualizada" : "Campaña Añadida", description: `La campaña "${campaignToSave.name}" ha sido guardada.` });
+        toast({ title: isEdit ? "Campaña Actualizada" : "Campaña Añadida", description: `La campaña "\${campaignToSave.name}" ha sido guardada.` });
         setIsCampaignDialogOpen(false);
         setCampaignToEdit(null);
     }
@@ -585,7 +585,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     setIsSavingSpecialEvents(false);
     if (success) {
         setCampaigns(updatedCampaigns);
-        toast({ title: "Campaña Eliminada", description: `La campaña "${campaignToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
+        toast({ title: "Campaña Eliminada", description: `La campaña "\${campaignToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
     }
   };
 
@@ -621,7 +621,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
             startDate: a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate), 
             endDate: a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate)
         })));
-        toast({ title: isEdit ? "Asamblea Actualizada" : "Asamblea Añadida", description: `La asamblea "${assemblyToSave.name}" ha sido guardada.` });
+        toast({ title: isEdit ? "Asamblea Actualizada" : "Asamblea Añadida", description: `La asamblea "\${assemblyToSave.name}" ha sido guardada.` });
         setIsAssemblyDialogOpen(false);
         setAssemblyToEdit(null);
     }
@@ -634,7 +634,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     setIsSavingSpecialEvents(false);
     if (success) {
         setAssemblies(updatedAssemblies);
-        toast({ title: "Asamblea Eliminada", description: `La asamblea "${assemblyToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
+        toast({ title: "Asamblea Eliminada", description: `La asamblea "\${assemblyToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
     }
   };
 
@@ -666,7 +666,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     setIsSavingSpecialEvents(false);
     if (success) {
         setCustomHolidays(updatedHolidays.map(h => ({...h, date: h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)})));
-        toast({ title: isEdit ? "Festivo Actualizado" : "Festivo Añadido", description: `El festivo "${holidayToSave.name}" ha sido guardado.` });
+        toast({ title: isEdit ? "Festivo Actualizado" : "Festivo Añadido", description: `El festivo "\${holidayToSave.name}" ha sido guardado.` });
         setIsHolidayDialogOpen(false);
         setHolidayToEdit(null);
     }
@@ -679,7 +679,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     setIsSavingSpecialEvents(false);
     if (success) {
         setCustomHolidays(updatedHolidays);
-        toast({ title: "Festivo Eliminado", description: `El festivo "${holidayToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
+        toast({ title: "Festivo Eliminado", description: `El festivo "\${holidayToDelete?.name}" ha sido eliminada.`, variant: "destructive" });
     }
   };
 
@@ -752,7 +752,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         const success = await saveSpecialEventsToFirestore({ holidaysList: updatedHolidaysWithDates });
         if (success) {
             setCustomHolidays(updatedHolidaysWithDates);
-            toast({ title: "Festivos de Ejemplo Cargados", description: `${holidaysWithIdsAndTimestamps.length} festivos (Chile, próximos 12 meses) añadidos y guardados. Verifique y ajuste.`, duration: 10000 });
+            toast({ title: "Festivos de Ejemplo Cargados", description: `\${holidaysWithIdsAndTimestamps.length} festivos (Chile, próximos 12 meses) añadidos y guardados. Verifique y ajuste.`, duration: 10000 });
         }
     } else {
       toast({ title: "Sin Cambios", description: "No se añadieron nuevos festivos de ejemplo (ya existen o no aplican al rango).", });
@@ -773,7 +773,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
 
   const holidayMonthsForFilter = useMemo(() => {
     const monthItems = Array.from({ length: 12 }, (_, i) => ({
-      value: `month_${i}`, 
+      value: `month_\${i}`, 
       label: formatDate(new Date(2000, i, 15), "MMMM", { locale: es }),
     }));
     return [{ value: "ALL_MONTHS", label: "Todos los Meses" }, ...monthItems];
@@ -901,7 +901,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                                       <p className="text-xs text-muted-foreground/80">({permission.id})</p>
                                     </TableCell>
                                     {USER_ROLES_LIST.map(role => (
-                                      <TableCell key={`${permission.id}-${role}`} className="px-3 py-2.5 text-center">
+                                      <TableCell key={`\${permission.id}-\${role}`} className="px-3 py-2.5 text-center">
                                         <Checkbox
                                           checked={
                                             role === USER_ROLES.ENCARGADO_TERRITORIO ||
@@ -909,7 +909,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                                           }
                                           onCheckedChange={(checked) => handlePermissionChange(role as UserRole, permission.id, !!checked)}
                                           disabled={role === USER_ROLES.ENCARGADO_TERRITORIO}
-                                          aria-label={`Permiso ${permission.description} para rol ${role}`}
+                                          aria-label={`Permiso \${permission.description} para rol \${role}`}
                                         />
                                       </TableCell>
                                     ))}
@@ -979,7 +979,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                                         <span className="capitalize text-muted-foreground/80">{slot.type}</span>
                                     </div>
                                     <div className="flex items-center justify-center gap-0.5">
-                                        <Badge variant={slot.status === 'tentative' ? 'outline' : 'default'} className={`capitalize text-[0.7rem] px-1.5 py-0.5 ${slot.status === 'tentative' ? 'border-amber-500 text-amber-600' : ''}`}>
+                                        <Badge variant={slot.status === 'tentative' ? 'outline' : 'default'} className={`capitalize text-[0.7rem] px-1.5 py-0.5 \${slot.status === 'tentative' ? 'border-amber-500 text-amber-600' : ''}`}>
                                             {slot.status === 'fixed' ? 'Fijo' : 'Tentativo'}
                                             {slot.status === 'tentative' && <AlertTriangle className="ml-1 h-3 w-3" />}
                                         </Badge>
@@ -1017,9 +1017,9 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 p-4 border rounded-md shadow-sm bg-muted/20">
                         {dayOrder.map(dayKey => (
-                        <div key={`group-day-${dayKey}`} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
-                            <Checkbox id={`group-organized-${dayKey}`} checked={groupOrganizedDays.includes(dayKey)} onCheckedChange={(checked) => handleGroupOrganizedDayChange(dayKey, !!checked)} />
-                            <label htmlFor={`group-organized-${dayKey}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">{dayOfWeekLabels[dayKey]}</label>
+                        <div key={`group-day-\${dayKey}`} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
+                            <Checkbox id={`group-organized-\${dayKey}`} checked={groupOrganizedDays.includes(dayKey)} onCheckedChange={(checked) => handleGroupOrganizedDayChange(dayKey, !!checked)} />
+                            <label htmlFor={`group-organized-\${dayKey}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">{dayOfWeekLabels[dayKey]}</label>
                         </div>
                         ))}
                     </div>
@@ -1269,4 +1269,3 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
   );
 }
 
-    
