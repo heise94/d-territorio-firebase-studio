@@ -64,8 +64,8 @@ export default function UsuariosPage() {
     }
     setIsLoadingUsers(true);
     const usersCollectionRef = collection(db, "users");
-    // Restaurar la consulta con orderBy múltiple ahora que el índice está habilitado
-    const q = query(usersCollectionRef, orderBy("adminApprovalStatus", "asc"), orderBy("name", "asc"));
+    // Consulta simplificada temporalmente para diagnóstico:
+    const q = query(usersCollectionRef, orderBy("name", "asc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedUsers = snapshot.docs.map(doc => ({
@@ -122,7 +122,7 @@ export default function UsuariosPage() {
         await updateAuthProfile(firebaseUser, { displayName: newUserData.name });
       }
 
-      const newUserDocRef = doc(db, "users", firebaseUser.uid); // Use Firebase Auth UID as Firestore doc ID
+      const newUserDocRef = doc(db, "users", firebaseUser.uid);
       const newUserProfile: UserProfile = {
         id: firebaseUser.uid, 
         firebaseAuthUid: firebaseUser.uid,
@@ -132,7 +132,7 @@ export default function UsuariosPage() {
         role: newUserData.role,
         assignedGroupId: newUserData.assignedGroupId || undefined,
         status: 'Activo',
-        adminApprovalStatus: 'approved',
+        adminApprovalStatus: 'approved', // Los usuarios creados por admin se aprueban directamente
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
@@ -204,9 +204,10 @@ export default function UsuariosPage() {
     const userToDelete = users.find(u => u.id === userId);
     try {
       await deleteDoc(doc(db, "users", userId));
+      // Aquí no se elimina el usuario de Firebase Auth. Eso debe hacerse manualmente o con Cloud Functions.
       toast({
-        title: "Usuario Eliminado",
-        description: `${userToDelete?.name || 'El usuario'} ha sido eliminado de Firestore. Recuerda que la cuenta en Firebase Auth (si existe) debe eliminarse manualmente desde la consola de Firebase.`,
+        title: "Usuario Eliminado de Firestore",
+        description: `${userToDelete?.name || 'El usuario'} ha sido eliminado de Firestore. La cuenta de Firebase Auth (si existe) debe eliminarse manualmente.`,
         variant: "default",
         duration: 7000,
       });
@@ -254,7 +255,7 @@ export default function UsuariosPage() {
     try {
       await updateDoc(userDocRef, {
         adminApprovalStatus: 'approved',
-        status: 'Activo', // Also set status to Activo
+        status: 'Activo', 
         updatedAt: Timestamp.now(),
       });
       toast({
@@ -282,14 +283,18 @@ export default function UsuariosPage() {
   const canManageUsers = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
   const canViewSensitiveUserDetails = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || currentUserProfile?.role === USER_ROLES.SS;
 
-  // Eliminamos el ordenamiento del lado del cliente ya que Firestore lo hará con el índice.
   const filteredUsers = useMemo(() => {
-    if (!searchTerm) return users; // 'users' ya viene ordenada de Firestore
-    return users.filter(user =>
-        (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (user.role?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-    );
+    let sortedUsers = [...users]; // users ya viene de Firestore ordenado por 'name' con la consulta simplificada
+    
+    // Aplicar búsqueda si hay término
+    if (searchTerm) {
+      sortedUsers = sortedUsers.filter(user =>
+          (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+          (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+          (user.role?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+      );
+    }
+    return sortedUsers;
   }, [users, searchTerm]);
 
   const canImpersonate = actualUserRole === USER_ROLES.ENCARGADO_TERRITORIO;
@@ -570,4 +575,3 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
-
