@@ -287,12 +287,10 @@ export default function UsuariosPage() {
   const canViewSensitiveUserDetails = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || currentUserProfile?.role === USER_ROLES.SS;
 
   const filteredUsers = useMemo(() => {
-    // Firestore ya ordena por adminApprovalStatus y luego por name
-    // El sort cliente es para el status 'Pendiente Aprobación Admin' que es diferente de adminApprovalStatus
     let clientSortedUsers = [...users].sort((a, b) => {
       const statusOrder = (user: UserProfile) => {
         if (user.status === 'Pendiente Aprobación Admin') return 0;
-        if (user.adminApprovalStatus === 'pending' && user.status !== 'Pendiente Aprobación Admin') return 1; // Users invited by SG, pending admin
+        if (user.adminApprovalStatus === 'pending') return 1; 
         if (user.status === 'Activo') return 2;
         if (user.status === 'Bloqueado') return 3;
         return 4; 
@@ -300,7 +298,7 @@ export default function UsuariosPage() {
 
       const statusComparison = statusOrder(a) - statusOrder(b);
       if (statusComparison !== 0) return statusComparison;
-      return (a.name || '').localeCompare(b.name || ''); // Secondary sort by name if statuses are same
+      return (a.name || '').localeCompare(b.name || ''); 
     });
     
     if (searchTerm) {
@@ -597,5 +595,3 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
-
-
