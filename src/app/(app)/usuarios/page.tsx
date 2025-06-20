@@ -42,16 +42,6 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 
-
-// MOCK_ALL_PUBLISHERS_COPY ahora se cargará desde Firestore
-// const MOCK_ALL_PUBLISHERS_COPY: UserProfile[] = [
-//     { id: '1', name: 'Elena Campos', email: 'elena.campos@example.com', phoneNumber: '+56911111111', role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo', firebaseAuthUid: 'uidElena', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved' },
-//     { id: '2', name: 'Carlos Rivas', email: 'carlos.rivas@example.com', phoneNumber: '+56922222222', role: USER_ROLES.PUBLICADOR, status: 'Activo', firebaseAuthUid: 'uidCarlos', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G2', adminApprovalStatus: 'approved' },
-//     { id: '3', name: 'Laura Méndez (SG)', email: 'laura.mendez@example.com', role: USER_ROLES.SG, status: 'Bloqueado', blockReason: "Inactividad prolongada", firebaseAuthUid: 'uidLaura', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved'},
-//     { id: '5', name: 'Nuevo Publicador (Desde Grupo)', email: 'nuevo.grupo@example.com', phoneNumber: '+56933333333', role: USER_ROLES.PUBLICADOR, status: 'Pendiente Aprobación Admin', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), addedByGroupId: 'G1', adminApprovalStatus: 'pending' },
-// ];
-
-
 export default function UsuariosPage() {
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -64,6 +54,7 @@ export default function UsuariosPage() {
   const [isBlockReasonUserDialogOpen, setIsBlockReasonUserDialogOpen] = useState(false);
   const [userToBlock, setUserToBlock] = useState<UserProfile | null>(null);
   const [blockReasonUser, setBlockReasonUser] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
@@ -73,8 +64,9 @@ export default function UsuariosPage() {
     }
     setIsLoadingUsers(true);
     const usersCollectionRef = collection(db, "users");
-    // Ordenar para que los pendientes de aprobación aparezcan primero, luego por nombre
-    const q = query(usersCollectionRef, orderBy("adminApprovalStatus", "asc"), orderBy("name", "asc"));
+    // Modified query: Order only by name to avoid missing index error.
+    // The composite sorting (pending first, then by name) will be handled client-side in `filteredUsers`.
+    const q = query(usersCollectionRef, orderBy("name", "asc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedUsers = snapshot.docs.map(doc => ({
@@ -87,7 +79,17 @@ export default function UsuariosPage() {
       setIsLoadingUsers(false);
     }, (error) => {
       console.error("Error fetching users:", error);
-      toast({ title: "Error al Cargar Usuarios", description: "No se pudieron cargar los usuarios desde Firestore.", variant: "destructive" });
+      // Check if the error is due to a missing index
+      if (error.message && error.message.includes("The query requires an index")) {
+        toast({
+            title: "Índice de Firestore Requerido",
+            description: "La consulta de usuarios necesita un índice. Por favor, créalo en la consola de Firebase. La URL para crearlo suele estar en los logs de error.",
+            variant: "destructive",
+            duration: 10000,
+        });
+      } else {
+        toast({ title: "Error al Cargar Usuarios", description: "No se pudieron cargar los usuarios desde Firestore.", variant: "destructive" });
+      }
       setIsLoadingUsers(false);
     });
 
@@ -118,33 +120,35 @@ export default function UsuariosPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, newUserData.email, newUserData.password);
       const firebaseUser = userCredential.user;
 
+      // It's good practice to update the auth profile if possible, though not strictly necessary for Firestore profile
       if (firebaseUser) {
         await updateAuthProfile(firebaseUser, { displayName: newUserData.name });
       }
 
+      // Create user profile in Firestore
       const newUserDocRef = doc(collection(db, "users")); // Firestore auto-generates ID
       const newUserProfile: UserProfile = {
-        id: newUserDocRef.id,
+        id: newUserDocRef.id, // Use the auto-generated ID
         firebaseAuthUid: firebaseUser.uid,
         name: newUserData.name,
         email: newUserData.email,
         phoneNumber: newUserData.phoneNumber || undefined,
         role: newUserData.role,
         assignedGroupId: newUserData.assignedGroupId || undefined,
-        status: 'Activo',
-        adminApprovalStatus: 'approved',
+        status: 'Activo', // New users created by admin are active by default
+        adminApprovalStatus: 'approved', // And approved
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
       
-      await setDoc(newUserDocRef, newUserProfile);
+      await setDoc(newUserDocRef, newUserProfile); // Save the profile to Firestore
       
       toast({
         title: "Usuario Creado Exitosamente",
         description: `${newUserData.name} ha sido creado. Por favor, comunícale su email y la contraseña temporal de forma segura. Se recomienda que cambie su contraseña al iniciar sesión.`,
         duration: 10000,
       });
-      setIsAddUserDialogOpen(false);
+      setIsAddUserDialogOpen(false); // Close dialog on success
     } catch (error: any) {
       console.error("Error creating user:", error);
       let errorMessage = "No se pudo crear el usuario.";
@@ -203,6 +207,7 @@ export default function UsuariosPage() {
     setIsSubmitting(true);
     const userToDelete = users.find(u => u.id === userId);
     try {
+      // Note: This only deletes from Firestore. Deleting from Firebase Auth requires admin SDK or specific handling.
       await deleteDoc(doc(db, "users", userId));
       toast({
         title: "Usuario Eliminado",
@@ -254,7 +259,7 @@ export default function UsuariosPage() {
     try {
       await updateDoc(userDocRef, {
         adminApprovalStatus: 'approved',
-        status: 'Activo',
+        status: 'Activo', // Also set status to Activo
         updatedAt: Timestamp.now(),
       });
       toast({
@@ -283,16 +288,16 @@ export default function UsuariosPage() {
   const canViewSensitiveUserDetails = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || currentUserProfile?.role === USER_ROLES.SS;
 
   const filteredUsers = useMemo(() => {
-    const sortedUsers = [...users].sort((a, b) => {
-      if (a.adminApprovalStatus === 'pending' && b.adminApprovalStatus !== 'pending') return -1;
-      if (a.adminApprovalStatus !== 'pending' && b.adminApprovalStatus === 'pending') return 1;
-      if (a.status === 'Pendiente Aprobación Admin' && b.status !== 'Pendiente Aprobación Admin') return -1;
-      if (a.status !== 'Pendiente Aprobación Admin' && b.status === 'Pendiente Aprobación Admin') return 1;
+    const clientSortedUsers = [...users].sort((a, b) => {
+      const aIsPending = a.adminApprovalStatus === 'pending' || a.status === 'Pendiente Aprobación Admin';
+      const bIsPending = b.adminApprovalStatus === 'pending' || b.status === 'Pendiente Aprobación Admin';
+      if (aIsPending && !bIsPending) return -1;
+      if (!aIsPending && bIsPending) return 1;
       return (a.name || "").localeCompare(b.name || "");
     });
 
-    if (!searchTerm) return sortedUsers;
-    return sortedUsers.filter(user =>
+    if (!searchTerm) return clientSortedUsers;
+    return clientSortedUsers.filter(user =>
         (user.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (user.role?.toLowerCase() || '').includes(searchTerm.toLowerCase())
