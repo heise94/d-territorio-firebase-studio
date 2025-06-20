@@ -2,16 +2,10 @@
 import { AcceptInvitationForm } from "@/components/auth/accept-invitation-form";
 import { AppLogo } from "@/components/layout/app-logo";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import type { FC } from 'react'; // Import FC
 
-// Definir una interfaz para las props de la página
-interface InvitationPageProps {
-  params: { token: string };
-  searchParams?: { [key: string]: string | string[] | undefined };
-}
-
-// Tipar el componente usando FC<InvitationPageProps>
-const InvitationPage: FC<InvitationPageProps> = ({ params, searchParams }) => {
+// Se define el tipo de las props directamente en la firma de la función.
+// Se omite searchParams ya que no se está utilizando actualmente.
+export default function InvitationPage({ params }: { params: { token: string } }) {
   const { token } = params;
 
   return (
@@ -33,6 +27,4 @@ const InvitationPage: FC<InvitationPageProps> = ({ params, searchParams }) => {
       </footer>
     </div>
   );
-};
-
-export default InvitationPage;
+}
