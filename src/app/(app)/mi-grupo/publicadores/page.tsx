@@ -12,7 +12,7 @@ import type { UserProfile } from "@/types";
 import { USER_ROLES, PERMISSIONS } from "@/lib/constants";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { AddPublishersToGroupDialog } from "@/components/mi-grupo/publicadores/add-publishers-to-group-dialog"; // Updated import name if dialog is reused/renamed
+import { AddPublishersToGroupDialog } from "@/components/mi-grupo/publicadores/add-publishers-to-group-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp } from "firebase/firestore";
 
@@ -39,11 +39,11 @@ const getInitials = (name?: string) => {
   };
 
 export default function MiGrupoPublicadoresPage() {
-  const { userProfile, isLoadingPermissions, hasPermission } = usePermissions();
+  const { userProfile, isLoadingPermissions, hasPermission, isImpersonating } = usePermissions(); // Correctly destructure isImpersonating
   const { toast } = useToast();
 
   const [allPublishersData, setAllPublishersData] = useState<UserProfile[]>(() =>
-    JSON.parse(JSON.stringify(MOCK_ALL_PUBLISHERS_COPY)) // Use a deep copy for mutable state
+    JSON.parse(JSON.stringify(MOCK_ALL_PUBLISHERS_COPY)) 
   );
   const [isInviteUserFromGroupDialogOpen, setIsInviteUserFromGroupDialogOpen] = useState(false);
 
@@ -73,13 +73,13 @@ export default function MiGrupoPublicadoresPage() {
   }
 
   const currentGroupIdForManagement = userProfile?.assignedGroupId;
-  // Mock group name lookup for display
+  
   const currentGroupName = useMemo(() => {
       if (currentGroupIdForManagement) {
           const sgOfGroup = MOCK_ALL_PUBLISHERS_COPY.find(p => p.assignedGroupId === currentGroupIdForManagement && p.role === USER_ROLES.SG);
-          if (sgOfGroup) return `Grupo de ${sgOfGroup.name.split(' ')[0]}`; // Example: "Grupo de Sofía"
+          if (sgOfGroup) return `Grupo de ${sgOfGroup.name.split(' ')[0]}`; 
           const groupInfo = MOCK_ALL_PUBLISHERS_COPY.find(p => p.assignedGroupId === currentGroupIdForManagement);
-          if (groupInfo) return `Grupo ${currentGroupIdForManagement}`; // Fallback to ID if no SG found for name
+          if (groupInfo) return `Grupo ${currentGroupIdForManagement}`; 
           return `Grupo ${currentGroupIdForManagement}`;
       }
       return "Tu Grupo";
@@ -123,14 +123,14 @@ export default function MiGrupoPublicadoresPage() {
         name: newUserData.name,
         email: newUserData.email,
         phoneNumber: newUserData.phoneNumber,
-        role: USER_ROLES.PUBLICADOR, // Users invited by SG are initially Publicadores
+        role: USER_ROLES.PUBLICADOR, 
         assignedGroupId: currentGroupIdForManagement,
-        status: 'Pendiente Aprobación Admin', // New status indicating admin needs to approve
+        status: 'Pendiente Aprobación Admin', 
         adminApprovalStatus: 'pending',
         addedByGroupId: currentGroupIdForManagement,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
-        // firebaseAuthUid will be set after they accept invitation
+        
     };
 
     setAllPublishersData(prevAllUsers => [newUserProfile, ...prevAllUsers]);
@@ -173,7 +173,7 @@ export default function MiGrupoPublicadoresPage() {
             )}
           </CardHeader>
           <CardContent>
-            {!currentGroupIdForManagement && userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !userProfile.isImpersonating ? (
+            {!currentGroupIdForManagement && userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !isImpersonating ? (
                 <div className="flex flex-col items-center justify-center h-64 bg-muted/30 rounded-md border border-dashed">
                     <Users className="h-20 w-20 text-muted-foreground/70 mb-6" />
                     <p className="text-xl font-medium text-muted-foreground mb-2">Página "Mi Grupo"</p>
