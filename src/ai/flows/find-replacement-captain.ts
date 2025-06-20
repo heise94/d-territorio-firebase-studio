@@ -3,7 +3,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import type { Assignment, PublisherDetail, ProgramScheduleSlot } from '@/types'; // Assuming PublisherDetail is defined
+import type { Assignment, PublisherDetail as TypePublisherDetail, ProgramScheduleSlot as TypeProgramScheduleSlot } from '@/types';
 
 // Define Zod schema for the input, mirroring parts of Assignment and adding context
 const AssignmentDetailsSchema = z.object({
@@ -13,12 +13,34 @@ const AssignmentDetailsSchema = z.object({
   locationName: z.string().describe('Name of the territory or casa for the assignment.'),
 });
 
+// Zod schema for PublisherDetail to be used in the flow
+const PublisherDetailFlowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+  availability: z.object({
+    availableSlotIds: z.array(z.string()).optional(),
+  }),
+  assignedGroupId: z.string().optional(),
+  firebaseAuthUid: z.string().optional(),
+});
+
+// Zod schema for ProgramScheduleSlot to be used in the flow
+const ProgramScheduleSlotFlowSchema = z.object({
+  id: z.string(),
+  dayOfWeek: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+  startTime: z.string(), // HH:mm
+  type: z.enum(['general', 'rural', 'zoom']),
+  status: z.enum(['fixed', 'tentative']),
+});
+
+
 const FindReplacementCaptainInputSchema = z.object({
   originalAssignment: AssignmentDetailsSchema.describe('Details of the assignment needing a replacement.'),
   originalCaptainId: z.string().describe('The ID of the captain who cannot fulfill the assignment.'),
-  availablePublishers: z.array(z.any()) // Using z.any() for now, ideally replace with a Zod schema for PublisherDetail
+  availablePublishers: z.array(PublisherDetailFlowSchema)
     .describe('List of all available publishers with their details and availability (slot IDs, etc.).'),
-  programScheduleSlots: z.array(z.any()) // Using z.any() for now, ideally replace with Zod schema for ProgramScheduleSlot
+  programScheduleSlots: z.array(ProgramScheduleSlotFlowSchema)
     .describe('List of all program schedule slots (day, time, type).'),
   additionalInstructions: z.string().optional().describe('Any additional instructions or context for finding a replacement.'),
 });
@@ -105,3 +127,4 @@ const findReplacementCaptainFlow = ai.defineFlow(
     return output!;
   }
 );
+
