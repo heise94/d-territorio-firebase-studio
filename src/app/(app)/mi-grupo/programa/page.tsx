@@ -373,7 +373,9 @@ export default function MiGrupoProgramaPage() {
                   const isAuthorizedDayForGroup = MOCK_GROUP_ORGANIZED_DAYS.includes(dayOfWeekKey);
                   const isPastDay = isBeforeDateFns(day, new Date()) && !isSameDay(day, new Date());
                   
-                  const holidayForDay = MOCK_CUSTOM_HOLIDAYS.find(h => isSameDay(h.date.toDate(), day));
+                  const holidayForDay = MOCK_CUSTOM_HOLIDAYS.find(h => 
+                    isSameDay(h.date instanceof Timestamp ? h.date.toDate() : h.date, day)
+                  );
                   
                   const canAddAssignment = isAuthorizedDayForGroup && !isPastDay && currentGroupId; 
 
