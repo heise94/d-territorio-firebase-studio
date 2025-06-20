@@ -234,7 +234,7 @@ export default function SettingsPage() {
 
         const groupsQuery = query(collection(db, "preachingGroups"), orderBy("name", "asc"));
         const groupsSnapshot = await getDocs(groupsQuery);
-        const fetchedGroups = groupsSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as PreachingGroup));
+        const fetchedGroups = groupsSnapshot.docs.map(docData => ({ id: docData.id, ...docData.data() } as PreachingGroup));
         setAvailablePreachingGroupsForRotation(fetchedGroups);
 
     } catch (error) {
@@ -545,7 +545,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
       id: submittedCampaignData.id || crypto.randomUUID(),
       superintendentName: submittedCampaignData.superintendentName?.trim() || null, 
       description: submittedCampaignData.description?.trim() || null, 
-      specialCampaignTerritoriesPerDay: submittedCampaignData.specialCampaignTerritoriesPerDay === undefined ? null : submittedCampaignData.specialCampaignTerritoriesPerDay,
+      specialCampaignTerritoriesPerDay: submittedCampaignData.specialCampaignTerritoriesPerDay === undefined || submittedCampaignData.specialCampaignTerritoriesPerDay === null ? 0 : submittedCampaignData.specialCampaignTerritoriesPerDay,
       createdAt: isEdit && campaignToEdit?.createdAt ? campaignToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -562,7 +562,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         return dateB.getTime() - dateA.getTime();
     });
     
-    const success = await saveSpecialEventsToFirestore({ campaignsList: updatedCampaigns });
+    const success = await saveSpecialEventsToFirestore({ campaignsList: updatedCampaigns as Campaign[] }); // Cast to Campaign[]
     setIsSavingSpecialEvents(false);
 
     if (success) {
@@ -613,7 +613,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         return dateB.getTime() - dateA.getTime();
     });
 
-    const success = await saveSpecialEventsToFirestore({ assembliesList: updatedAssemblies });
+    const success = await saveSpecialEventsToFirestore({ assembliesList: updatedAssemblies as Assembly[] }); // Cast
     setIsSavingSpecialEvents(false);
     if (success) {
         setAssemblies((updatedAssemblies as Assembly[]).map(a => ({
@@ -662,7 +662,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         return dateA.getTime() - dateB.getTime();
     });
 
-    const success = await saveSpecialEventsToFirestore({ holidaysList: updatedHolidays });
+    const success = await saveSpecialEventsToFirestore({ holidaysList: updatedHolidays as CustomHoliday[]}); // Cast
     setIsSavingSpecialEvents(false);
     if (success) {
         setCustomHolidays((updatedHolidays as CustomHoliday[]).map(h => ({...h, date: h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)})));
@@ -702,7 +702,9 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         { year: 2025, month: 3, day: 18, name: "Viernes Santo (Ej. 2025)"}, { year: 2025, month: 3, day: 19, name: "Sábado Santo (Ej. 2025)"},
         { year: 2026, month: 3, day: 3, name: "Viernes Santo (Ej. 2026)"}, { year: 2026, month: 3, day: 4, name: "Sábado Santo (Ej. 2026)"},
     ];
-    const newHolidaysToAdd: Omit<CustomHoliday, 'id' | 'createdAt' | 'updatedAt'>[] = [];
+    
+    const holidaysToAddAsDates: Array<{ name: string; date: Date; description?: string | null;}> = [];
+
     const existingDates = new Set(customHolidays.map(h => {
         const d = h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date);
         d.setUTCHours(0,0,0,0);
@@ -720,7 +722,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
             if (bh.month === targetMonth) {
                 const potentialHolidayDate = new Date(Date.UTC(targetYear, bh.month, bh.day));
                 if (potentialHolidayDate >= today && !existingDates.has(potentialHolidayDate.toISOString().split('T')[0])) {
-                    newHolidaysToAdd.push({ name: bh.name, date: Timestamp.fromDate(potentialHolidayDate) });
+                    holidaysToAddAsDates.push({ name: bh.name, date: potentialHolidayDate, description: "Festivo Nacional (Chile)" });
                     existingDates.add(potentialHolidayDate.toISOString().split('T')[0]);
                 }
             }
@@ -729,7 +731,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
             if (ee.year === targetYear && ee.month === targetMonth) {
                 const potentialHolidayDate = new Date(Date.UTC(ee.year, ee.month, ee.day));
                  if (potentialHolidayDate >= today && !existingDates.has(potentialHolidayDate.toISOString().split('T')[0])) {
-                    newHolidaysToAdd.push({ name: ee.name, date: Timestamp.fromDate(potentialHolidayDate) });
+                    holidaysToAddAsDates.push({ name: ee.name, date: potentialHolidayDate, description: "Festivo Variable (Pascua)" });
                     existingDates.add(potentialHolidayDate.toISOString().split('T')[0]);
                 }
             }
@@ -737,22 +739,32 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         currentLoopDate.setUTCMonth(currentLoopDate.getUTCMonth() + 1);
     }
     
-    if (newHolidaysToAdd.length > 0) {
-        const holidaysWithIdsAndTimestamps = newHolidaysToAdd.map(h => ({
-            ...h,
+    if (holidaysToAddAsDates.length > 0) {
+        const newFullCustomHolidays: CustomHoliday[] = holidaysToAddAsDates.map(h_new => ({
             id: crypto.randomUUID(),
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now(),
+            name: h_new.name,
+            date: h_new.date, // Already JS Date
+            description: h_new.description || null,
+            createdAt: Timestamp.now(), 
+            updatedAt: Timestamp.now(), 
         }));
 
-        const currentCustomHolidaysAsDates = customHolidays.map(h => ({ ...h, date: (h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)) }));
-        const updatedHolidaysWithDates = [...currentCustomHolidaysAsDates, ...holidaysWithIdsAndTimestamps.map(h => ({...h, date: (h.date instanceof Timestamp ? h.date.toDate() : h.date)}))]
-          .sort((a,b) => a.date.getTime() - b.date.getTime());
+        const currentCustomHolidaysWithJSDates: CustomHoliday[] = customHolidays.map(h_existing => ({ 
+            ...h_existing, 
+            date: (h_existing.date instanceof Timestamp ? h_existing.date.toDate() : new Date(h_existing.date)) 
+        }));
         
-        const success = await saveSpecialEventsToFirestore({ holidaysList: updatedHolidaysWithDates });
+        const allHolidaysCombinedForState: CustomHoliday[] = [...currentCustomHolidaysWithJSDates, ...newFullCustomHolidays]
+          .sort((a,b) => {
+            const dateA = a.date instanceof Timestamp ? a.date.toDate() : a.date; 
+            const dateB = b.date instanceof Timestamp ? b.date.toDate() : b.date; 
+            return dateA.getTime() - dateB.getTime();
+          });
+        
+        const success = await saveSpecialEventsToFirestore({ holidaysList: allHolidaysCombinedForState });
         if (success) {
-            setCustomHolidays(updatedHolidaysWithDates);
-            toast({ title: "Festivos de Ejemplo Cargados", description: `\${holidaysWithIdsAndTimestamps.length} festivos (Chile, próximos 12 meses) añadidos y guardados. Verifique y ajuste.`, duration: 10000 });
+            setCustomHolidays(allHolidaysCombinedForState);
+            toast({ title: "Festivos de Ejemplo Cargados", description: `${newFullCustomHolidays.length} festivos (Chile, próximos 12 meses) añadidos y guardados. Verifique y ajuste.`, duration: 10000 });
         }
     } else {
       toast({ title: "Sin Cambios", description: "No se añadieron nuevos festivos de ejemplo (ya existen o no aplican al rango).", });
