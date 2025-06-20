@@ -146,7 +146,7 @@ export default function SettingsPage() {
   const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   const [isHolidayDialogOpen, setIsHolidayDialogOpen] = useState(false);
   const [holidayToEdit, setHolidayToEdit] = useState<CustomHoliday | null>(null);
-  const [selectedHolidayYear, setSelectedHolidayYear] = useState<string>(new Date().getUTCFullYear().toString());
+  const [selectedHolidayYear, setSelectedHolidayYear] = useState<string>(new Date().getFullYear().toString());
   const [selectedHolidayMonth, setSelectedHolidayMonth] = useState<string>("ALL_MONTHS");
 
 
@@ -764,9 +764,9 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     const years = new Set<string>();
     customHolidays.forEach(h => {
       const d = h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date);
-      years.add(d.getUTCFullYear().toString());
+      years.add(d.getFullYear().toString()); // Use getFullYear for local time display consistency
     });
-    const currentYr = new Date().getUTCFullYear().toString();
+    const currentYr = new Date().getFullYear().toString();
     if (!years.has(currentYr)) years.add(currentYr); 
     return ["Todos los Años", ...Array.from(years).sort((a, b) => parseInt(b) - parseInt(a))];
   }, [customHolidays]);
@@ -774,7 +774,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
   const holidayMonthsForFilter = useMemo(() => {
     const monthItems = Array.from({ length: 12 }, (_, i) => ({
       value: `month_${i}`, 
-      label: formatDate(new Date(Date.UTC(2000, i, 15)), "MMMM", { locale: es, timeZone: 'UTC' }),
+      label: formatDate(new Date(2000, i, 15), "MMMM", { locale: es }),
     }));
     return [{ value: "ALL_MONTHS", label: "Todos los Meses" }, ...monthItems];
   }, []);
@@ -786,12 +786,12 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         const holidayDate = holiday.date instanceof Timestamp ? holiday.date.toDate() : new Date(holiday.date);
         if (isNaN(holidayDate.getTime())) return false;
 
-        const yearMatch = selectedHolidayYear === "Todos los Años" || holidayDate.getUTCFullYear().toString() === selectedHolidayYear;
+        const yearMatch = selectedHolidayYear === "Todos los Años" || holidayDate.getFullYear().toString() === selectedHolidayYear;
         
         let monthMatch = true;
         if (selectedHolidayMonth !== "ALL_MONTHS") {
             const monthIndex = parseInt(selectedHolidayMonth.replace("month_", ""), 10);
-            monthMatch = holidayDate.getUTCMonth() === monthIndex;
+            monthMatch = holidayDate.getMonth() === monthIndex;
         }
         
         return yearMatch && monthMatch;
@@ -905,7 +905,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                                         <Checkbox
                                           checked={
                                             role === USER_ROLES.ENCARGADO_TERRITORIO ||
-                                            (editableRolePermissions[role]?.includes(permission.id) ?? false)
+                                            (editableRolePermissions[role as UserRole]?.includes(permission.id) ?? false)
                                           }
                                           onCheckedChange={(checked) => handlePermissionChange(role as UserRole, permission.id, !!checked)}
                                           disabled={role === USER_ROLES.ENCARGADO_TERRITORIO}
@@ -1062,7 +1062,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                             const startDate = campaign.startDate instanceof Timestamp ? campaign.startDate.toDate() : new Date(campaign.startDate);
                             const endDate = campaign.endDate instanceof Timestamp ? campaign.endDate.toDate() : new Date(campaign.endDate);
                             return (
-                            <TableRow key={campaign.id}><TableCell className="font-medium">{campaign.name}</TableCell><TableCell>{CampaignTypeLabels[campaign.type]}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy", { timeZone: 'UTC' })} - {formatDate(endDate, "dd/MM/yyyy", { timeZone: 'UTC' })}</TableCell><TableCell className="text-xs">{campaign.type === 'superintendent_visit' && campaign.superintendentName && (<div>Sup: {campaign.superintendentName}</div>)}{(campaign.specialCampaignTerritoriesPerDay ?? 0) > 0 && (<div>Terr/día (Camp.): {campaign.specialCampaignTerritoriesPerDay}</div>)}{campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}</TableCell>
+                            <TableRow key={campaign.id}><TableCell className="font-medium">{campaign.name}</TableCell><TableCell>{CampaignTypeLabels[campaign.type]}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy")} - {formatDate(endDate, "dd/MM/yyyy")}</TableCell><TableCell className="text-xs">{campaign.type === 'superintendent_visit' && campaign.superintendentName && (<div>Sup: {campaign.superintendentName}</div>)}{(campaign.specialCampaignTerritoriesPerDay ?? 0) > 0 && (<div>Terr/día (Camp.): {campaign.specialCampaignTerritoriesPerDay}</div>)}{campaign.description && <div className="italic text-muted-foreground mt-1 truncate w-48" title={campaign.description}>"{campaign.description}"</div>}</TableCell>
                             <TableCell><div className="flex items-center justify-center gap-0.5">
                                 <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setCampaignToEdit(campaign); setIsCampaignDialogOpen(true);}} className="h-8 w-8"><Edit className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Editar Campaña</p></TooltipContent></Tooltip>
                                 <AlertDialog><Tooltip><TooltipTrigger asChild><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger></TooltipTrigger><TooltipContent><p>Eliminar Campaña</p></TooltipContent></Tooltip><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la campaña "{campaign.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteCampaign(campaign.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
@@ -1090,7 +1090,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                              const startDate = assembly.startDate instanceof Timestamp ? assembly.startDate.toDate() : new Date(assembly.startDate);
                              const endDate = assembly.endDate instanceof Timestamp ? assembly.endDate.toDate() : new Date(assembly.endDate);
                             return (
-                            <TableRow key={assembly.id}><TableCell className="font-medium">{assembly.name}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy", { timeZone: 'UTC' })} - {formatDate(endDate, "dd/MM/yyyy", { timeZone: 'UTC' })}</TableCell><TableCell className="text-xs italic text-muted-foreground truncate w-64" title={assembly.description || undefined}>{assembly.description || 'N/A'}</TableCell>
+                            <TableRow key={assembly.id}><TableCell className="font-medium">{assembly.name}</TableCell><TableCell>{formatDate(startDate, "dd/MM/yyyy")} - {formatDate(endDate, "dd/MM/yyyy")}</TableCell><TableCell className="text-xs italic text-muted-foreground truncate w-64" title={assembly.description || undefined}>{assembly.description || 'N/A'}</TableCell>
                             <TableCell><div className="flex items-center justify-center gap-0.5">
                                 <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => { setAssemblyToEdit(assembly); setIsAssemblyDialogOpen(true); }} className="h-8 w-8"><Edit className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent><p>Editar Asamblea</p></TooltipContent></Tooltip>
                                 <AlertDialog><Tooltip><TooltipTrigger asChild><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger></TooltipTrigger><TooltipContent><p>Eliminar Asamblea</p></TooltipContent></Tooltip><AlertDialogContent><AlertDialogHeader><AlertDialogTitleComponentInner>¿Estás seguro?</AlertDialogTitleComponentInner><AlertDialogDescriptionComponentInner>Eliminarás la asamblea "{assembly.name}".</AlertDialogDescriptionComponentInner></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteAssembly(assembly.id)} className={buttonVariants({variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
@@ -1163,7 +1163,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                                 const holidayDate = holiday.date instanceof Timestamp ? holiday.date.toDate() : new Date(holiday.date);
                                 return (
                                 <TableRow key={holiday.id}>
-                                    <TableCell>{formatDate(holidayDate, "dd/MM/yyyy", { timeZone: 'UTC' })}</TableCell>
+                                    <TableCell>{formatDate(holidayDate, "dd/MM/yyyy")}</TableCell>
                                     <TableCell className="font-medium">{holiday.name}</TableCell>
                                     <TableCell className="text-xs italic text-muted-foreground truncate w-64" title={holiday.description || undefined}>
                                     {holiday.description || 'N/A'}

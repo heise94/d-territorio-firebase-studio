@@ -67,12 +67,19 @@ if (!getApps().length) {
   app = getApp();
   // Ensure instances are correctly re-assigned if app already exists
   // This is especially important in HMR scenarios
-  try {
-    authInstance = getAuth(app);
-    dbInstance = getFirestore(app);
-    // storageInstance = getStorage(app);
-  } catch (e) {
-    console.error("Error getting Firebase services from existing app:", e);
+  // And also if the first initialization (isFirebaseConfigComplete=false) resulted in dummy objects.
+  if (isFirebaseConfigComplete) { // Only try to get services if config is complete
+    try {
+      authInstance = getAuth(app);
+      dbInstance = getFirestore(app);
+      // storageInstance = getStorage(app);
+    } catch (e) {
+      console.error("Error getting Firebase services from existing app:", e);
+      authInstance = {} as Auth; // Fallback
+      dbInstance = {} as Firestore; // Fallback
+      // storageInstance = {} as FirebaseStorage; // Fallback
+    }
+  } else { // If config is not complete, ensure instances are dummies
     authInstance = {} as Auth;
     dbInstance = {} as Firestore;
     // storageInstance = {} as FirebaseStorage;
@@ -80,3 +87,4 @@ if (!getApps().length) {
 }
 
 export { app, authInstance as auth, dbInstance as db /*, storageInstance as storage */ };
+
