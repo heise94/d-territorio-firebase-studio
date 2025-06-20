@@ -11,9 +11,9 @@ import { generateMonthlyAssignments, type GenerateMonthlyAssignmentsInput, type 
 import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, getDay, isWithinInterval, parseISO, parse } from 'date-fns';
-import { Timestamp, writeBatch, collection, doc, getDoc, getDocs, query, where, orderBy, deleteField } from "firebase/firestore";
+import { Timestamp, writeBatch, collection, doc, getDoc, getDocs, query, where, orderBy, deleteField, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { ProgramScheduleSlot, PublisherDetail, PreachingType as TypePreachingType, SettingsDoc, Casa, Territory, PreachingGroup, DayOfWeek as TypeDayOfWeek, Campaign, Assembly, CustomHoliday, PreachingAssignedType } from "@/types";
+import type { ProgramScheduleSlot, PublisherDetail, PreachingType as TypePreachingType, SettingsDoc, Casa, Territory, PreachingGroup, DayOfWeek as TypeDayOfWeek, Campaign, Assembly, CustomHoliday, PreachingAssignedType, PreachingType } from "@/types";
 import { USER_ROLES } from "@/lib/constants";
 
 const currentYear = new Date().getFullYear();
@@ -170,7 +170,7 @@ export default function ProgramaMensualPage() {
     setIsLoading(true);
     setGeneratedAssignments(null);
 
-    const processedAvailableDays: Record<TypeDayOfWeek, {startTime: string; type: TypePreachingType}[]> = {} as Record<TypeDayOfWeek, {startTime: string; type: TypePreachingType}[]>;
+    const processedAvailableDays: Record<TypeDayOfWeek, {startTime: string; type: PreachingType}[]> = {} as Record<TypeDayOfWeek, {startTime: string; type: PreachingType}[]>;
     programScheduleSlots.forEach(slot => {
         if (!processedAvailableDays[slot.dayOfWeek]) {
             processedAvailableDays[slot.dayOfWeek] = [];
@@ -217,7 +217,7 @@ export default function ProgramaMensualPage() {
         .map(c => ({
             id: c.id,
             name: c.name,
-            type: c.type, // type is CampaignType, which is a string enum, compatible
+            type: c.type,
             startDate: format(c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), "yyyy-MM-dd"), 
             endDate: format(c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate), "yyyy-MM-dd"),
             superintendentName: c.superintendentName === null ? undefined : c.superintendentName,
