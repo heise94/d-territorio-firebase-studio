@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -49,7 +50,7 @@ export function LoginForm() {
     try {
       await signInWithEmailAndPassword(auth, values.email, values.password);
       toast({ title: "Inicio de sesión exitoso", description: "Redirigiendo al dashboard..." });
-      router.push("/dashboard"); 
+      router.push("/dashboard");
     } catch (error: any) {
       console.error("Login error", error);
       let errorMessage = "Error al iniciar sesión. Por favor, inténtalo de nuevo.";
@@ -97,12 +98,7 @@ export function LoginForm() {
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           Iniciar Sesión
         </Button>
-        <p className="text-sm text-center text-muted-foreground">
-          ¿Recibiste una invitación?
-        </p>
-        <p className="text-xs text-center text-muted-foreground -mt-4">
-             Ingresa la URL <code className="bg-muted px-1 py-0.5 rounded-sm text-xs">/invitacion/TU_TOKEN</code> en el navegador.
-        </p>
+        {/* Removed paragraph about invitation token */}
       </form>
     </Form>
   );

@@ -6,12 +6,13 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, Send, CalendarClock, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning } from "lucide-react"; // Added CheckSquare
+import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning } from "lucide-react";
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import type { UserProfile } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, doc, updateDoc, deleteField } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase"; // Import auth
+import { createUserWithEmailAndPassword, updateProfile as updateAuthProfile } from "firebase/auth"; // Import firebase auth functions
 import { USER_ROLES, USER_ROLES_LIST } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -42,13 +43,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 
 export default function UsuariosPage() {
-  const [isInviteUserDialogOpen, setIsInviteUserDialogOpen] = useState(false);
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false); // Renamed from isInviteUserDialogOpen
   const [users, setUsers] = useState<UserProfile[]>([
-    { id: '1', name: 'Elena Campos', email: 'elena.campos@example.com', phoneNumber: '+56911111111', role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uidElena', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved' },
-    { id: '2', name: 'Carlos Rivas', email: 'carlos.rivas@example.com', phoneNumber: '+56922222222', role: USER_ROLES.PUBLICADOR, status: 'Activo', invitationStatus: 'accepted', firebaseAuthUid: 'uidCarlos', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G2', adminApprovalStatus: 'approved' },
-    { id: '3', name: 'Laura Méndez (SG)', email: 'laura.mendez@example.com', role: USER_ROLES.SG, status: 'Bloqueado', blockReason: "Inactividad prolongada", invitationStatus: 'accepted', firebaseAuthUid: 'uidLaura', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved'},
-    { id: '4', name: 'Pedro Herrera', email: 'pedro.herrera@example.com', phoneNumber: '56944444444', role: USER_ROLES.PUBLICADOR, status: 'Activo', invitationStatus: 'pending', firebaseAuthUid: 'uidPedro', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), adminApprovalStatus: 'approved' },
-    { id: '5', name: 'Nuevo Publicador (Desde Grupo)', email: 'nuevo.grupo@example.com', phoneNumber: '+56933333333', role: USER_ROLES.PUBLICADOR, status: 'Pendiente Aprobación Admin', invitationStatus: 'pending', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), addedByGroupId: 'G1', adminApprovalStatus: 'pending' },
+    { id: '1', name: 'Elena Campos', email: 'elena.campos@example.com', phoneNumber: '+56911111111', role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo', firebaseAuthUid: 'uidElena', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved' },
+    { id: '2', name: 'Carlos Rivas', email: 'carlos.rivas@example.com', phoneNumber: '+56922222222', role: USER_ROLES.PUBLICADOR, status: 'Activo', firebaseAuthUid: 'uidCarlos', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G2', adminApprovalStatus: 'approved' },
+    { id: '3', name: 'Laura Méndez (SG)', email: 'laura.mendez@example.com', role: USER_ROLES.SG, status: 'Bloqueado', blockReason: "Inactividad prolongada", firebaseAuthUid: 'uidLaura', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), assignedGroupId: 'G1', adminApprovalStatus: 'approved'},
+    { id: '5', name: 'Nuevo Publicador (Desde Grupo)', email: 'nuevo.grupo@example.com', phoneNumber: '+56933333333', role: USER_ROLES.PUBLICADOR, status: 'Pendiente Aprobación Admin', createdAt: Timestamp.now(), updatedAt: Timestamp.now(), addedByGroupId: 'G1', adminApprovalStatus: 'pending' },
+
   ]);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
@@ -60,31 +61,70 @@ export default function UsuariosPage() {
   const [blockReasonUser, setBlockReasonUser] = useState("");
 
 
-  const handleOpenInviteDialog = () => {
-    setIsInviteUserDialogOpen(true);
+  const handleOpenAddUserDialog = () => { // Renamed from handleOpenInviteDialog
+    setIsAddUserDialogOpen(true);
   };
 
   const handleManagePermissions = () => {
     router.push('/settings');
   };
 
-  const handleUserInvited = (invitedUser: Pick<UserProfile, 'name' | 'email' | 'role' | 'assignedGroupId' | 'phoneNumber'>) => {
-    const newUser: UserProfile = {
-      id: crypto.randomUUID(),
-      name: invitedUser.name,
-      email: invitedUser.email,
-      phoneNumber: invitedUser.phoneNumber,
-      role: invitedUser.role,
-      assignedGroupId: invitedUser.assignedGroupId,
-      status: 'Activo', 
-      adminApprovalStatus: 'approved',
-      invitationStatus: 'pending',
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-    };
-    setUsers(prev => [newUser, ...prev]);
-    setIsInviteUserDialogOpen(false);
+  const handleUserAdded = async (newUserData: { name: string, email: string, role: UserRole, password?: string, assignedGroupId?: string, phoneNumber?: string }) => {
+    if (!db || Object.keys(db).length === 0 || !auth || Object.keys(auth).length === 0) {
+      toast({ title: "Error de Configuración", description: "Firebase no está inicializado correctamente.", variant: "destructive" });
+      return;
+    }
+    if (!newUserData.password) {
+      toast({ title: "Error", description: "La contraseña es obligatoria.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      // 1. Create user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(auth, newUserData.email, newUserData.password);
+      const firebaseUser = userCredential.user;
+
+      // 2. Update Firebase Auth user profile (optional, but good practice)
+      if (firebaseUser) {
+        await updateAuthProfile(firebaseUser, { displayName: newUserData.name });
+      }
+
+      // 3. Create user profile in Firestore
+      const newUserProfile: UserProfile = {
+        id: crypto.randomUUID(), // Or use Firestore auto-ID: const newUserRef = doc(collection(db, "users")); newUserProfile.id = newUserRef.id;
+        firebaseAuthUid: firebaseUser.uid,
+        name: newUserData.name,
+        email: newUserData.email,
+        phoneNumber: newUserData.phoneNumber,
+        role: newUserData.role,
+        assignedGroupId: newUserData.assignedGroupId,
+        status: 'Activo',
+        adminApprovalStatus: 'approved', // Admin is creating, so auto-approved
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+      // In a real app, save to Firestore: await setDoc(doc(db, "users", newUserProfile.id), newUserProfile);
+      setUsers(prev => [newUserProfile, ...prev]);
+      
+      toast({
+        title: "Usuario Creado Exitosamente",
+        description: `${newUserData.name} ha sido creado. Por favor, comunícale su email y la contraseña temporal de forma segura. Se recomienda que cambie su contraseña al iniciar sesión.`,
+        duration: 10000, // Longer duration for this important message
+      });
+
+    } catch (error: any) {
+      console.error("Error creating user:", error);
+      let errorMessage = "No se pudo crear el usuario.";
+      if (error.code === "auth/email-already-in-use") {
+        errorMessage = "Este email ya está registrado. Si el usuario existe, edita sus datos.";
+      } else if (error.code === "auth/weak-password") {
+        errorMessage = "La contraseña proporcionada es demasiado débil.";
+      }
+      toast({ title: "Error al Crear Usuario", description: errorMessage, variant: "destructive" });
+    }
+    setIsAddUserDialogOpen(false);
   };
+
 
   const handleOpenBlockReasonUserDialog = (user: UserProfile) => {
     setUserToBlock(user);
@@ -106,8 +146,7 @@ export default function UsuariosPage() {
     } else {
       updateData.blockReason = deleteField();
     }
-    
-    // Simulating Firestore update for now
+
     setUsers(prevUsers =>
       prevUsers.map(u =>
         u.id === userToBlock.id
@@ -115,7 +154,7 @@ export default function UsuariosPage() {
           : u
       )
     );
-    
+
     toast({
       title: `Usuario ${newStatus === 'Bloqueado' ? 'Bloqueado' : 'Desbloqueado'}`,
       description: `${userToBlock.name} ha sido ${newStatus === 'Bloqueado' ? 'bloqueado' : 'desbloqueado'} (simulación).`,
@@ -135,14 +174,6 @@ export default function UsuariosPage() {
       description: `${user?.name || 'El usuario'} ha sido eliminado (simulación).`,
       variant: "destructive"
     });
-  };
-
-  const handleResendInvitation = (userEmail: string) => {
-    toast({
-      title: "Invitación Reenviada",
-      description: `Se ha reenviado una invitación a ${userEmail} (simulación).`,
-    });
-     console.log(`Reenviando invitación a ${userEmail}`);
   };
 
   const handleEditUser = (userId: string) => {
@@ -182,14 +213,14 @@ export default function UsuariosPage() {
     setUsers(prevUsers =>
       prevUsers.map(user =>
         user.id === userId
-          ? { ...user, adminApprovalStatus: 'approved', status: 'Activo', invitationStatus: 'pending', updatedAt: Timestamp.now() } 
+          ? { ...user, adminApprovalStatus: 'approved', status: 'Activo', updatedAt: Timestamp.now() }
           : user
       )
     );
     const user = users.find(u => u.id === userId);
     toast({
       title: "Usuario Aprobado",
-      description: `${user?.name || 'El usuario'} ha sido aprobado y ahora está activo. Se debe enviar/reenviar invitación.`,
+      description: `${user?.name || 'El usuario'} ha sido aprobado y ahora está activo. Deberás crear su cuenta en Firebase Auth y comunicarle sus credenciales.`,
     });
   };
 
@@ -241,9 +272,9 @@ export default function UsuariosPage() {
                   <Settings2 className="mr-2 h-5 w-5" />
                   Permisos de Roles
               </Button>
-              <Button onClick={handleOpenInviteDialog} size="lg">
+              <Button onClick={handleOpenAddUserDialog} size="lg">
                   <PlusCircle className="mr-2 h-5 w-5" />
-                  Invitar Nuevo Usuario
+                  Añadir Nuevo Usuario
               </Button>
           </div>
         </div>
@@ -277,7 +308,7 @@ export default function UsuariosPage() {
                 <Users className="h-20 w-20 text-muted-foreground/70 mb-6" />
                 <p className="text-xl font-medium text-muted-foreground mb-2">No hay usuarios para mostrar.</p>
                 <p className="text-sm text-muted-foreground">
-                  Haz clic en "Invitar Nuevo Usuario" para registrar el primero.
+                  Haz clic en "Añadir Nuevo Usuario" para registrar el primero.
                 </p>
               </div>
             ) : filteredUsers.length === 0 && searchTerm ? (
@@ -297,7 +328,7 @@ export default function UsuariosPage() {
                       <TableHead>Rol</TableHead>
                       <TableHead>Grupo</TableHead>
                       <TableHead>Estado</TableHead>
-                      <TableHead>Invitación</TableHead>
+                      {/* Removed Invitation Status Column */}
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -338,7 +369,7 @@ export default function UsuariosPage() {
                               <Badge variant={
                                   displayStatus === 'Activo' ? 'default'
                                   : displayStatus === 'Pendiente Aprobación Admin' ? 'outline'
-                                  : 'destructive' // Only shown to admins/SS
+                                  : 'destructive' 
                                 }
                                 className={
                                     displayStatus === 'Pendiente Aprobación Admin' ? 'border-blue-500 text-blue-600 bg-blue-500/10' : ''
@@ -355,11 +386,7 @@ export default function UsuariosPage() {
                             )}
                           </Tooltip>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant={user.invitationStatus === 'accepted' ? 'secondary' : 'outline'} className={user.invitationStatus === 'pending' ? 'text-amber-600 border-amber-500' : ''}>
-                            {user.invitationStatus === 'pending' ? 'Pendiente' : 'Aceptada'}
-                          </Badge>
-                        </TableCell>
+                        {/* Removed Invitation Status TableCell */}
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-0.5">
                             {user.adminApprovalStatus === 'pending' && canManageUsers && (
@@ -387,7 +414,7 @@ export default function UsuariosPage() {
                             {canManageUsers && !isUserAdmin && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" 
+                                  <Button variant="ghost" size="icon" className="h-8 w-8"
                                    onClick={() => {
                                       if (user.adminApprovalStatus === 'pending') {
                                           toast({ title: "Acción no permitida", description: "Debes aprobar al usuario antes de bloquearlo.", variant: "default" });
@@ -396,8 +423,8 @@ export default function UsuariosPage() {
                                       if (user.status === 'Activo') {
                                           handleOpenBlockReasonUserDialog(user);
                                       } else if (user.status === 'Bloqueado') {
-                                          setUserToBlock(user); // Set context for confirmToggleBlockUser
-                                          setBlockReasonUser(""); // Clear reason for unblocking
+                                          setUserToBlock(user); 
+                                          setBlockReasonUser(""); 
                                           confirmToggleBlockUser();
                                       }
                                   }}
@@ -409,15 +436,6 @@ export default function UsuariosPage() {
                               </Tooltip>
                             )}
 
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleViewAvailability(user.id)} disabled={user.adminApprovalStatus === 'pending'}>
-                                  <CalendarClock className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Ver Disponibilidad</TooltipContent>
-                            </Tooltip>
-
                             {canImpersonate && !isUserAdmin && user.status === 'Activo' && user.adminApprovalStatus === 'approved' && (
                                 <Tooltip>
                                 <TooltipTrigger asChild>
@@ -427,17 +445,6 @@ export default function UsuariosPage() {
                                 </TooltipTrigger>
                                 <TooltipContent>Suplantar Usuario</TooltipContent>
                                 </Tooltip>
-                            )}
-
-                            {user.invitationStatus === 'pending' && user.adminApprovalStatus === 'approved' && canManageUsers && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleResendInvitation(user.email)}>
-                                    <Send className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Reenviar Invitación por Email</TooltipContent>
-                              </Tooltip>
                             )}
 
                             {canManageUsers && !isUserAdmin && (
@@ -483,9 +490,9 @@ export default function UsuariosPage() {
         </Card>
 
         <InviteUserDialog
-          isOpen={isInviteUserDialogOpen}
-          onOpenChange={setIsInviteUserDialogOpen}
-          onUserInvited={handleUserInvited}
+          isOpen={isAddUserDialogOpen}
+          onOpenChange={setIsAddUserDialogOpen}
+          onUserAdded={handleUserAdded}
         />
 
         {userToBlock && (
