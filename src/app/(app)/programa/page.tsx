@@ -13,7 +13,7 @@ import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, getDay, isWithinInterval, parseISO } from 'date-fns';
 import { Timestamp, writeBatch, collection, doc, getDoc, getDocs, query, where, orderBy, deleteField } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { ProgramScheduleSlot, PublisherDetail, PreachingAssignedType, SettingsDoc, Casa, Territory, PreachingGroup, DayOfWeek as TypeDayOfWeek, Campaign, Assembly, CustomHoliday } from "@/types";
+import type { ProgramScheduleSlot, PublisherDetail, PreachingType as TypePreachingType, SettingsDoc, Casa, Territory, PreachingGroup, DayOfWeek as TypeDayOfWeek, Campaign, Assembly, CustomHoliday, PreachingAssignedType } from "@/types";
 import { USER_ROLES } from "@/lib/constants";
 
 const currentYear = new Date().getFullYear();
@@ -23,7 +23,7 @@ const months = Array.from({ length: 12 }, (_, i) => ({
   label: format(new Date(currentYear, i), "MMMM", { locale: es }),
 }));
 
-const DAY_OF_WEEK_MAP: Record<number, TypeDayOfWeek> = {
+const DAY_OF_WEEK_MAP_NUM_TO_KEY: Record<number, TypeDayOfWeek> = {
   0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday',
 };
 
@@ -76,7 +76,7 @@ export default function ProgramaMensualPage() {
         const organizedDaysMap: Record<TypeDayOfWeek, boolean> = { ...initialGroupOrganizedDaysState };
         (config.groupOrganizedDays || []).forEach(day => { 
             if (day in organizedDaysMap) {
-                organizedDaysMap[day] = true; 
+                organizedDaysMap[day as TypeDayOfWeek] = true; 
             }
         });
         setGroupOrganizedDays(organizedDaysMap);
@@ -162,7 +162,7 @@ export default function ProgramaMensualPage() {
     setIsLoading(true);
     setGeneratedAssignments(null);
 
-    const processedAvailableDays: Record<TypeDayOfWeek, {startTime: string; type: PreachingAssignedType}[]> = {} as Record<TypeDayOfWeek, {startTime: string; type: PreachingAssignedType}[]>;
+    const processedAvailableDays: Record<TypeDayOfWeek, {startTime: string; type: TypePreachingType}[]> = {} as Record<TypeDayOfWeek, {startTime: string; type: TypePreachingType}[]>;
     programScheduleSlots.forEach(slot => {
         if (!processedAvailableDays[slot.dayOfWeek]) {
             processedAvailableDays[slot.dayOfWeek] = [];
@@ -228,7 +228,7 @@ export default function ProgramaMensualPage() {
             const assemblyEndMonth = assemblyEndDate.getMonth();
             const assemblyEndYear = assemblyEndDate.getFullYear();
             return (assemblyStartYear < selectedYear || (assemblyStartYear === selectedYear && assemblyStartMonth <= selectedMonth)) &&
-                   (assemblyEndYear > selectedYear || (assemblyEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
+                   (assemblyEndYear > selectedYear || (campaignEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
         })
         .map(a => ({
             ...a, 
