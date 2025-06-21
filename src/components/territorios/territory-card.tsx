@@ -2,14 +2,14 @@
 "use client";
 
 import Image from 'next/image';
-import { useState, useMemo } from 'react'; 
+import { useState, useMemo, useEffect } from 'react'; 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Share2, Building, ShieldCheck, BarChart3, MessageSquareWarning, Copy } from "lucide-react";
 import type { Territory, Casa, PreachingGroup } from "@/types"; 
-import { ViewImageDialog } from './view-image-dialog';
+import { ViewImageDialog } from '@/components/territorios/view-image-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 
@@ -38,7 +38,15 @@ export function TerritoryCard({
 }: TerritoryCardProps) {
   const approxHouseCountDisplay = territory.approxHouseCount ?? territory.blockHouseCounts?.reduce((a, b) => a + b, 0) ?? 'N/A';
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [canShare, setCanShare] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // This effect runs only on the client side after mount, where navigator is available.
+    if (typeof window !== 'undefined' && navigator.share) {
+      setCanShare(true);
+    }
+  }, []);
 
   const getCasaNamesByIds = (ids?: string[]): string => {
     if (!ids || ids.length === 0) return 'N/A';
@@ -257,7 +265,7 @@ export function TerritoryCard({
               <TooltipContent><p>Ver en Google Maps</p></TooltipContent>
             </Tooltip>
           )}
-           {(navigator.share || (typeof window !== 'undefined' && 'Clipboard' in window) ) && ( 
+           {canShare && ( 
             <Tooltip>
                 <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" onClick={handleShare} aria-label="Compartir territorio" className="h-8 w-8">
@@ -283,3 +291,4 @@ export function TerritoryCard({
   );
 }
 
+    
