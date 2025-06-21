@@ -71,7 +71,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
         if (authUser.email === 'javih.jw@gmail.com') {
           const devAdminProfile = {
             id: 'dev-admin-javih', name: 'Javier (Admin Dev)', email: 'javih.jw@gmail.com',
-            role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo', firebaseAuthUid: authUser.uid,
+            role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo' as const, firebaseAuthUid: authUser.uid,
           };
           setActualUserProfile(devAdminProfile);
           // Fetch role permissions for admin, then set loading to false
@@ -93,7 +93,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
         } else if (authUser.uid === 'uidElena') {
           const devSgProfile = {
             id: 'dev-sg-elena', name: 'Elena Campos (SG Dev)', email: 'elena.campos.dev@example.com',
-            role: USER_ROLES.SG, status: 'Activo', firebaseAuthUid: authUser.uid, assignedGroupId: 'G1',
+            role: USER_ROLES.SG, status: 'Activo' as const, firebaseAuthUid: authUser.uid, assignedGroupId: 'G1',
           };
           setActualUserProfile(devSgProfile);
           const rolePermissionsDocRefSG = doc(db, "settings", "rolePermissions");
@@ -229,5 +229,3 @@ export function usePermissions(): PermissionsContextType {
   }
   return context;
 }
-
-    
