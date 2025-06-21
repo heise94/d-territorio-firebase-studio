@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Share2, Building, ShieldCheck, BarChart3, MessageSquareWarning, Copy } from "lucide-react";
+import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Building, ShieldCheck, BarChart3, MessageSquareWarning, Copy } from "lucide-react";
 import type { Territory, Casa, PreachingGroup } from "@/types"; 
 import { ViewImageDialog } from "@/components/territorios/view-image-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -17,7 +17,7 @@ interface TerritoryCardProps {
   territory: Territory;
   onEdit: () => void;
   onDelete: () => void;
-  onDuplicate: () => void; // New prop for duplication
+  onDuplicate: () => void;
   onBlockToggle: () => void; 
   canManage: boolean; 
   canViewBlockDetails: boolean; 
@@ -38,16 +38,7 @@ export function TerritoryCard({
 }: TerritoryCardProps) {
   const approxHouseCountDisplay = territory.approxHouseCount ?? territory.blockHouseCounts?.reduce((a, b) => a + b, 0) ?? 'N/A';
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
-  const [canShare, setCanShare] = useState(false);
-  const { toast } = useToast();
-
-  useEffect(() => {
-    // This effect runs only on the client side after mount, where navigator is available.
-    if (typeof window !== 'undefined' && typeof navigator.share === 'function') {
-      setCanShare(true);
-    }
-  }, []);
-
+  
   const getCasaNamesByIds = (ids?: string[]): string => {
     if (!ids || ids.length === 0) return 'N/A';
     return ids.map(id => availableCasas.find(casa => casa.id === id)?.ownerName || id).join(', ');
@@ -62,60 +53,6 @@ export function TerritoryCard({
     if (!territory.groupIds || territory.groupIds.length === 0) return "Grupos";
     return territory.groupIds.length === 1 ? "Grupo" : "Grupos";
   }, [territory.groupIds]);
-
-
-  const handleShare = async () => {
-    let textToShare = `Territorio: `;
-    if (territory.type === 'urban' && territory.number) {
-      textToShare += `U-${territory.number}: `;
-    }
-    textToShare += `${territory.name}`;
-
-    if (territory.mapImageUrl) {
-      textToShare += `\nMapa: ${territory.mapImageUrl}`;
-    } else if (territory.googleMapsLink) {
-      textToShare += `\nMapa: ${territory.googleMapsLink}`;
-    }
-
-    const shareData: ShareData = {
-      title: `Información del Territorio: ${territory.name}`,
-      text: textToShare,
-      url: territory.mapImageUrl || territory.googleMapsLink || (typeof window !== 'undefined' ? window.location.href : undefined),
-    };
-
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share(shareData);
-        toast({
-          title: "Territorio Compartido",
-          description: "La información del territorio se ha compartido.",
-        });
-      } catch (error: any) {
-        console.error("navigator.share() falló. Error:", error);
-        if (error.name === 'AbortError') {
-          toast({
-            title: "Compartir Cancelado",
-            description: "No se compartió la información del territorio.",
-            variant: "default",
-          });
-        } else {
-          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(textToShare)}`;
-          window.open(whatsappUrl, '_blank');
-          toast({
-            title: "Compartir Directo Falló",
-            description: "No se pudo usar la función nativa. Intentando abrir WhatsApp.",
-          });
-        }
-      }
-    } else {
-      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(textToShare)}`;
-      window.open(whatsappUrl, '_blank');
-      toast({
-        title: "Abriendo WhatsApp",
-        description: "Compartir nativo no disponible. Intentando abrir WhatsApp.",
-      });
-    }
-  };
 
   const showBlockedState = territory.isBlocked && canViewBlockDetails;
 
@@ -265,18 +202,6 @@ export function TerritoryCard({
               <TooltipContent><p>Ver en Google Maps</p></TooltipContent>
             </Tooltip>
           )}
-           {canShare && ( 
-            <Tooltip>
-                <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={handleShare} aria-label="Compartir territorio" className="h-8 w-8">
-                    <Share2 className="h-4 w-4" />
-                </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                <p>Compartir</p>
-                </TooltipContent>
-            </Tooltip>
-            )}
         </CardFooter>
       </Card>
       {territory.mapImageUrl && (
@@ -290,5 +215,3 @@ export function TerritoryCard({
     </>
   );
 }
-
-    
