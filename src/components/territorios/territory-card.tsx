@@ -1,7 +1,7 @@
 "use client";
 
 import Image from 'next/image';
-import { useState, useMemo, useEffect } from 'react'; 
+import { useState, useMemo } from 'react'; 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
