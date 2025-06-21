@@ -269,7 +269,7 @@ export function AddTerritoryDialog({
   };
 
   const currentApproxHouseCountInDialog = useMemo(() => {
-    return (watchedBlockHouseCounts || []).reduce((sum, count) => sum + (Number(count) || 0), 0);
+    return (watchedBlockHouseCounts || []).reduce((sum: number, count) => sum + (Number(count) || 0), 0);
   }, [watchedBlockHouseCounts]);
 
   return (
@@ -580,4 +580,3 @@ export function AddTerritoryDialog({
     </Dialog>
   );
 }
-
