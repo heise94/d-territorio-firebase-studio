@@ -35,7 +35,7 @@ export function TerritoryCard({
     availableCasas,
     availableGroups 
 }: TerritoryCardProps) {
-  const approxHouseCountDisplay = territory.approxHouseCount ?? territory.blockHouseCounts?.reduce((a, b) => a + b, 0) ?? 'N/A';
+  const approxHouseCountDisplay = territory.approxHouseCount ?? territory.blockHouseCounts?.reduce((a, b) => a + (b || 0), 0) ?? 'N/A';
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
   
   const getCasaNamesByIds = (ids?: string[]): string => {
@@ -61,8 +61,7 @@ export function TerritoryCard({
         <CardHeader className="pb-3">
           <div className="flex justify-between items-start">
             <CardTitle className="text-xl font-semibold">
-              {territory.type === 'urban' && territory.number ? `U-${territory.number}: ` : ''}
-              {territory.name}
+              {territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name}
             </CardTitle>
             {showBlockedState && (
               <Badge variant='destructive' className="capitalize">
