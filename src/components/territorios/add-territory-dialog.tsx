@@ -121,7 +121,6 @@ export function AddTerritoryDialog({
       if (territoryToEdit.blockHouseCounts && territoryToEdit.blockHouseCounts.length > 0) {
           initialBlockCounts = territoryToEdit.blockHouseCounts.map(c => (c === null || c === undefined) ? undefined : Number(c));
       }
-      // Ensure array length matches totalBlocks, filling with undefined if necessary
       if (initialBlockCounts.length < initialTotalBlocks) {
           initialBlockCounts = [...initialBlockCounts, ...Array(initialTotalBlocks - initialBlockCounts.length).fill(undefined)];
       } else if (initialBlockCounts.length > initialTotalBlocks) {
@@ -216,9 +215,10 @@ export function AddTerritoryDialog({
     const approxHouseCount = processedBlockHouseCounts.reduce((sum, count) => sum + count, 0);
     const idForSubmit = territoryToEdit?.id && isEditMode ? territoryToEdit.id : crypto.randomUUID();
     
+    // Key change: Name for urban territories is their number.
     const territoryNameForSubmit = values.type === 'urban' 
         ? (values.number || '') 
-        : (values.name || '');
+        : (values.name || 'Territorio Rural sin nombre');
 
     const territoryDataToSubmit: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'> = {
       id: idForSubmit,
@@ -292,7 +292,7 @@ export function AddTerritoryDialog({
           <DialogTitle>{isEditMode ? "Editar Territorio" : "Añadir Nuevo Territorio"}</DialogTitle>
           <DialogDescription>
             {isEditMode ? "Modifica los detalles del territorio." : "Completa los detalles del nuevo territorio."}
-            {territoryToEdit && !isEditMode && <span className="block text-sm text-blue-600 mt-1">Estás creando una copia de "{territoryToEdit.name}". Ajusta el nombre y el número.</span>}
+            {territoryToEdit && !isEditMode && <span className="block text-sm text-blue-600 mt-1">Estás creando una copia de "{territoryToEdit.name}". Ajusta el número.</span>}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -329,23 +329,24 @@ export function AddTerritoryDialog({
                     <FormControl>
                       <Input placeholder="Ej: 101, A23" {...field} />
                     </FormControl>
+                    <FormFieldDescription>El nombre del territorio urbano será su número.</FormFieldDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             )}
-
+            
             {watchedType === "rural" && (
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nombre del Territorio</FormLabel>
+                    <FormLabel>Nombre del Territorio Rural</FormLabel>
                     <FormControl>
                       <Input placeholder="Ej: Sector Las Lomas, Vereda El Encanto" {...field} />
                     </FormControl>
-                    <FormMessage />
+                     <FormMessage />
                   </FormItem>
                 )}
               />

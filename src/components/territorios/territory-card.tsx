@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Building, ShieldCheck, BarChart3, MessageSquareWarning, Copy } from "lucide-react";
 import type { Territory, Casa, PreachingGroup } from "@/types"; 
 import { ViewImageDialog } from "@/components/territorios/view-image-dialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface TerritoryCardProps {
   territory: Territory;
@@ -61,7 +61,10 @@ export function TerritoryCard({
         <CardHeader className="pb-3">
           <div className="flex justify-between items-start">
             <CardTitle className="text-xl font-semibold">
-              {territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name}
+              {territory.type === 'urban' 
+                ? `U-${territory.number || '??'}` 
+                : territory.name
+              }
             </CardTitle>
             {showBlockedState && (
               <Badge variant='destructive' className="capitalize">
