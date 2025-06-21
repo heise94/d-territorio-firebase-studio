@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban, Eye, Share2, Building, ShieldCheck, BarChart3, MessageSquareWarning, Copy } from "lucide-react";
 import type { Territory, Casa, PreachingGroup } from "@/types"; 
-import { ViewImageDialog } from './view-image-dialog';
+import { ViewImageDialog } from '@/components/territorios/view-image-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 
@@ -43,7 +43,7 @@ export function TerritoryCard({
 
   useEffect(() => {
     // This effect runs only on the client side after mount, where navigator is available.
-    if (navigator.share) {
+    if (typeof window !== 'undefined' && navigator.share) {
       setCanShare(true);
     }
   }, []);
