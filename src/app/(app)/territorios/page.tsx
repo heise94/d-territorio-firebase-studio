@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddTerritoryDialog } from "@/components/territorios/add-territory-dialog";
 import { TerritoryCard } from "@/components/territorios/territory-card";
-import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert, Copy, Home } from "lucide-react";
+import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert, Copy, Home, ArrowDownUp, XIcon } from "lucide-react";
 import type { Territory, TerritoryType, Casa, PreachingGroup } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, FieldValue, getDocs } from "firebase/firestore";
@@ -21,25 +21,36 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES } from "@/lib/constants";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 export default function TerritoriosPage() {
   const [isTerritoryDialogOpen, setIsTerritoryDialogOpen] = useState(false);
   const [territoryToEdit, setTerritoryToEdit] = useState<Territory | null>(null);
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [isLoadingTerritories, setIsLoadingTerritories] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  
   const [activeTab, setActiveTab] = useState<TerritoryType>("urban");
   const { toast } = useToast();
   const { userProfile, isLoadingPermissions } = usePermissions();
 
+  // Dialog states
   const [isBlockReasonDialogOpen, setIsBlockReasonDialogOpen] = useState(false);
   const [territoryToBlock, setTerritoryToBlock] = useState<Territory | null>(null);
   const [blockReason, setBlockReason] = useState("");
 
+  // Data for filters and dialogs
   const [availableCasas, setAvailableCasas] = useState<Casa[]>([]);
   const [isLoadingCasas, setIsLoadingCasas] = useState(true);
   const [availableGroups, setAvailableGroups] = useState<PreachingGroup[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+  
+  // Filter & Sort States
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterGroupId, setFilterGroupId] = useState<string>("all");
+  const [filterCasaId, setFilterCasaId] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all"); 
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
 
   useEffect(() => {
@@ -168,9 +179,6 @@ export default function TerritoriosPage() {
         if (submittedTerritoryData.blockReason && submittedTerritoryData.blockReason.trim() !== "") {
             dataForFirestore.blockReason = submittedTerritoryData.blockReason.trim();
         } else {
-            // If it's blocked but no reason is provided (e.g. editing other fields of an already blocked territory)
-            // we need to ensure we don't accidentally delete an existing reason.
-            // The submittedTerritoryData should carry the original blockReason if it's just an edit.
             dataForFirestore.blockReason = submittedTerritoryData.blockReason || deleteField();
         }
     } else {
@@ -185,7 +193,6 @@ export default function TerritoriosPage() {
 
     optionalFields.forEach(key => {
         const K = key as keyof typeof submittedTerritoryData;
-        // Skip blockReason as it's handled above
         if (key === 'blockReason') return;
 
         if (submittedTerritoryData[K] === undefined || 
@@ -269,15 +276,43 @@ export default function TerritoriosPage() {
     }
   };
 
-
-  const filteredTerritories = useMemo(() => {
+  const filteredAndSortedTerritories = useMemo(() => {
     return territories
-      .filter(territory => territory.type === activeTab)
-      .filter(territory =>
-        territory.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (territory.number && territory.number.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-  }, [territories, searchTerm, activeTab]);
+      .filter(territory => {
+        if (territory.type !== activeTab) return false;
+        
+        const searchMatch = searchTerm === "" ||
+          (territory.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+          (territory.number && territory.number.toLowerCase().includes(searchTerm.toLowerCase()));
+        if (!searchMatch) return false;
+
+        const groupMatch = filterGroupId === "all" || (territory.groupIds && territory.groupIds.includes(filterGroupId));
+        if (!groupMatch) return false;
+
+        const casaMatch = filterCasaId === "all" || (territory.associatedCasaIds && territory.associatedCasaIds.includes(filterCasaId));
+        if (!casaMatch) return false;
+
+        const statusMatch = filterStatus === "all" ||
+          (filterStatus === "available" && !territory.isBlocked) ||
+          (filterStatus === "blocked" && territory.isBlocked);
+        if (!statusMatch) return false;
+
+        return true;
+      })
+      .sort((a, b) => {
+        const numA = a.number;
+        const numB = b.number;
+
+        if (activeTab === 'urban') {
+            const comparison = (numA || '').localeCompare(numB || '', undefined, { numeric: true, sensitivity: 'base' });
+            return sortOrder === 'asc' ? comparison : -comparison;
+        } else { // rural
+            const comparison = a.name.localeCompare(b.name);
+            return sortOrder === 'asc' ? comparison : -comparison;
+        }
+      });
+  }, [territories, searchTerm, activeTab, filterGroupId, filterCasaId, filterStatus, sortOrder]);
+
 
   const canManageBlocking = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
   const canViewBlockStatusDetails = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || userProfile?.role === USER_ROLES.SS;
@@ -289,8 +324,21 @@ export default function TerritoriosPage() {
     }, 0);
   }, [territories]);
 
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setFilterGroupId("all");
+    setFilterCasaId("all");
+    setFilterStatus("all");
+    toast({ title: "Filtros Limpiados", description: "Se han restablecido todos los filtros." });
+  };
+  
+  const toggleSortOrder = () => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  }
+
   const renderTerritoryGrid = (tabType: TerritoryType) => {
-    if (isLoadingTerritories || isLoadingPermissions || isLoadingCasas || isLoadingGroups) {
+    const isLoadingAny = isLoadingTerritories || isLoadingPermissions || isLoadingCasas || isLoadingGroups;
+    if (isLoadingAny) {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(3)].map((_, i) => (
@@ -310,11 +358,11 @@ export default function TerritoriosPage() {
       );
     }
 
-    const territoriesForTab = filteredTerritories.filter(t => t.type === tabType);
+    const territoriesForTab = filteredAndSortedTerritories;
 
     if (territoriesForTab.length === 0) {
-      const noDataMessage = searchTerm
-        ? `No se encontraron territorios ${tabType === 'urban' ? 'urbanos' : 'rurales'} que coincidan con "${searchTerm}".`
+      const noDataMessage = searchTerm || filterGroupId !== 'all' || filterCasaId !== 'all' || filterStatus !== 'all'
+        ? `No se encontraron territorios que coincidan con los filtros.`
         : `Actualmente no hay territorios ${tabType === 'urban' ? 'urbanos' : 'rurales'} registrados.`;
       const IconComponent = searchTerm ? Search : MapPin;
       
@@ -322,14 +370,9 @@ export default function TerritoriosPage() {
         <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
           <IconComponent className="h-20 w-20 text-muted-foreground/70 mb-6" />
           <p className="text-xl font-medium text-muted-foreground mb-2">
-            {searchTerm ? "Sin resultados" : `No hay territorios ${tabType === 'urban' ? 'urbanos' : 'rurales'}`}
+             Sin resultados
           </p>
           <p className="text-sm text-muted-foreground">{noDataMessage}</p>
-          {!searchTerm && (
-            <p className="text-sm text-muted-foreground mt-1">
-              Haz clic en "Añadir Nuevo Territorio" para registrar el primero de este tipo.
-            </p>
-          )}
         </div>
       );
     }
@@ -389,32 +432,70 @@ export default function TerritoriosPage() {
 
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle>Lista de Territorios</CardTitle>
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
-              <CardDescription>
-                {isLoadingTerritories ? "Cargando territorios..." :
-                  (filteredTerritories.length > 0
-                    ? `Mostrando ${filteredTerritories.length} de ${territories.filter(t => t.type === activeTab).length} territorio(s) ${activeTab === 'urban' ? 'urbanos' : 'rurales'}.`
-                    : territories.filter(t => t.type === activeTab).length > 0 ? `Ningún territorio ${activeTab === 'urban' ? 'urbano' : 'rural'} coincide con la búsqueda.`
-                    : `Actualmente no hay territorios ${activeTab === 'urban' ? 'urbanos' : 'rurales'} registrados.`
-                  )
-                }
-                 <span className="block mt-1 text-xs text-muted-foreground">
-                    <Home className="inline-block h-3.5 w-3.5 mr-1" />
-                    Total aproximado de casas en todos los territorios: <strong className="text-foreground">{totalApproximateHousesAllTerritories}</strong>.
-                </span>
-              </CardDescription>
-              <div className="relative w-full sm:w-64 md:w-72">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                      type="search"
-                      placeholder="Buscar por nombre o número..."
-                      className="pl-8 w-full"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+            <CardTitle>Filtros y Búsqueda</CardTitle>
+            <div className="pt-3 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 items-end">
+                  <div className="relative sm:col-span-2 md:col-span-3 lg:col-span-1 xl:col-span-1">
+                      <Label htmlFor="searchTermInput" className="text-xs">Buscar por Nombre o N°</Label>
+                      <Search className="absolute left-2.5 top-[calc(0.75rem+14px)] -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                          id="searchTermInput"
+                          type="search"
+                          placeholder="Nombre, número..."
+                          className="pl-8 w-full h-9 text-sm"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                  </div>
+                  <div className="space-y-1">
+                      <Label htmlFor="filterGroup" className="text-xs">Grupo</Label>
+                      <Select value={filterGroupId} onValueChange={setFilterGroupId} disabled={availableGroups.length === 0}>
+                          <SelectTrigger id="filterGroup" className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="all">Todos los Grupos</SelectItem>
+                              {availableGroups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                          </SelectContent>
+                      </Select>
+                  </div>
+                  <div className="space-y-1">
+                      <Label htmlFor="filterCasa" className="text-xs">Casa Cercana</Label>
+                      <Select value={filterCasaId} onValueChange={setFilterCasaId} disabled={availableCasas.length === 0}>
+                          <SelectTrigger id="filterCasa" className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="all">Todas las Casas</SelectItem>
+                              {availableCasas.map(c => <SelectItem key={c.id} value={c.id}>{c.ownerName}</SelectItem>)}
+                          </SelectContent>
+                      </Select>
+                  </div>
+                  <div className="space-y-1">
+                      <Label htmlFor="filterStatus" className="text-xs">Estado</Label>
+                      <Select value={filterStatus} onValueChange={setFilterStatus}>
+                          <SelectTrigger id="filterStatus" className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="all">Todos</SelectItem>
+                              <SelectItem value="available">Disponibles</SelectItem>
+                              <SelectItem value="blocked">Bloqueados</SelectItem>
+                          </SelectContent>
+                      </Select>
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <Button onClick={toggleSortOrder} variant="outline" size="icon" className="h-9 w-9 shrink-0">
+                      <ArrowDownUp className="h-4 w-4" />
+                      <span className="sr-only">Invertir Orden</span>
+                    </Button>
+                    <Button onClick={handleClearFilters} variant="outline" size="sm" className="h-9 w-full">
+                      <XIcon className="mr-1.5 h-4 w-4" /> Limpiar
+                    </Button>
+                  </div>
               </div>
             </div>
+             <CardDescription className="pt-4 text-xs">
+                Mostrando {filteredAndSortedTerritories.length} de {territories.filter(t => t.type === activeTab).length} territorios {activeTab === 'urban' ? 'urbanos' : 'rurales'}.
+                 <span className="block mt-1">
+                    <Home className="inline-block h-3.5 w-3.5 mr-1" />
+                    Total casas aprox. (todos los territorios): <strong className="text-foreground">{totalApproximateHousesAllTerritories}</strong>.
+                </span>
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TerritoryType)} className="w-full">
@@ -473,4 +554,3 @@ export default function TerritoriosPage() {
     </TooltipProvider>
   );
 }
-
