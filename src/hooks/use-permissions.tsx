@@ -6,7 +6,7 @@ import { useAuth } from './use-auth';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import type { UserProfile, RoleConfiguration, SettingsDoc } from '@/types';
-import { DEFAULT_ROLE_PERMISSIONS, PermissionId, USER_ROLES } from '@/lib/constants';
+import { DEFAULT_ROLE_PERMISSIONS, PermissionId, USER_ROLES, UserRole } from '@/lib/constants';
 import { useToast } from './use-toast';
 
 
@@ -229,3 +229,5 @@ export function usePermissions(): PermissionsContextType {
   }
   return context;
 }
+
+    
