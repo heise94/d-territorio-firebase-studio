@@ -1,4 +1,3 @@
-
 "use client";
 
 import Image from 'next/image';
@@ -11,7 +10,6 @@ import { MapPin, CalendarClock, Home, Users, AlertTriangle, Pencil, Trash2, Ban,
 import type { Territory, Casa, PreachingGroup } from "@/types"; 
 import { ViewImageDialog } from "@/components/territorios/view-image-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useToast } from "@/hooks/use-toast";
 
 interface TerritoryCardProps {
   territory: Territory;
