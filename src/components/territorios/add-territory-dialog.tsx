@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 const territoryFormSchema = z.object({
   type: z.enum(["urban", "rural"], { required_error: "El tipo es obligatorio." }),
   number: z.string().optional(),
-  name: z.string().min(2, { message: "El nombre debe tener al menos 2 caracteres." }).max(100),
+  name: z.string().max(100).optional(),
   mapImageUrl: z.string().optional().or(z.literal('')),
   googleMapsLink: z.string().url({ message: "Debe ser una URL válida." }).optional().or(z.literal('')),
   totalBlocks: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().default(0),
@@ -52,16 +52,19 @@ const territoryFormSchema = z.object({
   groupIds: z.array(z.string()).optional().default([]),
   associatedCasaIds: z.array(z.string()).optional().default([]),
 }).superRefine((data, ctx) => {
-  if (data.type === "urban" && (!data.number || data.number.trim() === "")) {
+  if (data.type === "urban" && (!data.number || data.number.trim().length < 1)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "El número es obligatorio para territorios urbanos.",
       path: ["number"],
     });
   }
-  if (data.blockHouseCounts && data.totalBlocks !== undefined && data.blockHouseCounts.length !== data.totalBlocks) {
-    // This validation might be too strict if we allow partial saves or dynamic row changes.
-    // For now, let's assume totalBlocks drives the array length.
+  if (data.type === "rural" && (!data.name || data.name.trim().length < 2)) {
+    ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El nombre es obligatorio para territorios rurales y debe tener al menos 2 caracteres.",
+        path: ["name"],
+    });
   }
 });
 
@@ -213,10 +216,14 @@ export function AddTerritoryDialog({
     const approxHouseCount = processedBlockHouseCounts.reduce((sum, count) => sum + count, 0);
     const idForSubmit = territoryToEdit?.id && isEditMode ? territoryToEdit.id : crypto.randomUUID();
     
+    const territoryNameForSubmit = values.type === 'urban' 
+        ? (values.number || '') 
+        : (values.name || '');
+
     const territoryDataToSubmit: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'> = {
       id: idForSubmit,
       type: values.type,
-      name: values.name,
+      name: territoryNameForSubmit,
       totalBlocks: values.totalBlocks,
       blockHouseCounts: processedBlockHouseCounts,
       approxHouseCount: approxHouseCount,
@@ -318,7 +325,7 @@ export function AddTerritoryDialog({
                 name="number"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Número de Territorio (si urbano)</FormLabel>
+                    <FormLabel>Número de Territorio</FormLabel>
                     <FormControl>
                       <Input placeholder="Ej: 101, A23" {...field} />
                     </FormControl>
@@ -328,19 +335,21 @@ export function AddTerritoryDialog({
               />
             )}
 
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre del Territorio</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: Centro Alto, Sector Las Lomas" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {watchedType === "rural" && (
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre del Territorio</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ej: Sector Las Lomas, Vereda El Encanto" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormItem>
               <FormLabel>Imagen del Mapa (Opcional)</FormLabel>
