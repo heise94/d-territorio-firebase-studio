@@ -114,17 +114,24 @@ export default function ReportesPage() {
     };
   }, [isLoadingPermissions, hasPermission, toast]);
 
-  const processedDetailedData = useMemo(() => {
+  const processedDetailedData = useMemo((): ProcessedDetailedReportView[] => {
     const historicalDataMap = new Map<string, any[]>();
     historicalReportData.forEach(item => {
       historicalDataMap.set(String(item.numeroTerritorio), item.asignaciones);
     });
 
-    const data = allTerritories.map(territory => {
+    const data: ProcessedDetailedReportView[] = allTerritories.map(territory => {
       const liveReport = allReports.find(r => r.territoryId === territory.id);
       const displayIdentifier = territory.type === 'urban' ? territory.number || 'S/N' : territory.name;
 
       if (liveReport) {
+         let lastCycleCompletionDate = 'N/A';
+         if (liveReport.status === "Completado" && liveReport.completedCurrentCycle instanceof Date) {
+            lastCycleCompletionDate = format(liveReport.completedCurrentCycle, 'dd/MM/yyyy');
+         } else if (liveReport.lastCompletedHistoric instanceof Date) {
+            lastCycleCompletionDate = format(liveReport.lastCompletedHistoric, 'dd/MM/yyyy');
+         }
+
         if (liveReport.status === "Completado") {
            return {
               id: liveReport.id!,
@@ -132,12 +139,11 @@ export default function ReportesPage() {
               territoryNumber: displayIdentifier,
               name: territory.name,
               status: "Disponible",
-              lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : 'N/A',
+              lastCycleCompletionDate: lastCycleCompletionDate,
               assignedTo: '-',
               assignedDate: '-',
               blocksWorked: '-',
               blocksPending: '-',
-              completedCurrentCycleDisplay: liveReport.completedCurrentCycle instanceof Date ? format(liveReport.completedCurrentCycle, "dd/MM/yyyy") : liveReport.completedCurrentCycle,
               campaignsForHistoryModal: liveReport.campaigns,
            };
         }
@@ -149,23 +155,19 @@ export default function ReportesPage() {
           territoryNumber: displayIdentifier,
           name: territory.name,
           status: "En Curso",
-          lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : 'N/A',
+          lastCycleCompletionDate: lastCycleCompletionDate,
           assignedTo: lastCampaign?.assignedTo,
           assignedDate: lastCampaign?.assignedDate && isDateValid(lastCampaign.assignedDate) ? format(lastCampaign.assignedDate, "dd/MM/yyyy") : undefined,
           blocksWorked: lastCampaign?.blocksWorked,
           blocksPending: lastCampaign?.blocksPending,
-          completedCurrentCycleDisplay: "En curso",
           campaignsForHistoryModal: liveReport.campaigns,
         };
       }
 
       const historicalAssignments = historicalDataMap.get(territory.number || '');
       if (historicalAssignments && historicalAssignments.length > 0) {
-        const sortedAssignments = [...historicalAssignments].sort((a, b) => {
-          const dateA = parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date());
-          const dateB = parse(b.fechaAsignacion, 'dd/MM/yyyy', new Date());
-          return compareDesc(dateA, dateB);
-        });
+        const sortedAssignments = [...historicalAssignments].map(a => ({...a, dateObj: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date())})).sort((a,b) => compareDesc(a.dateObj, b.dateObj));
+        const completedAssignments = sortedAssignments.filter(a => a.completadoAsignacion);
 
         const latestAssignment = sortedAssignments[0];
         if (latestAssignment.completadoAsignacion) {
@@ -175,14 +177,14 @@ export default function ReportesPage() {
             territoryNumber: displayIdentifier,
             name: territory.name,
             status: "Disponible",
-            lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : 'N/A',
+            lastCycleCompletionDate: completedAssignments.length > 0 ? format(completedAssignments[0].dateObj, "dd/MM/yyyy") : 'N/A',
             assignedTo: '-',
             assignedDate: '-',
             blocksWorked: '-',
             blocksPending: '-',
             campaignsForHistoryModal: sortedAssignments.map(a => ({
                 assignedTo: a.publicador,
-                assignedDate: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date()),
+                assignedDate: a.dateObj,
                 blocksWorked: a.manzanasTrabajadas,
                 blocksPending: a.manzanasPendientes,
                 completadoAsignacion: a.completadoAsignacion,
@@ -196,14 +198,14 @@ export default function ReportesPage() {
           territoryNumber: displayIdentifier,
           name: territory.name,
           status: "En Curso",
-          lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : 'N/A',
+          lastCycleCompletionDate: completedAssignments.length > 0 ? format(completedAssignments[0].dateObj, "dd/MM/yyyy") : 'N/A',
           assignedTo: latestAssignment.publicador,
           assignedDate: latestAssignment.fechaAsignacion,
           blocksWorked: latestAssignment.manzanasTrabajadas,
           blocksPending: latestAssignment.manzanasPendientes,
           campaignsForHistoryModal: sortedAssignments.map(a => ({
              assignedTo: a.publicador,
-             assignedDate: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date()),
+             assignedDate: a.dateObj,
              blocksWorked: a.manzanasTrabajadas,
              blocksPending: a.manzanasPendientes,
              completadoAsignacion: a.completadoAsignacion,
@@ -217,7 +219,7 @@ export default function ReportesPage() {
         territoryNumber: displayIdentifier,
         name: territory.name,
         status: "Disponible",
-        lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : "N/A",
+        lastCycleCompletionDate: "N/A",
         assignedTo: '-',
         assignedDate: '-',
         blocksWorked: '-',
@@ -405,7 +407,7 @@ export default function ReportesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Terr.</TableHead>
-                      <TableHead>Últ. Actividad</TableHead>
+                      <TableHead>Últ. Ciclo Completado</TableHead>
                       <TableHead>Asignado a (Actual)</TableHead>
                       <TableHead>Fecha Asig. (Actual)</TableHead>
                       <TableHead>Trabajado (Actual)</TableHead>
@@ -418,16 +420,18 @@ export default function ReportesPage() {
                     {processedDetailedData.length > 0 ? processedDetailedData.map((report) => (
                       <TableRow key={report.id}>
                         <TableCell className="font-semibold">{report.territoryNumber}</TableCell>
-                        <TableCell>{report.lastWorked}</TableCell>
+                        <TableCell>{report.lastCycleCompletionDate}</TableCell>
                         <TableCell>{report.assignedTo || '-'}</TableCell>
                         <TableCell>{report.assignedDate || '-'}</TableCell>
                         <TableCell>{report.blocksWorked || '-'}</TableCell>
                         <TableCell>{report.blocksPending ?? '-'}</TableCell>
                         <TableCell>{report.status}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => handleOpenReportEntryDialog(report.territoryId)} className="h-8 w-8">
-                            <Pencil className="h-4 w-4 text-primary" />
-                          </Button>
+                          {report.status === 'En Curso' && (
+                            <Button variant="ghost" size="icon" onClick={() => handleOpenReportEntryDialog(report.territoryId)} className="h-8 w-8">
+                              <Pencil className="h-4 w-4 text-primary" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     )) : (

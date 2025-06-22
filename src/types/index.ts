@@ -279,12 +279,11 @@ export interface ProcessedDetailedReportView {
   territoryNumber: string;
   name: string;
   status: "Disponible" | "En Curso";
-  lastCompletedDate: string;
+  lastCycleCompletionDate: string;
   assignedTo?: string | null;
   assignedDate?: string | null;
   blocksWorked?: string | null;
   blocksPending?: string | number | null;
-  completedCurrentCycleDisplay: string | null;
   campaignsForHistoryModal: CampaignAssignment[];
 }
 
