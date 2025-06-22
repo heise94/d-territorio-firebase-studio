@@ -287,10 +287,8 @@ export default function UsuariosPage() {
 
     const message = `¡Hola ${userToInvite.name}! Has sido invitado a D-TERRITORIO. Para activar tu cuenta y crear tu contraseña, por favor haz clic en el siguiente enlace: ${invitationUrl}`;
     
-    let cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[\s-()]/g, "");
-    if (!cleanedPhoneNumber.startsWith('56')) { // Example for Chile, adjust if needed
-        cleanedPhoneNumber = `56${cleanedPhoneNumber}`;
-    }
+    // Remove all non-digit characters to clean the number for the wa.me link.
+    const cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[^\d]/g, "");
 
     const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${encodeURIComponent(message)}`;
 
@@ -560,13 +558,11 @@ export default function UsuariosPage() {
                             {canManageUsers && !isUserAdmin && (
                                 <AlertDialog>
                                   <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isSubmitting}>
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </AlertDialogTrigger>
-                                    </TooltipTrigger>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isSubmitting}>
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
                                     <TooltipContent><p>Eliminar Usuario</p></TooltipContent>
                                   </Tooltip>
                                   <AlertDialogContent>
