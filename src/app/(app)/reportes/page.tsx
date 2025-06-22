@@ -36,6 +36,7 @@ import type { Territory, ReportEntry, CampaignAssignment, ProcessedDetailedRepor
 import { format, parse, isValid as isDateValid, compareDesc, getYear as getYearFromDateFn } from "date-fns";
 import { es } from "date-fns/locale";
 import { EditReportEntryDialog } from "@/components/reportes/edit-report-entry-dialog";
+import { AddReportManuallyDialog, type ManualReportSubmitData } from "@/components/reportes/add-report-manually-dialog";
 import { historicalReportData } from '@/lib/reports-data';
 import { Badge } from "@/components/ui/badge";
 import { CycleHistoryDialog } from "@/components/reportes/cycle-history-dialog";
@@ -56,8 +57,9 @@ export default function ReportesPage() {
   const [allReports, setAllReports] = useState<ReportEntry[]>([]);
 
   // Dialog states
-  const [isReportEntryDialogOpen, setIsReportEntryDialogOpen] = useState(false);
-  const [selectedReportData, setSelectedReportData] = useState<{ territory: Territory; report: ReportEntry | null } | null>(null);
+  const [isViewActivityDialogOpen, setIsViewActivityDialogOpen] = useState(false);
+  const [selectedReportData, setSelectedReportData] = useState<{ territory: Territory; report: ReportEntry } | null>(null);
+  const [isAddManuallyDialogOpen, setIsAddManuallyDialogOpen] = useState(false);
   
   const [isCycleHistoryDialogOpen, setIsCycleHistoryDialogOpen] = useState(false);
   const [selectedTerritoryForHistory, setSelectedTerritoryForHistory] = useState<S13TerritoryCycleSummary | null>(null);
@@ -140,15 +142,10 @@ export default function ReportesPage() {
               name: territory.name,
               status: "Disponible",
               lastCycleCompletionDate: lastCycleCompletionDate,
-              assignedTo: '-',
-              assignedDate: '-',
-              blocksWorked: '-',
-              blocksPending: '-',
-              campaignsForHistoryModal: liveReport.campaigns,
+              campaigns: liveReport.campaigns,
            };
         }
         
-        const lastCampaign = liveReport.campaigns[liveReport.campaigns.length - 1];
         return {
           id: liveReport.id!,
           territoryId: territory.id,
@@ -156,11 +153,7 @@ export default function ReportesPage() {
           name: territory.name,
           status: "En Curso",
           lastCycleCompletionDate: lastCycleCompletionDate,
-          assignedTo: lastCampaign?.assignedTo,
-          assignedDate: lastCampaign?.assignedDate && isDateValid(lastCampaign.assignedDate) ? format(lastCampaign.assignedDate, "dd/MM/yyyy") : undefined,
-          blocksWorked: lastCampaign?.blocksWorked,
-          blocksPending: lastCampaign?.blocksPending,
-          campaignsForHistoryModal: liveReport.campaigns,
+          campaigns: liveReport.campaigns,
         };
       }
 
@@ -169,8 +162,7 @@ export default function ReportesPage() {
         const sortedAssignments = [...historicalAssignments].map(a => ({...a, dateObj: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date())})).sort((a,b) => compareDesc(a.dateObj, b.dateObj));
         const completedAssignments = sortedAssignments.filter(a => a.completadoAsignacion);
 
-        const latestAssignment = sortedAssignments[0];
-        if (latestAssignment.completadoAsignacion) {
+        if (sortedAssignments[0].completadoAsignacion) {
           return {
             id: `historical-${territory.id}`,
             territoryId: territory.id,
@@ -178,11 +170,7 @@ export default function ReportesPage() {
             name: territory.name,
             status: "Disponible",
             lastCycleCompletionDate: completedAssignments.length > 0 ? format(completedAssignments[0].dateObj, "dd/MM/yyyy") : 'N/A',
-            assignedTo: '-',
-            assignedDate: '-',
-            blocksWorked: '-',
-            blocksPending: '-',
-            campaignsForHistoryModal: sortedAssignments.map(a => ({
+            campaigns: sortedAssignments.map(a => ({
                 assignedTo: a.publicador,
                 assignedDate: a.dateObj,
                 blocksWorked: a.manzanasTrabajadas,
@@ -199,11 +187,7 @@ export default function ReportesPage() {
           name: territory.name,
           status: "En Curso",
           lastCycleCompletionDate: completedAssignments.length > 0 ? format(completedAssignments[0].dateObj, "dd/MM/yyyy") : 'N/A',
-          assignedTo: latestAssignment.publicador,
-          assignedDate: latestAssignment.fechaAsignacion,
-          blocksWorked: latestAssignment.manzanasTrabajadas,
-          blocksPending: latestAssignment.manzanasPendientes,
-          campaignsForHistoryModal: sortedAssignments.map(a => ({
+          campaigns: sortedAssignments.map(a => ({
              assignedTo: a.publicador,
              assignedDate: a.dateObj,
              blocksWorked: a.manzanasTrabajadas,
@@ -220,11 +204,7 @@ export default function ReportesPage() {
         name: territory.name,
         status: "Disponible",
         lastCycleCompletionDate: "N/A",
-        assignedTo: '-',
-        assignedDate: '-',
-        blocksWorked: '-',
-        blocksPending: '-',
-        campaignsForHistoryModal: [],
+        campaigns: [],
       };
     });
     
@@ -234,7 +214,7 @@ export default function ReportesPage() {
 
     return sortedData.filter(report => 
       report.territoryNumber.toLowerCase().includes(detailedSearchTerm.toLowerCase()) ||
-      (report.assignedTo || '').toLowerCase().includes(detailedSearchTerm.toLowerCase()) ||
+      report.name.toLowerCase().includes(detailedSearchTerm.toLowerCase()) ||
       report.status.toLowerCase().includes(detailedSearchTerm.toLowerCase())
     );
 
@@ -289,63 +269,83 @@ export default function ReportesPage() {
   }, [allTerritories, allReports, s13SearchTerm]);
 
 
-  const handleOpenReportEntryDialog = (territoryId: string) => {
+  const handleOpenViewActivityDialog = (territoryId: string) => {
     const territory = allTerritories.find(t => t.id === territoryId);
     if (!territory) return;
 
     const liveReport = allReports.find(r => r.territoryId === territoryId);
-
-    if (liveReport) {
+    if (liveReport && liveReport.status === 'En Curso') {
       setSelectedReportData({ territory, report: liveReport });
+      setIsViewActivityDialogOpen(true);
     } else {
-      const reportViewData = processedDetailedData.find(p => p.territoryId === territoryId);
-      if (reportViewData && reportViewData.id.startsWith('historical-')) {
-        const historicalCampaigns = reportViewData.campaignsForHistoryModal;
-        const completedCampaigns = historicalCampaigns.filter(c => c.completadoAsignacion);
-
-        const tempReport: ReportEntry = {
-          territoryId: territory.id,
-          territoryNumber: territory.number || territory.name,
-          lastCompletedHistoric: completedCampaigns.length > 1 && completedCampaigns[1].assignedDate && isDateValid(completedCampaigns[1].assignedDate) ? completedCampaigns[1].assignedDate : null,
-          status: reportViewData.status === "Disponible" ? "Completado" : "En Curso",
-          completedCurrentCycle: completedCampaigns.length > 0 && completedCampaigns[0].assignedDate && isDateValid(completedCampaigns[0].assignedDate) ? completedCampaigns[0].assignedDate : "En curso",
-          campaigns: historicalCampaigns,
-        };
-        setSelectedReportData({ territory, report: tempReport });
-      } else {
-        setSelectedReportData({ territory, report: null });
-      }
+        const reportViewData = processedDetailedData.find(p => p.territoryId === territoryId);
+        if (reportViewData && reportViewData.status === 'En Curso') {
+            const tempReport: ReportEntry = {
+                territoryId: territory.id, territoryNumber: territory.number || territory.name,
+                status: 'En Curso', campaigns: reportViewData.campaigns,
+                lastCompletedHistoric: null, completedCurrentCycle: "En curso"
+            };
+            setSelectedReportData({ territory, report: tempReport });
+            setIsViewActivityDialogOpen(true);
+        } else {
+           toast({ title: "Info", description: "Este territorio no tiene un ciclo activo para visualizar.", variant: "default"});
+        }
     }
-    
-    setIsReportEntryDialogOpen(true);
   };
   
-  const handleSaveReportData = async (data: ReportEntry) => {
-    const docId = data.id || doc(collection(db, REPORTS_COLLECTION_NAME)).id;
+  const handleSaveManualReport = async (data: ManualReportSubmitData) => {
+    const { territoryId, ...newAssignmentData } = data;
+    const existingReport = allReports.find(r => r.territoryId === territoryId);
+    const targetTerritory = allTerritories.find(t => t.id === territoryId);
+    if (!targetTerritory) return;
+
+    let finalReport: ReportEntry;
+
+    if (!existingReport || existingReport.status === "Completado") {
+        // Start a new cycle
+        finalReport = {
+            id: existingReport?.id, // Reuse ID if it exists to overwrite
+            territoryId: territoryId,
+            territoryNumber: targetTerritory.number || targetTerritory.name,
+            lastCompletedHistoric: existingReport?.completedCurrentCycle instanceof Date ? existingReport.completedCurrentCycle : null,
+            campaigns: [newAssignmentData],
+            status: newAssignmentData.isCompleted ? "Completado" : "En Curso",
+            completedCurrentCycle: newAssignmentData.isCompleted ? newAssignmentData.completionDate! : "En curso",
+        };
+    } else {
+        // Append to existing cycle
+        finalReport = {
+            ...existingReport,
+            campaigns: [...existingReport.campaigns, newAssignmentData],
+            status: newAssignmentData.isCompleted ? "Completado" : "En Curso",
+            completedCurrentCycle: newAssignmentData.isCompleted ? newAssignmentData.completionDate! : "En curso",
+        };
+    }
+    
+    const docId = finalReport.id || doc(collection(db, REPORTS_COLLECTION_NAME)).id;
     const reportRef = doc(db, REPORTS_COLLECTION_NAME, docId);
 
     const dataToSave = {
-      ...data,
+      ...finalReport,
       id: docId,
-      lastCompletedHistoric: data.lastCompletedHistoric ? Timestamp.fromDate(data.lastCompletedHistoric) : null,
-      completedCurrentCycle: data.completedCurrentCycle instanceof Date ? Timestamp.fromDate(data.completedCurrentCycle) : data.completedCurrentCycle,
-      campaigns: (data.campaigns || []).map(c => ({
+      lastCompletedHistoric: finalReport.lastCompletedHistoric ? Timestamp.fromDate(finalReport.lastCompletedHistoric) : null,
+      completedCurrentCycle: finalReport.completedCurrentCycle instanceof Date ? Timestamp.fromDate(finalReport.completedCurrentCycle) : finalReport.completedCurrentCycle,
+      campaigns: (finalReport.campaigns || []).map(c => ({
         ...c,
         assignedDate: c.assignedDate ? Timestamp.fromDate(c.assignedDate) : null,
       })),
       updatedAt: serverTimestamp(),
     };
-    if (!data.id) {
+    if (!finalReport.id) {
         (dataToSave as any).createdAt = serverTimestamp();
     }
-    
+
     try {
       await setDoc(reportRef, dataToSave, { merge: true });
-      toast({ title: "Reporte Guardado", description: `Se guardó la información para el territorio ${data.territoryNumber}.` });
-      setIsReportEntryDialogOpen(false);
-      setSelectedReportData(null);
+      toast({ title: "Reporte Guardado", description: `Se registró la actividad para el territorio ${targetTerritory.number || targetTerritory.name}.` });
+      setIsAddManuallyDialogOpen(false);
     } catch (error) {
-      console.error("Error saving report data:", error);
+      console.error("Error saving manual report:", error);
       toast({ title: "Error al Guardar", variant: "destructive" });
     }
   };
@@ -388,19 +388,24 @@ export default function ReportesPage() {
           <TabsContent value="detailedReports" className="mt-4">
             <Card className="shadow-md">
               <CardHeader>
-                <CardTitle>Vista Detallada de Actividad</CardTitle>
-                <div className="flex flex-col sm:flex-row justify-between items-center pt-2 gap-3">
-                    <CardDescription>Aquí puedes ver el estado actual de cada territorio y editar su reporte.</CardDescription>
-                    <div className="relative w-full sm:w-auto">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Filtrar por N°, publicador..."
-                          value={detailedSearchTerm}
-                          onChange={(e) => setDetailedSearchTerm(e.target.value)}
-                          className="pl-8 w-full sm:w-[250px]"
-                        />
-                    </div>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <CardTitle>Vista Detallada de Actividad</CardTitle>
+                    <CardDescription>Consulta el estado actual de cada territorio. Registra nueva actividad manualmente.</CardDescription>
+                  </div>
+                  <Button onClick={() => setIsAddManuallyDialogOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4"/> Registrar Actividad Manualmente
+                  </Button>
                 </div>
+                 <div className="relative pt-4 w-full sm:max-w-xs">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-[-5px] h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Filtrar por N°, nombre, estado..."
+                        value={detailedSearchTerm}
+                        onChange={(e) => setDetailedSearchTerm(e.target.value)}
+                        className="pl-8"
+                    />
+                  </div>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -408,10 +413,6 @@ export default function ReportesPage() {
                     <TableRow>
                       <TableHead>N° Terr.</TableHead>
                       <TableHead>Últ. Ciclo Completado</TableHead>
-                      <TableHead>Asignado a (Actual)</TableHead>
-                      <TableHead>Fecha Asig. (Actual)</TableHead>
-                      <TableHead>Trabajado (Actual)</TableHead>
-                      <TableHead>Pendiente (Actual)</TableHead>
                       <TableHead>Estado Ciclo Actual</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
@@ -421,39 +422,28 @@ export default function ReportesPage() {
                       <TableRow key={report.id}>
                         <TableCell className="font-semibold">{report.territoryNumber}</TableCell>
                         <TableCell>{report.lastCycleCompletionDate}</TableCell>
-                        <TableCell>{report.assignedTo || '-'}</TableCell>
-                        <TableCell>{report.assignedDate || '-'}</TableCell>
-                        <TableCell>{report.blocksWorked || '-'}</TableCell>
-                        <TableCell>{report.blocksPending ?? '-'}</TableCell>
-                        <TableCell>{report.status}</TableCell>
+                        <TableCell>
+                          <Badge variant={report.status === "Disponible" ? "default" : "outline"} className={report.status === "En Curso" ? "border-amber-500 text-amber-600" : ""}>
+                            {report.status}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-right">
-                            {report.status === 'En Curso' ? (
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={() => handleOpenReportEntryDialog(report.territoryId)} className="h-8 w-8">
-                                            <Pencil className="h-4 w-4 text-primary" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p>Editar Ciclo Actual</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                            ) : (
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={() => handleOpenReportEntryDialog(report.territoryId)} className="h-8 w-8">
-                                            <PlusCircle className="h-4 w-4 text-green-600" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p>Registrar Actividad (Iniciar Ciclo)</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                            )}
+                          {report.status === 'En Curso' && (
+                              <Tooltip>
+                                  <TooltipTrigger asChild>
+                                      <Button variant="ghost" size="icon" onClick={() => handleOpenViewActivityDialog(report.territoryId)} className="h-8 w-8">
+                                          <Eye className="h-4 w-4 text-primary" />
+                                      </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                      <p>Ver Actividad del Ciclo</p>
+                                  </TooltipContent>
+                              </Tooltip>
+                          )}
                         </TableCell>
                       </TableRow>
                     )) : (
-                      <TableRow><TableCell colSpan={8} className="h-24 text-center">No hay territorios que coincidan con la búsqueda.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={4} className="h-24 text-center">No hay territorios que coincidan con la búsqueda.</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
@@ -544,14 +534,22 @@ export default function ReportesPage() {
           </TabsContent>
         </Tabs>
         
-        {isReportEntryDialogOpen && selectedReportData && (
+        {isViewActivityDialogOpen && selectedReportData && (
           <EditReportEntryDialog
-            isOpen={isReportEntryDialogOpen}
-            onOpenChange={setIsReportEntryDialogOpen}
+            isOpen={isViewActivityDialogOpen}
+            onOpenChange={setIsViewActivityDialogOpen}
             territory={selectedReportData.territory}
             activeReport={selectedReportData.report}
-            onSave={handleSaveReportData}
           />
+        )}
+        
+        {isAddManuallyDialogOpen && (
+           <AddReportManuallyDialog
+            isOpen={isAddManuallyDialogOpen}
+            onOpenChange={setIsAddManuallyDialogOpen}
+            territories={allTerritories}
+            onSave={handleSaveManualReport}
+           />
         )}
 
         {isCycleHistoryDialogOpen && selectedTerritoryForHistory && (
