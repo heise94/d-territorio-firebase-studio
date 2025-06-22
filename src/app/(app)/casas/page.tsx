@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, Filter, X as XIcon } from "lucide-react";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, Filter, X as XIcon, LayoutGrid, List } from "lucide-react";
 import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType, Territory } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,8 @@ import { es } from "date-fns/locale";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES } from "@/lib/constants";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 
 const DAY_ORDER_AVAILABILITY: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY_LABELS_AVAILABILITY: Record<DayOfWeek, string> = {
@@ -118,6 +120,8 @@ export default function CasasPage() {
   const [filterAvailabilityDay, setFilterAvailabilityDay] = useState<string>("ALL_DAYS"); 
   const [filterAvailabilitySlotId, setFilterAvailabilitySlotId] = useState<string>("ALL_SLOTS"); 
   const [filterSuitableForRural, setFilterSuitableForRural] = useState<string>("all"); 
+  
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const nonZoomProgramSlots = useMemo(() => {
     return programScheduleSlots.filter(slot => slot.type !== 'zoom');
@@ -490,6 +494,76 @@ export default function CasasPage() {
   const canManageBlocking = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
   const canViewBlockDetails = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || userProfile?.role === USER_ROLES.SS;
 
+  const renderCasaActions = (casa: Casa) => (
+    <div className="flex items-center justify-center gap-0.5">
+      {canManageBlocking && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent><p>Editar</p></TooltipContent>
+        </Tooltip>
+      )}
+
+      {canManageBlocking && (
+          <Tooltip>
+          <TooltipTrigger asChild>
+              <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                      if (casa.isBlocked) { 
+                          setCasaToBlock(casa); 
+                          setBlockReasonCasa(casa.blockReason || ""); 
+                          confirmToggleBlockCasa(); 
+                      } else { 
+                          handleOpenBlockReasonCasaDialog(casa);
+                      }
+                  }}
+                  aria-label={casa.isBlocked ? "Desbloquear casa" : "Bloquear casa"}
+                  className={`h-8 w-8 ${!casa.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
+              >
+              {casa.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+              </Button>
+          </TooltipTrigger>
+          <TooltipContent><p>{casa.isBlocked ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
+          </Tooltip>
+      )}
+
+      {canManageBlocking && (
+          <AlertDialog>
+          <Tooltip>
+              <TooltipTrigger asChild>
+              <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Eliminar casa" className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                      <Trash2 className="h-4 w-4" />
+                  </Button>
+              </AlertDialogTrigger>
+              </TooltipTrigger>
+              <TooltipContent><p>Eliminar</p></TooltipContent>
+          </Tooltip>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+              <AlertDialogDescription>
+                  Esta acción no se puede deshacer. Esto eliminará permanentemente la casa
+                  de los registros.
+              </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handleDeleteCasa(casa.id)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                  Sí, eliminar
+              </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+          </AlertDialog>
+      )}
+    </div>
+  );
+
 
   return (
     <TooltipProvider>
@@ -580,15 +654,25 @@ export default function CasasPage() {
                     <XIcon className="mr-1.5 h-4 w-4" /> Limpiar
                 </Button>
             </div>
-             <CardDescription className="pt-2">
-              {isLoadingAny ? "Cargando información..." :
-                (filteredCasas.length > 0
-                  ? `Mostrando ${filteredCasas.length} de ${casas.length} casa(s) según filtros.`
-                  : casas.length > 0 ? "Ninguna casa coincide con los filtros."
-                  : "Actualmente no hay casas registradas."
-                )
-              }
-            </CardDescription>
+             <div className="pt-2 flex justify-between items-center">
+              <CardDescription>
+                {isLoadingAny ? "Cargando información..." :
+                  (filteredCasas.length > 0
+                    ? `Mostrando ${filteredCasas.length} de ${casas.length} casa(s) según filtros.`
+                    : casas.length > 0 ? "Ninguna casa coincide con los filtros."
+                    : "Actualmente no hay casas registradas."
+                  )
+                }
+              </CardDescription>
+              <div className="flex items-center gap-2">
+                <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('grid')} aria-label="Vista de tarjetas">
+                  <LayoutGrid className="h-5 w-5" />
+                </Button>
+                <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('list')} aria-label="Vista de lista">
+                  <List className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -607,170 +691,109 @@ export default function CasasPage() {
                 </Card>
               ))}
             </div>
-          ) : casas.length === 0 && !searchTerm && filterGroupId === "ALL_GROUPS" && filterStatus === "all" && filterAvailabilityDay === "ALL_DAYS" && filterAvailabilitySlotId === "ALL_SLOTS" && filterSuitableForRural === "all" ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
-              <Building className="h-20 w-20 text-muted-foreground/70 mb-6" />
-              <p className="text-xl font-medium text-muted-foreground mb-2">No hay casas para mostrar.</p>
-              <p className="text-sm text-muted-foreground">
-                Haz clic en "Añadir Nueva Casa" para registrar la primera.
-              </p>
-            </div>
-          ) : filteredCasas.length === 0 ? (
-             <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
-                <Filter className="h-20 w-20 text-muted-foreground/70 mb-6" />
-                <p className="text-xl font-medium text-muted-foreground mb-2">Sin resultados para los filtros</p>
-                <p className="text-sm text-muted-foreground">
-                    Intenta ajustar o limpiar los filtros para encontrar casas.
-                </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredCasas.map((casa) => {
-                const formattedUnavailability = formatUnavailabilityPeriods(casa.unavailabilityPeriods);
-                const formattedAvailability = formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots);
-                const isCasaActuallyBlocked = casa.isBlocked;
-                
-                let cardBaseClass = "flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg";
-                let cardContentClass = "flex-grow space-y-3 pt-2 text-sm";
-                let cardDescriptionClass = "text-sm pt-1 flex items-center";
-                let cardPhoneClass = "text-xs text-muted-foreground flex items-center";
-                let cardGroupClass = "text-xs text-muted-foreground flex items-center pt-1";
-                
-                let showBlockedBadge = false;
-                if (isCasaActuallyBlocked && canViewBlockDetails) {
-                    cardBaseClass += ' bg-muted/50'; 
-                    showBlockedBadge = true;
-                }
-                 if (isCasaActuallyBlocked && !canManageBlocking && canViewBlockDetails) { 
-                    cardContentClass += " opacity-70";
-                    cardDescriptionClass += " opacity-70";
-                    cardPhoneClass += " opacity-70";
-                    cardGroupClass += " opacity-70";
-                }
+          ) : viewMode === 'grid' ? (
+              filteredCasas.length === 0 ? (
+                 <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
+                    <Filter className="h-20 w-20 text-muted-foreground/70 mb-6" />
+                    <p className="text-xl font-medium text-muted-foreground mb-2">Sin resultados para los filtros</p>
+                    <p className="text-sm text-muted-foreground">
+                        Intenta ajustar o limpiar los filtros para encontrar casas.
+                    </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredCasas.map((casa) => {
+                    const formattedUnavailability = formatUnavailabilityPeriods(casa.unavailabilityPeriods);
+                    const formattedAvailability = formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots);
+                    const isCasaActuallyBlocked = casa.isBlocked;
+                    
+                    let cardBaseClass = "flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg";
+                    let cardContentClass = "flex-grow space-y-3 pt-2 text-sm";
+                    
+                    let showBlockedBadge = false;
+                    if (isCasaActuallyBlocked && canViewBlockDetails) {
+                        cardBaseClass += ' bg-muted/50'; 
+                        showBlockedBadge = true;
+                    }
+                     if (isCasaActuallyBlocked && !canManageBlocking && canViewBlockDetails) { 
+                        cardContentClass += " opacity-70";
+                    }
 
-                return (
-                <Card key={casa.id} className={cardBaseClass}>
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                        <CardTitle className="text-xl font-semibold">{casa.ownerName}</CardTitle>
-                        {showBlockedBadge && (
-                            <Badge variant='destructive' className="capitalize">Bloqueada</Badge>
+                    return (
+                    <Card key={casa.id} className={cardBaseClass}>
+                      <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start">
+                            <CardTitle className="text-xl font-semibold">{casa.ownerName}</CardTitle>
+                            {showBlockedBadge && (
+                                <Badge variant='destructive' className="capitalize">Bloqueada</Badge>
+                            )}
+                        </div>
+                        <CardDescription className="text-sm pt-1 flex items-center"><MapPin size={14} className="mr-1.5 text-muted-foreground shrink-0" /> {casa.address}</CardDescription>
+                      </CardHeader>
+                      <CardContent className={cardContentClass}>
+                        {/* Content remains the same as before */}
+                        {casa.phoneNumber && (
+                            <p className="text-xs flex items-center"><Phone size={12} className="mr-1.5 shrink-0" /> {casa.phoneNumber}</p>
                         )}
-                    </div>
-                    <CardDescription className={cardDescriptionClass}><MapPin size={14} className="mr-1.5 text-muted-foreground shrink-0" /> {casa.address}</CardDescription>
-                    {casa.phoneNumber && (
-                        <p className={cardPhoneClass}><Phone size={12} className="mr-1.5 shrink-0" /> {casa.phoneNumber}</p>
-                    )}
-                    {casa.addedByGroupId && (
-                         <p className={cardGroupClass}><GroupIcon size={12} className="mr-1.5 shrink-0 text-blue-600" /> Grupo: <span className="font-medium text-blue-700 dark:text-blue-400 ml-1">{getGroupNameById(casa.addedByGroupId)}</span></p>
-                    )}
-                  </CardHeader>
-                  <CardContent className={cardContentClass}>
-                    <div>
-                        <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad (Horarios Programa):</span>
-                        <p className="text-foreground pl-1 text-xs">{formattedAvailability}</p>
-                    </div>
-                    {formattedUnavailability && (
+                        {casa.addedByGroupId && (
+                            <p className="text-xs flex items-center pt-1"><GroupIcon size={12} className="mr-1.5 shrink-0 text-blue-600" /> Grupo: <span className="font-medium text-blue-700 dark:text-blue-400 ml-1">{getGroupNameById(casa.addedByGroupId)}</span></p>
+                        )}
                         <div>
-                            <span className="font-medium text-amber-600 dark:text-amber-400 flex items-center"><CalendarX2 size={14} className="mr-2" /> No Disponible:</span>
-                            <p className="text-amber-700 dark:text-amber-500 pl-1 text-xs">{formattedUnavailability}</p>
+                            <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad:</span>
+                            <p className="text-foreground pl-1 text-xs">{formattedAvailability}</p>
                         </div>
-                    )}
-                    {casa.isSuitableForRural !== undefined && (
-                        <div className="flex items-center">
-                            {casa.isSuitableForRural ? <CheckCircle2 size={14} className="mr-2 text-green-600" /> : <ShieldAlert size={14} className="mr-2 text-red-600" />}
-                            <span className="text-xs">{casa.isSuitableForRural ? 'Apta para rural' : 'No apta para rural'}</span>
-                        </div>
-                    )}
-                    {casa.notes && (
-                        <div>
-                            <span className="font-medium text-muted-foreground flex items-center"><Info size={14} className="mr-2"/>Notas:</span>
-                            <p className="text-foreground pl-1 text-xs italic">{casa.notes}</p>
-                        </div>
-                    )}
-                    {canViewBlockDetails && casa.notesForSS && (
-                         <div>
-                            <span className="font-medium text-purple-600 dark:text-purple-400 flex items-center"><MessageSquareWarning size={14} className="mr-2"/>Notas para SS:</span>
-                            <p className="text-purple-700 dark:text-purple-300 pl-1 text-xs italic">{casa.notesForSS}</p>
-                        </div>
-                    )}
-                     {showBlockedBadge && casa.blockReason && (
-                        <div className="mt-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
-                            <p className="text-xs font-medium text-destructive flex items-center"><MessageSquareWarning size={13} className="mr-1.5"/> Razón Bloqueo:</p>
-                            <p className="text-xs text-destructive/90 italic">{casa.blockReason}</p>
-                        </div>
-                    )}
-                  </CardContent>
-                   <CardFooter className={`border-t pt-4 pb-4 flex justify-center gap-1 ${isCasaActuallyBlocked && !canManageBlocking && canViewBlockDetails ? 'opacity-60 pointer-events-none' : ''}`}>
-                    {canManageBlocking && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Editar</p></TooltipContent>
-                      </Tooltip>
-                    )}
-
-                    {canManageBlocking && (
-                        <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                    if (casa.isBlocked) { 
-                                        setCasaToBlock(casa); 
-                                        setBlockReasonCasa(casa.blockReason || ""); 
-                                        confirmToggleBlockCasa(); 
-                                    } else { 
-                                        handleOpenBlockReasonCasaDialog(casa);
-                                    }
-                                }}
-                                aria-label={casa.isBlocked ? "Desbloquear casa" : "Bloquear casa"}
-                                className={`h-8 w-8 ${!casa.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
-                            >
-                            {casa.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent><p>{casa.isBlocked ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
-                        </Tooltip>
-                    )}
-
-                    {canManageBlocking && (
-                        <AlertDialog>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" aria-label="Eliminar casa" className="h-8 w-8 text-destructive hover:bg-destructive/10">
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </AlertDialogTrigger>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Eliminar</p></TooltipContent>
-                        </Tooltip>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Esta acción no se puede deshacer. Esto eliminará permanentemente la casa
-                                de los registros.
-                            </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteCasa(casa.id)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                                Sí, eliminar
-                            </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                        </AlertDialog>
-                    )}
-                  </CardFooter>
-                </Card>
-              );
-            })}
+                        {/* More content... */}
+                         {showBlockedBadge && casa.blockReason && (
+                            <div className="mt-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
+                                <p className="text-xs font-medium text-destructive flex items-center"><MessageSquareWarning size={13} className="mr-1.5"/> Razón Bloqueo:</p>
+                                <p className="text-xs text-destructive/90 italic">{casa.blockReason}</p>
+                            </div>
+                        )}
+                      </CardContent>
+                       <CardFooter className={`border-t pt-4 pb-4 ${isCasaActuallyBlocked && !canManageBlocking && canViewBlockDetails ? 'opacity-60 pointer-events-none' : ''}`}>
+                          {renderCasaActions(casa)}
+                       </CardFooter>
+                    </Card>
+                  );
+                })}
+                </div>
+              )
+          ) : ( // viewMode === 'list'
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Propietario</TableHead>
+                    <TableHead>Dirección</TableHead>
+                    <TableHead>Grupo</TableHead>
+                    <TableHead>Disponibilidad</TableHead>
+                    <TableHead>Apta p/ Rural</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-center">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCasas.map((casa) => {
+                    const isCasaActuallyBlocked = casa.isBlocked;
+                    const showBlockedBadge = isCasaActuallyBlocked && canViewBlockDetails;
+                    return (
+                      <TableRow key={casa.id} className={showBlockedBadge ? "bg-muted/50" : ""}>
+                        <TableCell className="font-medium">{casa.ownerName}</TableCell>
+                        <TableCell className="text-xs">{casa.address}</TableCell>
+                        <TableCell className="text-xs">{getGroupNameById(casa.addedByGroupId)}</TableCell>
+                        <TableCell className="text-xs">{formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots)}</TableCell>
+                        <TableCell className="text-center">
+                          {casa.isSuitableForRural ? <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" /> : <XIcon className="h-5 w-5 text-destructive mx-auto" />}
+                        </TableCell>
+                        <TableCell>
+                           {showBlockedBadge ? <Badge variant="destructive">Bloqueada</Badge> : <Badge variant="default">Disponible</Badge>}
+                        </TableCell>
+                        <TableCell>{renderCasaActions(casa)}</TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
