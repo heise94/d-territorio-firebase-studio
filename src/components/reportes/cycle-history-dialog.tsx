@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Star, History, Filter } from "lucide-react";
 import { format, getYear } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { S13TerritoryCycleSummary } from "@/types";
+import type { S13TerritoryCycle, S13TerritoryCycleSummary } from "@/types";
 
 interface CycleHistoryDialogProps {
   isOpen: boolean;
@@ -79,6 +79,7 @@ export function CycleHistoryDialog({ isOpen, onOpenChange, territorySummary }: C
               <TableHeader>
                 <TableRow>
                   <TableHead>Fecha Completado</TableHead>
+                  <TableHead>Completado por</TableHead>
                   <TableHead>Campaña Asociada</TableHead>
                 </TableRow>
               </TableHeader>
@@ -87,6 +88,7 @@ export function CycleHistoryDialog({ isOpen, onOpenChange, territorySummary }: C
                   filteredCycles.map((cycle, index) => (
                     <TableRow key={index}>
                       <TableCell>{format(cycle.completionDate, "dd/MM/yyyy", { locale: es })}</TableCell>
+                      <TableCell>{cycle.completedBy || <span className="text-muted-foreground">N/A</span>}</TableCell>
                       <TableCell>
                         {cycle.campaignName ? (
                           <Badge variant="outline" className="font-semibold bg-primary/10 text-primary border-primary/70">
@@ -101,7 +103,7 @@ export function CycleHistoryDialog({ isOpen, onOpenChange, territorySummary }: C
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={2} className="text-center h-24">
+                    <TableCell colSpan={3} className="text-center h-24">
                       No hay ciclos completados para el año seleccionado.
                     </TableCell>
                   </TableRow>
