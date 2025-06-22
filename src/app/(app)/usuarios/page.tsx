@@ -10,7 +10,7 @@ import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldC
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import { EditUserDialog } from "@/components/usuarios/edit-user-dialog";
 import { EditUserAvailabilityDialog } from "@/components/usuarios/edit-user-availability-dialog";
-import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc } from "@/types";
+import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc, Casa } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, doc, updateDoc, deleteDoc, setDoc, collection, query, orderBy, onSnapshot, deleteField } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -38,11 +38,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 export default function UsuariosPage() {
@@ -64,6 +62,9 @@ export default function UsuariosPage() {
   
   const [availableGroups, setAvailableGroups] = useState<PreachingGroup[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+
+  const [availableCasas, setAvailableCasas] = useState<Casa[]>([]);
+  const [isLoadingCasas, setIsLoadingCasas] = useState(true);
 
   const [isEditAvailabilityDialogOpen, setIsEditAvailabilityDialogOpen] = useState(false);
   const [userToEditAvailability, setUserToEditAvailability] = useState<UserProfile | null>(null);
@@ -111,12 +112,13 @@ export default function UsuariosPage() {
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
       setIsLoadingGroups(false);
+      setIsLoadingCasas(false);
       return;
     }
     setIsLoadingGroups(true);
     const groupsCollectionRef = collection(db, "preachingGroups");
-    const q = query(groupsCollectionRef, orderBy("name", "asc"));
-    const unsubscribeGroups = onSnapshot(q, (snapshot) => {
+    const qGroups = query(groupsCollectionRef, orderBy("name", "asc"));
+    const unsubscribeGroups = onSnapshot(qGroups, (snapshot) => {
         const fetchedGroups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PreachingGroup));
         setAvailableGroups(fetchedGroups);
         setIsLoadingGroups(false);
@@ -125,7 +127,24 @@ export default function UsuariosPage() {
         toast({ title: "Error al Cargar Grupos", description: "No se pudieron cargar los grupos de predicación.", variant: "destructive" });
         setIsLoadingGroups(false);
     });
-    return () => unsubscribeGroups();
+
+    setIsLoadingCasas(true);
+    const casasCollectionRef = collection(db, "casas");
+    const qCasas = query(casasCollectionRef, orderBy("ownerName", "asc"));
+    const unsubscribeCasas = onSnapshot(qCasas, (snapshot) => {
+        const fetchedCasas = snapshot.docs.map(c => ({id: c.id, ...c.data()} as Casa));
+        setAvailableCasas(fetchedCasas);
+        setIsLoadingCasas(false);
+    }, (error) => {
+        console.error("Error fetching casas for users page:", error);
+        toast({ title: "Error al Cargar Casas", description: "No se pudieron cargar las casas.", variant: "destructive" });
+        setIsLoadingCasas(false);
+    });
+
+    return () => {
+      unsubscribeGroups();
+      unsubscribeCasas();
+    };
   }, [toast]);
 
   useEffect(() => {
@@ -199,7 +218,7 @@ export default function UsuariosPage() {
     }
   };
 
-  const handleUserUpdate = async (userId: string, data: Partial<Pick<UserProfile, 'role' | 'assignedGroupId'>>) => {
+  const handleUserUpdate = async (userId: string, data: Partial<Pick<UserProfile, 'role' | 'assignedGroupId' | 'managedCasaId'>>) => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       return;
@@ -216,6 +235,14 @@ export default function UsuariosPage() {
             updatePayload.assignedGroupId = data.assignedGroupId;
         } else {
             updatePayload.assignedGroupId = deleteField();
+        }
+    }
+
+    if (data.managedCasaId !== undefined) {
+        if (data.managedCasaId) {
+            updatePayload.managedCasaId = data.managedCasaId;
+        } else {
+            updatePayload.managedCasaId = deleteField();
         }
     }
 
@@ -346,7 +373,7 @@ export default function UsuariosPage() {
 
     const message = `¡Hola ${userToInvite.name}! Has sido invitado a D-TERRITORIO. Para activar tu cuenta y crear tu contraseña, por favor haz clic en el siguiente enlace: ${invitationUrl}`;
     
-    const cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[^\d+]/g, "");
+    const cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[^\d]/g, "");
 
     const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${encodeURIComponent(message)}`;
 
@@ -473,7 +500,7 @@ export default function UsuariosPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoadingUsers || isLoadingGroups || isLoadingSlots ? (
+            {isLoadingUsers || isLoadingGroups || isLoadingSlots || isLoadingCasas ? (
                 <div className="flex items-center justify-center py-16">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 </div>
@@ -654,11 +681,13 @@ export default function UsuariosPage() {
                             {canManageUsers && !isUserAdmin && (
                                 <AlertDialog>
                                   <Tooltip>
-                                    <AlertDialogTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isSubmitting}>
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
+                                    <TooltipTrigger asChild>
+                                      <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isSubmitting}>
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                    </TooltipTrigger>
                                     <TooltipContent><p>Eliminar Usuario</p></TooltipContent>
                                   </Tooltip>
                                   <AlertDialogContent>
@@ -702,6 +731,7 @@ export default function UsuariosPage() {
             onUserUpdate={handleUserUpdate}
             userToEdit={userToEdit}
             availableGroups={availableGroups}
+            availableCasas={availableCasas}
         />
 
         {userToEditAvailability && (

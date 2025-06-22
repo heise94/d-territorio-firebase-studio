@@ -16,6 +16,7 @@ export interface UserProfile {
   availability?: UserAvailability;
   addedByGroupId?: string;
   adminApprovalStatus?: 'pending' | 'approved';
+  managedCasaId?: string; // ID of the Casa this user can manage
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }

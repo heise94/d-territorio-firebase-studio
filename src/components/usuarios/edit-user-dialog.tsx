@@ -28,7 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, UserCog } from "lucide-react";
 import { useState, useEffect } from "react";
 import { USER_ROLES_LIST, UserRole } from "@/lib/constants";
-import type { UserProfile, PreachingGroup } from "@/types";
+import type { UserProfile, PreachingGroup, Casa } from "@/types";
 
 const editUserFormSchema = z.object({
   name: z.string(),
@@ -37,6 +37,7 @@ const editUserFormSchema = z.object({
     message: "Debe seleccionar un rol válido.",
   }),
   assignedGroupId: z.string().optional(),
+  managedCasaId: z.string().optional(),
 });
 
 type EditUserFormValues = z.infer<typeof editUserFormSchema>;
@@ -44,14 +45,16 @@ type EditUserFormValues = z.infer<typeof editUserFormSchema>;
 interface EditUserDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onUserUpdate: (userId: string, data: Partial<Pick<UserProfile, 'role' | 'assignedGroupId'>>) => void;
+  onUserUpdate: (userId: string, data: Partial<Pick<UserProfile, 'role' | 'assignedGroupId' | 'managedCasaId'>>) => void;
   userToEdit: UserProfile | null;
   availableGroups: PreachingGroup[];
+  availableCasas: Casa[];
 }
 
 const NO_GROUP_SELECTED = "__NO_GROUP__";
+const NO_CASA_SELECTED = "__NO_CASA__";
 
-export function EditUserDialog({ isOpen, onOpenChange, onUserUpdate, userToEdit, availableGroups }: EditUserDialogProps) {
+export function EditUserDialog({ isOpen, onOpenChange, onUserUpdate, userToEdit, availableGroups, availableCasas }: EditUserDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -62,6 +65,7 @@ export function EditUserDialog({ isOpen, onOpenChange, onUserUpdate, userToEdit,
       email: "",
       role: undefined,
       assignedGroupId: "",
+      managedCasaId: "",
     },
   });
 
@@ -72,6 +76,7 @@ export function EditUserDialog({ isOpen, onOpenChange, onUserUpdate, userToEdit,
         email: userToEdit.email,
         role: userToEdit.role,
         assignedGroupId: userToEdit.assignedGroupId || NO_GROUP_SELECTED,
+        managedCasaId: userToEdit.managedCasaId || NO_CASA_SELECTED,
       });
     }
   }, [isOpen, userToEdit, form]);
@@ -80,9 +85,10 @@ export function EditUserDialog({ isOpen, onOpenChange, onUserUpdate, userToEdit,
     if (!userToEdit) return;
     setIsSubmitting(true);
     
-    const updateData: Partial<Pick<UserProfile, 'role' | 'assignedGroupId'>> = {
+    const updateData: Partial<Pick<UserProfile, 'role' | 'assignedGroupId' | 'managedCasaId'>> = {
         role: values.role,
         assignedGroupId: values.assignedGroupId === NO_GROUP_SELECTED ? "" : values.assignedGroupId,
+        managedCasaId: values.managedCasaId === NO_CASA_SELECTED ? "" : values.managedCasaId,
     };
 
     try {
@@ -108,7 +114,7 @@ export function EditUserDialog({ isOpen, onOpenChange, onUserUpdate, userToEdit,
             Editar Usuario
           </DialogTitle>
           <DialogDescription>
-            Modifica el rol y el grupo asignado para {userToEdit?.name}.
+            Modifica el rol, grupo asignado y casa gestionada para {userToEdit?.name}.
           </DialogDescription>
         </DialogHeader>
         {userToEdit && (
@@ -168,6 +174,35 @@ export function EditUserDialog({ isOpen, onOpenChange, onUserUpdate, userToEdit,
                       {availableGroups.map(group => (
                         <SelectItem key={group.id} value={group.id}>
                           {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="managedCasaId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Asignar Casa Gestionada (Opcional)</FormLabel>
+                   <Select 
+                    onValueChange={(value) => field.onChange(value)} 
+                    value={field.value}
+                    disabled={availableCasas.length === 0}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={availableCasas.length === 0 ? "No hay casas disponibles" : "Seleccionar casa para gestionar"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={NO_CASA_SELECTED}>Ninguna</SelectItem>
+                      {availableCasas.map(casa => (
+                        <SelectItem key={casa.id} value={casa.id}>
+                          {casa.ownerName} ({casa.address})
                         </SelectItem>
                       ))}
                     </SelectContent>
