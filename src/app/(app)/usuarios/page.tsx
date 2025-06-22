@@ -274,33 +274,29 @@ export default function UsuariosPage() {
     }
   };
   
-  const handleSendInvitation = async (userId: string) => {
-    if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
-      return;
+  const handleSendInvitation = (userToInvite: UserProfile) => {
+    if (!userToInvite.phoneNumber || userToInvite.phoneNumber.trim() === "") {
+        toast({ title: "Sin Número", description: `El usuario ${userToInvite.name} no tiene un número de teléfono para enviar la invitación por WhatsApp.`, variant: "destructive"});
+        return;
     }
-    setIsSubmitting(true);
-    const userToInvite = users.find(u => u.id === userId);
-    const userDocRef = doc(db, "users", userId);
+    
+    const appBaseUrl = window.location.origin;
+    const invitationUrl = `${appBaseUrl}/accept-invitation?email=${encodeURIComponent(userToInvite.email)}`;
 
-    try {
-      const mockFirebaseAuthUid = userToInvite?.firebaseAuthUid || `mock-auth-${userToInvite?.id}`;
-      await updateDoc(userDocRef, {
-        status: 'Activo',
-        firebaseAuthUid: mockFirebaseAuthUid, // Simulate assigning an auth UID
-        updatedAt: Timestamp.now(),
-      });
-      toast({
-        title: "Invitación Enviada (Simulación)",
-        description: `Se ha simulado el envío de una invitación a ${userToInvite?.name}. El usuario ahora está activo y podría iniciar sesión.`,
-        duration: 8000,
-      });
-    } catch (error) {
-      console.error("Error sending invitation (simulation):", error);
-      toast({ title: "Error al Enviar Invitación", description: "No se pudo actualizar el estado del usuario.", variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
+    const message = `¡Hola ${userToInvite.name}! Has sido invitado a D-TERRITORIO. Para activar tu cuenta y crear tu contraseña, por favor haz clic en el siguiente enlace: ${invitationUrl}`;
+    
+    let cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[\s-()]/g, "");
+    if (!cleanedPhoneNumber.startsWith('56')) { // Example for Chile, adjust if needed
+        cleanedPhoneNumber = `56${cleanedPhoneNumber}`;
     }
+
+    const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${encodeURIComponent(message)}`;
+
+    window.open(whatsappUrl, '_blank');
+    toast({
+        title: "Abriendo WhatsApp",
+        description: `Prepara el mensaje de invitación para ${userToInvite.name}.`,
+    });
   };
 
 
@@ -503,11 +499,11 @@ export default function UsuariosPage() {
                             {user.status === 'Pendiente Invitación' && canManageUsers && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleSendInvitation(user.id)} disabled={isSubmitting}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleSendInvitation(user)} disabled={isSubmitting}>
                                     <Send className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Enviar Invitación</TooltipContent>
+                                <TooltipContent>Enviar Invitación WhatsApp</TooltipContent>
                               </Tooltip>
                             )}
 
