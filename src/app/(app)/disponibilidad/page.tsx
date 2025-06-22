@@ -364,7 +364,7 @@ export default function DisponibilidadPage() {
           <CardHeader>
             <CardTitle className="flex items-center text-xl">
                 <Home className="mr-3 h-6 w-6 text-primary" />
-                Gestionar Mi Casa de Reunión
+                Disponibilidad Casa
             </CardTitle>
             <CardDescription>
                 Aquí puedes actualizar la dirección, disponibilidad y períodos de vacaciones de tu casa: <span className="font-semibold text-foreground">{managedCasa.ownerName}</span>.
