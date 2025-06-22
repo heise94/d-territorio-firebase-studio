@@ -1,4 +1,3 @@
-
 // src/lib/reports-data.ts
 // This file contains the historical report data provided by the user.
 
@@ -1964,7 +1963,7 @@ export const historicalReportData = [
         "fechaAsignacion": "11/06/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 -4",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -3556,5 +3555,69 @@ export const historicalReportData = [
         "nombreCampana": "Camp. Conmemoración"
       }
     ]
+  },
+  {
+    "numeroTerritorio": 85,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 86,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 87,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 88,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 89,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 90,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 91,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 92,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 93,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 94,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 95,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 96,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 97,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 98,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 99,
+    "asignaciones": []
+  },
+  {
+    "numeroTerritorio": 100,
+    "asignaciones": []
   }
-]
+];
