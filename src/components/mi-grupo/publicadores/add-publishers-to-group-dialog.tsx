@@ -21,18 +21,18 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription as FormFieldDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus2 } from "lucide-react"; // Changed icon
+import { Loader2, UserPlus2 } from "lucide-react"; 
 import { useState, useEffect } from "react";
-import { USER_ROLES } from "@/lib/constants"; // For default role
+import { USER_ROLES } from "@/lib/constants"; 
 
-// Schema for inviting a new user from the group context
 const inviteUserFromGroupFormSchema = z.object({
   name: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }).max(100),
   email: z.string().email({ message: "Debe ser un email válido." }),
-  phoneNumber: z.string().optional().or(z.literal('')), // Added phone number
+  phoneNumber: z.string().min(9, { message: "El teléfono es obligatorio y debe ser válido." }),
 });
 
 type InviteUserFormValues = z.infer<typeof inviteUserFromGroupFormSchema>;
@@ -40,11 +40,11 @@ type InviteUserFormValues = z.infer<typeof inviteUserFromGroupFormSchema>;
 interface InviteUserFromGroupDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onUserInvitedFromGroup: (userData: Omit<InviteUserFormValues, ''>) => void; // Callback expects name & email
+  onUserInvitedFromGroup: (userData: InviteUserFormValues) => void; 
   currentGroupName: string;
 }
 
-export function AddPublishersToGroupDialog({ // Renamed from AddPublishersToGroupDialog for clarity
+export function AddPublishersToGroupDialog({ 
   isOpen,
   onOpenChange,
   onUserInvitedFromGroup,
@@ -71,12 +71,12 @@ export function AddPublishersToGroupDialog({ // Renamed from AddPublishersToGrou
 
   async function onSubmit(values: InviteUserFormValues) {
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 500)); 
 
     onUserInvitedFromGroup({
         name: values.name,
         email: values.email,
-        phoneNumber: values.phoneNumber || undefined,
+        phoneNumber: values.phoneNumber,
     });
     setIsSubmitting(false);
   }
@@ -127,10 +127,13 @@ export function AddPublishersToGroupDialog({ // Renamed from AddPublishersToGrou
               name="phoneNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Teléfono (Opcional)</FormLabel>
+                  <FormLabel>Número de Teléfono</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej: +56987654321" {...field} />
+                    <Input placeholder="+56 9 1234 5678" {...field} />
                   </FormControl>
+                  <FormFieldDescription>
+                    Incluye el código de país (ej: +56 para Chile). Es obligatorio.
+                  </FormFieldDescription>
                   <FormMessage />
                 </FormItem>
               )}

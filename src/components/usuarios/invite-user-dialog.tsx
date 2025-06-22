@@ -21,6 +21,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription as FormFieldDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -37,7 +38,7 @@ const addUserFormSchema = z.object({
     message: "Debe seleccionar un rol válido.",
   }),
   assignedGroupId: z.string().optional(),
-  phoneNumber: z.string().optional(),
+  phoneNumber: z.string().min(9, { message: "El teléfono es obligatorio y debe ser válido." }),
 });
 
 type AddUserFormValues = z.infer<typeof addUserFormSchema>;
@@ -180,10 +181,13 @@ export function InviteUserDialog({ isOpen, onOpenChange, onUserAdded, availableG
               name="phoneNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Número de Teléfono (Opcional)</FormLabel>
+                  <FormLabel>Número de Teléfono</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej: +56912345678" {...field} />
+                    <Input placeholder="+56 9 1234 5678" {...field} />
                   </FormControl>
+                   <FormFieldDescription>
+                    Incluye el código de país (ej: +56 para Chile). Es obligatorio.
+                  </FormFieldDescription>
                   <FormMessage />
                 </FormItem>
               )}

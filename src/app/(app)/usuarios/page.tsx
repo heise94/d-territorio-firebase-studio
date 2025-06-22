@@ -6,10 +6,11 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2, Send } from "lucide-react";
+import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2, Send, CalendarCog } from "lucide-react";
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import { EditUserDialog } from "@/components/usuarios/edit-user-dialog";
-import type { UserProfile, PreachingGroup } from "@/types";
+import { EditUserAvailabilityDialog } from "@/components/usuarios/edit-user-availability-dialog";
+import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, doc, updateDoc, deleteDoc, setDoc, collection, query, orderBy, onSnapshot, deleteField } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -63,6 +64,12 @@ export default function UsuariosPage() {
   
   const [availableGroups, setAvailableGroups] = useState<PreachingGroup[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+
+  const [isEditAvailabilityDialogOpen, setIsEditAvailabilityDialogOpen] = useState(false);
+  const [userToEditAvailability, setUserToEditAvailability] = useState<UserProfile | null>(null);
+  const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+
 
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
@@ -121,6 +128,30 @@ export default function UsuariosPage() {
     return () => unsubscribeGroups();
   }, [toast]);
 
+  useEffect(() => {
+    // Fetch program slots for availability editing
+    if (!db || Object.keys(db).length === 0) {
+        setIsLoadingSlots(false);
+        return;
+    }
+    setIsLoadingSlots(true);
+    const settingsDocRef = doc(db, "settings", "programConfig");
+    const unsubscribeSlots = onSnapshot(settingsDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const settingsData = docSnap.data() as SettingsDoc;
+          setProgramScheduleSlots(settingsData.programScheduleSlots || []);
+        } else {
+          setProgramScheduleSlots([]);
+        }
+        setIsLoadingSlots(false);
+    }, (error) => {
+        console.error("Error fetching program schedule slots:", error);
+        toast({ title: "Error al Cargar Horarios", description: "No se pudieron cargar los horarios para editar disponibilidad.", variant: "destructive" });
+        setIsLoadingSlots(false);
+    });
+    return () => unsubscribeSlots();
+  }, [toast]);
+
 
   const handleOpenAddUserDialog = () => {
     setIsAddUserDialogOpen(true);
@@ -130,7 +161,7 @@ export default function UsuariosPage() {
     router.push('/settings');
   };
 
-  const handleUserAdded = async (newUserData: { name: string, email: string, role: UserRole, assignedGroupId?: string, phoneNumber?: string }) => {
+  const handleUserAdded = async (newUserData: { name: string, email: string, role: UserRole, assignedGroupId?: string, phoneNumber: string }) => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "Firebase no está inicializado correctamente.", variant: "destructive" });
       return;
@@ -141,14 +172,13 @@ export default function UsuariosPage() {
       const newUserDocRef = doc(collection(db, "users")); // Auto-generate ID
       const newUserProfile: UserProfile = {
         id: newUserDocRef.id,
-        // No firebaseAuthUid at this point
         name: newUserData.name,
         email: newUserData.email,
-        phoneNumber: newUserData.phoneNumber || undefined,
+        phoneNumber: newUserData.phoneNumber,
         role: newUserData.role,
         assignedGroupId: newUserData.assignedGroupId || undefined,
-        status: 'Pendiente Invitación', // New status
-        adminApprovalStatus: 'approved', // Admin is adding, so it's pre-approved
+        status: 'Pendiente Invitación', 
+        adminApprovalStatus: 'approved', 
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
@@ -311,17 +341,12 @@ export default function UsuariosPage() {
   };
   
   const handleSendInvitation = (userToInvite: UserProfile) => {
-    if (!userToInvite.phoneNumber || userToInvite.phoneNumber.trim() === "") {
-        toast({ title: "Sin Número", description: `El usuario ${userToInvite.name} no tiene un número de teléfono para enviar la invitación por WhatsApp.`, variant: "destructive"});
-        return;
-    }
-    
     const appBaseUrl = window.location.origin;
     const invitationUrl = `${appBaseUrl}/accept-invitation?email=${encodeURIComponent(userToInvite.email)}`;
 
     const message = `¡Hola ${userToInvite.name}! Has sido invitado a D-TERRITORIO. Para activar tu cuenta y crear tu contraseña, por favor haz clic en el siguiente enlace: ${invitationUrl}`;
     
-    const cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[^\d]/g, "");
+    const cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[^\d+]/g, "");
 
     const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${encodeURIComponent(message)}`;
 
@@ -330,6 +355,33 @@ export default function UsuariosPage() {
         title: "Abriendo WhatsApp",
         description: `Prepara el mensaje de invitación para ${userToInvite.name}.`,
     });
+  };
+
+  const handleOpenEditAvailabilityDialog = (user: UserProfile) => {
+    setUserToEditAvailability(user);
+    setIsEditAvailabilityDialogOpen(true);
+  };
+
+  const handleAvailabilityUpdate = async (userId: string, availability: { availableSlotIds: string[] }) => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      return;
+    }
+    const userDocRef = doc(db, "users", userId);
+    try {
+      await updateDoc(userDocRef, {
+        "availability.availableSlotIds": availability.availableSlotIds,
+        updatedAt: Timestamp.now()
+      });
+      toast({
+        title: "Disponibilidad Actualizada",
+        description: `La disponibilidad del usuario ha sido actualizada.`,
+      });
+    } catch (error) {
+      console.error("Error updating user availability:", error);
+      toast({ title: "Error al Actualizar", description: "No se pudo actualizar la disponibilidad del usuario.", variant: "destructive" });
+      throw error;
+    }
   };
 
 
@@ -421,7 +473,7 @@ export default function UsuariosPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoadingUsers || isLoadingGroups ? (
+            {isLoadingUsers || isLoadingGroups || isLoadingSlots ? (
                 <div className="flex items-center justify-center py-16">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 </div>
@@ -551,6 +603,17 @@ export default function UsuariosPage() {
                               </Tooltip>
                            )}
 
+                           {canManageUsers && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditAvailabilityDialog(user)} disabled={isSubmitting}>
+                                            <CalendarCog className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Editar Disponibilidad</TooltipContent>
+                                </Tooltip>
+                            )}
+
                             {canManageUsers && !isUserAdmin && user.status === 'Activo' && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -640,6 +703,16 @@ export default function UsuariosPage() {
             userToEdit={userToEdit}
             availableGroups={availableGroups}
         />
+
+        {userToEditAvailability && (
+            <EditUserAvailabilityDialog
+                isOpen={isEditAvailabilityDialogOpen}
+                onOpenChange={setIsEditAvailabilityDialogOpen}
+                onAvailabilityUpdate={handleAvailabilityUpdate}
+                userToEdit={userToEditAvailability}
+                programScheduleSlots={programScheduleSlots}
+            />
+        )}
 
         {userToBlock && (
           <AlertDialog open={isBlockReasonUserDialogOpen} onOpenChange={setIsBlockReasonUserDialogOpen}>

@@ -6,7 +6,7 @@ export interface UserProfile {
   id: string; // doc ID from Firestore
   name: string;
   email: string; // unique
-  phoneNumber?: string;
+  phoneNumber: string;
   role: UserRole;
   status: 'Activo' | 'Bloqueado' | 'Pendiente Aprobación Admin' | 'Pendiente Invitación';
   blockReason?: string;
