@@ -2802,7 +2802,7 @@ export const historicalReportData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "01/02/2025",
+        "fechaAsignacion": "1/02/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
@@ -2834,7 +2834,7 @@ export const historicalReportData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "01/02/2025",
+        "fechaAsignacion": "1/02/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
@@ -2866,7 +2866,7 @@ export const historicalReportData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "03/02/2025",
+        "fechaAsignacion": "3/02/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
@@ -2898,7 +2898,7 @@ export const historicalReportData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "03/02/2025",
+        "fechaAsignacion": "3/02/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
@@ -2930,7 +2930,7 @@ export const historicalReportData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "04/02/2025",
+        "fechaAsignacion": "4/02/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
@@ -2962,7 +2962,7 @@ export const historicalReportData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "04/02/2025",
+        "fechaAsignacion": "4/02/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",

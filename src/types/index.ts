@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 import type { UserRole, PermissionId } from '@/lib/constants';
 
@@ -290,6 +291,7 @@ export interface ProcessedDetailedReportView {
 export interface S13TerritoryCycle {
   completionDate: Date;
   campaignName: string | null;
+  completedBy: string | null;
 }
 
 export interface S13TerritoryCycleSummary {
@@ -324,9 +326,4 @@ export interface Notification {
   timestamp: Timestamp;
   isRead: boolean;
   link?: string; // e.g., /asignaciones#A123
-  recipientUserId: string; // The user who should see this
-  sender?: {
-    id: string;
-    name: string;
-  };
-}
+  recipientUserId: string; // The user
