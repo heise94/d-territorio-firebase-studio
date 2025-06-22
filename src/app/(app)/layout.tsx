@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { PermissionsProvider, usePermissions } from '@/hooks/use-permissions';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav';
 
 function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
@@ -92,6 +92,8 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
             <SheetContent side="left" className="flex flex-col p-0">
                 <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
                     <AppLogo />
+                    {/* The title is required for accessibility, but we can hide it visually */}
+                    <SheetTitle className="sr-only">Navegación</SheetTitle>
                 </div>
                 <div className="flex-1 overflow-y-auto">
                     <SidebarNav />
