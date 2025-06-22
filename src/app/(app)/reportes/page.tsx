@@ -1,77 +1,24 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Loader2, Search, XIcon, BarChartHorizontal } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import type { Territory, Assignment } from "@/types";
-import { S13View } from "@/components/reportes/s13-view";
 import { ReportesDetalleView, type ReportRowData } from "@/components/reportes/reportes-detalle-view";
+import { S13View } from "@/components/reportes/s13-view";
 import { format, parseISO, isBefore } from "date-fns";
+import { MOCK_TERRITORIES, MOCK_ASSIGNMENTS } from "@/data/reports-mock-data";
 
 export default function ReportesPage() {
-  const [territories, setTerritories] = useState<Territory[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const territories = MOCK_TERRITORIES;
+  const assignments = MOCK_ASSIGNMENTS;
+  const [isLoading, setIsLoading] = useState(false); // Kept for potential future async operations
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const { toast } = useToast();
-
-  useEffect(() => {
-    if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
-      setIsLoading(false);
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    let territoriesLoaded = false;
-    let assignmentsLoaded = false;
-
-    const checkLoading = () => {
-      if (territoriesLoaded && assignmentsLoaded) {
-        setIsLoading(false);
-      }
-    };
-
-    const territoriesQuery = query(collection(db, "territories"), orderBy("number", "asc"));
-    const unsubTerritories = onSnapshot(territoriesQuery, (snapshot) => {
-      setTerritories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Territory)));
-      territoriesLoaded = true;
-      checkLoading();
-    }, (error) => {
-      console.error("Error fetching territories: ", error);
-      toast({ title: "Error", description: "No se pudieron cargar los territorios.", variant: "destructive" });
-      territoriesLoaded = true;
-      checkLoading();
-    });
-
-    const assignmentsQuery = query(collection(db, "assignments"), orderBy("date", "desc"));
-    const unsubAssignments = onSnapshot(assignmentsQuery, (snapshot) => {
-        setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment)));
-        assignmentsLoaded = true;
-        checkLoading();
-    }, (error) => {
-        console.error("Error fetching assignments: ", error);
-        toast({ title: "Error", description: "No se pudieron cargar las asignaciones.", variant: "destructive" });
-        assignmentsLoaded = true;
-        checkLoading();
-    });
-
-    return () => {
-      unsubTerritories();
-      unsubAssignments();
-    };
-  }, [toast]);
-  
 
   const filteredTerritoriesForS13 = useMemo(() => {
     return territories.filter(territory => {
