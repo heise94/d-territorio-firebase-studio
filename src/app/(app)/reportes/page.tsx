@@ -1,4 +1,3 @@
-
 // src/app/(app)/reportes/page.tsx
 "use client";
 
@@ -123,21 +122,39 @@ export default function ReportesPage() {
 
     const data = allTerritories.map(territory => {
       const liveReport = allReports.find(r => r.territoryId === territory.id);
+      const displayIdentifier = territory.type === 'urban' ? territory.number || 'S/N' : territory.name;
 
       if (liveReport) {
+        if (liveReport.status === "Completado") {
+           return {
+              id: liveReport.id!,
+              territoryId: territory.id,
+              territoryNumber: displayIdentifier,
+              name: territory.name,
+              status: "Disponible",
+              lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : 'N/A',
+              assignedTo: '-',
+              assignedDate: '-',
+              blocksWorked: '-',
+              blocksPending: '-',
+              completedCurrentCycleDisplay: liveReport.completedCurrentCycle instanceof Date ? format(liveReport.completedCurrentCycle, "dd/MM/yyyy") : liveReport.completedCurrentCycle,
+              campaignsForHistoryModal: liveReport.campaigns,
+           };
+        }
+        
         const lastCampaign = liveReport.campaigns[liveReport.campaigns.length - 1];
         return {
           id: liveReport.id!,
           territoryId: territory.id,
-          territoryNumber: territory.number || territory.name,
+          territoryNumber: displayIdentifier,
           name: territory.name,
-          status: liveReport.status,
+          status: "En Curso",
           lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : 'N/A',
           assignedTo: lastCampaign?.assignedTo,
           assignedDate: lastCampaign?.assignedDate && isDateValid(lastCampaign.assignedDate) ? format(lastCampaign.assignedDate, "dd/MM/yyyy") : undefined,
           blocksWorked: lastCampaign?.blocksWorked,
           blocksPending: lastCampaign?.blocksPending,
-          completedCurrentCycleDisplay: liveReport.completedCurrentCycle instanceof Date ? format(liveReport.completedCurrentCycle, "dd/MM/yyyy") : liveReport.completedCurrentCycle,
+          completedCurrentCycleDisplay: "En curso",
           campaignsForHistoryModal: liveReport.campaigns,
         };
       }
@@ -151,25 +168,45 @@ export default function ReportesPage() {
         });
 
         const latestAssignment = sortedAssignments[0];
-        const status = latestAssignment.completadoAsignacion ? "Disponible" : "En Curso";
-
+        if (latestAssignment.completadoAsignacion) {
+          return {
+            id: `historical-${territory.id}`,
+            territoryId: territory.id,
+            territoryNumber: displayIdentifier,
+            name: territory.name,
+            status: "Disponible",
+            lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : 'N/A',
+            assignedTo: '-',
+            assignedDate: '-',
+            blocksWorked: '-',
+            blocksPending: '-',
+            campaignsForHistoryModal: sortedAssignments.map(a => ({
+                assignedTo: a.publicador,
+                assignedDate: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date()),
+                blocksWorked: a.manzanasTrabajadas,
+                blocksPending: a.manzanasPendientes,
+                completadoAsignacion: a.completadoAsignacion,
+            })),
+          };
+        }
+        
         return {
           id: `historical-${territory.id}`,
           territoryId: territory.id,
-          territoryNumber: territory.number || territory.name,
+          territoryNumber: displayIdentifier,
           name: territory.name,
-          status: status,
+          status: "En Curso",
           lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : 'N/A',
           assignedTo: latestAssignment.publicador,
           assignedDate: latestAssignment.fechaAsignacion,
           blocksWorked: latestAssignment.manzanasTrabajadas,
           blocksPending: latestAssignment.manzanasPendientes,
           campaignsForHistoryModal: sortedAssignments.map(a => ({
-            assignedTo: a.publicador,
-            assignedDate: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date()),
-            blocksWorked: a.manzanasTrabajadas,
-            blocksPending: a.manzanasPendientes,
-            completadoAsignacion: a.completadoAsignacion,
+             assignedTo: a.publicador,
+             assignedDate: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date()),
+             blocksWorked: a.manzanasTrabajadas,
+             blocksPending: a.manzanasPendientes,
+             completadoAsignacion: a.completadoAsignacion,
           })),
         };
       }
@@ -177,10 +214,14 @@ export default function ReportesPage() {
       return {
         id: `new-${territory.id}`,
         territoryId: territory.id,
-        territoryNumber: territory.number || territory.name,
+        territoryNumber: displayIdentifier,
         name: territory.name,
         status: "Disponible",
         lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : "N/A",
+        assignedTo: '-',
+        assignedDate: '-',
+        blocksWorked: '-',
+        blocksPending: '-',
         campaignsForHistoryModal: [],
       };
     });
@@ -212,16 +253,18 @@ export default function ReportesPage() {
         const liveReport = allReports.find(r => r.territoryId === territory.id);
         const liveCycles = liveReport?.completedCurrentCycle instanceof Date ? [{
             completionDate: liveReport.completedCurrentCycle,
-            campaignName: null, // This info isn't stored in the base ReportEntry yet
-            completedBy: liveReport.campaigns[liveReport.campaigns.length - 1]?.assignedTo || null,
+            campaignName: null,
+            completedBy: liveReport.campaigns.find(c => c.assignedDate === liveReport.completedCurrentCycle)?.assignedTo || liveReport.campaigns[liveReport.campaigns.length - 1]?.assignedTo || null,
         }] : [];
         
         const allCycles = [...historicalCycles, ...liveCycles]
             .sort((a, b) => compareDesc(a.completionDate, b.completionDate));
 
+        const displayIdentifier = territory.type === 'urban' ? territory.number || 'S/N' : territory.name;
+
         return {
             territoryId: territory.id,
-            territoryNumber: territory.number || 'N/A',
+            territoryNumber: displayIdentifier,
             name: territory.name,
             latestCycle: allCycles[0] || null,
             secondLatestCycle: allCycles[1] || null,
@@ -361,7 +404,7 @@ export default function ReportesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>N° Terr.</TableHead>
+                      <TableHead>Terr.</TableHead>
                       <TableHead>Últ. Actividad</TableHead>
                       <TableHead>Asignado a (Actual)</TableHead>
                       <TableHead>Fecha Asig. (Actual)</TableHead>
