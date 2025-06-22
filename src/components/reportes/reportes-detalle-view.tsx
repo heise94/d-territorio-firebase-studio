@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -6,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import type { TerritoryType } from "@/types";
 
 export interface ReportRowData {
   territoryId: string;
   territoryNumber?: string;
   territoryName: string;
+  type: TerritoryType;
   lastWorked: string;
   lastAssignmentDate: string;
   assignedTo: string;
@@ -72,7 +73,7 @@ export function ReportesDetalleView({ data }: ReportesDetalleViewProps) {
                   {data.map((row) => (
                       <TableRow key={row.territoryId}>
                           <TableCell className="font-medium">
-                            {row.territoryNumber || row.territoryName}
+                            {row.type === 'urban' ? `U-${row.territoryNumber}` : row.territoryName}
                           </TableCell>
                           <TableCell>{row.lastWorked}</TableCell>
                           <TableCell>{row.lastAssignmentDate}</TableCell>

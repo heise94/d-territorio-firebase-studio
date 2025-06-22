@@ -143,6 +143,7 @@ export default function ReportesPage() {
         territoryId: territory.id,
         territoryNumber: territory.number,
         territoryName: territory.name,
+        type: territory.type,
         lastWorked: territory.lastWorked ? format(parseISO(territory.lastWorked), "dd/MM/yy") : 'Nunca',
         lastAssignmentDate: latestAssignment?.date ? format(parseISO(latestAssignment.date), "dd/MM/yy") : 'N/A',
         assignedTo: latestAssignment?.userName || 'N/A',
