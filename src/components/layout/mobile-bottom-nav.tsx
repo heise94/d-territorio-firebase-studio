@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  LayoutDashboard, Users, MapIcon as Map, Building, Users2 as GroupIcon, CalendarDays, CheckSquare
+  LayoutDashboard, Users, MapIcon as Map, Building, Users2 as GroupIcon, CalendarDays, CheckSquare, ListChecks, UserCog, UserCheck, FileText, Settings
 } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS, PermissionId } from "@/lib/constants";
@@ -17,7 +17,7 @@ interface BottomNavItemConfig {
   permission?: PermissionId;
 }
 
-// A curated list for the bottom bar, typically 4-5 main items.
+// Full list of main navigation items for the bottom bar
 const bottomNavItems: BottomNavItemConfig[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, permission: PERMISSIONS.VIEW_DASHBOARD },
   { title: "Mis Asig.", href: "/asignaciones", icon: CheckSquare, permission: PERMISSIONS.VIEW_OWN_ASSIGNMENTS },
@@ -26,6 +26,11 @@ const bottomNavItems: BottomNavItemConfig[] = [
   { title: "Grupos", href: "/grupos", icon: GroupIcon, permission: PERMISSIONS.VIEW_GROUPS },
   { title: "Usuarios", href: "/usuarios", icon: Users, permission: PERMISSIONS.VIEW_USERS },
   { title: "Programa", href: "/programa", icon: CalendarDays, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM },
+  { title: "Gestión Asig.", href: "/gestion-asignaciones", icon: ListChecks, permission: PERMISSIONS.VIEW_ALL_ASSIGNMENTS },
+  { title: "Mi Dispo.", href: "/disponibilidad", icon: UserCog, permission: PERMISSIONS.MANAGE_OWN_AVAILABILITY },
+  { title: "Mi Grupo", href: "/mi-grupo/programa", icon: UserCheck, permission: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM },
+  { title: "Reportes", href: "/reportes", icon: FileText, permission: PERMISSIONS.VIEW_REPORTS },
+  { title: "Ajustes", href: "/settings", icon: Settings, permission: PERMISSIONS.MANAGE_PROGRAM_SETTINGS },
 ];
 
 export function MobileBottomNav() {
@@ -38,6 +43,7 @@ export function MobileBottomNav() {
         );
     }
 
+    // Filter items based on user permissions
     const visibleNavItems = bottomNavItems.filter(item => 
         !item.permission || hasPermission(item.permission)
     );
@@ -48,8 +54,7 @@ export function MobileBottomNav() {
                 {visibleNavItems.map((item) => {
                     const Icon = item.icon;
                     // Make it active if the current path starts with the item's href
-                    // This makes parent routes like /territorios active even on /territorios/importar
-                    const isActive = pathname.startsWith(item.href);
+                    const isActive = (item.href === "/" && pathname === "/") || (item.href !== "/" && pathname.startsWith(item.href));
                     return (
                         <Link
                             key={item.href}
