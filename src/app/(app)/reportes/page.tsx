@@ -26,7 +26,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Filter, FileText, Eye, History, Loader2, Pencil, AlertTriangle, BadgeCent, Star } from "lucide-react";
+import { Filter, FileText, Eye, History, Loader2, Pencil, AlertTriangle, BadgeCent, Star, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
@@ -200,14 +200,16 @@ export default function ReportesPage() {
             ?.asignaciones.filter(a => a.completadoAsignacion)
             .map(a => ({
                 completionDate: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date()),
-                campaignName: a.esCampanaEspecial ? (a.nombreCampana || 'Campaña Especial') : null
+                campaignName: a.esCampanaEspecial ? (a.nombreCampana || 'Campaña Especial') : null,
+                completedBy: a.publicador || null,
             }))
             .filter(c => isDateValid(c.completionDate)) || [];
 
         const liveReport = allReports.find(r => r.territoryId === territory.id);
         const liveCycles = liveReport?.completedCurrentCycle instanceof Date ? [{
             completionDate: liveReport.completedCurrentCycle,
-            campaignName: null // This info is not in the live report currently, which is fine
+            campaignName: null,
+            completedBy: liveReport.campaigns[liveReport.campaigns.length - 1]?.assignedTo || null,
         }] : [];
         
         const allCycles = [...historicalCycles, ...liveCycles]
@@ -391,8 +393,9 @@ export default function ReportesPage() {
                                 <TableCell className="font-medium">{summary.territoryNumber} - {summary.name}</TableCell>
                                 <TableCell>
                                   {summary.latestCycle ? (
-                                      <div className="flex flex-col">
-                                          <span>{format(summary.latestCycle.completionDate, "dd/MM/yyyy")}</span>
+                                      <div className="flex flex-col gap-1">
+                                          <span className="font-medium">{format(summary.latestCycle.completionDate, "dd/MM/yyyy")}</span>
+                                          {summary.latestCycle.completedBy && <span className="text-xs text-muted-foreground flex items-center"><User className="mr-1 h-3 w-3"/>{summary.latestCycle.completedBy}</span>}
                                           {summary.latestCycle.campaignName && (
                                               <Badge variant="outline" className="text-xs mt-1 w-fit bg-primary/10 border-primary/30 text-primary">
                                                   <Star className="mr-1 h-3 w-3"/> {summary.latestCycle.campaignName}
@@ -403,8 +406,9 @@ export default function ReportesPage() {
                                 </TableCell>
                                 <TableCell>
                                    {summary.secondLatestCycle ? (
-                                      <div className="flex flex-col">
-                                          <span>{format(summary.secondLatestCycle.completionDate, "dd/MM/yyyy")}</span>
+                                      <div className="flex flex-col gap-1">
+                                          <span className="font-medium">{format(summary.secondLatestCycle.completionDate, "dd/MM/yyyy")}</span>
+                                          {summary.secondLatestCycle.completedBy && <span className="text-xs text-muted-foreground flex items-center"><User className="mr-1 h-3 w-3"/>{summary.secondLatestCycle.completedBy}</span>}
                                           {summary.secondLatestCycle.campaignName && (
                                               <Badge variant="outline" className="text-xs mt-1 w-fit bg-primary/10 border-primary/30 text-primary">
                                                   <Star className="mr-1 h-3 w-3"/> {summary.secondLatestCycle.campaignName}
