@@ -251,59 +251,6 @@ export interface GroupAssignment {
   createdBy: string;
 }
 
-// --- Reportes Page Types ---
-
-export interface CampaignAssignment {
-  assignedTo: string | null;
-  assignedDate: Date | null;
-  blocksWorked: string | null;
-  blocksPending: string | number | null;
-  completadoAsignacion?: boolean;
-}
-
-export interface ReportEntry {
-  id?: string;
-  territoryId: string;
-  territoryNumber: string;
-  lastCompletedHistoric: Date | null;
-  campaigns: CampaignAssignment[];
-  status: "En Curso" | "Completado";
-  completedCurrentCycle: Date | 'En curso' | null;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
-}
-
-export interface ProcessedDetailedReportView {
-  id: string;
-  territoryId: string;
-  territoryNumber: string;
-  name: string;
-  status: "Disponible" | "En Curso";
-  lastCycleCompletionDate: string;
-  assignedTo?: string | null;
-  assignedDate?: string | null;
-  blocksWorked?: string | null;
-  blocksPending?: string | number | null;
-  campaignsForHistoryModal: CampaignAssignment[];
-}
-
-export interface S13TerritoryCycle {
-  completionDate: Date;
-  campaignName: string | null;
-  completedBy: string | null;
-}
-
-export interface S13TerritoryCycleSummary {
-  territoryId: string;
-  territoryNumber: string;
-  name: string;
-  latestCycle: S13TerritoryCycle | null;
-  secondLatestCycle: S13TerritoryCycle | null;
-  allCycles: S13TerritoryCycle[];
-  cycleCount: number;
-}
-
-
 // --- Notifications ---
 export type NotificationType =
   | 'new_assignment'
@@ -326,3 +273,4 @@ export interface Notification {
   isRead: boolean;
   link?: string; // e.g., /asignaciones#A123
   recipientUserId: string; // The user
+}

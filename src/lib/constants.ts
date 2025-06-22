@@ -54,10 +54,6 @@ export const PERMISSIONS = {
   MANAGE_CAMPAIGNS: "manage_campaigns",
   MANAGE_CUSTOM_HOLIDAYS: "manage_custom_holidays",
   MANAGE_ASSEMBLIES: "manage_assemblies", // New permission for assemblies
-
-  // Reports
-  VIEW_REPORTS: "view_reports",
-  EXPORT_REPORTS: "export_reports",
   
 } as const;
 
@@ -73,7 +69,6 @@ export const PERMISSION_MODULES = {
   PROGRAM: "Programa General",
   ASSIGNMENTS: "Asignaciones",
   MY_GROUP: "Mi Grupo",
-  REPORTS: "Reportes",
   SETTINGS: "Configuración General",
 } as const;
 
@@ -164,14 +159,6 @@ export const PERMISSIONS_BY_MODULE: ModulePermissions[] = [
     ],
   },
   {
-    moduleName: PERMISSION_MODULES.REPORTS,
-    moduleDescription: "Visualización y exportación de reportes de actividad.",
-    permissions: [
-      { id: PERMISSIONS.VIEW_REPORTS, description: "Ver reportes de actividad de territorios (S-13 y detallado)" },
-      { id: PERMISSIONS.EXPORT_REPORTS, description: "Exportar reportes S-13 a CSV" },
-    ],
-  },
-  {
     moduleName: PERMISSION_MODULES.SETTINGS,
     moduleDescription: "Configuraciones generales de la aplicación.",
     permissions: [
@@ -197,7 +184,6 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.VIEW_WEEKLY_PROGRAM, PERMISSIONS.ASSUME_DIRECTION_PROGRAM,
     PERMISSIONS.VIEW_ALL_ASSIGNMENTS, PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
-    PERMISSIONS.VIEW_REPORTS,
   ],
   [USER_ROLES.SS]: [ 
     PERMISSIONS.VIEW_DASHBOARD,
@@ -208,7 +194,6 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.VIEW_MONTHLY_PROGRAM, PERMISSIONS.VIEW_WEEKLY_PROGRAM,
     PERMISSIONS.VIEW_ALL_ASSIGNMENTS, PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
-    PERMISSIONS.VIEW_REPORTS,
   ],
   [USER_ROLES.SG]: [ 
     PERMISSIONS.VIEW_DASHBOARD,
@@ -222,7 +207,6 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS,
     PERMISSIONS.MANAGE_OWN_GROUP_CASAS,
     PERMISSIONS.ASSIGN_TERRITORIES_GROUP,
-    PERMISSIONS.VIEW_REPORTS, 
   ],
   [USER_ROLES.PUBLICADOR]: [
     PERMISSIONS.VIEW_DASHBOARD, 
