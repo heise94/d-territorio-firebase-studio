@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, ReactNode } from "react";
@@ -46,10 +45,11 @@ export function Notifications() {
         ? [userProfile.firebaseAuthUid, 'admin'] 
         : [userProfile.firebaseAuthUid];
 
+    // Firestore would require a composite index for filtering by one field and ordering by another.
+    // To avoid this, we'll filter by recipient and then sort the results on the client.
     const notificationsQuery = query(
         collection(db, "notifications"),
         where("recipientUserId", "in", recipientIds),
-        orderBy("timestamp", "desc"),
         limit(50)
     );
 
@@ -59,7 +59,10 @@ export function Notifications() {
             ...doc.data(),
             timestamp: doc.data().timestamp instanceof Timestamp ? doc.data().timestamp : Timestamp.now(),
         } as Notification));
-        setNotifications(fetchedNotifications);
+        
+        // Sort notifications on the client-side to show the newest first
+        const sortedNotifications = fetchedNotifications.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+        setNotifications(sortedNotifications);
     }, (error) => {
         console.error("Error fetching notifications:", error);
     });
