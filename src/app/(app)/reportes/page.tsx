@@ -12,6 +12,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -26,7 +27,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Filter, FileText, Eye, History, Loader2, Pencil, AlertTriangle, BadgeCent, Star, User } from "lucide-react";
+import { Filter, FileText, Eye, History, Loader2, Pencil, AlertTriangle, BadgeCent, Star, User, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
@@ -39,7 +40,7 @@ import { EditReportEntryDialog } from "@/components/reportes/edit-report-entry-d
 import { historicalReportData } from '@/lib/reports-data';
 import { Badge } from "@/components/ui/badge";
 import { CycleHistoryDialog } from "@/components/reportes/cycle-history-dialog";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 
 const REPORTS_COLLECTION_NAME = "reports";
@@ -61,6 +62,10 @@ export default function ReportesPage() {
   
   const [isCycleHistoryDialogOpen, setIsCycleHistoryDialogOpen] = useState(false);
   const [selectedTerritoryForHistory, setSelectedTerritoryForHistory] = useState<S13TerritoryCycleSummary | null>(null);
+
+  // Filter states
+  const [detailedSearchTerm, setDetailedSearchTerm] = useState("");
+  const [s13SearchTerm, setS13SearchTerm] = useState("");
 
 
   useEffect(() => {
@@ -90,10 +95,10 @@ export default function ReportesPage() {
           ...data,
           campaigns: (data.campaigns || []).map((c: any) => ({
             ...c,
-            assignedDate: c.assignedDate instanceof Timestamp ? c.assignedDate.toDate() : (c.assignedDate ? new Date(c.assignedDate) : null),
+            assignedDate: c.assignedDate instanceof Timestamp ? c.assignedDate.toDate() : (c.assignedDate ? parse(c.assignedDate, 'dd/MM/yyyy', new Date()) : null),
           })),
           completedCurrentCycle: data.completedCurrentCycle instanceof Timestamp ? data.completedCurrentCycle.toDate() : data.completedCurrentCycle,
-          lastCompletedHistoric: data.lastCompletedHistoric instanceof Timestamp ? data.lastCompletedHistoric.toDate() : data.lastCompletedHistoric,
+          lastCompletedHistoric: data.lastCompletedHistoric instanceof Timestamp ? data.lastCompletedHistoric.toDate() : (data.lastCompletedHistoric ? parse(data.lastCompletedHistoric, 'dd/MM/yyyy', new Date()) : null),
         } as ReportEntry;
       });
       setAllReports(fetchedReports);
@@ -110,13 +115,13 @@ export default function ReportesPage() {
     };
   }, [isLoadingPermissions, hasPermission, toast]);
 
-  const processedDetailedData: ProcessedDetailedReportView[] = useMemo(() => {
+  const processedDetailedData = useMemo(() => {
     const historicalDataMap = new Map<string, any[]>();
     historicalReportData.forEach(item => {
       historicalDataMap.set(String(item.numeroTerritorio), item.asignaciones);
     });
 
-    return allTerritories.map(territory => {
+    const data = allTerritories.map(territory => {
       const liveReport = allReports.find(r => r.territoryId === territory.id);
 
       if (liveReport) {
@@ -127,9 +132,9 @@ export default function ReportesPage() {
           territoryNumber: territory.number || territory.name,
           name: territory.name,
           status: liveReport.status,
-          lastCompletedDate: liveReport.lastCompletedHistoric ? format(liveReport.lastCompletedHistoric, "dd/MM/yyyy") : "N/A",
+          lastCompletedDate: liveReport.lastCompletedHistoric && isDateValid(liveReport.lastCompletedHistoric) ? format(liveReport.lastCompletedHistoric, "dd/MM/yyyy") : "N/A",
           assignedTo: lastCampaign?.assignedTo,
-          assignedDate: lastCampaign?.assignedDate ? format(lastCampaign.assignedDate, "dd/MM/yyyy") : undefined,
+          assignedDate: lastCampaign?.assignedDate && isDateValid(lastCampaign.assignedDate) ? format(lastCampaign.assignedDate, "dd/MM/yyyy") : undefined,
           blocksWorked: lastCampaign?.blocksWorked,
           blocksPending: lastCampaign?.blocksPending,
           completedCurrentCycleDisplay: liveReport.completedCurrentCycle instanceof Date ? format(liveReport.completedCurrentCycle, "dd/MM/yyyy") : liveReport.completedCurrentCycle,
@@ -148,11 +153,11 @@ export default function ReportesPage() {
         const latestAssignment = sortedAssignments[0];
         const completedAssignments = sortedAssignments.filter(a => a.completadoAsignacion);
 
-        const lastCompletedDate = completedAssignments.length > 1
+        const lastCompletedDate = completedAssignments.length > 1 && isDateValid(parse(completedAssignments[1].fechaAsignacion, 'dd/MM/yyyy', new Date()))
           ? format(parse(completedAssignments[1].fechaAsignacion, 'dd/MM/yyyy', new Date()), "dd/MM/yyyy")
           : "N/A";
 
-        const completedCurrentCycleDisplay = completedAssignments.length > 0
+        const completedCurrentCycleDisplay = completedAssignments.length > 0 && isDateValid(parse(completedAssignments[0].fechaAsignacion, 'dd/MM/yyyy', new Date()))
           ? format(parse(completedAssignments[0].fechaAsignacion, 'dd/MM/yyyy', new Date()), "dd/MM/yyyy")
           : "En curso";
 
@@ -191,10 +196,21 @@ export default function ReportesPage() {
         campaignsForHistoryModal: [],
       };
     });
-  }, [allTerritories, allReports]);
+    
+    const sortedData = data.sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, { numeric: true }));
+
+    if (!detailedSearchTerm) return sortedData;
+
+    return sortedData.filter(report => 
+      report.territoryNumber.toLowerCase().includes(detailedSearchTerm.toLowerCase()) ||
+      (report.assignedTo || '').toLowerCase().includes(detailedSearchTerm.toLowerCase()) ||
+      report.status.toLowerCase().includes(detailedSearchTerm.toLowerCase())
+    );
+
+  }, [allTerritories, allReports, detailedSearchTerm]);
   
   const s13TerritorySummaries = useMemo((): S13TerritoryCycleSummary[] => {
-    return allTerritories.map(territory => {
+    const data = allTerritories.map(territory => {
         const historicalCycles = historicalReportData
             .find(t => String(t.numeroTerritorio) === (territory.number || ''))
             ?.asignaciones.filter(a => a.completadoAsignacion)
@@ -208,7 +224,7 @@ export default function ReportesPage() {
         const liveReport = allReports.find(r => r.territoryId === territory.id);
         const liveCycles = liveReport?.completedCurrentCycle instanceof Date ? [{
             completionDate: liveReport.completedCurrentCycle,
-            campaignName: null,
+            campaignName: null, // This info isn't stored in the base ReportEntry yet
             completedBy: liveReport.campaigns[liveReport.campaigns.length - 1]?.assignedTo || null,
         }] : [];
         
@@ -225,7 +241,19 @@ export default function ReportesPage() {
             cycleCount: allCycles.length,
         };
     });
-  }, [allTerritories, allReports]);
+    
+    const sortedData = data.sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, { numeric: true }));
+
+    if (!s13SearchTerm) return sortedData;
+
+    return sortedData.filter(summary => 
+      summary.territoryNumber.toLowerCase().includes(s13SearchTerm.toLowerCase()) ||
+      summary.name.toLowerCase().includes(s13SearchTerm.toLowerCase()) ||
+      (summary.latestCycle?.completedBy || '').toLowerCase().includes(s13SearchTerm.toLowerCase()) ||
+      (summary.secondLatestCycle?.completedBy || '').toLowerCase().includes(s13SearchTerm.toLowerCase())
+    );
+
+  }, [allTerritories, allReports, s13SearchTerm]);
 
 
   const handleOpenReportEntryDialog = (territoryId: string) => {
@@ -245,9 +273,9 @@ export default function ReportesPage() {
         const tempReport: ReportEntry = {
           territoryId: territory.id,
           territoryNumber: territory.number || territory.name,
-          lastCompletedHistoric: completedCampaigns.length > 1 && completedCampaigns[1].assignedDate ? completedCampaigns[1].assignedDate : null,
+          lastCompletedHistoric: completedCampaigns.length > 1 && completedCampaigns[1].assignedDate && isDateValid(completedCampaigns[1].assignedDate) ? completedCampaigns[1].assignedDate : null,
           status: reportViewData.status === "Disponible" ? "Completado" : "En Curso",
-          completedCurrentCycle: completedCampaigns.length > 0 && completedCampaigns[0].assignedDate ? completedCampaigns[0].assignedDate : "En curso",
+          completedCurrentCycle: completedCampaigns.length > 0 && completedCampaigns[0].assignedDate && isDateValid(completedCampaigns[0].assignedDate) ? completedCampaigns[0].assignedDate : "En curso",
           campaigns: historicalCampaigns,
         };
         setSelectedReportData({ territory, report: tempReport });
@@ -328,13 +356,24 @@ export default function ReportesPage() {
             <Card className="shadow-md">
               <CardHeader>
                 <CardTitle>Vista Detallada de Actividad</CardTitle>
-                <CardDescription>Aquí puedes ver el estado actual de cada territorio y editar su reporte inicial.</CardDescription>
+                <div className="flex flex-col sm:flex-row justify-between items-center pt-2 gap-3">
+                    <CardDescription>Aquí puedes ver el estado actual de cada territorio y editar su reporte inicial.</CardDescription>
+                    <div className="relative w-full sm:w-auto">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Filtrar por N°, publicador..."
+                          value={detailedSearchTerm}
+                          onChange={(e) => setDetailedSearchTerm(e.target.value)}
+                          className="pl-8 w-full sm:w-[250px]"
+                        />
+                    </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Núm. Terr.</TableHead>
+                      <TableHead>N° Terr.</TableHead>
                       <TableHead>Últ. Completó (Hist.)</TableHead>
                       <TableHead>Asignado a (Actual)</TableHead>
                       <TableHead>Fecha Asig. (Actual)</TableHead>
@@ -345,9 +384,9 @@ export default function ReportesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {processedDetailedData.map((report) => (
+                    {processedDetailedData.length > 0 ? processedDetailedData.map((report) => (
                       <TableRow key={report.id}>
-                        <TableCell>{report.territoryNumber}</TableCell>
+                        <TableCell className="font-semibold">{report.territoryNumber}</TableCell>
                         <TableCell>{report.lastCompletedDate}</TableCell>
                         <TableCell>{report.assignedTo || '-'}</TableCell>
                         <TableCell>{report.assignedDate || '-'}</TableCell>
@@ -360,8 +399,9 @@ export default function ReportesPage() {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
-                    {processedDetailedData.length === 0 && <TableRow><TableCell colSpan={8} className="h-24 text-center">No hay territorios para mostrar. Ve a la sección de Territorios para añadir algunos.</TableCell></TableRow>}
+                    )) : (
+                      <TableRow><TableCell colSpan={8} className="h-24 text-center">No hay territorios que coincidan con la búsqueda.</TableCell></TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -371,7 +411,18 @@ export default function ReportesPage() {
              <Card className="shadow-md">
               <CardHeader>
                   <CardTitle>Registro S-13 (Resumen de Ciclos)</CardTitle>
-                  <CardDescription>Esta vista muestra los últimos dos ciclos completados por cada territorio.</CardDescription>
+                  <div className="flex flex-col sm:flex-row justify-between items-center pt-2 gap-3">
+                    <CardDescription>Esta vista muestra los últimos dos ciclos completados por cada territorio.</CardDescription>
+                     <div className="relative w-full sm:w-auto">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Filtrar por N°, publicador..."
+                          value={s13SearchTerm}
+                          onChange={(e) => setS13SearchTerm(e.target.value)}
+                          className="pl-8 w-full sm:w-[250px]"
+                        />
+                    </div>
+                  </div>
               </CardHeader>
                <CardContent>
                   <Table>
@@ -390,7 +441,7 @@ export default function ReportesPage() {
                           ) : (
                             s13TerritorySummaries.map((summary) => (
                               <TableRow key={summary.territoryId}>
-                                <TableCell className="font-medium">{summary.territoryNumber} - {summary.name}</TableCell>
+                                <TableCell className="font-semibold">{summary.territoryNumber}</TableCell>
                                 <TableCell>
                                   {summary.latestCycle ? (
                                       <div className="flex flex-col gap-1">
@@ -420,9 +471,14 @@ export default function ReportesPage() {
                                 <TableCell className="text-center">{summary.cycleCount}</TableCell>
                                 <TableCell className="text-center">
                                   {summary.cycleCount > 0 && (
-                                      <Button variant="ghost" size="icon" onClick={() => handleOpenCycleHistoryDialog(summary)} className="h-8 w-8">
-                                          <History className="h-4 w-4 text-primary"/>
-                                      </Button>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button variant="ghost" size="icon" onClick={() => handleOpenCycleHistoryDialog(summary)} className="h-8 w-8">
+                                              <History className="h-4 w-4 text-primary"/>
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p>Ver Historial Completo</p></TooltipContent>
+                                      </Tooltip>
                                   )}
                                 </TableCell>
                               </TableRow>
