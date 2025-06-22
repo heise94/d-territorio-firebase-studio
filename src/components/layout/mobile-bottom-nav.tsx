@@ -39,7 +39,7 @@ export function MobileBottomNav() {
 
     if (isLoadingPermissions) {
         return (
-             <footer className="fixed bottom-0 left-0 right-0 z-40 h-[68px] border-t bg-background/95 backdrop-blur-sm md:hidden" />
+             <footer className="fixed bottom-0 left-0 right-0 z-40 h-[60px] border-t bg-background/95 backdrop-blur-sm md:hidden" />
         );
     }
 
@@ -61,13 +61,13 @@ export function MobileBottomNav() {
                             href={item.href}
                             className={cn(
                                 "flex flex-col items-center justify-center gap-1 rounded-md p-2 text-xs font-medium transition-colors",
-                                "flex-shrink-0 w-16 h-14", // Reduced width and height for 5-item view
+                                "flex-shrink-0 w-20 h-14",
                                 isActive
                                     ? "text-primary bg-primary/10"
                                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                             )}
                         >
-                            <Icon className="h-4 w-4" />
+                            <Icon className="h-5 w-5" />
                             <span className="truncate w-full text-center">{item.title}</span>
                         </Link>
                     );
