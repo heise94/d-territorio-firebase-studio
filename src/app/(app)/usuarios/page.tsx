@@ -6,13 +6,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2 } from "lucide-react";
+import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2, Send } from "lucide-react";
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import type { UserProfile, PreachingGroup } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, doc, updateDoc, deleteDoc, setDoc, collection, query, orderBy, onSnapshot, deleteField } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { createUserWithEmailAndPassword, updateProfile as updateAuthProfile } from "firebase/auth";
 import { USER_ROLES, USER_ROLES_LIST, UserRole } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -67,7 +66,6 @@ export default function UsuariosPage() {
     }
     setIsLoadingUsers(true);
     const usersCollectionRef = collection(db, "users");
-    // Consulta restaurada para usar el índice de Firestore
     const q = query(usersCollectionRef, orderBy("adminApprovalStatus", "asc"), orderBy("name", "asc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -126,40 +124,25 @@ export default function UsuariosPage() {
     router.push('/settings');
   };
 
-  const handleUserAdded = async (newUserData: { name: string, email: string, role: UserRole, password?: string, assignedGroupId?: string, phoneNumber?: string }) => {
-    if (!db || Object.keys(db).length === 0 || !auth || Object.keys(auth).length === 0) {
+  const handleUserAdded = async (newUserData: { name: string, email: string, role: UserRole, assignedGroupId?: string, phoneNumber?: string }) => {
+    if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "Firebase no está inicializado correctamente.", variant: "destructive" });
-      return;
-    }
-    if (!newUserData.password) {
-      toast({ title: "Error", description: "La contraseña es obligatoria.", variant: "destructive" });
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // SIMULACIÓN - Aquí iría la lógica real de Firebase Auth
-      // const userCredential = await createUserWithEmailAndPassword(auth, newUserData.email, newUserData.password);
-      // const firebaseUser = userCredential.user;
-      // if (firebaseUser) {
-      //   await updateAuthProfile(firebaseUser, { displayName: newUserData.name });
-      // }
-      // const firebaseAuthUid = firebaseUser.uid;
-      const mockFirebaseAuthUid = `mock-auth-${crypto.randomUUID()}`; // Para simulación
-      console.log(`Simulación: Usuario ${newUserData.name} creado en Auth con UID: ${mockFirebaseAuthUid}`);
-
-
-      const newUserDocRef = doc(db, "users", mockFirebaseAuthUid); // Usar UID de Auth como ID de Firestore
+      const newUserDocRef = doc(collection(db, "users")); // Auto-generate ID
       const newUserProfile: UserProfile = {
-        id: mockFirebaseAuthUid,
-        firebaseAuthUid: mockFirebaseAuthUid,
+        id: newUserDocRef.id,
+        // No firebaseAuthUid at this point
         name: newUserData.name,
         email: newUserData.email,
         phoneNumber: newUserData.phoneNumber || undefined,
         role: newUserData.role,
         assignedGroupId: newUserData.assignedGroupId || undefined,
-        status: 'Activo',
-        adminApprovalStatus: 'approved',
+        status: 'Pendiente Invitación', // New status
+        adminApprovalStatus: 'approved', // Admin is adding, so it's pre-approved
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };
@@ -167,20 +150,14 @@ export default function UsuariosPage() {
       await setDoc(newUserDocRef, newUserProfile);
       
       toast({
-        title: "Usuario Creado (Simulación)",
-        description: `${newUserData.name} ha sido creado. Comunícale su email y la contraseña temporal de forma segura.`,
+        title: "Usuario Añadido",
+        description: `${newUserData.name} ha sido añadido al sistema. Ahora puedes enviarle una invitación para que cree su cuenta.`,
         duration: 7000,
       });
       setIsAddUserDialogOpen(false);
     } catch (error: any) {
-      console.error("Error creating user:", error);
-      let errorMessage = "No se pudo crear el usuario.";
-      if (error.code === "auth/email-already-in-use") {
-        errorMessage = "Este email ya está registrado.";
-      } else if (error.code === "auth/weak-password") {
-        errorMessage = "La contraseña proporcionada es demasiado débil.";
-      }
-      toast({ title: "Error al Crear Usuario", description: errorMessage, variant: "destructive" });
+      console.error("Error creating user profile:", error);
+      toast({ title: "Error al Añadir Usuario", description: "No se pudo guardar el perfil del usuario.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -262,8 +239,8 @@ export default function UsuariosPage() {
       toast({title: "Acción no permitida", description: "No puedes suplantarte a ti mismo.", variant: "destructive"});
       return;
     }
-     if (userToImpersonate.adminApprovalStatus === 'pending' || userToImpersonate.status === 'Pendiente Aprobación Admin') {
-      toast({title: "Acción no permitida", description: "Este usuario está pendiente de aprobación. Apruébalo primero para poder suplantarlo.", variant: "default"});
+     if (userToImpersonate.adminApprovalStatus === 'pending' || userToImpersonate.status !== 'Activo') {
+      toast({title: "Acción no permitida", description: "Este usuario no está activo. Apruébalo y envíale la invitación primero para poder suplantarlo.", variant: "default"});
       return;
     }
     startImpersonation(userToImpersonate);
@@ -281,12 +258,12 @@ export default function UsuariosPage() {
     try {
       await updateDoc(userDocRef, {
         adminApprovalStatus: 'approved',
-        status: 'Activo', 
+        status: 'Pendiente Invitación', // Changed from 'Activo'
         updatedAt: Timestamp.now(),
       });
       toast({
         title: "Usuario Aprobado",
-        description: `${userToApprove?.name || 'El usuario'} ha sido aprobado y ahora está activo. Si aún no tiene cuenta en Firebase Auth, debes crearla y comunicarle sus credenciales.`,
+        description: `${userToApprove?.name || 'El usuario'} ha sido aprobado. Ahora puedes enviarle una invitación para que active su cuenta.`,
         duration: 7000,
       });
     } catch (error) {
@@ -296,6 +273,36 @@ export default function UsuariosPage() {
       setIsSubmitting(false);
     }
   };
+  
+  const handleSendInvitation = async (userId: string) => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      return;
+    }
+    setIsSubmitting(true);
+    const userToInvite = users.find(u => u.id === userId);
+    const userDocRef = doc(db, "users", userId);
+
+    try {
+      const mockFirebaseAuthUid = userToInvite?.firebaseAuthUid || `mock-auth-${userToInvite?.id}`;
+      await updateDoc(userDocRef, {
+        status: 'Activo',
+        firebaseAuthUid: mockFirebaseAuthUid, // Simulate assigning an auth UID
+        updatedAt: Timestamp.now(),
+      });
+      toast({
+        title: "Invitación Enviada (Simulación)",
+        description: `Se ha simulado el envío de una invitación a ${userToInvite?.name}. El usuario ahora está activo y podría iniciar sesión.`,
+        duration: 8000,
+      });
+    } catch (error) {
+      console.error("Error sending invitation (simulation):", error);
+      toast({ title: "Error al Enviar Invitación", description: "No se pudo actualizar el estado del usuario.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
 
   const getInitials = (name?: string) => {
     if (!name) return "??";
@@ -313,10 +320,11 @@ export default function UsuariosPage() {
     let clientSortedUsers = [...users].sort((a, b) => {
       const statusOrder = (user: UserProfile) => {
         if (user.status === 'Pendiente Aprobación Admin') return 0;
-        if (user.adminApprovalStatus === 'pending') return 1; 
-        if (user.status === 'Activo') return 2;
-        if (user.status === 'Bloqueado') return 3;
-        return 4; 
+        if (user.adminApprovalStatus === 'pending') return 1;
+        if (user.status === 'Pendiente Invitación') return 2;
+        if (user.status === 'Activo') return 3;
+        if (user.status === 'Bloqueado') return 4;
+        return 5; 
       };
 
       const statusComparison = statusOrder(a) - statusOrder(b);
@@ -454,11 +462,13 @@ export default function UsuariosPage() {
                             <TooltipTrigger asChild>
                               <Badge variant={
                                   displayStatus === 'Activo' ? 'default'
-                                  : displayStatus === 'Pendiente Aprobación Admin' || isPendingAdminApprovalFromGroup ? 'outline'
+                                  : displayStatus === 'Pendiente Aprobación Admin' || isPendingAdminApprovalFromGroup || displayStatus === 'Pendiente Invitación' ? 'outline'
                                   : 'destructive' 
                                 }
                                 className={
-                                    displayStatus === 'Pendiente Aprobación Admin' || isPendingAdminApprovalFromGroup ? 'border-blue-500 text-blue-600 bg-blue-500/10' : ''
+                                    displayStatus === 'Pendiente Aprobación Admin' || isPendingAdminApprovalFromGroup ? 'border-blue-500 text-blue-600 bg-blue-500/10' 
+                                    : displayStatus === 'Pendiente Invitación' ? 'border-purple-500 text-purple-600 bg-purple-500/10'
+                                    : ''
                                 }
                               >
                                 {isPendingAdminApprovalFromGroup ? 'Pendiente Aprobación Admin' : displayStatus}
@@ -489,11 +499,22 @@ export default function UsuariosPage() {
                                 <TooltipContent>Aprobar Usuario</TooltipContent>
                               </Tooltip>
                             )}
+                            
+                            {user.status === 'Pendiente Invitación' && canManageUsers && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleSendInvitation(user.id)} disabled={isSubmitting}>
+                                    <Send className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Enviar Invitación</TooltipContent>
+                              </Tooltip>
+                            )}
 
                            {canManageUsers && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user.id)} disabled={user.adminApprovalStatus === 'pending' || isSubmitting}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user.id)} disabled={user.status !== 'Activo' || isSubmitting}>
                                     <Edit3 className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
@@ -501,29 +522,30 @@ export default function UsuariosPage() {
                               </Tooltip>
                            )}
 
-                            {canManageUsers && !isUserAdmin && (
+                            {canManageUsers && !isUserAdmin && user.status === 'Activo' && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8"
-                                   onClick={() => {
-                                      if (user.adminApprovalStatus === 'pending') {
-                                          toast({ title: "Acción no permitida", description: "Debes aprobar al usuario antes de bloquearlo.", variant: "default" });
-                                          return;
-                                      }
-                                      if (user.status === 'Activo') {
-                                          handleOpenBlockReasonUserDialog(user);
-                                      } else if (user.status === 'Bloqueado') {
-                                          setUserToBlock(user); 
-                                          setBlockReasonUser(""); 
-                                          confirmToggleBlockUser();
-                                      }
-                                  }}
-                                  disabled={user.adminApprovalStatus === 'pending' || isUserAdmin || isSubmitting}>
-                                    {user.status === 'Activo' ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                                   onClick={() => handleOpenBlockReasonUserDialog(user)}
+                                  disabled={isSubmitting}>
+                                    <ShieldOff className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>{user.status === 'Activo' ? 'Bloquear Usuario' : 'Desbloquear Usuario'}</TooltipContent>
+                                <TooltipContent>Bloquear Usuario</TooltipContent>
                               </Tooltip>
+                            )}
+
+                            {canManageUsers && !isUserAdmin && user.status === 'Bloqueado' && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8"
+                                    onClick={() => {setUserToBlock(user); setBlockReasonUser(""); confirmToggleBlockUser();}}
+                                    disabled={isSubmitting}>
+                                        <ShieldCheck className="h-4 w-4 text-green-600"/>
+                                    </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Desbloquear Usuario</TooltipContent>
+                                </Tooltip>
                             )}
 
                             {canImpersonate && user.id !== currentUserProfile?.id && !isUserAdmin && user.status === 'Activo' && user.adminApprovalStatus === 'approved' && (

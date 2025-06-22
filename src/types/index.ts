@@ -8,7 +8,7 @@ export interface UserProfile {
   email: string; // unique
   phoneNumber?: string;
   role: UserRole;
-  status: 'Activo' | 'Bloqueado' | 'Pendiente Aprobación Admin';
+  status: 'Activo' | 'Bloqueado' | 'Pendiente Aprobación Admin' | 'Pendiente Invitación';
   blockReason?: string;
   assignedGroupId?: string; // FK to preachingGroups
   firebaseAuthUid?: string; // UID from Firebase Auth
@@ -249,5 +249,3 @@ export interface GroupAssignment {
   createdAt: Timestamp;
   createdBy: string;
 }
-
-    

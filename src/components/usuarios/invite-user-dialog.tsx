@@ -33,19 +33,11 @@ import type { UserProfile, PreachingGroup } from "@/types";
 const addUserFormSchema = z.object({
   name: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }).max(100),
   email: z.string().email({ message: "Debe ser un email válido." }),
-  password: z.string().min(8, { message: "La contraseña debe tener al menos 8 caracteres." })
-    .regex(/[a-z]/, { message: "Debe contener al menos una minúscula."})
-    .regex(/[A-Z]/, { message: "Debe contener al menos una mayúscula."})
-    .regex(/[0-9]/, { message: "Debe contener al menos un número."}),
-  confirmPassword: z.string(),
   role: z.custom<UserRole>((val) => USER_ROLES_LIST.includes(val as UserRole), {
     message: "Debe seleccionar un rol válido.",
   }),
   assignedGroupId: z.string().optional(),
   phoneNumber: z.string().optional(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Las contraseñas no coinciden.",
-  path: ["confirmPassword"],
 });
 
 type AddUserFormValues = z.infer<typeof addUserFormSchema>;
@@ -53,7 +45,7 @@ type AddUserFormValues = z.infer<typeof addUserFormSchema>;
 interface AddUserDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onUserAdded: (user: Omit<AddUserFormValues, 'confirmPassword'>) => void;
+  onUserAdded: (user: AddUserFormValues) => void;
   availableGroups: PreachingGroup[];
 }
 
@@ -68,8 +60,6 @@ export function InviteUserDialog({ isOpen, onOpenChange, onUserAdded, availableG
     defaultValues: {
       name: "",
       email: "",
-      password: "",
-      confirmPassword: "",
       role: undefined,
       assignedGroupId: "",
       phoneNumber: "",
@@ -86,8 +76,7 @@ export function InviteUserDialog({ isOpen, onOpenChange, onUserAdded, availableG
     setIsSubmitting(true);
     await new Promise(resolve => setTimeout(resolve, 700));
 
-    const { confirmPassword, ...userData } = values;
-    onUserAdded(userData); 
+    onUserAdded(values); 
 
     onOpenChange(false);
     setIsSubmitting(false);
@@ -102,7 +91,7 @@ export function InviteUserDialog({ isOpen, onOpenChange, onUserAdded, availableG
             Añadir Nuevo Usuario
           </DialogTitle>
           <DialogDescription>
-            Completa los detalles para crear una nueva cuenta de usuario. Deberás comunicar la contraseña temporal al usuario.
+            Completa los detalles para registrar a un publicador en el sistema. Podrás enviarle una invitación para unirse más tarde.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -128,32 +117,6 @@ export function InviteUserDialog({ isOpen, onOpenChange, onUserAdded, availableG
                   <FormLabel>Email</FormLabel>
                   <FormControl>
                     <Input type="email" placeholder="ejemplo@dominio.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Contraseña Temporal</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="Mín. 8 caracteres, mayús., minús., núm." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Confirmar Contraseña Temporal</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="Repite la contraseña" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -233,7 +196,7 @@ export function InviteUserDialog({ isOpen, onOpenChange, onUserAdded, availableG
               </DialogClose>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Crear Usuario
+                Añadir Usuario al Sistema
               </Button>
             </DialogFooter>
           </form>
