@@ -47,8 +47,7 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
   return (
      <SidebarProvider defaultOpen={false}>
       <Sidebar collapsible="icon" variant="sidebar" className="hidden md:flex">
-        <SidebarHeader className="h-16 justify-between">
-          <AppLogo />
+        <SidebarHeader className="h-16 justify-center">
           <SidebarTrigger />
         </SidebarHeader>
         <SidebarContent>
@@ -56,9 +55,6 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
         </SidebarContent>
         <SidebarFooter>
            <SidebarSeparator />
-           <p className="text-xs text-sidebar-foreground/60 text-center p-2">
-                &copy; {new Date().getFullYear()} D-TERRITORIO
-            </p>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
@@ -83,11 +79,15 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
             </div>
           </Alert>
         )}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-end gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-8">
-           <div className="flex-1 md:hidden">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/80 backdrop-blur-sm px-4 sm:px-6 md:px-8">
+           <div className="hidden md:flex">
+             <AppLogo />
            </div>
-           <ThemeToggle />
-          <UserNav />
+           {/* On mobile, this will be empty, allowing the right-side items to align correctly */}
+           <div className="flex flex-1 items-center justify-end gap-2 sm:gap-4">
+             <ThemeToggle />
+             <UserNav />
+           </div>
         </header>
 
         <main className="flex-1 p-4 sm:p-6 md:p-8 lg:p-10 pb-24 md:pb-10">
@@ -106,3 +106,4 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </PermissionsProvider>
   );
 }
+    
