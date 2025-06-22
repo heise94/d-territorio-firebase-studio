@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await firebaseSignOut(auth);
       // User state will be set to null by onAuthStateChanged
-      router.push('/login'); 
+      router.push('/'); 
       toast({ title: "Sesión cerrada", description: "Has cerrado sesión exitosamente." });
     } catch (error) {
       console.error("Error signing out: ", error);

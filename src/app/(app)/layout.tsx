@@ -27,7 +27,7 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.replace('/login');
+      router.replace('/');
     }
   }, [user, authLoading, router]);
 

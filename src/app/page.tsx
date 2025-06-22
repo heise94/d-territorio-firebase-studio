@@ -1,30 +1,45 @@
-
 "use client";
-
-import { Button } from "@/components/ui/button";
+import { LoginForm } from "@/components/auth/login-form";
 import { AppLogo } from "@/components/layout/app-logo";
-import Link from 'next/link';
-import { LogIn } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useAuth } from "@/hooks/use-auth";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
-export default function TestHomePage() {
-  return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 text-center">
-      <div className="mb-8">
-        <AppLogo iconSize={60} textSize="text-5xl" />
+export default function RootPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace('/dashboard');
+    }
+  }, [user, loading, router]);
+
+  if (loading || (!loading && user)) {
+    return (
+      <div className="flex h-screen min-h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
       </div>
-      <h1 className="text-4xl font-headline font-bold tracking-tight text-primary mb-6">
-        Página de Prueba D-TERRITORIO
-      </h1>
-      <p className="text-lg text-muted-foreground mb-8 max-w-md">
-        Esta es una página de inicio simplificada para ayudar a diagnosticar problemas con el acceso al dominio.
-      </p>
-      <Link href="/login" passHref legacyBehavior>
-        <Button size="lg" className="text-lg px-8 py-6">
-          <LogIn className="mr-2 h-5 w-5" />
-          Ir a Iniciar Sesión
-        </Button>
-      </Link>
-      <footer className="absolute bottom-8 text-center text-sm text-muted-foreground">
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md shadow-xl rounded-lg">
+        <CardHeader className="text-center space-y-2">
+          <div className="mb-4 flex justify-center">
+            <AppLogo iconSize={40} textSize="text-3xl" />
+          </div>
+          <CardTitle className="font-headline text-2xl">Bienvenido</CardTitle>
+          <CardDescription>Inicia sesión para administrar los territorios.</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-2 pb-6 px-6">
+          <LoginForm />
+        </CardContent>
+      </Card>
+       <footer className="mt-8 text-center text-sm text-muted-foreground">
         <p>&copy; {new Date().getFullYear()} D-TERRITORIO. Todos los derechos reservados.</p>
       </footer>
     </div>
