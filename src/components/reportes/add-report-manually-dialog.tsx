@@ -24,7 +24,6 @@ import {
   FormDescription as FormFieldDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -61,6 +60,21 @@ interface AddReportManuallyDialogProps {
   onSave: (data: ManualReportSubmitData) => void;
 }
 
+const toRangeString = (numbers: number[]): string => {
+  if (!numbers.length) return "";
+  const sorted = [...numbers].sort((a, b) => a - b);
+  const ranges: (string | number)[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    let start = sorted[i];
+    while (i + 1 < sorted.length && sorted[i + 1] === sorted[i] + 1) {
+      i++;
+    }
+    let end = sorted[i];
+    ranges.push(start === end ? start : `${start}-${end}`);
+  }
+  return ranges.join(', ');
+};
+
 export function AddReportManuallyDialog({
   isOpen,
   onOpenChange,
@@ -69,6 +83,8 @@ export function AddReportManuallyDialog({
 }: AddReportManuallyDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedTerritory, setSelectedTerritory] = useState<Territory | null>(null);
+  const [checkedBlocks, setCheckedBlocks] = useState<Set<number>>(new Set());
 
   const form = useForm<z.infer<typeof addReportFormSchema>>({
     resolver: zodResolver(addReportFormSchema),
@@ -82,24 +98,55 @@ export function AddReportManuallyDialog({
       completionDate: undefined,
     },
   });
+  
+  const watchedTerritoryId = form.watch("territoryId");
 
   useEffect(() => {
     if (!isOpen) {
       form.reset();
+      setSelectedTerritory(null);
+      setCheckedBlocks(new Set());
     }
   }, [isOpen, form]);
-
-  const watchedBlocksPending = form.watch("blocksPending");
-  const isPendingEmpty = useMemo(() => {
-    const pendingText = (watchedBlocksPending || "").trim().toLowerCase();
-    return pendingText === "" || pendingText === "no" || pendingText === "ninguna";
-  }, [watchedBlocksPending]);
+  
+  useEffect(() => {
+    const territory = territories.find(t => t.id === watchedTerritoryId);
+    setSelectedTerritory(territory || null);
+    setCheckedBlocks(new Set()); 
+  }, [watchedTerritoryId, territories]);
 
   useEffect(() => {
-    form.setValue("isCompleted", isPendingEmpty, { shouldValidate: true });
-  }, [isPendingEmpty, form]);
+    if (!selectedTerritory) return;
+    
+    const allBlockNumbers = Array.from({ length: selectedTerritory.totalBlocks || 0 }, (_, i) => i + 1);
+    const workedNumbers = Array.from(checkedBlocks).sort((a,b) => a-b);
+    const pendingNumbers = allBlockNumbers.filter(n => !checkedBlocks.has(n));
 
-  const watchedIsCompleted = form.watch("isCompleted");
+    form.setValue('blocksWorked', toRangeString(workedNumbers));
+    form.setValue('blocksPending', toRangeString(pendingNumbers));
+    
+    const isComplete = allBlockNumbers.length > 0 && pendingNumbers.length === 0;
+    form.setValue('isCompleted', isComplete);
+
+    if (isComplete) {
+      form.setValue('completionDate', form.getValues('assignedDate'));
+    } else {
+      form.setValue('completionDate', undefined);
+    }
+  }, [checkedBlocks, selectedTerritory, form]);
+
+  const handleToggleAllBlocks = () => {
+    if (!selectedTerritory || !selectedTerritory.totalBlocks) return;
+
+    const allBlockNumbers = new Set(Array.from({ length: selectedTerritory.totalBlocks }, (_, i) => i + 1));
+    
+    if (checkedBlocks.size === allBlockNumbers.size) {
+      setCheckedBlocks(new Set()); // Deselect all
+    } else {
+      setCheckedBlocks(allBlockNumbers); // Select all
+    }
+  };
+
 
   async function onSubmit(values: z.infer<typeof addReportFormSchema>) {
     setIsSubmitting(true);
@@ -119,7 +166,7 @@ export function AddReportManuallyDialog({
         <DialogHeader>
           <DialogTitle>Registrar Actividad Manualmente</DialogTitle>
           <DialogDescription>
-            Selecciona un territorio y añade una nueva entrada de actividad. Esto iniciará un nuevo ciclo si el territorio está disponible.
+            Selecciona un territorio y añade una nueva entrada de actividad.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -148,42 +195,53 @@ export function AddReportManuallyDialog({
                 </FormItem>
               )}
             />
-             <FormField
-                control={form.control}
-                name="assignedTo"
-                render={({ field }) => (<FormItem><FormLabel>Asignado a</FormLabel><FormControl><Input placeholder="Nombre del publicador" {...field} /></FormControl><FormMessage /></FormItem>)}
-              />
+            <FormField
+              control={form.control}
+              name="assignedTo"
+              render={({ field }) => (<FormItem><FormLabel>Asignado a</FormLabel><FormControl><Input placeholder="Nombre del publicador" {...field} /></FormControl><FormMessage /></FormItem>)}
+            />
             <FormField
               control={form.control}
               name="assignedDate"
               render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Fecha de Asignación</FormLabel><Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} weekStartsOn={1} /></PopoverContent></Popover><FormMessage /></FormItem>)}
             />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <FormField control={form.control} name="blocksWorked" render={({ field }) => (<FormItem><FormLabel>Trabajado</FormLabel><FormControl><Input placeholder="Manzanas 1-3, todo..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                 <FormField control={form.control} name="blocksPending" render={({ field }) => (<FormItem><FormLabel>Pendiente</FormLabel><FormControl><Input placeholder="Manzanas 4-5, nada..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-            </div>
-             <FormField control={form.control} name="isCompleted" render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
-                    <FormControl>
-                        <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            disabled={isPendingEmpty}
-                        />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                        <FormLabel className={cn("cursor-pointer", isPendingEmpty && "text-muted-foreground")}>
-                            ¿Esta asignación completa el ciclo?
-                        </FormLabel>
-                        {isPendingEmpty && (
-                            <FormFieldDescription className="text-xs">
-                                Marcado automáticamente porque no hay manzanas pendientes.
-                            </FormFieldDescription>
-                        )}
+            
+            {selectedTerritory && selectedTerritory.totalBlocks !== undefined && selectedTerritory.totalBlocks > 0 && (
+                <FormItem>
+                    <div className="flex justify-between items-center mb-2">
+                         <FormLabel>Manzanas Trabajadas</FormLabel>
+                         <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={handleToggleAllBlocks}>
+                            Marcar Todas
+                         </Button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border p-3 rounded-md bg-muted/20 max-h-40 overflow-y-auto">
+                        {Array.from({ length: selectedTerritory.totalBlocks }, (_, i) => i + 1).map(blockNum => (
+                            <FormItem key={blockNum} className="flex items-center space-x-2 p-2 rounded-md bg-background shadow-sm">
+                                <FormControl>
+                                    <Checkbox
+                                        id={`block-${blockNum}`}
+                                        checked={checkedBlocks.has(blockNum)}
+                                        onCheckedChange={(checked) => {
+                                            const newSet = new Set(checkedBlocks);
+                                            if (checked) {
+                                                newSet.add(blockNum);
+                                            } else {
+                                                newSet.delete(blockNum);
+                                            }
+                                            setCheckedBlocks(newSet);
+                                        }}
+                                    />
+                                </FormControl>
+                                <FormLabel htmlFor={`block-${blockNum}`} className="text-sm font-normal cursor-pointer">
+                                    Manzana {blockNum}
+                                </FormLabel>
+                            </FormItem>
+                        ))}
                     </div>
                 </FormItem>
-              )}/>
-            {watchedIsCompleted && (
+            )}
+
+            {form.watch('isCompleted') && (
                  <FormField control={form.control} name="completionDate" render={({ field }) => (
                     <FormItem className="flex flex-col pl-4 border-l-2 border-primary ml-2">
                         <FormLabel>Fecha de Finalización del Ciclo</FormLabel>
@@ -205,3 +263,4 @@ export function AddReportManuallyDialog({
     </Dialog>
   );
 }
+
