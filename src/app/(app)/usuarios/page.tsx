@@ -41,34 +41,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
-
-
-const MOCK_ALL_USERS_DATA: UserProfile[] = [
-    // Special Roles from before
-    { id: "uidAdmin", name: "Pedro Velez (Admin)", email: "admin@example.com", phoneNumber: "+56955555555", availability: { availableSlotIds: ["sat-1000-gen"] }, role: USER_ROLES.ENCARGADO_TERRITORIO, status: "Activo", firebaseAuthUid: "uidAdmin", adminApprovalStatus: "approved" },
-    { id: "uidSG1", name: "Sofía Castro (SG G1)", email: "sg1@example.com", phoneNumber: "+56966666666", availability: { availableSlotIds: ["fri-1000-gen", "sun-1500-zoom"] }, assignedGroupId: "G1", role: USER_ROLES.SG, status: "Activo", firebaseAuthUid: "uidSG1", adminApprovalStatus: "approved" },
-    { id: "uidAux2", name: "Laura Nuñez (Auxiliar G2)", email: "aux2@example.com", phoneNumber: "+56988888888", availability: { availableSlotIds: ["wed-0930-gen"] }, assignedGroupId: "G2", role: USER_ROLES.AUXILIAR_TERRITORIO, status: "Activo", firebaseAuthUid: "uidAux2", adminApprovalStatus: "approved" },
-    // Publishers created from historical data
-    { id: "pub-1", name: "Camilo Torres", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-2", name: "Edison Díaz", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-3", name: "Robert Guale", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-4", name: "Esteban Vásquez", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-5", name: "Carlos Heise", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-6", name: "Jimmy Guale", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-7", name: "Gonzalo Heise", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-8", name: "Ricardo Salas", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-9", name: "Rolando Alarcón", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-10", name: "Jonatan Palma", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-11", name: "Cristian Pichinao", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-12", name: "Diego Henríquez", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-13", name: "Cristian Coronado", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-14", name: "Carlos Sepúlveda", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-15", name: "Omar Salas", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-16", name: "Javier Heise", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-17", name: "Mauricio Flores", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-18", name: "Nelsón Muci", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-    { id: "pub-19", name: "Martín Sandoval", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
-];
+import { MOCK_ALL_USERS_DATA } from "@/lib/mock-data";
 
 
 export default function UsuariosPage() {
@@ -688,5 +661,3 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
-
-    
