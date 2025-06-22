@@ -3528,7 +3528,7 @@ export const historicalReportData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "14/12/2025",
+        "fechaAsignacion": "14/12/2024",
         "publicador": "Edison Díaz",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "3 y 4",

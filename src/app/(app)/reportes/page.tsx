@@ -32,7 +32,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
 import { collection, query, onSnapshot, doc, setDoc, Timestamp, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Territory, ReportEntry, CampaignAssignment, ProcessedDetailedReportView, S13TerritoryCycleSummary } from "@/types";
+import type { Territory, ReportEntry, CampaignAssignment, ProcessedDetailedReportView, S13TerritoryCycleSummary, S13TerritoryCycle } from "@/types";
 import { format, parse, isValid as isDateValid, compareDesc, getYear as getYearFromDateFn } from "date-fns";
 import { es } from "date-fns/locale";
 import { EditReportEntryDialog } from "@/components/reportes/edit-report-entry-dialog";
@@ -91,14 +91,16 @@ export default function ReportesPage() {
     const unsubscribeReports = onSnapshot(reportsQuery, (snapshot) => {
       const fetchedReports = snapshot.docs.map(d => {
         const data = d.data();
+        const campaigns = (data.campaigns || []).map((c: any) => ({
+          ...c,
+          assignedDate: c.assignedDate instanceof Timestamp ? c.assignedDate.toDate() : (c.assignedDate ? new Date(c.assignedDate) : null),
+        })).filter((c: any) => c.assignedDate && isDateValid(c.assignedDate));
+        
         return {
           id: d.id,
           ...data,
-          campaigns: (data.campaigns || []).map((c: any) => ({
-            ...c,
-            assignedDate: c.assignedDate instanceof Timestamp ? c.assignedDate.toDate() : (c.assignedDate ? parse(c.assignedDate, 'dd/MM/yyyy', new Date()) : null),
-          })),
-          completedCurrentCycle: data.completedCurrentCycle instanceof Timestamp ? data.completedCurrentCycle.toDate() : data.completedCurrentCycle,
+          campaigns: campaigns,
+          completedCurrentCycle: data.completedCurrentCycle instanceof Timestamp ? data.completedCurrentCycle.toDate() : null,
           lastCompletedHistoric: data.lastCompletedHistoric instanceof Timestamp ? data.lastCompletedHistoric.toDate() : (data.lastCompletedHistoric ? parse(data.lastCompletedHistoric, 'dd/MM/yyyy', new Date()) : null),
         } as ReportEntry;
       });
@@ -117,112 +119,77 @@ export default function ReportesPage() {
   }, [isLoadingPermissions, hasPermission, toast]);
 
   const processedDetailedData = useMemo((): ProcessedDetailedReportView[] => {
+    // 1. Create a map of historical assignments from the static file
     const historicalDataMap = new Map<string, any[]>();
     historicalReportData.forEach(item => {
-      historicalDataMap.set(String(item.numeroTerritorio), item.asignaciones);
+        historicalDataMap.set(String(item.numeroTerritorio), item.asignaciones);
     });
 
+    // 2. Process each territory
     const data: ProcessedDetailedReportView[] = allTerritories.map(territory => {
-      const liveReport = allReports.find(r => r.territoryId === territory.id);
-      const displayIdentifier = territory.number || 'S/N';
-      const historicalAssignmentsWithDates = (historicalDataMap.get(territory.number || '') || [])
-        .map((a: any) => ({...a, dateObj: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date())}))
-        .filter((a: any) => isDateValid(a.dateObj));
-
-      if (liveReport) {
-         let lastCycleCompletionDate = 'N/A';
-         if (liveReport.status === "Completado" && liveReport.completedCurrentCycle instanceof Date) {
-            lastCycleCompletionDate = format(liveReport.completedCurrentCycle, 'dd/MM/yyyy');
-         } else if (liveReport.lastCompletedHistoric instanceof Date) {
-            lastCycleCompletionDate = format(liveReport.lastCompletedHistoric, 'dd/MM/yyyy');
-         }
-
-        if (liveReport.status === "Completado") {
-           return {
-              id: liveReport.id!,
-              territoryId: territory.id,
-              territoryNumber: displayIdentifier,
-              name: territory.name,
-              status: "Disponible",
-              lastCycleCompletionDate: lastCycleCompletionDate,
-              campaignsForHistoryModal: [],
-           };
-        }
+        const displayIdentifier = territory.number || 'S/N';
+        const liveReport = allReports.find(r => r.territoryId === territory.id);
         
+        // 3. Combine historical and live assignments
+        const liveAssignments = liveReport?.campaigns || [];
+        const historicalAssignments = (historicalDataMap.get(territory.number || '') || [])
+            .map((a: any) => ({
+                assignedTo: a.publicador,
+                assignedDate: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date()),
+                blocksWorked: a.manzanasTrabajadas,
+                blocksPending: a.manzanasPendientes,
+                completadoAsignacion: a.completadoAsignacion,
+            }))
+            .filter((a: any) => isDateValid(a.assignedDate));
+
+        const allAssignments = [...liveAssignments, ...historicalAssignments]
+            .sort((a, b) => compareDesc(a.assignedDate, b.assignedDate)); // Newest first
+
+        // 4. Determine status and dates from the combined list
+        if (allAssignments.length === 0) {
+            return {
+                id: `new-${territory.id}`,
+                territoryId: territory.id, territoryNumber: displayIdentifier, name: territory.name,
+                status: "Disponible", lastCycleCompletionDate: "N/A", campaignsForHistoryModal: [],
+            };
+        }
+
+        const lastAssignment = allAssignments[0];
+        const status = lastAssignment.completadoAsignacion ? "Disponible" : "En Curso";
+
+        const lastCompletedAssignment = allAssignments.find(a => a.completadoAsignacion);
+        const lastCycleCompletionDate = lastCompletedAssignment ? format(lastCompletedAssignment.assignedDate, "dd/MM/yyyy") : 'N/A';
+        
+        // Find the index of the last completed assignment
+        const lastCompletionIndex = allAssignments.findIndex(a => a.completadoAsignacion);
+        // The current cycle is everything BEFORE the last completion (since array is sorted newest to oldest)
+        const campaignsForHistoryModal = lastCompletionIndex > -1 ? allAssignments.slice(0, lastCompletionIndex) : allAssignments;
+
+
         return {
-          id: liveReport.id!,
-          territoryId: territory.id,
-          territoryNumber: displayIdentifier,
-          name: territory.name,
-          status: "En Curso",
-          lastCycleCompletionDate: lastCycleCompletionDate,
-          campaignsForHistoryModal: liveReport.campaigns,
-        };
-      }
-
-      if (historicalAssignmentsWithDates.length > 0) {
-        const sortedAssignments = [...historicalAssignmentsWithDates].sort((a,b) => a.dateObj.getTime() - b.dateObj.getTime());
-        const lastCompletedIndex = sortedAssignments.map(a => a.completadoAsignacion).lastIndexOf(true);
-        const isCurrentlyCompleted = lastCompletedIndex === sortedAssignments.length - 1;
-        const currentCycleAssignments = lastCompletedIndex === -1 ? sortedAssignments : sortedAssignments.slice(lastCompletedIndex + 1);
-        const lastCycleCompletionDateObj = lastCompletedIndex > -1 ? sortedAssignments[lastCompletedIndex].dateObj : null;
-        const lastCycleCompletionDateStr = lastCycleCompletionDateObj ? format(lastCycleCompletionDateObj, "dd/MM/yyyy") : 'N/A';
-        const lastAssignmentInCycle = currentCycleAssignments[currentCycleAssignments.length-1];
-
-        if (isCurrentlyCompleted) {
-          return {
-            id: `historical-${territory.id}`,
+            id: liveReport?.id || `historical-${territory.id}`,
             territoryId: territory.id,
             territoryNumber: displayIdentifier,
             name: territory.name,
-            status: "Disponible",
-            lastCycleCompletionDate: lastCycleCompletionDateStr,
-            campaignsForHistoryModal: [],
-          };
-        }
-        
-        return {
-          id: `historical-${territory.id}`,
-          territoryId: territory.id,
-          territoryNumber: displayIdentifier,
-          name: territory.name,
-          status: "En Curso",
-          lastCycleCompletionDate: lastCycleCompletionDateStr,
-          assignedTo: lastAssignmentInCycle?.publicador,
-          assignedDate: lastAssignmentInCycle?.dateObj ? format(lastAssignmentInCycle.dateObj, "dd/MM/yyyy") : 'N/A',
-          blocksWorked: lastAssignmentInCycle?.manzanasTrabajadas,
-          blocksPending: lastAssignmentInCycle?.manzanasPendientes,
-          campaignsForHistoryModal: currentCycleAssignments.map(a => ({
-             assignedTo: a.publicador,
-             assignedDate: a.dateObj,
-             blocksWorked: a.manzanasTrabajadas,
-             blocksPending: a.manzanasPendientes,
-             completadoAsignacion: a.completadoAsignacion,
-          })),
+            status,
+            lastCycleCompletionDate,
+            assignedTo: status === "En Curso" ? lastAssignment.assignedTo : null,
+            assignedDate: status === "En Curso" ? format(lastAssignment.assignedDate, "dd/MM/yyyy") : null,
+            blocksWorked: status === "En Curso" ? lastAssignment.blocksWorked : null,
+            blocksPending: status === "En Curso" ? lastAssignment.blocksPending : null,
+            campaignsForHistoryModal: campaignsForHistoryModal.reverse(), // reverse for chronological view in dialog
         };
-      }
-
-      return {
-        id: `new-${territory.id}`,
-        territoryId: territory.id,
-        territoryNumber: displayIdentifier,
-        name: territory.name,
-        status: "Disponible",
-        lastCycleCompletionDate: "N/A",
-        campaignsForHistoryModal: [],
-      };
     });
-    
+
     const sortedData = data.sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, { numeric: true }));
 
     if (!detailedSearchTerm) return sortedData;
 
     return sortedData.filter(report => 
-      report.territoryNumber.toLowerCase().includes(detailedSearchTerm.toLowerCase()) ||
-      report.name.toLowerCase().includes(detailedSearchTerm.toLowerCase()) ||
-      report.status.toLowerCase().includes(detailedSearchTerm.toLowerCase())
+        report.territoryNumber.toLowerCase().includes(detailedSearchTerm.toLowerCase()) ||
+        report.name.toLowerCase().includes(detailedSearchTerm.toLowerCase()) ||
+        report.status.toLowerCase().includes(detailedSearchTerm.toLowerCase())
     );
-
   }, [allTerritories, allReports, detailedSearchTerm]);
   
   const s13TerritorySummaries = useMemo((): S13TerritoryCycleSummary[] => {
@@ -237,15 +204,24 @@ export default function ReportesPage() {
             }))
             .filter(c => isDateValid(c.completionDate)) || [];
 
+        const liveCycles: S13TerritoryCycle[] = [];
         const liveReport = allReports.find(r => r.territoryId === territory.id);
-        const liveCycles = liveReport?.status === "Completado" && liveReport.completedCurrentCycle instanceof Date ? [{
-            completionDate: liveReport.completedCurrentCycle,
-            campaignName: null,
-            completedBy: liveReport.campaigns.find(c => c.assignedDate === liveReport.completedCurrentCycle)?.assignedTo || liveReport.campaigns[liveReport.campaigns.length - 1]?.assignedTo || null,
-        }] : [];
+        if (liveReport) {
+            liveReport.campaigns.forEach(campaign => {
+                if (campaign.completadoAsignacion && campaign.assignedDate) {
+                    liveCycles.push({
+                        completionDate: campaign.assignedDate,
+                        campaignName: null, // This info isn't in live report campaigns, could be added
+                        completedBy: campaign.assignedTo,
+                    });
+                }
+            });
+        }
         
         const allCycles = [...historicalCycles, ...liveCycles]
             .sort((a, b) => compareDesc(a.completionDate, b.completionDate));
+
+        const uniqueCycles = Array.from(new Map(allCycles.map(c => [c.completionDate.toISOString().split('T')[0], c])).values());
 
         const displayIdentifier = territory.number || 'S/N';
 
@@ -253,10 +229,10 @@ export default function ReportesPage() {
             territoryId: territory.id,
             territoryNumber: displayIdentifier,
             name: territory.name,
-            latestCycle: allCycles[0] || null,
-            secondLatestCycle: allCycles[1] || null,
-            allCycles: allCycles,
-            cycleCount: allCycles.length,
+            latestCycle: uniqueCycles[0] || null,
+            secondLatestCycle: uniqueCycles[1] || null,
+            allCycles: uniqueCycles,
+            cycleCount: uniqueCycles.length,
         };
     });
     
@@ -335,6 +311,7 @@ export default function ReportesPage() {
       campaigns: (finalReport.campaigns || []).map(c => ({
         ...c,
         assignedDate: c.assignedDate ? Timestamp.fromDate(c.assignedDate) : null,
+        completadoAsignacion: c.isCompleted, // Ensure this field is mapped
       })),
       updatedAt: serverTimestamp(),
     };
@@ -434,7 +411,7 @@ export default function ReportesPage() {
                               <Tooltip>
                                   <TooltipTrigger asChild>
                                       <Button variant="ghost" size="icon" onClick={() => handleOpenViewActivityDialog(report.territoryId)} className="h-8 w-8">
-                                          <Eye className="h-4 w-4 text-primary" />
+                                          <Pencil className="h-4 w-4 text-primary" />
                                       </Button>
                                   </TooltipTrigger>
                                   <TooltipContent>
