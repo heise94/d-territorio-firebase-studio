@@ -32,7 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Territory } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CalendarIcon, PlusCircle } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -88,6 +88,16 @@ export function AddReportManuallyDialog({
       form.reset();
     }
   }, [isOpen, form]);
+
+  const watchedBlocksPending = form.watch("blocksPending");
+  const isPendingEmpty = useMemo(() => {
+    const pendingText = (watchedBlocksPending || "").trim().toLowerCase();
+    return pendingText === "" || pendingText === "no" || pendingText === "ninguna";
+  }, [watchedBlocksPending]);
+
+  useEffect(() => {
+    form.setValue("isCompleted", isPendingEmpty, { shouldValidate: true });
+  }, [isPendingEmpty, form]);
 
   const watchedIsCompleted = form.watch("isCompleted");
 
@@ -154,8 +164,23 @@ export function AddReportManuallyDialog({
             </div>
              <FormField control={form.control} name="isCompleted" render={({ field }) => (
                 <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3">
-                  <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                  <div className="space-y-1 leading-none"><FormLabel>¿Esta asignación completa el ciclo?</FormLabel></div>
+                    <FormControl>
+                        <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={isPendingEmpty}
+                        />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                        <FormLabel className={cn("cursor-pointer", isPendingEmpty && "text-muted-foreground")}>
+                            ¿Esta asignación completa el ciclo?
+                        </FormLabel>
+                        {isPendingEmpty && (
+                            <FormFieldDescription className="text-xs">
+                                Marcado automáticamente porque no hay manzanas pendientes.
+                            </FormFieldDescription>
+                        )}
+                    </div>
                 </FormItem>
               )}/>
             {watchedIsCompleted && (
