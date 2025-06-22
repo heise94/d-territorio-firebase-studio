@@ -25,10 +25,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus } from "lucide-react"; // Changed icon
+import { Loader2, UserPlus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { USER_ROLES_LIST, UserRole } from "@/lib/constants";
-import type { UserProfile } from "@/types";
+import type { UserProfile, PreachingGroup } from "@/types";
 
 const addUserFormSchema = z.object({
   name: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres." }).max(100),
@@ -53,10 +53,13 @@ type AddUserFormValues = z.infer<typeof addUserFormSchema>;
 interface AddUserDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onUserAdded: (user: Omit<AddUserFormValues, 'confirmPassword'>) => void; // Passes password
+  onUserAdded: (user: Omit<AddUserFormValues, 'confirmPassword'>) => void;
+  availableGroups: PreachingGroup[];
 }
 
-export function InviteUserDialog({ isOpen, onOpenChange, onUserAdded }: AddUserDialogProps) { // Renamed onUserInvited to onUserAdded
+const NO_GROUP_SELECTED = "__NO_GROUP__";
+
+export function InviteUserDialog({ isOpen, onOpenChange, onUserAdded, availableGroups }: AddUserDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -81,12 +84,11 @@ export function InviteUserDialog({ isOpen, onOpenChange, onUserAdded }: AddUserD
 
   async function onSubmit(values: AddUserFormValues) {
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 700)); // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 700));
 
     const { confirmPassword, ...userData } = values;
-    onUserAdded(userData); // Call the parent handler with user data including password
+    onUserAdded(userData); 
 
-    // Toast for successful creation will be handled by the parent page after actual Firebase op.
     onOpenChange(false);
     setIsSubmitting(false);
   }
@@ -186,10 +188,26 @@ export function InviteUserDialog({ isOpen, onOpenChange, onUserAdded }: AddUserD
               name="assignedGroupId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>ID de Grupo Asignado (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ej: G1, GrupoAlfa" {...field} />
-                  </FormControl>
+                  <FormLabel>Grupo Asignado (Opcional)</FormLabel>
+                   <Select 
+                    onValueChange={(value) => field.onChange(value === NO_GROUP_SELECTED ? "" : value)} 
+                    value={field.value || NO_GROUP_SELECTED}
+                    disabled={availableGroups.length === 0}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={availableGroups.length === 0 ? "No hay grupos disponibles" : "Seleccionar grupo"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={NO_GROUP_SELECTED}>Ninguno</SelectItem>
+                      {availableGroups.map(group => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

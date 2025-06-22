@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2 } from "lucide-react";
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
-import type { UserProfile } from "@/types";
+import type { UserProfile, PreachingGroup } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, doc, updateDoc, deleteDoc, setDoc, collection, query, orderBy, onSnapshot, deleteField } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -55,6 +55,9 @@ export default function UsuariosPage() {
   const [userToBlock, setUserToBlock] = useState<UserProfile | null>(null);
   const [blockReasonUser, setBlockReasonUser] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [availableGroups, setAvailableGroups] = useState<PreachingGroup[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
 
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
@@ -92,6 +95,26 @@ export default function UsuariosPage() {
     });
 
     return () => unsubscribe();
+  }, [toast]);
+  
+  useEffect(() => {
+    if (!db || Object.keys(db).length === 0) {
+      setIsLoadingGroups(false);
+      return;
+    }
+    setIsLoadingGroups(true);
+    const groupsCollectionRef = collection(db, "preachingGroups");
+    const q = query(groupsCollectionRef, orderBy("name", "asc"));
+    const unsubscribeGroups = onSnapshot(q, (snapshot) => {
+        const fetchedGroups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PreachingGroup));
+        setAvailableGroups(fetchedGroups);
+        setIsLoadingGroups(false);
+    }, (error) => {
+        console.error("Error fetching preaching groups for users page:", error);
+        toast({ title: "Error al Cargar Grupos", description: "No se pudieron cargar los grupos de predicación.", variant: "destructive" });
+        setIsLoadingGroups(false);
+    });
+    return () => unsubscribeGroups();
   }, [toast]);
 
 
@@ -361,7 +384,7 @@ export default function UsuariosPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoadingUsers ? (
+            {isLoadingUsers || isLoadingGroups ? (
                 <div className="flex items-center justify-center py-16">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 </div>
@@ -399,6 +422,7 @@ export default function UsuariosPage() {
                       const displayStatus = (canViewSensitiveUserDetails || user.status !== 'Bloqueado') ? user.status : 'Activo';
                       const showBlockReasonTooltip = canViewSensitiveUserDetails && user.status === 'Bloqueado' && user.blockReason;
                       const isPendingAdminApprovalFromGroup = user.addedByGroupId && user.adminApprovalStatus === 'pending';
+                      const groupName = user.assignedGroupId ? availableGroups.find(g => g.id === user.assignedGroupId)?.name : null;
 
                       return (
                       <TableRow key={user.id} className={isPendingAdminApprovalFromGroup ? 'bg-amber-500/10 hover:bg-amber-500/15' : ''}>
@@ -424,7 +448,7 @@ export default function UsuariosPage() {
                           </div>
                         </TableCell>
                         <TableCell><Badge variant="outline">{user.role}</Badge></TableCell>
-                        <TableCell>{user.assignedGroupId || 'N/A'}</TableCell>
+                        <TableCell>{groupName || user.assignedGroupId || 'N/A'}</TableCell>
                         <TableCell>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -559,6 +583,7 @@ export default function UsuariosPage() {
           isOpen={isAddUserDialogOpen}
           onOpenChange={setIsAddUserDialogOpen}
           onUserAdded={handleUserAdded}
+          availableGroups={availableGroups}
         />
 
         {userToBlock && (
