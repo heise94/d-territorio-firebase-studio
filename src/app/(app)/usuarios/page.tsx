@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2, Send, CalendarCog } from "lucide-react";
+import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2, Send, CalendarCog, KeyRound } from "lucide-react";
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import { EditUserDialog } from "@/components/usuarios/edit-user-dialog";
 import { EditUserAvailabilityDialog } from "@/components/usuarios/edit-user-availability-dialog";
@@ -14,6 +14,7 @@ import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc, Cas
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, doc, updateDoc, deleteDoc, setDoc, collection, query, orderBy, onSnapshot, deleteField } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { sendPasswordResetEmail } from "firebase/auth";
 import { USER_ROLES, USER_ROLES_LIST, UserRole } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -369,12 +370,16 @@ export default function UsuariosPage() {
   };
   
   const handleSendInvitation = (userToInvite: UserProfile) => {
+    if (!userToInvite.phoneNumber) {
+        toast({ title: "Error", description: "Este usuario no tiene un número de teléfono registrado.", variant: "destructive" });
+        return;
+    }
     const appBaseUrl = window.location.origin;
     const invitationUrl = `${appBaseUrl}/accept-invitation?email=${encodeURIComponent(userToInvite.email)}`;
 
     const message = `¡Hola ${userToInvite.name}! Has sido invitado a D-TERRITORIO. Para activar tu cuenta y crear tu contraseña, por favor haz clic en el siguiente enlace: ${invitationUrl}`;
     
-    let cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[^0-9]/g, "");
+    const cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[^0-9+]/g, "");
     
     const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${encodeURIComponent(message)}`;
 
@@ -383,6 +388,31 @@ export default function UsuariosPage() {
         title: "Abriendo WhatsApp",
         description: `Prepara el mensaje de invitación para ${userToInvite.name}.`,
     });
+  };
+
+  const handleSendPasswordReset = async (email: string) => {
+    if (!email) {
+      toast({ title: "Error", description: "El usuario no tiene un email registrado.", variant: "destructive" });
+      return;
+    }
+    if (!auth || Object.keys(auth).length === 0) {
+      toast({ title: "Error", description: "El servicio de autenticación no está disponible.", variant: "destructive" });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({
+        title: "Correo Enviado",
+        description: `Se ha enviado un enlace para restablecer la contraseña a ${email}.`,
+        duration: 7000,
+      });
+    } catch (error) {
+      console.error("Error sending password reset email:", error);
+      toast({ title: "Error", description: "No se pudo enviar el correo para restablecer la contraseña.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleOpenEditAvailabilityDialog = (user: UserProfile) => {
@@ -620,6 +650,38 @@ export default function UsuariosPage() {
                               </Tooltip>
                             )}
 
+                            {user.status === 'Activo' && canManageUsers && (
+                                <AlertDialog>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary-foreground hover:text-primary" disabled={isSubmitting}>
+                                        <KeyRound className="h-4 w-4" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                    <p>Enviar enlace para restablecer contraseña</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Confirmar envío?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Se enviará un correo electrónico a <span className="font-semibold">{user.email}</span> con un enlace para que pueda restablecer su contraseña. ¿Deseas continuar?
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleSendPasswordReset(user.email)}>
+                                        Sí, enviar correo
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                                </AlertDialog>
+                            )}
+
+
                            {canManageUsers && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -681,30 +743,30 @@ export default function UsuariosPage() {
                             
                             {canManageUsers && !isUserAdmin && (
                                 <AlertDialog>
-                                  <Tooltip>
+                                <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <AlertDialogTrigger asChild>
+                                    <AlertDialogTrigger asChild>
                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isSubmitting}>
-                                          <Trash2 className="h-4 w-4" />
+                                        <Trash2 className="h-4 w-4" />
                                         </Button>
-                                      </AlertDialogTrigger>
+                                    </AlertDialogTrigger>
                                     </TooltipTrigger>
                                     <TooltipContent><p>Eliminar Usuario</p></TooltipContent>
-                                  </Tooltip>
-                                  <AlertDialogContent>
+                                </Tooltip>
+                                <AlertDialogContent>
                                     <AlertDialogHeader>
-                                      <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario '{user.name}' de Firestore. La cuenta de Firebase Auth (si existe) deberá eliminarse manually.
-                                      </AlertDialogDescription>
+                                    <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario '{user.name}' de Firestore. La cuenta de Firebase Auth (si existe) deberá eliminarse manualmente.
+                                    </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                      <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className={buttonVariants({variant: "destructive"})}>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className={buttonVariants({variant: "destructive"})}>
                                         Sí, eliminar de Firestore
-                                      </AlertDialogAction>
+                                    </AlertDialogAction>
                                     </AlertDialogFooter>
-                                  </AlertDialogContent>
+                                </AlertDialogContent>
                                 </AlertDialog>
                             )}
 
