@@ -295,3 +295,31 @@ export interface S13CycleDetail {
   firstAssignedDateInCycle: string | null;
   dateCycleCompleted: string;
 }
+
+// --- Notifications ---
+export type NotificationType =
+  | 'new_assignment'
+  | 'assignment_accepted'
+  | 'assignment_rejected'
+  | 'replacement_requested'
+  | 'replacement_covered'
+  | 'report_submitted'
+  | 'user_unavailable'
+  | 'casa_unavailable'
+  | 'user_needs_approval'
+  | 'generic_info';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  description: string;
+  timestamp: Timestamp;
+  isRead: boolean;
+  link?: string; // e.g., /asignaciones#A123
+  recipientUserId: string; // The user who should see this
+  sender?: {
+    id: string;
+    name: string;
+  };
+}

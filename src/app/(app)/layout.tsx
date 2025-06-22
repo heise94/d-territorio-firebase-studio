@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, ReactNode } from 'react';
@@ -13,6 +14,7 @@ import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav';
+import { Notifications } from '@/components/layout/notifications';
 
 function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -92,7 +94,6 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
             <SheetContent side="left" className="flex flex-col p-0">
                 <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
                     <AppLogo />
-                    {/* The title is required for accessibility, but we can hide it visually */}
                     <SheetTitle className="sr-only">Navegación</SheetTitle>
                 </div>
                 <div className="flex-1 overflow-y-auto">
@@ -102,6 +103,7 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
           </Sheet>
 
            <div className="w-full flex-1" />
+           <Notifications />
            <ThemeToggle />
            <UserNav />
         </header>
