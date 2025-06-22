@@ -18,45 +18,9 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
-import Link from "next/link"; // Import Link for external URLs
-
-// MOCK SUGGESTIONS - Replace with actual AI flow call later
-const MOCK_TERRITORY_SUGGESTIONS: AdditionalTerritoryInfo[] = [
-  {
-    id: "T-ADD1",
-    name: "Residencial Las Flores",
-    number: "105B",
-    type: "urban",
-    mapImageUrl: "https://placehold.co/600x400.png?text=Flores+Parcial",
-    dataAiHint: "residential map",
-    isPartial: true,
-    pendingBlockNumbers: [3, 5],
-    approxPendingHousesCount: 23,
-    blockHouseCounts: [0,0,15,0,8,0] // Example: Original counts, M3 & M5 pending
-  },
-  {
-    id: "T-ADD2",
-    name: "Vereda El Encanto",
-    type: "rural",
-    mapImageUrl: "https://placehold.co/600x400.png?text=Encanto+Rural",
-    totalBlocks: 3,
-    dataAiHint: "rural road",
-    isPartial: false,
-    approxHouseCount: 25
-  },
-  {
-    id: "T-ADD3",
-    name: "Centro Comercial",
-    number: "201A",
-    type: "urban",
-    mapImageUrl: "https://placehold.co/600x400.png?text=Centro+Comercial",
-    totalBlocks: 2,
-    dataAiHint: "city center",
-    isPartial: false,
-    approxHouseCount: 30
-  },
-];
-
+import Link from "next/link";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 interface SolicitarTerritorioDialogProps {
   isOpen: boolean;
@@ -78,15 +42,45 @@ export function SolicitarTerritorioDialog({
 
   useEffect(() => {
     if (isOpen && assignment) {
-      setIsLoadingSuggestions(true);
-      setTimeout(() => {
-        setSuggestedTerritories(MOCK_TERRITORY_SUGGESTIONS);
-        setIsLoadingSuggestions(false);
-      }, 1000);
+      const fetchSuggestions = async () => {
+        setIsLoadingSuggestions(true);
+        try {
+            const territoriesRef = collection(db, "territories");
+            const q = query(territoriesRef, where("isBlocked", "==", false));
+            const querySnapshot = await getDocs(q);
+            const allTerritories = querySnapshot.docs.map(doc => ({id: doc.id, ...doc.data() as Territory}));
+            
+            // Basic filtering: suggest 3 random available territories that are not the current one
+            const suggestions = allTerritories
+                .filter(t => t.id !== assignment.locationId)
+                .sort(() => 0.5 - Math.random()) // Randomize
+                .slice(0, 3)
+                .map(t => ({
+                    id: t.id,
+                    name: t.name,
+                    number: t.number,
+                    type: t.type,
+                    mapImageUrl: t.mapImageUrl,
+                    dataAiHint: t.dataAiHint,
+                    totalBlocks: t.totalBlocks,
+                    isPartial: false, // Simplified for now
+                    approxHouseCount: t.approxHouseCount,
+                    blockHouseCounts: t.blockHouseCounts,
+                }));
+
+            setSuggestedTerritories(suggestions);
+        } catch (error) {
+            console.error("Error fetching territory suggestions:", error);
+            toast({ title: "Error", description: "No se pudieron cargar las sugerencias.", variant: "destructive" });
+        } finally {
+            setIsLoadingSuggestions(false);
+        }
+      };
+      fetchSuggestions();
     } else if (!isOpen) {
         setSuggestedTerritories([]);
     }
-  }, [isOpen, assignment]);
+  }, [isOpen, assignment, toast]);
 
   const handleSelectTerritory = async (territory: AdditionalTerritoryInfo) => {
     setIsSubmitting(true);

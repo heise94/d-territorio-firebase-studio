@@ -16,74 +16,12 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { Notification, NotificationType } from "@/types";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, collection, query, where, onSnapshot, doc, updateDoc, orderBy, limit } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES } from "@/lib/constants";
-
-// Mock data - replace with actual data fetching from Firestore in the future
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "N1",
-    type: "user_needs_approval",
-    title: "Nuevo Usuario Registrado",
-    description: "Carlos Rivas se ha registrado y necesita aprobación.",
-    timestamp: Timestamp.fromDate(new Date(Date.now() - 1000 * 60 * 5)), // 5 mins ago
-    isRead: false,
-    recipientUserId: "admin",
-    sender: { id: "userCarlos", name: "Carlos Rivas" },
-  },
-  {
-    id: "N2",
-    type: "replacement_requested",
-    title: "Reemplazo Solicitado",
-    description: "Ana Pérez ha solicitado un reemplazo para su asignación en 'Plaza Central'.",
-    timestamp: Timestamp.fromDate(new Date(Date.now() - 1000 * 60 * 30)), // 30 mins ago
-    isRead: false,
-    recipientUserId: "admin",
-    sender: { id: "userAna", name: "Ana Pérez" },
-  },
-  {
-    id: "N3",
-    type: "report_submitted",
-    title: "Reporte Recibido",
-    description: "Luis Gómez ha enviado el reporte para el territorio 'Sector El Peral'.",
-    timestamp: Timestamp.fromDate(new Date(Date.now() - 1000 * 60 * 120)), // 2 hours ago
-    isRead: true,
-    recipientUserId: "admin",
-    sender: { id: "userLuis", name: "Luis Gómez" },
-  },
-   {
-    id: "N4",
-    type: "new_assignment",
-    title: "Nueva Asignación Recibida",
-    description: "Has sido asignado a la predicación en 'Parque Las Acacias'.",
-    timestamp: Timestamp.fromDate(new Date(Date.now() - 1000 * 60 * 60 * 4)), // 4 hours ago
-    isRead: false,
-    recipientUserId: "regular_user",
-  },
-   {
-    id: "N5",
-    type: "assignment_rejected",
-    title: "Asignación Rechazada",
-    description: "Sofía Castro ha rechazado la asignación en 'Vereda El Rosal'.",
-    timestamp: Timestamp.fromDate(new Date(Date.now() - 1000 * 60 * 60 * 8)), // 8 hours ago
-    isRead: false,
-    recipientUserId: "admin",
-    sender: { id: "userSofia", name: "Sofía Castro" },
-  },
-   {
-    id: "N6",
-    type: "replacement_covered",
-    title: "Reemplazo Cubierto",
-    description: "Tu solicitud de reemplazo para 'Plaza Central' ha sido cubierta.",
-    timestamp: Timestamp.fromDate(new Date(Date.now() - 1000 * 60 * 60 * 24)), // 1 day ago
-    isRead: true,
-    recipientUserId: "regular_user",
-  },
-];
-
 
 const NotificationIcon = ({ type }: { type: NotificationType }) => {
     const iconClass = "h-4 w-4 mr-3 text-muted-foreground";
@@ -98,31 +36,63 @@ const NotificationIcon = ({ type }: { type: NotificationType }) => {
 }
 
 export function Notifications() {
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const { userProfile } = usePermissions();
 
-  const userNotifications = useMemo(() => {
-    if (!userProfile) return [];
-    if (userProfile.role === USER_ROLES.ENCARGADO_TERRITORIO) {
-      return notifications.filter(n => n.recipientUserId === 'admin');
-    }
-    return notifications.filter(n => n.recipientUserId === 'regular_user');
-  }, [notifications, userProfile]);
+  useEffect(() => {
+    if (!userProfile?.firebaseAuthUid || !db || Object.keys(db).length === 0) return;
+
+    const recipientIds = userProfile.role === USER_ROLES.ENCARGADO_TERRITORIO 
+        ? [userProfile.firebaseAuthUid, 'admin'] 
+        : [userProfile.firebaseAuthUid];
+
+    const notificationsQuery = query(
+        collection(db, "notifications"),
+        where("recipientUserId", "in", recipientIds),
+        orderBy("timestamp", "desc"),
+        limit(50)
+    );
+
+    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+        const fetchedNotifications = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            timestamp: doc.data().timestamp instanceof Timestamp ? doc.data().timestamp : Timestamp.now(),
+        } as Notification));
+        setNotifications(fetchedNotifications);
+    }, (error) => {
+        console.error("Error fetching notifications:", error);
+    });
+
+    return () => unsubscribe();
+  }, [userProfile]);
 
   const unreadCount = useMemo(() => {
-    return userNotifications.filter((n) => !n.isRead).length;
-  }, [userNotifications]);
+    return notifications.filter((n) => !n.isRead).length;
+  }, [notifications]);
 
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
+  const markAsRead = async (id: string) => {
+    const notificationRef = doc(db, "notifications", id);
+    try {
+        await updateDoc(notificationRef, { isRead: true });
+    } catch (error) {
+        console.error("Error marking notification as read:", error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications((prev) =>
-      prev.map((n) => ({ ...n, isRead: true }))
-    );
+  const markAllAsRead = async () => {
+    const unreadNotifications = notifications.filter(n => !n.isRead);
+    if (unreadNotifications.length === 0) return;
+    
+    // In a real app with many notifications, this should be a batched write or a cloud function.
+    // For simplicity here, we update them one by one.
+    try {
+        await Promise.all(
+            unreadNotifications.map(n => updateDoc(doc(db, "notifications", n.id), { isRead: true }))
+        );
+    } catch(error) {
+        console.error("Error marking all notifications as read:", error);
+    }
   };
 
   return (
@@ -158,8 +128,8 @@ export function Notifications() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <ScrollArea className="h-[400px]">
-            {userNotifications.length > 0 ? (
-                userNotifications.map((notification) => (
+            {notifications.length > 0 ? (
+                notifications.map((notification) => (
                     <DropdownMenuItem
                         key={notification.id}
                         className={cn("flex items-start gap-2 h-auto py-2.5 px-3 cursor-pointer", !notification.isRead && "bg-primary/5")}
@@ -186,11 +156,6 @@ export function Notifications() {
                 </div>
             )}
         </ScrollArea>
-        {/* Can add a footer link later */}
-        {/* <DropdownMenuSeparator />
-        <DropdownMenuItem className="justify-center text-xs text-muted-foreground hover:!bg-background cursor-pointer">
-            Ver todas las notificaciones
-        </DropdownMenuItem> */}
       </DropdownMenuContent>
     </DropdownMenu>
   );

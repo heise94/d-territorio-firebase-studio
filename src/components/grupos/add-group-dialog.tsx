@@ -26,11 +26,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { PreachingGroup } from "@/types";
+import type { PreachingGroup, UserProfile } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { USER_ROLES } from "@/lib/constants";
 
 const groupFormSchema = z.object({
   name: z.string().min(2, { message: "El nombre debe tener al menos 2 caracteres." }).max(100),
@@ -46,24 +47,18 @@ interface AddGroupDialogProps {
   onOpenChange: (isOpen: boolean) => void;
   onGroupSubmit: (group: PreachingGroup) => void;
   groupToEdit?: PreachingGroup | null;
+  availableUsers: UserProfile[];
 }
-
-// MOCK USER DATA - Replace with actual user fetching logic in a real app
-const mockUsers = [
-    { id: 'uidElena', name: 'Elena Campos' },
-    { id: 'uidCarlos', name: 'Carlos Rivas' },
-    { id: 'uidLaura', name: 'Laura Méndez' },
-    { id: 'uidPedro', name: 'Pedro Herrera' },
-    { id: 'userTest1', name: 'Usuario Prueba Uno' },
-    { id: 'userTest2', name: 'Usuaria Prueba Dos' },
-];
 
 const NO_USER_VALUE = "___NO_USER_SELECTED___";
 
-export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdit }: AddGroupDialogProps) {
-  const { toast } = useToast(); // Kept for potential future use, but actual saving toasts are in page
+export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdit, availableUsers }: AddGroupDialogProps) {
+  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = !!groupToEdit;
+  
+  const selectableUsers = availableUsers.filter(u => u.role === USER_ROLES.SG || u.role === USER_ROLES.AUXILIAR_TERRITORIO || u.role === USER_ROLES.SS);
+
 
   const form = useForm<GroupFormValues>({
     resolver: zodResolver(groupFormSchema),
@@ -101,19 +96,12 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
       updatedAt: Timestamp.now(),
     };
     
-    // The actual Firestore operation is handled by the onGroupSubmit prop from the page
     try {
       await onGroupSubmit(submittedGroup);
-      // Toast messages will be handled by the page after Firestore op
     } catch (error) {
-      // This catch is for errors thrown by the onGroupSubmit itself if it's async and can fail
       console.error("Error during group submission in dialog (passed to parent):", error);
-      // Toast can be shown here for dialog-specific issues, but parent handles save success/failure
     } finally {
         setIsSubmitting(false);
-        // Dialog closing is handled by the parent page upon successful Firestore operation.
-        // If onGroupSubmit doesn't close dialog, we might need to onOpenChange(false) here.
-        // But current flow is that page handles it.
     }
   }
   
@@ -181,8 +169,8 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
                     </FormControl>
                     <SelectContent>
                       <SelectItem key={NO_USER_VALUE} value={NO_USER_VALUE}>Nadie Asignado</SelectItem>
-                      {mockUsers.map(user => (
-                        <SelectItem key={user.id} value={user.id}>
+                      {selectableUsers.map(user => (
+                        <SelectItem key={user.id} value={user.firebaseAuthUid || user.id}>
                           {user.name}
                         </SelectItem>
                       ))}
@@ -209,8 +197,8 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
                     </FormControl>
                     <SelectContent>
                       <SelectItem key={NO_USER_VALUE} value={NO_USER_VALUE}>Nadie Asignado</SelectItem>
-                      {mockUsers.map(user => (
-                        <SelectItem key={user.id} value={user.id}>
+                      {selectableUsers.map(user => (
+                        <SelectItem key={user.id} value={user.firebaseAuthUid || user.id}>
                           {user.name}
                         </SelectItem>
                       ))}
@@ -240,5 +228,3 @@ export function AddGroupDialog({ isOpen, onOpenChange, onGroupSubmit, groupToEdi
     </Dialog>
   );
 }
-
-    

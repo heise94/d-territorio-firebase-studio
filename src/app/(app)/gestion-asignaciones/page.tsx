@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,42 +49,13 @@ import {
   AlertTriangle,
   MessageSquareText,
 } from "lucide-react";
-import type { Assignment, AssignmentStatus, PreachingAssignedType, PublisherDetail, ProgramScheduleSlot } from "@/types";
+import type { Assignment, AssignmentStatus, PreachingAssignedType, PublisherDetail, ProgramScheduleSlot, SettingsDoc } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, collection, doc, onSnapshot, query, orderBy, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { format, parse, isBefore } from "date-fns";
 import { es } from "date-fns/locale";
 import { findReplacementCaptain } from "@/ai/flows/find-replacement-captain";
-
-
-const MOCK_ADMIN_ASSIGNMENTS: Assignment[] = [
-  { id: "A1", userId: "uidUser1", userName: "Ana Pérez", userEmail:"ana.perez@example.com", userPhoneNumber: "+56912345671", date: "2024-08-15", time: "09:00", type: "publica", locationName: "Plaza Central", status: "pending", assignedBy: "Admin IA" },
-  { id: "A2", userId: "uidUser2", userName: "Luis Gómez", userEmail:"luis.gomez@example.com", userPhoneNumber: "+56912345672", date: "2024-08-15", time: "15:00", type: "zoom", locationName: "Sala Zoom #1", status: "accepted", assignedBy: "Admin IA", notes: "Recuerda tener buena iluminación." },
-  { id: "A3", userId: "uidUser3", userName: "Sofía Castro", userEmail:"sofia.castro@example.com", userPhoneNumber: "+56912345673", date: "2024-08-16", time: "10:30", type: "rural", locationName: "Sector El Peral", status: "replacement_requested", assignedBy: "Admin IA" },
-  { id: "A4", userId: "uidUser4", userName: "Carlos Díaz", userEmail:"carlos.diaz@example.com", date: "2024-08-17", time: "11:00", type: "publica", locationName: "Parque Las Acacias", status: "rejected", assignedBy: "Admin IA" }, // No phone
-  { id: "A5", userId: "uidUser1", userName: "Ana Pérez", userEmail:"ana.perez@example.com", userPhoneNumber: "+56912345671", date: "2024-08-18", time: "16:00", type: "zoom", locationName: "Sala Zoom #2", status: "replacement_covered", assignedBy: "Admin IA" },
-  { id: "A6", userId: "uidUser2", userName: "Luis Gómez", userEmail:"luis.gomez@example.com", userPhoneNumber: "+56912345672", date: "2024-08-19", time: "14:00", type: "rural", locationName: "Camino Viejo", status: "cancelled_by_admin", assignedBy: "Admin IA" },
-];
-
-// Mock data for AI flow - replace with actual data fetching later
-const MOCK_AVAILABLE_PUBLISHERS: PublisherDetail[] = [
-    { id: "uidUser1", name: "Ana Pérez", email:"ana.perez@example.com", availability: { availableSlotIds: ["mon-0900-gen", "wed-0930-gen"] } },
-    { id: "uidUser2", name: "Luis Gómez", email:"luis.gomez@example.com", availability: { availableSlotIds: ["mon-1500-zoom", "thu-1400-zoom"] } },
-    { id: "uidUser3", name: "Sofía Castro", email:"sofia.castro@example.com", availability: { availableSlotIds: ["tue-1000-rur", "fri-1000-gen"] } },
-    { id: "uidUser4", name: "Carlos Díaz", email:"carlos.diaz@example.com", availability: { availableSlotIds: ["sat-1000-gen", "sun-1500-zoom"] } },
-    { id: "uidUser5", name: "Elena Jara", email:"elena.jara@example.com", availability: { availableSlotIds: ["mon-0900-gen", "fri-1700-rur"] } },
-];
-const MOCK_PROGRAM_SCHEDULE_SLOTS: ProgramScheduleSlot[] = [
-  { id: 'mon-0900-gen', dayOfWeek: 'monday', startTime: '09:00', type: 'general', status: 'fixed' },
-  { id: 'mon-1500-zoom', dayOfWeek: 'monday', startTime: '15:00', type: 'zoom', status: 'tentative' },
-  { id: 'tue-1000-rur', dayOfWeek: 'tuesday', startTime: '10:00', type: 'rural', status: 'fixed' },
-  { id: 'wed-0930-gen', dayOfWeek: 'wednesday', startTime: '09:30', type: 'general', status: 'fixed' },
-  { id: 'fri-1000-gen', dayOfWeek: 'friday', startTime: '10:00', type: 'general', status: 'fixed' },
-  { id: 'fri-1700-rur', dayOfWeek: 'friday', startTime: '17:00', type: 'rural', status: 'tentative' },
-  { id: 'sat-1000-gen', dayOfWeek: 'saturday', startTime: '10:00', type: 'general', status: 'fixed' },
-  { id: 'sun-1500-zoom', dayOfWeek: 'sunday', startTime: '15:00', type: 'zoom', status: 'fixed' },
-];
-
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingAssignedType; className?: string }) => {
   const defaultClass = "h-4 w-4 shrink-0";
@@ -127,22 +98,56 @@ const getInitials = (name?: string) => {
 
 
 export default function GestionAsignacionesPage() {
-  const [assignments, setAssignments] = useState<Assignment[]>(MOCK_ADMIN_ASSIGNMENTS);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [allPublishers, setAllPublishers] = useState<PublisherDetail[]>([]);
+  const [programSlots, setProgramSlots] = useState<ProgramScheduleSlot[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const [isFindingReplacement, setIsFindingReplacement] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsLoading(true);
+    const q = query(collection(db, "assignments"), orderBy("date", "desc"), orderBy("time", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment)));
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching assignments: ", error);
+      toast({ title: "Error", description: "No se pudieron cargar las asignaciones.", variant: "destructive" });
+      setIsLoading(false);
+    });
+    
+    // Fetch data needed for AI flow
+    const usersQuery = query(collection(db, "users"), where("status", "==", "Activo"));
+    onSnapshot(usersQuery, (snapshot) => {
+        setAllPublishers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PublisherDetail)));
+    });
+
+    const settingsDocRef = doc(db, "settings", "programConfig");
+    onSnapshot(settingsDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const settingsData = docSnap.data() as SettingsDoc;
+            setProgramSlots(settingsData.programScheduleSlots || []);
+        }
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
+
 
   const handleEditAssignment = (assignmentId: string) => {
     toast({ title: "Próximamente", description: "La edición de asignaciones estará disponible pronto." });
   };
 
-  const handleMarkCovered = (assignmentId: string) => {
-    setAssignments(prev =>
-      prev.map(assign =>
-        assign.id === assignmentId ? { ...assign, status: 'replacement_covered', updatedAt: Timestamp.now() } : assign
-      )
-    );
-    toast({ title: "Asignación Cubierta", description: "La asignación ha sido marcada como cubierta (simulación)." });
+  const handleMarkCovered = async (assignmentId: string) => {
+    const assignmentRef = doc(db, "assignments", assignmentId);
+    try {
+        await updateDoc(assignmentRef, { status: 'replacement_covered', updatedAt: serverTimestamp() });
+        toast({ title: "Asignación Cubierta", description: "La asignación ha sido marcada como cubierta." });
+    } catch(error) {
+        toast({ title: "Error", description: "No se pudo actualizar la asignación.", variant: "destructive" });
+    }
   };
 
   const handleResendReminderEmail = (assignmentId: string) => {
@@ -161,7 +166,10 @@ export default function GestionAsignacionesPage() {
       return;
     }
 
-    let cleanedPhoneNumber = assign.userPhoneNumber.replace(/[\s-()]/g, "");
+    let cleanedPhoneNumber = assign.userPhoneNumber.replace(/[^0-9+]/g, "");
+    if (cleanedPhoneNumber.startsWith("+")) {
+      cleanedPhoneNumber = cleanedPhoneNumber.substring(1);
+    }
     
     const assignmentDate = parse(assign.date, "yyyy-MM-dd", new Date());
     const assignmentDateTime = parse(`${assign.date} ${assign.time}`, "yyyy-MM-dd HH:mm", new Date());
@@ -186,14 +194,15 @@ export default function GestionAsignacionesPage() {
     });
   };
 
-  const handleCancelAssignment = (assignmentId: string) => {
-    setAssignments(prev =>
-      prev.map(assign =>
-        assign.id === assignmentId ? { ...assign, status: 'cancelled_by_admin', updatedAt: Timestamp.now() } : assign
-      )
-    );
-    const assignment = assignments.find(a => a.id === assignmentId);
-    toast({ title: "Asignación Cancelada", description: `La asignación para ${assignment?.userName || 'el usuario'} ha sido cancelada por el administrador (simulación).`, variant: "destructive" });
+  const handleCancelAssignment = async (assignmentId: string) => {
+    const assignmentRef = doc(db, "assignments", assignmentId);
+    try {
+        await updateDoc(assignmentRef, { status: 'cancelled_by_admin', updatedAt: serverTimestamp() });
+        const assignment = assignments.find(a => a.id === assignmentId);
+        toast({ title: "Asignación Cancelada", description: `La asignación para ${assignment?.userName || 'el usuario'} ha sido cancelada por el administrador.`, variant: "destructive" });
+    } catch (error) {
+        toast({ title: "Error", description: "No se pudo cancelar la asignación.", variant: "destructive" });
+    }
   };
 
   const handleFindReplacementWithAI = async (assignment: Assignment) => {
@@ -211,50 +220,40 @@ export default function GestionAsignacionesPage() {
                 locationName: assignment.locationName,
             },
             originalCaptainId: assignment.userId,
-            availablePublishers: MOCK_AVAILABLE_PUBLISHERS, 
-            programScheduleSlots: MOCK_PROGRAM_SCHEDULE_SLOTS, 
+            availablePublishers: allPublishers, 
+            programScheduleSlots: programSlots, 
             additionalInstructions: "Prioritize captains with good attendance if possible."
         };
 
         const result = await findReplacementCaptain(replacementInput);
 
         if (result.newCaptainId && result.newCaptainName && result.newCaptainEmail) {
-            const newCaptainDetails = MOCK_AVAILABLE_PUBLISHERS.find(p => p.id === result.newCaptainId);
-            
-            setAssignments(prev =>
-                prev.map(a =>
-                    a.id === assignment.id
-                    ? {
-                        ...a,
-                        userId: result.newCaptainId!,
-                        userName: result.newCaptainName!,
-                        userEmail: result.newCaptainEmail!,
-                        userPhoneNumber: newCaptainDetails?.email, 
-                        status: 'pending' as AssignmentStatus, 
-                        notes: `Reasignado por IA. Original: ${assignment.userName}. ${result.reasoning || ''}`.trim(),
-                        updatedAt: Timestamp.now(),
-                      }
-                    : a
-                )
-            );
+            const newCaptainDetails = allPublishers.find(p => p.id === result.newCaptainId);
+            const assignmentRef = doc(db, "assignments", assignment.id);
+            await updateDoc(assignmentRef, {
+                userId: result.newCaptainId!,
+                userName: result.newCaptainName!,
+                userEmail: result.newCaptainEmail!,
+                userPhoneNumber: newCaptainDetails?.email, // MOCK, fix later
+                status: 'pending' as AssignmentStatus, 
+                notes: `Reasignado por IA. Original: ${assignment.userName}. ${result.reasoning || ''}`.trim(),
+                updatedAt: serverTimestamp(),
+            });
             toast({ title: "Reemplazo Encontrado por IA", description: `${result.newCaptainName} ha sido asignado. Esperando confirmación.`});
         } else {
-            setAssignments(prev =>
-                prev.map(a =>
-                    a.id === assignment.id ? { ...a, status: 'needs_manual_replacement' as AssignmentStatus, notes: `IA no encontró reemplazo. ${result.reasoning || ''}`.trim() } : a
-                )
-            );
+            const assignmentRef = doc(db, "assignments", assignment.id);
+            await updateDoc(assignmentRef, { 
+                status: 'needs_manual_replacement' as AssignmentStatus, 
+                notes: `IA no encontró reemplazo. ${result.reasoning || ''}`.trim() 
+            });
             toast({ title: "IA no encontró reemplazo", description: result.reasoning || "No se encontró un capitán disponible.", variant: "default" });
         }
 
     } catch (error) {
         console.error("Error finding replacement with AI:", error);
+        const assignmentRef = doc(db, "assignments", assignment.id);
+        await updateDoc(assignmentRef, { status: 'needs_manual_replacement' as AssignmentStatus, notes: "Error durante búsqueda de IA." });
         toast({ title: "Error con IA", description: "Hubo un problema al buscar reemplazo con la IA.", variant: "destructive" });
-        setAssignments(prev =>
-            prev.map(a =>
-                a.id === assignment.id ? { ...a, status: 'needs_manual_replacement' as AssignmentStatus, notes: "Error durante búsqueda de IA." } : a
-            )
-        );
     } finally {
         setIsFindingReplacement(null);
     }
@@ -291,10 +290,12 @@ export default function GestionAsignacionesPage() {
             <CardTitle>Todas las Asignaciones</CardTitle>
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
               <CardDescription>
-                {filteredAssignments.length > 0
-                  ? `Mostrando ${filteredAssignments.length} de ${assignments.length} asignaciones.`
-                  : assignments.length > 0 ? "Ninguna asignación coincide con la búsqueda."
-                  : "Actualmente no hay asignaciones."
+                {isLoading ? "Cargando asignaciones..." : 
+                  (filteredAssignments.length > 0
+                    ? `Mostrando ${filteredAssignments.length} de ${assignments.length} asignaciones.`
+                    : assignments.length > 0 ? "Ninguna asignación coincide con la búsqueda."
+                    : "Actualmente no hay asignaciones."
+                  )
                 }
               </CardDescription>
               <div className="relative w-full sm:w-64 md:w-72">
@@ -311,7 +312,9 @@ export default function GestionAsignacionesPage() {
             <p className="text-xs text-muted-foreground pt-2">Filtros avanzados (por fecha, estado, etc.) estarán disponibles pronto.</p>
           </CardHeader>
           <CardContent>
-            {assignments.length === 0 && !searchTerm ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-16"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
+            ) : assignments.length === 0 && !searchTerm ? (
               <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
                 <CalendarX2 className="h-20 w-20 text-muted-foreground/70 mb-6" />
                 <p className="text-xl font-medium text-muted-foreground mb-2">No hay asignaciones para mostrar.</p>

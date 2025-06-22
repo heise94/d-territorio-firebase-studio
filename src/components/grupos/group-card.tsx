@@ -5,16 +5,20 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Users2 as GroupIcon, UserCog, UserCheck, Pencil, Trash2 } from "lucide-react";
-import type { PreachingGroup } from "@/types";
+import type { PreachingGroup, UserProfile } from "@/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface GroupCardProps {
   group: PreachingGroup;
   onEdit: () => void;
   onDelete: () => void; // This will be called after confirmation
+  availableUsers: UserProfile[];
 }
 
-export function GroupCard({ group, onEdit, onDelete }: GroupCardProps) {
+export function GroupCard({ group, onEdit, onDelete, availableUsers }: GroupCardProps) {
+  const superintendentName = availableUsers.find(u => u.firebaseAuthUid === group.superintendentId)?.name || group.superintendentId;
+  const auxiliaryName = availableUsers.find(u => u.firebaseAuthUid === group.auxiliaryId)?.name || group.auxiliaryId;
+  
   return (
     <Card className="flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg">
       <CardHeader className="pb-3">
@@ -36,14 +40,14 @@ export function GroupCard({ group, onEdit, onDelete }: GroupCardProps) {
             <div className="flex items-center text-xs">
                 <UserCog size={14} className="mr-1.5 text-muted-foreground shrink-0" />
                 <span className="font-medium text-muted-foreground">Superintendente:</span>
-                <span className="ml-1 text-foreground">{group.superintendentId}</span> {/* Placeholder for name lookup */}
+                <span className="ml-1 text-foreground">{superintendentName}</span>
             </div>
         )}
         {group.auxiliaryId && (
              <div className="flex items-center text-xs">
                 <UserCheck size={14} className="mr-1.5 text-muted-foreground shrink-0" />
                 <span className="font-medium text-muted-foreground">Auxiliar:</span>
-                <span className="ml-1 text-foreground">{group.auxiliaryId}</span> {/* Placeholder for name lookup */}
+                <span className="ml-1 text-foreground">{auxiliaryName}</span>
             </div>
         )}
         {!group.superintendentId && !group.auxiliaryId && !group.description && (
@@ -76,7 +80,7 @@ export function GroupCard({ group, onEdit, onDelete }: GroupCardProps) {
               <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
               <AlertDialogDescription>
                 Esta acción no se puede deshacer. Esto eliminará permanentemente el grupo "{group.name}"
-                de los registros (simulación).
+                de los registros.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

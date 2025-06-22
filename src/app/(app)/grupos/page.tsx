@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlusCircle, Search, Users2 as GroupIcon, Pencil, Trash2, Loader2 } from "lucide-react";
 import { AddGroupDialog } from "@/components/grupos/add-group-dialog";
-import type { PreachingGroup } from "@/types";
+import type { PreachingGroup, UserProfile } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -23,18 +23,22 @@ export default function GruposPage() {
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
+  
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
 
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       setIsLoadingGroups(false);
+      setIsLoadingUsers(false);
       return;
     }
     setIsLoadingGroups(true);
     const groupsCollectionRef = collection(db, "preachingGroups");
-    const q = query(groupsCollectionRef, orderBy("createdAt", "desc"));
+    const qGroups = query(groupsCollectionRef, orderBy("createdAt", "desc"));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeGroups = onSnapshot(qGroups, (snapshot) => {
       const fetchedGroups = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -48,8 +52,23 @@ export default function GruposPage() {
       toast({ title: "Error al Cargar Grupos", description: "No se pudieron cargar los grupos desde Firestore.", variant: "destructive" });
       setIsLoadingGroups(false);
     });
+    
+    setIsLoadingUsers(true);
+    const usersCollectionRef = collection(db, "users");
+    const qUsers = query(usersCollectionRef, orderBy("name", "asc"));
+    const unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
+      const fetchedUsers = snapshot.docs.map(doc => doc.data() as UserProfile);
+      setAllUsers(fetchedUsers);
+      setIsLoadingUsers(false);
+    }, (error) => {
+      console.error("Error fetching users for group page:", error);
+      setIsLoadingUsers(false);
+    });
 
-    return () => unsubscribe();
+    return () => {
+        unsubscribeGroups();
+        unsubscribeUsers();
+    };
   }, [toast]);
 
 
@@ -78,11 +97,8 @@ export default function GruposPage() {
     const isEditing = !!groups.find(g => g.id === submittedGroupData.id);
     const docRef = doc(db, "preachingGroups", submittedGroupData.id);
 
-    // Prepare data for Firestore, ensuring no 'undefined' values are passed.
-    // Optional fields from the form might come as `undefined` if cleared.
     const dataForFirestore: { [key: string]: any } = {};
 
-    // Copy all properties from submittedGroupData except 'id' and undefined values.
     for (const key in submittedGroupData) {
       if (key !== 'id' && submittedGroupData[key as keyof PreachingGroup] !== undefined) {
         dataForFirestore[key] = submittedGroupData[key as keyof PreachingGroup];
@@ -92,25 +108,10 @@ export default function GruposPage() {
     dataForFirestore.updatedAt = Timestamp.now();
     if (!isEditing) {
       dataForFirestore.createdAt = Timestamp.now();
-    } else if (submittedGroupData.createdAt) { // Preserve existing createdAt if editing
+    } else if (submittedGroupData.createdAt) { 
         dataForFirestore.createdAt = submittedGroupData.createdAt;
     }
-
-
-    // Ensure empty strings for optional text fields are not stored if user cleared them,
-    // or store null if that's preferred (Firestore allows null, but not undefined).
-    // For setDoc({merge:true}), omitting the field is often best if it means "no change" or "not set".
-    // If an empty string means "remove the field", then updateDoc with deleteField() is needed.
-    // Here, if dialog sends `description: undefined`, it will be filtered out above.
-    // If it sends `description: ""`, it will be saved as `""`.
-    // The dialog currently ensures empty optional strings result in `undefined` being passed here.
     
-    // Example: if `description` came as `undefined` from the dialog (because it was empty),
-    // it will not be in `dataForFirestore` due to the loop condition.
-    // If `merge:true` is used, an existing `description` in Firestore would remain.
-    // If the intention is to remove the field if it's emptied, `updateDoc` with `deleteField()` would be necessary for edits.
-    // For now, this approach fixes the "undefined" error.
-
     try {
       await setDoc(docRef, dataForFirestore, { merge: true });
       toast({
@@ -223,6 +224,7 @@ export default function GruposPage() {
                   group={group}
                   onEdit={() => handleOpenEditDialog(group)}
                   onDelete={() => handleDeleteGroup(group.id)}
+                  availableUsers={allUsers}
                 />
               ))}
             </div>
@@ -235,9 +237,9 @@ export default function GruposPage() {
         onOpenChange={setIsGroupDialogOpen}
         onGroupSubmit={handleGroupSubmit}
         groupToEdit={groupToEdit}
+        availableUsers={allUsers}
       />
     </div>
     </TooltipProvider>
   );
 }
-

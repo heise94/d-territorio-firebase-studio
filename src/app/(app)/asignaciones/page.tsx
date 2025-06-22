@@ -37,59 +37,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { Territory, ReportedAssignmentData, UserAssignment, SingleTerritoryReportDetails, AdditionalTerritoryInfo, TerritoryType } from "@/types";
 import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
 import { SolicitarTerritorioDialog } from "@/components/asignaciones/solicitar-territorio-dialog";
-import { Timestamp, collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, orderBy } from "firebase/firestore";
+import { Timestamp, collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, orderBy, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; 
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"; 
 import { Skeleton } from "@/components/ui/skeleton";
-
-
-// MOCK_TERRITORY_FOR_REPORT se mantiene por ahora para el diálogo de reporte del territorio principal.
-// La carga dinámica de los detalles del territorio principal para el reporte se podría implementar en el futuro.
-const MOCK_TERRITORY_FOR_REPORT: Territory = {
-  id: "T-Mock",
-  name: "Territorio de Ejemplo",
-  type: "urban",
-  number: "101X",
-  mapImageUrl: "https://placehold.co/600x400.png?text=Mapa+Territorio",
-  dataAiHint: "map sketch",
-  totalBlocks: 4,
-  blockHouseCounts: [10, 12, 8, 15],
-  approxHouseCount: 45,
-  isBlocked: false,
-  createdAt: Timestamp.now(),
-  updatedAt: Timestamp.now(),
-};
-
-
-const PreachingTypeIcon = ({ type, className }: { type: UserAssignment["type"]; className?: string }) => {
-  const defaultClass = "h-5 w-5 shrink-0";
-  const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
-  if (type === "publica") return <Users className={combinedClass} />;
-  if (type === "rural") return <MountainSnow className={combinedClass} />;
-  if (type === "zoom") return <Video className={combinedClass} />;
-  return null;
-};
-
-const StatusBadge = ({ status }: { status: UserAssignment["status"] }) => {
-  switch (status) {
-    case "pending":
-      return <Badge variant="outline" className="border-amber-500 text-amber-600"><HelpCircle className="mr-1.5 h-3.5 w-3.5" />Pendiente</Badge>;
-    case "accepted":
-      return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-white"><CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />Aceptada</Badge>;
-    case "rejected":
-      return <Badge variant="destructive"><XCircle className="mr-1.5 h-3.5 w-3.5" />Rechazada</Badge>;
-    case "replacement_requested":
-      return <Badge variant="outline" className="border-blue-500 text-blue-600"><UserMinus className="mr-1.5 h-3.5 w-3.5" />Reemplazo Solicitado</Badge>;
-    case "replacement_covered":
-      return <Badge variant="secondary"><UserCheckIcon className="mr-1.5 h-3.5 w-3.5" />Cubierta por Reemplazo</Badge>;
-    default:
-      return <Badge variant="secondary">{status}</Badge>;
-  }
-};
-
 
 export default function MisAsignacionesPage() {
   const [assignments, setAssignments] = useState<UserAssignment[]>([]);
@@ -218,24 +172,26 @@ export default function MisAsignacionesPage() {
     return minutesDifference < 60; 
   };
 
-  const handleOpenReportDialog = (assignment: UserAssignment, existingReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null) => {
-    // For the main territory, we use a mock structure but populate its name and type from the assignment.
-    // A more robust solution would fetch full territory details if locationId is present.
-    if (assignment.type === 'publica' || assignment.type === 'rural') {
-        const mockTerritory: Territory = { 
-            ...MOCK_TERRITORY_FOR_REPORT,
-            id: assignment.locationId || `mock-main-${assignment.id}`, // Use locationId or a mock one
-            name: assignment.locationName,
-            type: assignment.type === 'publica' ? 'urban' : 'rural', 
-            number: assignment.type === 'publica' ? (MOCK_TERRITORY_FOR_REPORT.number || 'N/A') : undefined,
-            mapImageUrl: assignment.type === 'publica' ? MOCK_TERRITORY_FOR_REPORT.mapImageUrl : 'https://placehold.co/600x400.png?text=Mapa+Rural',
-            dataAiHint: assignment.type === 'publica' ? MOCK_TERRITORY_FOR_REPORT.dataAiHint : 'rural map',
-            totalBlocks: assignment.type === 'publica' ? MOCK_TERRITORY_FOR_REPORT.totalBlocks : 5, // Example for rural
-        };
-        setTerritoryForReport(mockTerritory);
+  const handleOpenReportDialog = async (assignment: UserAssignment, existingReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null) => {
+    if ((assignment.type === 'publica' || assignment.type === 'rural') && assignment.locationId) {
+        try {
+            const territoryDocRef = doc(db, "territories", assignment.locationId);
+            const territorySnap = await getDoc(territoryDocRef);
+            if (territorySnap.exists()) {
+                setTerritoryForReport({ id: territorySnap.id, ...territorySnap.data() } as Territory);
+            } else {
+                 toast({ title: "Territorio no encontrado", description: "No se encontraron los detalles completos del territorio principal.", variant: "default" });
+                 setTerritoryForReport(null);
+            }
+        } catch (error) {
+            console.error("Error fetching territory details for report:", error);
+            toast({ title: "Error al Cargar Territorio", description: "No se pudieron obtener los detalles del territorio.", variant: "destructive" });
+            setTerritoryForReport(null);
+        }
     } else {
         setTerritoryForReport(null); 
     }
+    
     setAssignmentToReport(assignment);
     setInitialReportDataForDialog(existingReportData || null);
     setIsReportDialogOpen(true);
