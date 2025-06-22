@@ -31,9 +31,7 @@ export default function MiGrupoPublicadoresPage() {
   const { userProfile, isLoadingPermissions, hasPermission, isImpersonating } = usePermissions(); // Correctly destructure isImpersonating
   const { toast } = useToast();
 
-  const [allPublishersData, setAllPublishersData] = useState<UserProfile[]>(() =>
-    JSON.parse(JSON.stringify(MOCK_ALL_USERS_DATA)) 
-  );
+  const [allPublishersData, setAllPublishersData] = useState<UserProfile[]>(MOCK_ALL_USERS_DATA);
   const [isInviteUserFromGroupDialogOpen, setIsInviteUserFromGroupDialogOpen] = useState(false);
 
   if (isLoadingPermissions) {
