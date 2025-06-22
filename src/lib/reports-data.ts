@@ -1873,6 +1873,15 @@ export const historicalReportData = [
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "14/05/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 4",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   },
