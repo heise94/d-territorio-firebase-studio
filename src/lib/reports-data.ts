@@ -350,7 +350,7 @@ export const historicalReportData = [
       {
         "fechaAsignacion": "07/06/2025",
         "publicador": "Camilo Torres",
-        "completadoAsignacion": false,
+        "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 3",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
@@ -1586,7 +1586,7 @@ export const historicalReportData = [
       {
         "fechaAsignacion": "07/06/2025",
         "publicador": "Diego Henríquez",
-        "completadoAsignacion": false,
+        "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 3",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
@@ -1627,7 +1627,7 @@ export const historicalReportData = [
       {
         "fechaAsignacion": "05/06/2025",
         "publicador": "Diego Henríquez",
-        "completadoAsignacion": false,
+        "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 3",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
