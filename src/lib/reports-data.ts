@@ -636,9 +636,9 @@ export const historicalReportData = [
       {
         "fechaAsignacion": "13/02/2025",
         "publicador": "Jonatan Palma",
-        "completadoAsignacion": true,
+        "completadoAsignacion": false,
         "manzanasTrabajadas": "1 a 3",
-        "manzanasPendientes": "3 a 6",
+        "manzanasPendientes": "4 a 6",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
@@ -646,7 +646,7 @@ export const historicalReportData = [
         "fechaAsignacion": "14/02/2025",
         "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "3 a 6",
+        "manzanasTrabajadas": "4 a 6",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -795,7 +795,7 @@ export const historicalReportData = [
       {
         "fechaAsignacion": "11/02/2025",
         "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
+        "completadoAsignacion": false,
         "manzanasTrabajadas": "1 y 2",
         "manzanasPendientes": "3 y 4",
         "esCampanaEspecial": false,
@@ -1090,7 +1090,7 @@ export const historicalReportData = [
       {
         "fechaAsignacion": "8/01/2024",
         "publicador": "Diego Henríquez",
-        "completadoAsignacion": false,
+        "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 3",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
@@ -1147,7 +1147,7 @@ export const historicalReportData = [
     "numeroTerritorio": 36,
     "asignaciones": [
       {
-        "fechaAsignacion": "30/11/2025",
+        "fechaAsignacion": "30/11/2024",
         "publicador": "Diego Henríquez",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 A 4",
@@ -1902,7 +1902,7 @@ export const historicalReportData = [
       }
     ]
   },
-  {
+    {
     "numeroTerritorio": 51,
     "asignaciones": [
       {
@@ -1926,7 +1926,7 @@ export const historicalReportData = [
       {
         "fechaAsignacion": "13/02/2025",
         "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
+        "completadoAsignacion": false,
         "manzanasTrabajadas": "1 y 2",
         "manzanasPendientes": "3 y 4",
         "esCampanaEspecial": false,
@@ -2243,7 +2243,7 @@ export const historicalReportData = [
       {
         "fechaAsignacion": "23/01/2025",
         "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
+        "completadoAsignacion": false,
         "manzanasTrabajadas": "1, 3 y 8",
         "manzanasPendientes": "2, 4, 5, 6, 7",
         "esCampanaEspecial": false,
@@ -3088,7 +3088,7 @@ export const historicalReportData = [
       {
         "fechaAsignacion": "10/02/2025",
         "publicador": "Omar Salas",
-        "completadoAsignacion": true,
+        "completadoAsignacion": false,
         "manzanasTrabajadas": "4 y 5",
         "manzanasPendientes": "1 a 3",
         "esCampanaEspecial": false,
@@ -3325,7 +3325,7 @@ export const historicalReportData = [
       {
         "fechaAsignacion": "25/01/2025",
         "publicador": "Edison Díaz",
-        "completadoAsignacion": true,
+        "completadoAsignacion": false,
         "manzanasTrabajadas": "4 a 6",
         "manzanasPendientes": "1 a 3",
         "esCampanaEspecial": false,
