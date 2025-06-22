@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -25,46 +24,50 @@ export default function ReportesPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    setIsLoading(true);
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       setIsLoading(false);
       return;
     }
+    
+    setIsLoading(true);
+    
+    let territoriesLoaded = false;
+    let assignmentsLoaded = false;
+
+    const checkLoading = () => {
+      if (territoriesLoaded && assignmentsLoaded) {
+        setIsLoading(false);
+      }
+    };
 
     const territoriesQuery = query(collection(db, "territories"), orderBy("number", "asc"));
     const unsubTerritories = onSnapshot(territoriesQuery, (snapshot) => {
       setTerritories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Territory)));
+      territoriesLoaded = true;
+      checkLoading();
     }, (error) => {
       console.error("Error fetching territories: ", error);
       toast({ title: "Error", description: "No se pudieron cargar los territorios.", variant: "destructive" });
+      territoriesLoaded = true;
+      checkLoading();
     });
 
     const assignmentsQuery = query(collection(db, "assignments"), orderBy("date", "desc"));
     const unsubAssignments = onSnapshot(assignmentsQuery, (snapshot) => {
         setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment)));
+        assignmentsLoaded = true;
+        checkLoading();
     }, (error) => {
         console.error("Error fetching assignments: ", error);
         toast({ title: "Error", description: "No se pudieron cargar las asignaciones.", variant: "destructive" });
+        assignmentsLoaded = true;
+        checkLoading();
     });
-
-    // Simple loading state management: turn off loading when both have fired at least once
-    let territoriesLoaded = false;
-    let assignmentsLoaded = false;
-    const checkLoading = () => {
-        if (territoriesLoaded && assignmentsLoaded) {
-            setIsLoading(false);
-        }
-    }
-    const unsubTerritoriesLoader = onSnapshot(territoriesQuery, () => { territoriesLoaded = true; checkLoading(); });
-    const unsubAssignmentsLoader = onSnapshot(assignmentsQuery, () => { assignmentsLoaded = true; checkLoading(); });
-
 
     return () => {
       unsubTerritories();
       unsubAssignments();
-      unsubTerritoriesLoader();
-      unsubAssignmentsLoader();
     };
   }, [toast]);
   
