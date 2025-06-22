@@ -259,6 +259,7 @@ export interface CampaignAssignment {
   assignedDate: Date | null;
   blocksWorked: string | null;
   blocksPending: string | number | null;
+  completadoAsignacion?: boolean;
 }
 
 export interface ReportEntry {

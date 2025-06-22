@@ -44,6 +44,7 @@ import { db } from "@/lib/firebase";
 import type { Territory, ReportEntry, CampaignAssignment, S13CycleDetail, ProcessedDetailedReportView } from "@/types";
 import { format, parse, isValid as isDateValid, compareDesc, getYear as getYearFromDateFn } from "date-fns";
 import { EditReportEntryDialog } from "@/components/reportes/edit-report-entry-dialog";
+import { historicalReportData } from '@/lib/reports-data';
 
 
 const REPORTS_COLLECTION_NAME = "reports";
@@ -115,52 +116,116 @@ export default function ReportesPage() {
   }, [isLoadingPermissions, hasPermission, toast]);
 
   const processedDetailedData: ProcessedDetailedReportView[] = useMemo(() => {
+    const historicalDataMap = new Map<string, any[]>();
+    historicalReportData.forEach(item => {
+      historicalDataMap.set(String(item.numeroTerritorio), item.asignaciones);
+    });
+
     return allTerritories.map(territory => {
-      const reportsForTerritory = allReports.filter(r => r.territoryId === territory.id);
-      const activeReport = reportsForTerritory.find(r => r.status === 'En Curso');
-      
-      if (activeReport) {
-        const lastCampaign = activeReport.campaigns[activeReport.campaigns.length - 1];
+      const liveReport = allReports.find(r => r.territoryId === territory.id);
+
+      if (liveReport) {
+        const lastCampaign = liveReport.campaigns[liveReport.campaigns.length - 1];
         return {
-          id: activeReport.id,
+          id: liveReport.id!,
           territoryId: territory.id,
           territoryNumber: territory.number || territory.name,
-          status: "En Curso",
-          lastCompletedDate: activeReport.lastCompletedHistoric ? format(activeReport.lastCompletedHistoric, "dd/MM/yyyy") : "N/A",
+          status: liveReport.status,
+          lastCompletedDate: liveReport.lastCompletedHistoric ? format(liveReport.lastCompletedHistoric, "dd/MM/yyyy") : "N/A",
           assignedTo: lastCampaign?.assignedTo,
           assignedDate: lastCampaign?.assignedDate ? format(lastCampaign.assignedDate, "dd/MM/yyyy") : undefined,
           blocksWorked: lastCampaign?.blocksWorked,
           blocksPending: lastCampaign?.blocksPending,
-          completedCurrentCycleDisplay: "En curso",
-          campaignsForHistoryModal: activeReport.campaigns,
+          completedCurrentCycleDisplay: liveReport.completedCurrentCycle instanceof Date ? format(liveReport.completedCurrentCycle, "dd/MM/yyyy") : liveReport.completedCurrentCycle,
+          campaignsForHistoryModal: liveReport.campaigns,
         };
       }
-      
-      const mostRecentlyCompleted = reportsForTerritory
-        .filter(r => r.status === "Completado" && r.completedCurrentCycle)
-        .sort((a, b) => compareDesc(a.completedCurrentCycle as Date, b.completedCurrentCycle as Date))[0];
+
+      const historicalAssignments = historicalDataMap.get(territory.number || '');
+      if (historicalAssignments && historicalAssignments.length > 0) {
+        const sortedAssignments = [...historicalAssignments].sort((a, b) => {
+          const dateA = parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date());
+          const dateB = parse(b.fechaAsignacion, 'dd/MM/yyyy', new Date());
+          return compareDesc(dateA, dateB);
+        });
+
+        const latestAssignment = sortedAssignments[0];
+        const completedAssignments = sortedAssignments.filter(a => a.completadoAsignacion);
+
+        const lastCompletedDate = completedAssignments.length > 1
+          ? format(parse(completedAssignments[1].fechaAsignacion, 'dd/MM/yyyy', new Date()), "dd/MM/yyyy")
+          : "N/A";
+
+        const completedCurrentCycleDisplay = completedAssignments.length > 0
+          ? format(parse(completedAssignments[0].fechaAsignacion, 'dd/MM/yyyy', new Date()), "dd/MM/yyyy")
+          : "En curso";
+
+        const status = latestAssignment.completadoAsignacion ? "Disponible" : "En Curso";
+
+        return {
+          id: `historical-${territory.id}`,
+          territoryId: territory.id,
+          territoryNumber: territory.number || territory.name,
+          status: status,
+          lastCompletedDate: lastCompletedDate,
+          assignedTo: latestAssignment.publicador,
+          assignedDate: latestAssignment.fechaAsignacion,
+          blocksWorked: latestAssignment.manzanasTrabajadas,
+          blocksPending: latestAssignment.manzanasPendientes,
+          completedCurrentCycleDisplay: completedCurrentCycleDisplay,
+          campaignsForHistoryModal: sortedAssignments.map(a => ({
+            assignedTo: a.publicador,
+            assignedDate: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date()),
+            blocksWorked: a.manzanasTrabajadas,
+            blocksPending: a.manzanasPendientes,
+            completadoAsignacion: a.completadoAsignacion,
+          })),
+        };
+      }
 
       return {
-        id: mostRecentlyCompleted?.id || territory.id,
+        id: `new-${territory.id}`,
         territoryId: territory.id,
         territoryNumber: territory.number || territory.name,
         status: "Disponible",
-        lastCompletedDate: mostRecentlyCompleted?.completedCurrentCycle ? format(mostRecentlyCompleted.completedCurrentCycle, "dd/MM/yyyy") : "N/A",
-        completedCurrentCycleDisplay: mostRecentlyCompleted?.completedCurrentCycle ? format(mostRecentlyCompleted.completedCurrentCycle, "dd/MM/yyyy") : "N/A",
-        campaignsForHistoryModal: mostRecentlyCompleted?.campaigns || [],
+        lastCompletedDate: "N/A",
+        completedCurrentCycleDisplay: "N/A",
+        campaignsForHistoryModal: [],
       };
     });
   }, [allTerritories, allReports]);
-  
+
   const handleOpenReportEntryDialog = (territoryId: string) => {
     const territory = allTerritories.find(t => t.id === territoryId);
     if (!territory) return;
 
-    const activeReport = allReports.find(r => r.territoryId === territoryId && r.status === 'En Curso') || null;
-    setSelectedReportData({ territory, report: activeReport });
+    const liveReport = allReports.find(r => r.territoryId === territoryId);
+
+    if (liveReport) {
+      setSelectedReportData({ territory, report: liveReport });
+    } else {
+      const reportViewData = processedDetailedData.find(p => p.territoryId === territoryId);
+      if (reportViewData && reportViewData.id.startsWith('historical-')) {
+        const historicalCampaigns = reportViewData.campaignsForHistoryModal;
+        const completedCampaigns = historicalCampaigns.filter(c => c.completadoAsignacion);
+
+        const tempReport: ReportEntry = {
+          territoryId: territory.id,
+          territoryNumber: territory.number || territory.name,
+          lastCompletedHistoric: completedCampaigns.length > 1 && completedCampaigns[1].assignedDate ? completedCampaigns[1].assignedDate : null,
+          status: reportViewData.status === "Disponible" ? "Completado" : "En Curso",
+          completedCurrentCycle: completedCampaigns.length > 0 && completedCampaigns[0].assignedDate ? completedCampaigns[0].assignedDate : "En curso",
+          campaigns: historicalCampaigns,
+        };
+        setSelectedReportData({ territory, report: tempReport });
+      } else {
+        setSelectedReportData({ territory, report: null });
+      }
+    }
+    
     setIsReportEntryDialogOpen(true);
   };
-
+  
   const handleSaveReportData = async (data: ReportEntry) => {
     const docId = data.id || doc(collection(db, REPORTS_COLLECTION_NAME)).id;
     const reportRef = doc(db, REPORTS_COLLECTION_NAME, docId);
