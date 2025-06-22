@@ -35,7 +35,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Filter, FileText, Eye, History, Loader2, Pencil, AlertTriangle } from "lucide-react";
+import { Filter, FileText, Eye, History, Loader2, Pencil, AlertTriangle, BadgeCent, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
@@ -43,11 +43,21 @@ import { collection, query, onSnapshot, doc, setDoc, Timestamp, orderBy, where }
 import { db } from "@/lib/firebase";
 import type { Territory, ReportEntry, CampaignAssignment, S13CycleDetail, ProcessedDetailedReportView } from "@/types";
 import { format, parse, isValid as isDateValid, compareDesc, getYear as getYearFromDateFn } from "date-fns";
+import { es } from "date-fns/locale";
 import { EditReportEntryDialog } from "@/components/reportes/edit-report-entry-dialog";
 import { historicalReportData } from '@/lib/reports-data';
+import { Badge } from "@/components/ui/badge";
 
 
 const REPORTS_COLLECTION_NAME = "reports";
+
+interface S13CycleViewData {
+  id: string;
+  territoryNumber: string;
+  completionDate: Date;
+  campaignName: string | null;
+}
+
 
 export default function ReportesPage() {
   const { toast } = useToast();
@@ -194,6 +204,43 @@ export default function ReportesPage() {
       };
     });
   }, [allTerritories, allReports]);
+  
+  const s13Cycles = useMemo((): S13CycleViewData[] => {
+    const cycles: S13CycleViewData[] = [];
+
+    // Process historical data
+    historicalReportData.forEach(terrData => {
+      terrData.asignaciones.forEach((asig, index) => {
+        if (asig.completadoAsignacion) {
+          const completionDate = parse(asig.fechaAsignacion, 'dd/MM/yyyy', new Date());
+          if (isDateValid(completionDate)) {
+            cycles.push({
+              id: `hist-${terrData.numeroTerritorio}-${index}`,
+              territoryNumber: String(terrData.numeroTerritorio),
+              completionDate: completionDate,
+              campaignName: asig.esCampanaEspecial ? (asig.nombreCampana || 'Campaña Especial') : null,
+            });
+          }
+        }
+      });
+    });
+
+    // Process live data from Firestore
+    allReports.forEach(report => {
+      if (report.status === 'Completado' && report.completedCurrentCycle instanceof Date) {
+        // Future enhancement: Check if this live cycle was part of a campaign
+        cycles.push({
+          id: `live-${report.id}`,
+          territoryNumber: report.territoryNumber,
+          completionDate: report.completedCurrentCycle,
+          campaignName: null, // Placeholder for now
+        });
+      }
+    });
+
+    return cycles.sort((a, b) => compareDesc(a.completionDate, b.completionDate));
+  }, [allReports]);
+
 
   const handleOpenReportEntryDialog = (territoryId: string) => {
     const territory = allTerritories.find(t => t.id === territoryId);
@@ -341,14 +388,33 @@ export default function ReportesPage() {
         <TabsContent value="s13Log" className="mt-4">
           <Card className="shadow-md">
             <CardHeader>
-                <CardTitle>Vista S-13 (Ciclos Completados)</CardTitle>
-                <CardDescription>Esta vista se llenará a medida que se completen los ciclos de trabajo.</CardDescription>
+                <CardTitle>Registro S-13 (Ciclos Completados)</CardTitle>
+                <CardDescription>Esta vista muestra un registro histórico de todos los ciclos de territorios completados.</CardDescription>
             </CardHeader>
              <CardContent>
                 <Table>
-                    <TableHeader><TableRow><TableHead>Territorio</TableHead><TableHead>Fecha Completado</TableHead></TableRow></TableHeader>
+                    <TableHeader><TableRow><TableHead>Territorio</TableHead><TableHead>Fecha Completado</TableHead><TableHead>Campaña Asociada</TableHead></TableRow></TableHeader>
                     <TableBody>
-                        <TableRow><TableCell colSpan={2} className="h-24 text-center">No hay datos S-13 para mostrar.</TableCell></TableRow>
+                        {s13Cycles.length === 0 ? (
+                          <TableRow><TableCell colSpan={3} className="h-24 text-center">No hay ciclos completados para mostrar.</TableCell></TableRow>
+                        ) : (
+                          s13Cycles.map((cycle) => (
+                            <TableRow key={cycle.id}>
+                              <TableCell className="font-medium">{cycle.territoryNumber}</TableCell>
+                              <TableCell>{format(cycle.completionDate, "dd/MM/yyyy")}</TableCell>
+                              <TableCell>
+                                {cycle.campaignName ? (
+                                  <Badge variant="outline" className="text-primary border-primary/70 font-semibold bg-primary/10">
+                                    <Star className="mr-1.5 h-3.5 w-3.5" />
+                                    {cycle.campaignName}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                     </TableBody>
                 </Table>
              </CardContent>
@@ -388,7 +454,6 @@ export default function ReportesPage() {
           </DialogContent>
         </Dialog>
       )}
-
     </div>
   );
 }
