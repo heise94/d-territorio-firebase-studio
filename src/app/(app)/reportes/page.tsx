@@ -125,6 +125,9 @@ export default function ReportesPage() {
     const data: ProcessedDetailedReportView[] = allTerritories.map(territory => {
       const liveReport = allReports.find(r => r.territoryId === territory.id);
       const displayIdentifier = territory.number || 'S/N';
+      const historicalAssignmentsWithDates = (historicalDataMap.get(territory.number || '') || [])
+        .map((a: any) => ({...a, dateObj: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date())}))
+        .filter((a: any) => isDateValid(a.dateObj));
 
       if (liveReport) {
          let lastCycleCompletionDate = 'N/A';
@@ -142,7 +145,7 @@ export default function ReportesPage() {
               name: territory.name,
               status: "Disponible",
               lastCycleCompletionDate: lastCycleCompletionDate,
-              campaigns: liveReport.campaigns,
+              campaignsForHistoryModal: [],
            };
         }
         
@@ -153,30 +156,28 @@ export default function ReportesPage() {
           name: territory.name,
           status: "En Curso",
           lastCycleCompletionDate: lastCycleCompletionDate,
-          campaigns: liveReport.campaigns,
+          campaignsForHistoryModal: liveReport.campaigns,
         };
       }
 
-      const historicalAssignments = historicalDataMap.get(territory.number || '');
-      if (historicalAssignments && historicalAssignments.length > 0) {
-        const sortedAssignments = [...historicalAssignments].map(a => ({...a, dateObj: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date())})).sort((a,b) => compareDesc(a.dateObj, b.dateObj));
-        const completedAssignments = sortedAssignments.filter(a => a.completadoAsignacion);
+      if (historicalAssignmentsWithDates.length > 0) {
+        const sortedAssignments = [...historicalAssignmentsWithDates].sort((a,b) => a.dateObj.getTime() - b.dateObj.getTime());
+        const lastCompletedIndex = sortedAssignments.map(a => a.completadoAsignacion).lastIndexOf(true);
+        const isCurrentlyCompleted = lastCompletedIndex === sortedAssignments.length - 1;
+        const currentCycleAssignments = lastCompletedIndex === -1 ? sortedAssignments : sortedAssignments.slice(lastCompletedIndex + 1);
+        const lastCycleCompletionDateObj = lastCompletedIndex > -1 ? sortedAssignments[lastCompletedIndex].dateObj : null;
+        const lastCycleCompletionDateStr = lastCycleCompletionDateObj ? format(lastCycleCompletionDateObj, "dd/MM/yyyy") : 'N/A';
+        const lastAssignmentInCycle = currentCycleAssignments[currentCycleAssignments.length-1];
 
-        if (sortedAssignments[0].completadoAsignacion) {
+        if (isCurrentlyCompleted) {
           return {
             id: `historical-${territory.id}`,
             territoryId: territory.id,
             territoryNumber: displayIdentifier,
             name: territory.name,
             status: "Disponible",
-            lastCycleCompletionDate: completedAssignments.length > 0 ? format(completedAssignments[0].dateObj, "dd/MM/yyyy") : 'N/A',
-            campaigns: sortedAssignments.map(a => ({
-                assignedTo: a.publicador,
-                assignedDate: a.dateObj,
-                blocksWorked: a.manzanasTrabajadas,
-                blocksPending: a.manzanasPendientes,
-                completadoAsignacion: a.completadoAsignacion,
-            })),
+            lastCycleCompletionDate: lastCycleCompletionDateStr,
+            campaignsForHistoryModal: [],
           };
         }
         
@@ -186,8 +187,12 @@ export default function ReportesPage() {
           territoryNumber: displayIdentifier,
           name: territory.name,
           status: "En Curso",
-          lastCycleCompletionDate: completedAssignments.length > 0 ? format(completedAssignments[0].dateObj, "dd/MM/yyyy") : 'N/A',
-          campaigns: sortedAssignments.map(a => ({
+          lastCycleCompletionDate: lastCycleCompletionDateStr,
+          assignedTo: lastAssignmentInCycle?.publicador,
+          assignedDate: lastAssignmentInCycle?.dateObj ? format(lastAssignmentInCycle.dateObj, "dd/MM/yyyy") : 'N/A',
+          blocksWorked: lastAssignmentInCycle?.manzanasTrabajadas,
+          blocksPending: lastAssignmentInCycle?.manzanasPendientes,
+          campaignsForHistoryModal: currentCycleAssignments.map(a => ({
              assignedTo: a.publicador,
              assignedDate: a.dateObj,
              blocksWorked: a.manzanasTrabajadas,
@@ -204,7 +209,7 @@ export default function ReportesPage() {
         name: territory.name,
         status: "Disponible",
         lastCycleCompletionDate: "N/A",
-        campaigns: [],
+        campaignsForHistoryModal: [],
       };
     });
     
@@ -273,23 +278,20 @@ export default function ReportesPage() {
     const territory = allTerritories.find(t => t.id === territoryId);
     if (!territory) return;
 
-    const liveReport = allReports.find(r => r.territoryId === territoryId);
-    if (liveReport && liveReport.status === 'En Curso') {
-      setSelectedReportData({ territory, report: liveReport });
-      setIsViewActivityDialogOpen(true);
+    const reportViewData = processedDetailedData.find(p => p.territoryId === territoryId);
+    if (reportViewData && reportViewData.status === 'En Curso') {
+        const tempReport: ReportEntry = {
+            territoryId: territory.id,
+            territoryNumber: territory.number || territory.name,
+            status: 'En Curso',
+            campaigns: reportViewData.campaignsForHistoryModal,
+            lastCompletedHistoric: null,
+            completedCurrentCycle: "En curso"
+        };
+        setSelectedReportData({ territory, report: tempReport });
+        setIsViewActivityDialogOpen(true);
     } else {
-        const reportViewData = processedDetailedData.find(p => p.territoryId === territoryId);
-        if (reportViewData && reportViewData.status === 'En Curso') {
-            const tempReport: ReportEntry = {
-                territoryId: territory.id, territoryNumber: territory.number || territory.name,
-                status: 'En Curso', campaigns: reportViewData.campaigns,
-                lastCompletedHistoric: null, completedCurrentCycle: "En curso"
-            };
-            setSelectedReportData({ territory, report: tempReport });
-            setIsViewActivityDialogOpen(true);
-        } else {
-           toast({ title: "Info", description: "Este territorio no tiene un ciclo activo para visualizar.", variant: "default"});
-        }
+        toast({ title: "Info", description: "Este territorio no tiene un ciclo activo para visualizar.", variant: "default"});
     }
   };
   
