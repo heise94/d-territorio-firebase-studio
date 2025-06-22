@@ -48,6 +48,9 @@ export const PERMISSIONS = {
   VIEW_OWN_ASSIGNMENTS: "view_own_assignments",
   VIEW_ALL_ASSIGNMENTS: "view_all_assignments", // For admins
   ASSUME_DIRECTION_PROGRAM: "assume_direction_program", // In weekly program
+  
+  // Report Management
+  VIEW_REPORTS: "view_reports",
 
   // Settings
   MANAGE_PROGRAM_SETTINGS: "manage_program_settings", // Preaching schedules, group days, rural rotation
@@ -69,6 +72,7 @@ export const PERMISSION_MODULES = {
   PROGRAM: "Programa General",
   ASSIGNMENTS: "Asignaciones",
   MY_GROUP: "Mi Grupo",
+  REPORTS: "Reportes",
   SETTINGS: "Configuración General",
 } as const;
 
@@ -148,6 +152,13 @@ export const PERMISSIONS_BY_MODULE: ModulePermissions[] = [
       { id: PERMISSIONS.MANAGE_OWN_AVAILABILITY, description: "Gestionar mi propia disponibilidad horaria" },
     ],
   },
+   {
+    moduleName: PERMISSION_MODULES.REPORTS,
+    moduleDescription: "Visualización de reportes de territorios como el S-13.",
+    permissions: [
+      { id: PERMISSIONS.VIEW_REPORTS, description: "Ver la página de Reportes" },
+    ],
+  },
   {
     moduleName: PERMISSION_MODULES.MY_GROUP,
     moduleDescription: "Herramientas específicas para Superintendentes de Grupo (SG).",
@@ -184,6 +195,7 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.VIEW_WEEKLY_PROGRAM, PERMISSIONS.ASSUME_DIRECTION_PROGRAM,
     PERMISSIONS.VIEW_ALL_ASSIGNMENTS, PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
+    PERMISSIONS.VIEW_REPORTS,
   ],
   [USER_ROLES.SS]: [ 
     PERMISSIONS.VIEW_DASHBOARD,
@@ -194,6 +206,7 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.VIEW_MONTHLY_PROGRAM, PERMISSIONS.VIEW_WEEKLY_PROGRAM,
     PERMISSIONS.VIEW_ALL_ASSIGNMENTS, PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
+    PERMISSIONS.VIEW_REPORTS,
   ],
   [USER_ROLES.SG]: [ 
     PERMISSIONS.VIEW_DASHBOARD,
@@ -207,6 +220,7 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS,
     PERMISSIONS.MANAGE_OWN_GROUP_CASAS,
     PERMISSIONS.ASSIGN_TERRITORIES_GROUP,
+    PERMISSIONS.VIEW_REPORTS,
   ],
   [USER_ROLES.PUBLICADOR]: [
     PERMISSIONS.VIEW_DASHBOARD, 
