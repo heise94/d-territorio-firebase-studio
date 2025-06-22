@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2, Send } from "lucide-react";
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
+import { EditUserDialog } from "@/components/usuarios/edit-user-dialog";
 import type { UserProfile, PreachingGroup } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, doc, updateDoc, deleteDoc, setDoc, collection, query, orderBy, onSnapshot, deleteField } from "firebase/firestore";
@@ -45,6 +46,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export default function UsuariosPage() {
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+  const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
+  const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
+
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -165,6 +169,39 @@ export default function UsuariosPage() {
     }
   };
 
+  const handleUserUpdate = async (userId: string, data: Partial<Pick<UserProfile, 'role' | 'assignedGroupId'>>) => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      return;
+    }
+    const userDocRef = doc(db, "users", userId);
+    
+    const updatePayload: any = {
+        role: data.role,
+        updatedAt: Timestamp.now(),
+    };
+
+    if (data.assignedGroupId !== undefined) {
+        if (data.assignedGroupId) {
+            updatePayload.assignedGroupId = data.assignedGroupId;
+        } else {
+            updatePayload.assignedGroupId = deleteField();
+        }
+    }
+
+    try {
+      await updateDoc(userDocRef, updatePayload);
+      toast({
+        title: "Usuario Actualizado",
+        description: `El perfil de ${userToEdit?.name} ha sido actualizado.`,
+      });
+    } catch (error) {
+      console.error("Error updating user:", error);
+      toast({ title: "Error al Actualizar", description: "No se pudo actualizar el perfil del usuario.", variant: "destructive" });
+      throw error;
+    }
+  };
+
 
   const handleOpenBlockReasonUserDialog = (user: UserProfile) => {
     setUserToBlock(user);
@@ -224,12 +261,9 @@ export default function UsuariosPage() {
     }
   };
 
-  const handleEditUser = (userId: string) => {
-    toast({
-      title: "Función no implementada",
-      description: "La edición de usuarios estará disponible pronto.",
-    });
-    console.log(`Editando usuario ${userId}`);
+  const handleEditUser = (user: UserProfile) => {
+    setUserToEdit(user);
+    setIsEditUserDialogOpen(true);
   };
 
   const handleImpersonateUser = (userToImpersonate: UserProfile) => {
@@ -287,7 +321,6 @@ export default function UsuariosPage() {
 
     const message = `¡Hola ${userToInvite.name}! Has sido invitado a D-TERRITORIO. Para activar tu cuenta y crear tu contraseña, por favor haz clic en el siguiente enlace: ${invitationUrl}`;
     
-    // Remove all non-digit characters to clean the number for the wa.me link.
     const cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[^\d]/g, "");
 
     const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${encodeURIComponent(message)}`;
@@ -510,11 +543,11 @@ export default function UsuariosPage() {
                            {canManageUsers && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user.id)} disabled={user.status !== 'Activo' || isSubmitting}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUser(user)} disabled={isSubmitting}>
                                     <Edit3 className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Editar Usuario (Próximamente)</TooltipContent>
+                                <TooltipContent>Editar Usuario</TooltipContent>
                               </Tooltip>
                            )}
 
@@ -598,6 +631,14 @@ export default function UsuariosPage() {
           onOpenChange={setIsAddUserDialogOpen}
           onUserAdded={handleUserAdded}
           availableGroups={availableGroups}
+        />
+
+        <EditUserDialog
+            isOpen={isEditUserDialogOpen}
+            onOpenChange={setIsEditUserDialogOpen}
+            onUserUpdate={handleUserUpdate}
+            userToEdit={userToEdit}
+            availableGroups={availableGroups}
         />
 
         {userToBlock && (
