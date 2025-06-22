@@ -40,6 +40,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 export default function UsuariosPage() {
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
@@ -443,16 +445,16 @@ export default function UsuariosPage() {
                               {isPendingAdminApprovalFromGroup && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                     <p className="text-xs text-amber-700 dark:text-amber-400 font-medium mt-0.5 cursor-default">Invitado por Grupo: {user.addedByGroupId}</p>
+                                     <p className="text-xs text-amber-700 dark:text-amber-400 font-medium mt-0.5 cursor-default">Invitado por Grupo: {groupName || user.addedByGroupId}</p>
                                   </TooltipTrigger>
-                                  <TooltipContent>Este usuario fue invitado por el SG del Grupo {user.addedByGroupId} y requiere aprobación del Encargado de Territorio.</TooltipContent>
+                                  <TooltipContent>Este usuario fue invitado por el SG del Grupo {groupName || user.addedByGroupId} y requiere aprobación del Encargado de Territorio.</TooltipContent>
                                 </Tooltip>
                               )}
                             </div>
                           </div>
                         </TableCell>
                         <TableCell><Badge variant="outline">{user.role}</Badge></TableCell>
-                        <TableCell>{groupName || user.assignedGroupId || 'N/A'}</TableCell>
+                        <TableCell>{groupName || 'N/A'}</TableCell>
                         <TableCell>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -478,7 +480,7 @@ export default function UsuariosPage() {
                             )}
                              {isPendingAdminApprovalFromGroup && (
                                  <TooltipContent side="bottom" className="max-w-xs bg-blue-500/10 border border-blue-500 text-blue-700 p-2 rounded-md shadow-lg">
-                                    <p className="text-xs">Este usuario fue invitado por el SG del Grupo {user.addedByGroupId} y requiere aprobación.</p>
+                                    <p className="text-xs">Este usuario fue invitado por el SG del Grupo {groupName || user.addedByGroupId} y requiere aprobación.</p>
                                 </TooltipContent>
                              )}
                           </Tooltip>
@@ -554,38 +556,36 @@ export default function UsuariosPage() {
                                 <TooltipContent>Suplantar Usuario</TooltipContent>
                                 </Tooltip>
                             )}
-
+                            
                             {canManageUsers && !isUserAdmin && (
                                 <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Tooltip>
+                                  <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
-                                        disabled={isUserAdmin || isSubmitting} >
-                                        <Trash2 className="h-4 w-4" />
+                                      <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isSubmitting}>
+                                          <Trash2 className="h-4 w-4" />
                                         </Button>
+                                      </AlertDialogTrigger>
                                     </TooltipTrigger>
-                                    <TooltipContent>{isUserAdmin ? "No se puede eliminar al administrador" : "Eliminar Usuario"}</TooltipContent>
-                                    </Tooltip>
-                                </AlertDialogTrigger>
-                                {!isUserAdmin && (
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                        <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario '{user.name}' de Firestore. La cuenta de Firebase Auth (si existe) deberá eliminarse manualmente.
-                                        </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className={buttonVariants({variant: "destructive"})}>
-                                            Sí, eliminar de Firestore
-                                        </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                )}
+                                    <TooltipContent><p>Eliminar Usuario</p></TooltipContent>
+                                  </Tooltip>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario '{user.name}' de Firestore. La cuenta de Firebase Auth (si existe) deberá eliminarse manualmente.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => handleDeleteUser(user.id)} className={buttonVariants({variant: "destructive"})}>
+                                        Sí, eliminar de Firestore
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
                                 </AlertDialog>
                             )}
+
                           </div>
                         </TableCell>
                       </TableRow>
