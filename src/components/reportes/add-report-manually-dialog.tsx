@@ -60,21 +60,6 @@ interface AddReportManuallyDialogProps {
   onSave: (data: ManualReportSubmitData) => void;
 }
 
-const toRangeString = (numbers: number[]): string => {
-  if (!numbers.length) return "";
-  const sorted = [...numbers].sort((a, b) => a - b);
-  const ranges: (string | number)[] = [];
-  for (let i = 0; i < sorted.length; i++) {
-    let start = sorted[i];
-    while (i + 1 < sorted.length && sorted[i + 1] === sorted[i] + 1) {
-      i++;
-    }
-    let end = sorted[i];
-    ranges.push(start === end ? start : `${start}-${end}`);
-  }
-  return ranges.join(', ');
-};
-
 export function AddReportManuallyDialog({
   isOpen,
   onOpenChange,
@@ -101,6 +86,14 @@ export function AddReportManuallyDialog({
   
   const watchedTerritoryId = form.watch("territoryId");
 
+  const sortedTerritories = useMemo(() => {
+    return [...territories].sort((a, b) => {
+      const numA = a.number || 'zzzz'; // Push non-numbered (like rural) to the end
+      const numB = b.number || 'zzzz';
+      return numA.localeCompare(numB, undefined, { numeric: true });
+    });
+  }, [territories]);
+
   useEffect(() => {
     if (!isOpen) {
       form.reset();
@@ -120,12 +113,8 @@ export function AddReportManuallyDialog({
     
     const allBlockNumbers = Array.from({ length: selectedTerritory.totalBlocks || 0 }, (_, i) => i + 1);
     const workedNumbers = Array.from(checkedBlocks).sort((a,b) => a-b);
-    const pendingNumbers = allBlockNumbers.filter(n => !checkedBlocks.has(n));
-
-    form.setValue('blocksWorked', toRangeString(workedNumbers));
-    form.setValue('blocksPending', toRangeString(pendingNumbers));
     
-    const isComplete = allBlockNumbers.length > 0 && pendingNumbers.length === 0;
+    const isComplete = allBlockNumbers.length > 0 && workedNumbers.length === allBlockNumbers.length;
     form.setValue('isCompleted', isComplete);
 
     if (isComplete) {
@@ -141,9 +130,9 @@ export function AddReportManuallyDialog({
     const allBlockNumbers = new Set(Array.from({ length: selectedTerritory.totalBlocks }, (_, i) => i + 1));
     
     if (checkedBlocks.size === allBlockNumbers.size) {
-      setCheckedBlocks(new Set()); // Deselect all
+      setCheckedBlocks(new Set());
     } else {
-      setCheckedBlocks(allBlockNumbers); // Select all
+      setCheckedBlocks(allBlockNumbers);
     }
   };
 
@@ -151,8 +140,14 @@ export function AddReportManuallyDialog({
   async function onSubmit(values: z.infer<typeof addReportFormSchema>) {
     setIsSubmitting(true);
     try {
+      const allBlockNumbers = Array.from({ length: selectedTerritory?.totalBlocks || 0 }, (_, i) => i + 1);
+      const workedNumbers = Array.from(checkedBlocks).sort((a,b) => a-b);
+      const pendingNumbers = allBlockNumbers.filter(n => !checkedBlocks.has(n));
+
       await onSave({
         ...values,
+        blocksWorked: workedNumbers.join(', '),
+        blocksPending: pendingNumbers.join(', '),
         completionDate: values.isCompleted ? values.completionDate : null,
       });
     } finally {
@@ -184,7 +179,7 @@ export function AddReportManuallyDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {territories.map((t) => (
+                      {sortedTerritories.map((t) => (
                         <SelectItem key={t.id} value={t.id}>
                            {t.number ? `N° ${t.number}` : t.name}
                         </SelectItem>
@@ -263,4 +258,3 @@ export function AddReportManuallyDialog({
     </Dialog>
   );
 }
-
