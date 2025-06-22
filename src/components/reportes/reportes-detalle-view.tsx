@@ -72,10 +72,7 @@ export function ReportesDetalleView({ data }: ReportesDetalleViewProps) {
                   {data.map((row) => (
                       <TableRow key={row.territoryId}>
                           <TableCell className="font-medium">
-                            <div className="flex flex-col">
-                                <span>{row.territoryNumber || 'Rural'}</span>
-                                <span className="text-xs text-muted-foreground truncate" title={row.territoryName}>{row.territoryName}</span>
-                            </div>
+                            {row.territoryNumber || row.territoryName}
                           </TableCell>
                           <TableCell>{row.lastWorked}</TableCell>
                           <TableCell>{row.lastAssignmentDate}</TableCell>
