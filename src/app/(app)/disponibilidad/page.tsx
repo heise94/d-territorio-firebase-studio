@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp, onSnapshot, Timestamp } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
