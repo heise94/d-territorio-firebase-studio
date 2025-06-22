@@ -9,7 +9,7 @@ import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon
 import { useToast } from "@/hooks/use-toast";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse, isAfter, isBefore as isBeforeDateFns } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek, CustomHoliday, TerritoryType, AdditionalTerritoryInfo } from "@/types";
+import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek, CustomHoliday, TerritoryType, AdditionalTerritoryInfo, UserProfile } from "@/types";
 import { AddGroupAssignmentDialog, type GroupAssignmentSubmitDataType } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
 import { SuggestTerritoryForGroupAssignmentDialog } from "@/components/mi-grupo/programa/suggest-territory-for-group-assignment-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -26,12 +26,34 @@ const months = Array.from({ length: 12 }, (_, i) => ({
   label: format(new Date(currentYear, i), "MMMM", { locale: es }),
 }));
 
-const MOCK_GROUP_PUBLISHERS: PublisherDetail[] = [
-    { id: "uidUser1", name: "Ana Pérez (G1)", email: "ana@example.com", availability: { availableSlotIds: [] }, assignedGroupId: "G1" },
-    { id: "uidUser2", name: "Luis Gómez (G1)", email: "luis@example.com", availability: { availableSlotIds: [] }, assignedGroupId: "G1" },
-    { id: "uidUser3", name: "Carlos Díaz (G2)", email: "carlos@example.com", availability: { availableSlotIds: [] }, assignedGroupId: "G2" },
-    { id: "uidUser4", name: "Elena Jara (G2)", email: "elena@example.com", availability: { availableSlotIds: [] }, assignedGroupId: "G2" },
+// MOCK DATA - Consolidated list of users for demonstration
+const MOCK_ALL_PUBLISHERS_DATA: UserProfile[] = [
+    // Special Roles
+    { id: "uidAdmin", name: "Pedro Velez (Admin)", email: "admin@example.com", phoneNumber: "+56955555555", availability: { availableSlotIds: ["sat-1000-gen"] }, role: USER_ROLES.ENCARGADO_TERRITORIO, status: "Activo", firebaseAuthUid: "uidAdmin", adminApprovalStatus: "approved" },
+    { id: "uidSG1", name: "Sofía Castro (SG G1)", email: "sg1@example.com", phoneNumber: "+56966666666", availability: { availableSlotIds: ["fri-1000-gen", "sun-1500-zoom"] }, assignedGroupId: "G1", role: USER_ROLES.SG, status: "Activo", firebaseAuthUid: "uidSG1", adminApprovalStatus: "approved" },
+    { id: "uidAux2", name: "Laura Nuñez (Auxiliar G2)", email: "aux2@example.com", phoneNumber: "+56988888888", availability: { availableSlotIds: ["wed-0930-gen"] }, assignedGroupId: "G2", role: USER_ROLES.AUXILIAR_TERRITORIO, status: "Activo", firebaseAuthUid: "uidAux2", adminApprovalStatus: "approved" },
+    // Publishers from historical data
+    { id: "uidPub1", name: "Camilo Torres", email: "camilo.torres@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub1", adminApprovalStatus: "approved" },
+    { id: "uidPub2", name: "Edison Díaz", email: "edison.diaz@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub2", adminApprovalStatus: "approved" },
+    { id: "uidPub3", name: "Robert Guale", email: "robert.guale@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub3", adminApprovalStatus: "approved" },
+    { id: "uidPub4", name: "Esteban Vásquez", email: "esteban.vasquez@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub4", adminApprovalStatus: "approved" },
+    { id: "uidPub5", name: "Carlos Heise", email: "carlos.heise@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub5", adminApprovalStatus: "approved" },
+    { id: "uidPub6", name: "Jimmy Guale", email: "jimmy.guale@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub6", adminApprovalStatus: "approved" },
+    { id: "uidPub7", name: "Gonzalo Heise", email: "gonzalo.heise@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub7", adminApprovalStatus: "approved" },
+    { id: "uidPub8", name: "Ricardo Salas", email: "ricardo.salas@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub8", adminApprovalStatus: "approved" },
+    { id: "uidPub9", name: "Rolando Alarcón", email: "rolando.alarcon@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub9", adminApprovalStatus: "approved" },
+    { id: "uidPub10", name: "Jonatan Palma", email: "jonatan.palma@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub10", adminApprovalStatus: "approved" },
+    { id: "uidPub11", name: "Cristian Pichinao", email: "cristian.pichinao@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub11", adminApprovalStatus: "approved" },
+    { id: "uidPub12", name: "Diego Henríquez", email: "diego.henriquez@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub12", adminApprovalStatus: "approved" },
+    { id: "uidPub13", name: "Cristian Coronado", email: "cristian.coronado@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub13", adminApprovalStatus: "approved" },
+    { id: "uidPub14", name: "Carlos Sepúlveda", email: "carlos.sepulveda@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub14", adminApprovalStatus: "approved" },
+    { id: "uidPub15", name: "Omar Salas", email: "omar.salas@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub15", adminApprovalStatus: "approved" },
+    { id: "uidPub16", name: "Javier Heise", email: "javier.heise@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub16", adminApprovalStatus: "approved" },
+    { id: "uidPub17", name: "Mauricio Flores", email: "mauricio.flores@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub17", adminApprovalStatus: "approved" },
+    { id: "uidPub18", name: "Nelsón Muci", email: "nelson.muci@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub18", adminApprovalStatus: "approved" },
+    { id: "uidPub19", name: "Martín Sandoval", email: "martin.sandoval@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub19", adminApprovalStatus: "approved" },
 ];
+
 
 const MOCK_GROUP_CASAS: Casa[] = [
     { id: "casaG1-A", ownerName: "Familia Pérez (G1)", address: "Calle Sol 123, G1", isBlocked: false, createdAt: Timestamp.now(), updatedAt: Timestamp.now(), addedByGroupId: "G1" },
@@ -96,7 +118,7 @@ export default function MiGrupoProgramaPage() {
 
   const currentGroupPublishers = useMemo(() => {
     if (!currentGroupId) return [];
-    return MOCK_GROUP_PUBLISHERS.filter(p => p.assignedGroupId === currentGroupId);
+    return MOCK_ALL_PUBLISHERS_DATA.filter(p => p.assignedGroupId === currentGroupId);
   }, [currentGroupId]);
 
   const currentGroupCasas = useMemo(() => {
@@ -526,4 +548,3 @@ export default function MiGrupoProgramaPage() {
     </TooltipProvider>
   );
 }
-
