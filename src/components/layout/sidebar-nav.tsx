@@ -4,16 +4,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  Home, Users, MapIcon as Map, Building, Users2 as GroupIcon, LayoutDashboard, Settings, FileText, CalendarDays, CheckSquare, UserCog, LogOut, CircleDot, GanttChartSquare, UserCheck, Activity, ListChecks
+  Home, Users, MapIcon as Map, Building, Users2 as GroupIcon, LayoutDashboard, Settings, FileText, CalendarDays, CheckSquare, UserCog, CircleDot, GanttChartSquare, UserCheck, ListChecks
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
+} from "@/components/ui/sidebar";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS, PermissionId } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -66,102 +67,74 @@ export function SidebarNav() {
   const pathname = usePathname() ?? "";
   const { hasPermission, isLoadingPermissions } = usePermissions();
 
-  // cleanPathname will be defined inside renderNavItem
+  if (isLoadingPermissions) {
+    return (
+      <div className="p-2 space-y-1">
+        {[...Array(8)].map((_, i) => <SidebarMenuSkeleton key={i} showIcon />)}
+      </div>
+    );
+  }
 
-  const renderNavItem = (item: NavItemConfig, isSubmenu = false, parentSegment?: string): JSX.Element | null => {
-    // Define cleanPathname here, using `pathname` from the outer scope
-    const cleanPathname = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
-
+  const renderNavItem = (item: NavItemConfig) => {
     if (item.permission && !hasPermission(item.permission)) {
       return null;
     }
 
     const Icon = item.icon;
-    const isParentAccordion = !!(item.children && item.children.length > 0);
-    
-    let isActive;
-    if (isParentAccordion) {
-      isActive = cleanPathname.startsWith(item.href);
-    } else if (isSubmenu && parentSegment) {
-        const cleanItemHref = item.href.endsWith('/') && item.href.length > 1 ? item.href.slice(0, -1) : item.href;
-        isActive = cleanPathname === cleanItemHref;
-        if (!isActive && item.segment) {
-            if (parentSegment === item.segment && cleanPathname === `/${parentSegment}`) {
-                 isActive = item.href === `/${parentSegment}`;
-            } else {
-                 isActive = cleanPathname === `/${parentSegment}/${item.segment}`;
-            }
-        }
-    } else {
-      const cleanItemHref = item.href.endsWith('/') && item.href.length > 1 ? item.href.slice(0, -1) : item.href;
-      isActive = cleanPathname === cleanItemHref;
-    }
+    const isActive = item.children 
+      ? pathname.startsWith(item.href) && item.href !== "/"
+      : pathname === item.href;
 
-    const commonLinkClasses = cn(
-      "flex items-center w-full px-3 rounded-md text-sm font-medium transition-colors",
-       isActive && !isParentAccordion ? "bg-primary text-primary-foreground" 
-       : isActive && isParentAccordion ? "bg-sidebar-accent text-sidebar-accent-foreground" 
-       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-       isSubmenu ? "pl-8 text-[0.9rem] py-1.5" : "py-2.5" 
-    );
-
-    if (item.children && item.children.length > 0) {
-      const visibleChildren = item.children.filter(child => !child.permission || hasPermission(child.permission));
-      if (visibleChildren.length === 0 && item.href === "#") return null; 
-
-      return (
-        <AccordionItem value={item.title} key={item.title} className="border-none">
-          <AccordionTrigger 
-            className={cn(commonLinkClasses, "justify-between hover:no-underline")}
-          >
-            <span className="flex items-center">
-                <Icon className={cn("mr-3 h-5 w-5 shrink-0", isActive && isParentAccordion ? "text-primary" : "")} />
-                {item.title}
-            </span>
-          </AccordionTrigger>
-          <AccordionContent className="pt-1 pb-0 pl-5 border-l border-sidebar-border ml-[calc(0.75rem+10px)] mt-1"> 
-            <ul className="space-y-0.5">
-              {visibleChildren.map(child => renderNavItem(child, true, item.segment))}
-            </ul>
-          </AccordionContent>
-        </AccordionItem>
-      );
-    }
-    
-    const cleanItemHref = item.href.endsWith('/') && item.href.length > 1 ? item.href.slice(0, -1) : item.href;
+    const visibleChildren = item.children?.filter(child => !child.permission || hasPermission(child.permission)) || [];
+    const hasVisibleChildren = visibleChildren.length > 0;
 
     return (
-      <li className="list-none" key={item.href}>
-        <Link href={item.href} className={commonLinkClasses}>
-          <Icon className={cn("mr-3 h-5 w-5 shrink-0", cleanPathname === cleanItemHref && !isSubmenu ? "text-primary-foreground" : cleanPathname === cleanItemHref && isSubmenu ? "text-primary" : "")} />
-          {item.title}
-        </Link>
-      </li>
+      <SidebarMenuItem key={item.title}>
+        <SidebarMenuButton
+          asChild
+          isActive={isActive && !hasVisibleChildren} // Only active if it's a direct link without children
+          tooltip={{
+            children: item.title,
+            side: "right",
+            align: "center",
+          }}
+        >
+          <Link href={hasVisibleChildren ? "#" : item.href}>
+            <Icon />
+            <span>{item.title}</span>
+          </Link>
+        </SidebarMenuButton>
+        {hasVisibleChildren && (
+          <SidebarMenuSub>
+            {visibleChildren.map(child => {
+               const isChildActive = pathname === child.href;
+               return (
+                <SidebarMenuSubItem key={child.title}>
+                    <SidebarMenuSubButton asChild isActive={isChildActive}>
+                        <Link href={child.href}>
+                            {child.title}
+                        </Link>
+                    </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+               )
+            })}
+          </SidebarMenuSub>
+        )}
+      </SidebarMenuItem>
     );
   };
 
-  if (isLoadingPermissions) {
-    return (
-      <div className="p-4 space-y-3">
-        {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}
-      </div>
-    );
-  }
-
   const visibleNavItems = navItems.filter(item => {
-    if (item.permission && !hasPermission(item.permission)) return false;
-    if (item.children && item.children.length > 0) {
-      return !item.permission || hasPermission(item.permission) || item.children.some(child => !child.permission || hasPermission(child.permission));
-    }
-    return true;
+     if (item.permission && !hasPermission(item.permission)) return false;
+     if (item.children) {
+        return item.children.some(child => !child.permission || hasPermission(child.permission));
+     }
+     return true;
   });
 
-
   return (
-    <ScrollArea className="h-full flex-1">
-      <Accordion type="multiple" className="w-full space-y-1 p-2" defaultValue={navItems.filter(item => item.segment && pathname.includes(`/${item.segment}`)).map(item => item.title)}>
-        {visibleNavItems.map(item => renderNavItem(item))}
-      </Accordion>
-    </ScrollArea>
+    <SidebarMenu>
+      {visibleNavItems.map(item => renderNavItem(item))}
+    </SidebarMenu>
   );
 }
