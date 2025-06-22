@@ -427,11 +427,16 @@ export default function ReportesPage() {
                         <TableCell>{report.blocksPending ?? '-'}</TableCell>
                         <TableCell>{report.status}</TableCell>
                         <TableCell className="text-right">
-                          {report.status === 'En Curso' && (
-                            <Button variant="ghost" size="icon" onClick={() => handleOpenReportEntryDialog(report.territoryId)} className="h-8 w-8">
-                              <Pencil className="h-4 w-4 text-primary" />
-                            </Button>
-                          )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={() => handleOpenReportEntryDialog(report.territoryId)} className="h-8 w-8">
+                                <Pencil className="h-4 w-4 text-primary" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Ingresar/Editar Reporte</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     )) : (
