@@ -12,8 +12,7 @@ import { EditUserDialog } from "@/components/usuarios/edit-user-dialog";
 import { EditUserAvailabilityDialog } from "@/components/usuarios/edit-user-availability-dialog";
 import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc, Casa } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, doc, updateDoc, deleteDoc, setDoc, collection, query, orderBy, onSnapshot, deleteField } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { Timestamp } from "firebase/firestore";
 import { USER_ROLES, USER_ROLES_LIST, UserRole } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -44,13 +43,41 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Skeleton } from "@/components/ui/skeleton";
 
 
+const MOCK_ALL_USERS_DATA: UserProfile[] = [
+    // Special Roles from before
+    { id: "uidAdmin", name: "Pedro Velez (Admin)", email: "admin@example.com", phoneNumber: "+56955555555", availability: { availableSlotIds: ["sat-1000-gen"] }, role: USER_ROLES.ENCARGADO_TERRITORIO, status: "Activo", firebaseAuthUid: "uidAdmin", adminApprovalStatus: "approved" },
+    { id: "uidSG1", name: "Sofía Castro (SG G1)", email: "sg1@example.com", phoneNumber: "+56966666666", availability: { availableSlotIds: ["fri-1000-gen", "sun-1500-zoom"] }, assignedGroupId: "G1", role: USER_ROLES.SG, status: "Activo", firebaseAuthUid: "uidSG1", adminApprovalStatus: "approved" },
+    { id: "uidAux2", name: "Laura Nuñez (Auxiliar G2)", email: "aux2@example.com", phoneNumber: "+56988888888", availability: { availableSlotIds: ["wed-0930-gen"] }, assignedGroupId: "G2", role: USER_ROLES.AUXILIAR_TERRITORIO, status: "Activo", firebaseAuthUid: "uidAux2", adminApprovalStatus: "approved" },
+    // Publishers created from historical data
+    { id: "pub-1", name: "Camilo Torres", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-2", name: "Edison Díaz", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-3", name: "Robert Guale", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-4", name: "Esteban Vásquez", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-5", name: "Carlos Heise", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-6", name: "Jimmy Guale", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-7", name: "Gonzalo Heise", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-8", name: "Ricardo Salas", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-9", name: "Rolando Alarcón", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-10", name: "Jonatan Palma", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-11", name: "Cristian Pichinao", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-12", name: "Diego Henríquez", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-13", name: "Cristian Coronado", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-14", name: "Carlos Sepúlveda", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-15", name: "Omar Salas", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-16", name: "Javier Heise", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-17", name: "Mauricio Flores", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-18", name: "Nelsón Muci", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+    { id: "pub-19", name: "Martín Sandoval", email: "", phoneNumber: "", role: USER_ROLES.PUBLICADOR, status: "Pendiente Invitación" },
+];
+
+
 export default function UsuariosPage() {
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
 
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [users, setUsers] = useState<UserProfile[]>(MOCK_ALL_USERS_DATA);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false); // No longer loading from firestore here
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const router = useRouter();
@@ -72,105 +99,34 @@ export default function UsuariosPage() {
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(true);
 
-
+  // MOCK DATA: Simulating fetching related data
   useEffect(() => {
-    if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
-      setIsLoadingUsers(false);
-      return;
-    }
-    setIsLoadingUsers(true);
-    const usersCollectionRef = collection(db, "users");
-    const q = query(usersCollectionRef, orderBy("adminApprovalStatus", "asc"), orderBy("name", "asc"));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedUsers = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt instanceof Timestamp ? doc.data().createdAt : Timestamp.now(),
-        updatedAt: doc.data().updatedAt instanceof Timestamp ? doc.data().updatedAt : Timestamp.now(),
-      } as UserProfile));
-      setUsers(fetchedUsers);
-      setIsLoadingUsers(false);
-    }, (error) => {
-      console.error("Error fetching users:", error);
-      if (error.message && error.message.includes("The query requires an index")) {
-        toast({
-            title: "Índice de Firestore Requerido",
-            description: "La consulta de usuarios necesita un índice. Por favor, créalo en la consola de Firebase. La URL para crearlo suele estar en los logs de error.",
-            variant: "destructive",
-            duration: 10000,
-        });
-      } else {
-        toast({ title: "Error al Cargar Usuarios", description: "No se pudieron cargar los usuarios desde Firestore.", variant: "destructive" });
-      }
-      setIsLoadingUsers(false);
-    });
-
-    return () => unsubscribe();
-  }, [toast]);
-  
-  useEffect(() => {
-    if (!db || Object.keys(db).length === 0) {
-      setIsLoadingGroups(false);
-      setIsLoadingCasas(false);
-      return;
-    }
     setIsLoadingGroups(true);
-    const groupsCollectionRef = collection(db, "preachingGroups");
-    const qGroups = query(groupsCollectionRef, orderBy("name", "asc"));
-    const unsubscribeGroups = onSnapshot(qGroups, (snapshot) => {
-        const fetchedGroups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PreachingGroup));
-        setAvailableGroups(fetchedGroups);
-        setIsLoadingGroups(false);
-    }, (error) => {
-        console.error("Error fetching preaching groups for users page:", error);
-        toast({ title: "Error al Cargar Grupos", description: "No se pudieron cargar los grupos de predicación.", variant: "destructive" });
-        setIsLoadingGroups(false);
-    });
-
     setIsLoadingCasas(true);
-    const casasCollectionRef = collection(db, "casas");
-    const qCasas = query(casasCollectionRef, orderBy("ownerName", "asc"));
-    const unsubscribeCasas = onSnapshot(qCasas, (snapshot) => {
-        const fetchedCasas = snapshot.docs.map(c => ({id: c.id, ...c.data()} as Casa));
-        setAvailableCasas(fetchedCasas);
-        setIsLoadingCasas(false);
-    }, (error) => {
-        console.error("Error fetching casas for users page:", error);
-        toast({ title: "Error al Cargar Casas", description: "No se pudieron cargar las casas.", variant: "destructive" });
-        setIsLoadingCasas(false);
-    });
-
-    return () => {
-      unsubscribeGroups();
-      unsubscribeCasas();
-    };
-  }, [toast]);
-
-  useEffect(() => {
-    // Fetch program slots for availability editing
-    if (!db || Object.keys(db).length === 0) {
-        setIsLoadingSlots(false);
-        return;
-    }
     setIsLoadingSlots(true);
-    const settingsDocRef = doc(db, "settings", "programConfig");
-    const unsubscribeSlots = onSnapshot(settingsDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const settingsData = docSnap.data() as SettingsDoc;
-          setProgramScheduleSlots(settingsData.programScheduleSlots || []);
-        } else {
-          setProgramScheduleSlots([]);
-        }
+    // Simulating async fetch
+    setTimeout(() => {
+        setAvailableGroups([
+            { id: 'G1', name: 'Grupo Los Pioneros', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+            { id: 'G2', name: 'Grupo Betel', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+        ]);
+        setAvailableCasas([
+            { id: 'C1', ownerName: 'Familia Pérez', address: 'Calle Sol 123', isBlocked: false, createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
+            { id: 'C2', ownerName: 'Hna. Ana', address: 'Av. Luna 456', isBlocked: false, createdAt: Timestamp.now(), updatedAt: Timestamp.now() }
+        ]);
+        setProgramScheduleSlots([
+            { id: 'mon-0900-gen', dayOfWeek: 'monday', startTime: '09:00', type: 'general', status: 'fixed' },
+            { id: 'wed-0930-gen', dayOfWeek: 'wednesday', startTime: '09:30', type: 'general', status: 'fixed' },
+            { id: 'fri-1000-gen', dayOfWeek: 'friday', startTime: '10:00', type: 'general', status: 'fixed' },
+            { id: 'sat-1000-gen', dayOfWeek: 'saturday', startTime: '10:00', type: 'general', status: 'fixed' },
+            { id: 'sun-1500-zoom', dayOfWeek: 'sunday', startTime: '15:00', type: 'zoom', status: 'tentative' },
+            { id: 'tue-1000-rur', dayOfWeek: 'tuesday', startTime: '10:00', type: 'rural', status: 'fixed' },
+        ]);
+        setIsLoadingGroups(false);
+        setIsLoadingCasas(false);
         setIsLoadingSlots(false);
-    }, (error) => {
-        console.error("Error fetching program schedule slots:", error);
-        toast({ title: "Error al Cargar Horarios", description: "No se pudieron cargar los horarios para editar disponibilidad.", variant: "destructive" });
-        setIsLoadingSlots(false);
-    });
-    return () => unsubscribeSlots();
-  }, [toast]);
+    }, 500);
+  }, []);
 
 
   const handleOpenAddUserDialog = () => {
@@ -182,82 +138,37 @@ export default function UsuariosPage() {
   };
 
   const handleUserAdded = async (newUserData: { name: string, email: string, role: UserRole, assignedGroupId?: string, phoneNumber: string }) => {
-    if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Configuración", description: "Firebase no está inicializado correctamente.", variant: "destructive" });
-      return;
-    }
-
     setIsSubmitting(true);
-    try {
-      const newUserDocRef = doc(collection(db, "users")); // Auto-generate ID
-      const newUserProfile: UserProfile = {
-        id: newUserDocRef.id,
-        name: newUserData.name,
-        email: newUserData.email,
-        phoneNumber: newUserData.phoneNumber,
-        role: newUserData.role,
-        assignedGroupId: newUserData.assignedGroupId || undefined,
-        status: 'Pendiente Invitación', 
-        adminApprovalStatus: 'approved', 
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      };
-      
-      await setDoc(newUserDocRef, newUserProfile);
-      
-      toast({
-        title: "Usuario Añadido",
-        description: `${newUserData.name} ha sido añadido al sistema. Ahora puedes enviarle una invitación para que cree su cuenta.`,
-        duration: 7000,
-      });
-      setIsAddUserDialogOpen(false);
-    } catch (error: any) {
-      console.error("Error creating user profile:", error);
-      toast({ title: "Error al Añadir Usuario", description: "No se pudo guardar el perfil del usuario.", variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
+    const newUserProfile: UserProfile = {
+      id: crypto.randomUUID(),
+      name: newUserData.name,
+      email: newUserData.email,
+      phoneNumber: newUserData.phoneNumber,
+      role: newUserData.role,
+      assignedGroupId: newUserData.assignedGroupId || undefined,
+      status: 'Pendiente Invitación', 
+      adminApprovalStatus: 'approved', 
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
+    
+    setUsers(prev => [newUserProfile, ...prev]);
+    
+    toast({
+      title: "Usuario Añadido (Simulación)",
+      description: `${newUserData.name} ha sido añadido a la lista local.`,
+      duration: 7000,
+    });
+    setIsAddUserDialogOpen(false);
+    setIsSubmitting(false);
   };
 
   const handleUserUpdate = async (userId: string, data: Partial<Pick<UserProfile, 'role' | 'assignedGroupId' | 'managedCasaId'>>) => {
-    if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
-      return;
-    }
-    const userDocRef = doc(db, "users", userId);
-    
-    const updatePayload: any = {
-        role: data.role,
-        updatedAt: Timestamp.now(),
-    };
-
-    if (data.assignedGroupId !== undefined) {
-        if (data.assignedGroupId) {
-            updatePayload.assignedGroupId = data.assignedGroupId;
-        } else {
-            updatePayload.assignedGroupId = deleteField();
-        }
-    }
-
-    if (data.managedCasaId !== undefined) {
-        if (data.managedCasaId) {
-            updatePayload.managedCasaId = data.managedCasaId;
-        } else {
-            updatePayload.managedCasaId = deleteField();
-        }
-    }
-
-    try {
-      await updateDoc(userDocRef, updatePayload);
-      toast({
-        title: "Usuario Actualizado",
-        description: `El perfil de ${userToEdit?.name} ha sido actualizado.`,
-      });
-    } catch (error) {
-      console.error("Error updating user:", error);
-      toast({ title: "Error al Actualizar", description: "No se pudo actualizar el perfil del usuario.", variant: "destructive" });
-      throw error;
-    }
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...data, updatedAt: Timestamp.now() } : u));
+    toast({
+      title: "Usuario Actualizado (Simulación)",
+      description: `El perfil de ${userToEdit?.name} ha sido actualizado localmente.`,
+    });
   };
 
 
@@ -268,55 +179,33 @@ export default function UsuariosPage() {
   };
 
   const confirmToggleBlockUser = async () => {
-    if (!userToBlock || !db || Object.keys(db).length === 0) return;
-
+    if (!userToBlock) return;
     setIsSubmitting(true);
     const newStatus = userToBlock.status === 'Activo' ? 'Bloqueado' : 'Activo';
-    const userDocRef = doc(db, "users", userToBlock.id);
-    const updateData: { status: UserProfile['status']; updatedAt: Timestamp; blockReason?: any } = {
-      status: newStatus,
-      updatedAt: Timestamp.now(),
-      blockReason: newStatus === 'Bloqueado' ? (blockReasonUser.trim() || deleteField()) : deleteField(),
-    };
-
-    try {
-      await updateDoc(userDocRef, updateData);
-      toast({
-        title: `Usuario ${newStatus === 'Bloqueado' ? 'Bloqueado' : 'Desbloqueado'}`,
-        description: `${userToBlock.name} ha sido ${newStatus === 'Bloqueado' ? 'bloqueado' : 'desbloqueado'}.`,
-      });
-    } catch (error) {
-      console.error("Error toggling user block status:", error);
-      toast({ title: "Error", description: "No se pudo actualizar el estado del usuario.", variant: "destructive" });
-    } finally {
-      setIsBlockReasonUserDialogOpen(false);
-      setUserToBlock(null);
-      setBlockReasonUser("");
-      setIsSubmitting(false);
-    }
+    
+    setUsers(prev => prev.map(u => u.id === userToBlock.id ? { ...u, status: newStatus, blockReason: newStatus === 'Bloqueado' ? blockReasonUser : undefined, updatedAt: Timestamp.now() } : u));
+    
+    toast({
+      title: `Usuario ${newStatus === 'Bloqueado' ? 'Bloqueado' : 'Desbloqueado'} (Simulación)`,
+      description: `${userToBlock.name} ha sido ${newStatus === 'Bloqueado' ? 'bloqueado' : 'desbloqueado'} localmente.`,
+    });
+    setIsBlockReasonUserDialogOpen(false);
+    setUserToBlock(null);
+    setBlockReasonUser("");
+    setIsSubmitting(false);
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
-      return;
-    }
     setIsSubmitting(true);
     const userToDelete = users.find(u => u.id === userId);
-    try {
-      await deleteDoc(doc(db, "users", userId));
-      toast({
-        title: "Usuario Eliminado de Firestore",
-        description: `${userToDelete?.name || 'El usuario'} ha sido eliminado de Firestore. La cuenta de Firebase Auth (si existe) debe eliminarse manualmente.`,
-        variant: "default",
-        duration: 7000,
-      });
-    } catch (error) {
-      console.error("Error deleting user from Firestore:", error);
-      toast({ title: "Error al Eliminar", description: "No se pudo eliminar el usuario de Firestore.", variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
+    setUsers(prev => prev.filter(u => u.id !== userId));
+    toast({
+      title: "Usuario Eliminado (Simulación)",
+      description: `${userToDelete?.name || 'El usuario'} ha sido eliminado de la lista local.`,
+      variant: "default",
+      duration: 7000,
+    });
+    setIsSubmitting(false);
   };
 
   const handleEditUser = (user: UserProfile) => {
@@ -342,30 +231,15 @@ export default function UsuariosPage() {
   };
 
   const handleApproveUser = async (userId: string) => {
-     if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
-      return;
-    }
     setIsSubmitting(true);
     const userToApprove = users.find(u => u.id === userId);
-    const userDocRef = doc(db, "users", userId);
-    try {
-      await updateDoc(userDocRef, {
-        adminApprovalStatus: 'approved',
-        status: 'Pendiente Invitación', // Changed from 'Activo'
-        updatedAt: Timestamp.now(),
-      });
-      toast({
-        title: "Usuario Aprobado",
-        description: `${userToApprove?.name || 'El usuario'} ha sido aprobado. Ahora puedes enviarle una invitación para que active su cuenta.`,
-        duration: 7000,
-      });
-    } catch (error) {
-      console.error("Error approving user:", error);
-      toast({ title: "Error al Aprobar", description: "No se pudo aprobar al usuario.", variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, adminApprovalStatus: 'approved', status: 'Pendiente Invitación' } : u));
+    toast({
+      title: "Usuario Aprobado (Simulación)",
+      description: `${userToApprove?.name || 'El usuario'} ha sido aprobado localmente. Ahora puedes enviarle una invitación.`,
+      duration: 7000,
+    });
+    setIsSubmitting(false);
   };
   
   const handleSendInvitation = (userToInvite: UserProfile) => {
@@ -375,13 +249,9 @@ export default function UsuariosPage() {
     }
     const appBaseUrl = window.location.origin;
     const invitationUrl = `${appBaseUrl}/accept-invitation?email=${encodeURIComponent(userToInvite.email)}`;
-
     const message = `¡Hola ${userToInvite.name}! Has sido invitado a D-TERRITORIO. Para activar tu cuenta y crear tu contraseña, por favor haz clic en el siguiente enlace: ${invitationUrl}`;
-    
     const cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[^0-9]/g, "");
-    
     const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${encodeURIComponent(message)}`;
-
     window.open(whatsappUrl, '_blank');
     toast({
         title: "Abriendo WhatsApp",
@@ -413,25 +283,11 @@ export default function UsuariosPage() {
   };
 
   const handleAvailabilityUpdate = async (userId: string, availability: { availableSlotIds: string[] }) => {
-    if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
-      return;
-    }
-    const userDocRef = doc(db, "users", userId);
-    try {
-      await updateDoc(userDocRef, {
-        "availability.availableSlotIds": availability.availableSlotIds,
-        updatedAt: Timestamp.now()
-      });
-      toast({
-        title: "Disponibilidad Actualizada",
-        description: `La disponibilidad del usuario ha sido actualizada.`,
-      });
-    } catch (error) {
-      console.error("Error updating user availability:", error);
-      toast({ title: "Error al Actualizar", description: "No se pudo actualizar la disponibilidad del usuario.", variant: "destructive" });
-      throw error;
-    }
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, availability: { ...u.availability, ...availability }, updatedAt: Timestamp.now() } : u));
+    toast({
+      title: "Disponibilidad Actualizada (Simulación)",
+      description: `La disponibilidad del usuario ha sido actualizada localmente.`,
+    });
   };
 
 
@@ -832,3 +688,5 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
+
+    
