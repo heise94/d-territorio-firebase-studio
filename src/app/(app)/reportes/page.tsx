@@ -132,7 +132,7 @@ export default function ReportesPage() {
           territoryNumber: territory.number || territory.name,
           name: territory.name,
           status: liveReport.status,
-          lastCompletedDate: liveReport.lastCompletedHistoric && isDateValid(liveReport.lastCompletedHistoric) ? format(liveReport.lastCompletedHistoric, "dd/MM/yyyy") : "N/A",
+          lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : 'N/A',
           assignedTo: lastCampaign?.assignedTo,
           assignedDate: lastCampaign?.assignedDate && isDateValid(lastCampaign.assignedDate) ? format(lastCampaign.assignedDate, "dd/MM/yyyy") : undefined,
           blocksWorked: lastCampaign?.blocksWorked,
@@ -151,16 +151,6 @@ export default function ReportesPage() {
         });
 
         const latestAssignment = sortedAssignments[0];
-        const completedAssignments = sortedAssignments.filter(a => a.completadoAsignacion);
-
-        const lastCompletedDate = completedAssignments.length > 1 && isDateValid(parse(completedAssignments[1].fechaAsignacion, 'dd/MM/yyyy', new Date()))
-          ? format(parse(completedAssignments[1].fechaAsignacion, 'dd/MM/yyyy', new Date()), "dd/MM/yyyy")
-          : "N/A";
-
-        const completedCurrentCycleDisplay = completedAssignments.length > 0 && isDateValid(parse(completedAssignments[0].fechaAsignacion, 'dd/MM/yyyy', new Date()))
-          ? format(parse(completedAssignments[0].fechaAsignacion, 'dd/MM/yyyy', new Date()), "dd/MM/yyyy")
-          : "En curso";
-
         const status = latestAssignment.completadoAsignacion ? "Disponible" : "En Curso";
 
         return {
@@ -169,12 +159,11 @@ export default function ReportesPage() {
           territoryNumber: territory.number || territory.name,
           name: territory.name,
           status: status,
-          lastCompletedDate: lastCompletedDate,
+          lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : 'N/A',
           assignedTo: latestAssignment.publicador,
           assignedDate: latestAssignment.fechaAsignacion,
           blocksWorked: latestAssignment.manzanasTrabajadas,
           blocksPending: latestAssignment.manzanasPendientes,
-          completedCurrentCycleDisplay: completedCurrentCycleDisplay,
           campaignsForHistoryModal: sortedAssignments.map(a => ({
             assignedTo: a.publicador,
             assignedDate: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date()),
@@ -191,8 +180,7 @@ export default function ReportesPage() {
         territoryNumber: territory.number || territory.name,
         name: territory.name,
         status: "Disponible",
-        lastCompletedDate: "N/A",
-        completedCurrentCycleDisplay: "N/A",
+        lastWorked: territory.lastWorked ? format(new Date(territory.lastWorked), 'dd/MM/yyyy') : "N/A",
         campaignsForHistoryModal: [],
       };
     });
@@ -374,7 +362,7 @@ export default function ReportesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>N° Terr.</TableHead>
-                      <TableHead>Últ. Completó (Hist.)</TableHead>
+                      <TableHead>Últ. Actividad</TableHead>
                       <TableHead>Asignado a (Actual)</TableHead>
                       <TableHead>Fecha Asig. (Actual)</TableHead>
                       <TableHead>Trabajado (Actual)</TableHead>
@@ -387,7 +375,7 @@ export default function ReportesPage() {
                     {processedDetailedData.length > 0 ? processedDetailedData.map((report) => (
                       <TableRow key={report.id}>
                         <TableCell className="font-semibold">{report.territoryNumber}</TableCell>
-                        <TableCell>{report.lastCompletedDate}</TableCell>
+                        <TableCell>{report.lastWorked}</TableCell>
                         <TableCell>{report.assignedTo || '-'}</TableCell>
                         <TableCell>{report.assignedDate || '-'}</TableCell>
                         <TableCell>{report.blocksWorked || '-'}</TableCell>

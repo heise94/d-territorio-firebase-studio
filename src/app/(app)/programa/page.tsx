@@ -241,7 +241,7 @@ export default function ProgramaMensualPage() {
             const assemblyEndMonth = assemblyEndDate.getMonth();
             const assemblyEndYear = assemblyEndDate.getFullYear();
             return (assemblyStartYear < selectedYear || (assemblyStartYear === selectedYear && assemblyStartMonth <= selectedMonth)) &&
-                   (assemblyEndYear > selectedYear || (assemblyEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
+                   (campaignEndYear > selectedYear || (campaignEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
         })
         .map(a => ({
             name: a.name,
@@ -252,7 +252,7 @@ export default function ProgramaMensualPage() {
 
       assignCasas: true,
       assignTerritories: true, 
-      detailedTerritoryReports: [], 
+      detailedTerritoryReports: territories, // Pass all territories so AI can check lastWorked date
       predeterminedRuralSundayAssignments: [],
       specialCampaignTerritoriesPerDay: 1,
     };
@@ -477,6 +477,3 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
-
-
-    

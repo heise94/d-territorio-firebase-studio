@@ -37,7 +37,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { Territory, ReportedAssignmentData, UserAssignment, SingleTerritoryReportDetails, AdditionalTerritoryInfo, TerritoryType } from "@/types";
 import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
 import { SolicitarTerritorioDialog } from "@/components/asignaciones/solicitar-territorio-dialog";
-import { Timestamp, collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, orderBy, getDoc } from "firebase/firestore";
+import { Timestamp, collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, orderBy, getDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; 
@@ -203,8 +203,7 @@ export default function MisAsignacionesPage() {
         return;
     }
     const isEditing = !!initialReportDataForDialog;
-    const assignmentRef = doc(db, "assignments", assignmentToReport.id);
-
+    
     const fullReportData: ReportedAssignmentData = {
         assignmentId: assignmentToReport.id,
         reports: data.reports,
@@ -215,32 +214,39 @@ export default function MisAsignacionesPage() {
     };
     
     try {
-        await updateDoc(assignmentRef, {
+        const batch = writeBatch(db);
+        
+        // 1. Update the assignment document with the report data
+        const assignmentRef = doc(db, "assignments", assignmentToReport.id);
+        batch.update(assignmentRef, {
             lastReportData: fullReportData,
             updatedAt: serverTimestamp()
         });
+
+        // 2. Update the 'lastWorked' date for each reported territory
+        data.reports.forEach(report => {
+            if (report.territoryId && !report.territoryNotWorked) { // Only update if it was actually worked
+                const territoryRef = doc(db, "territories", report.territoryId);
+                batch.update(territoryRef, {
+                    lastWorked: format(new Date(), "yyyy-MM-dd"),
+                    updatedAt: serverTimestamp()
+                });
+            }
+        });
+        
+        await batch.commit();
         
         let reportSummary = `${isEditing ? 'Reporte modificado' : 'Reporte enviado'} para "${assignmentToReport.locationName}".`;
-        const mainReport = fullReportData.reports.find(r => r.territoryId === (territoryForReport?.id || assignmentToReport.locationId));
-        if (mainReport?.territoryNotWorked) {
-            reportSummary += " Se indicó que el territorio principal no fue trabajado.";
-        }
-        if(assignmentToReport.additionalTerritorySelected) {
-            const additionalReport = fullReportData.reports.find(r => r.territoryId === assignmentToReport.additionalTerritorySelected!.id);
-            if (additionalReport?.territoryNotWorked) {
-                reportSummary += " Se indicó que el territorio adicional no fue trabajado.";
-            }
-        }
-        if(fullReportData.generalNotes) reportSummary += ` Notas: ${fullReportData.generalNotes}`;
-
+        // Additional summary logic can be added here if needed...
+        
         toast({
           title: isEditing ? "Reporte Modificado" : "Reporte Enviado",
           description: reportSummary,
           duration: 7000,
         });
     } catch (error) {
-        console.error("Error submitting report:", error);
-        toast({ title: "Error al Enviar Reporte", description: "No se pudo guardar el reporte en la base de datos.", variant: "destructive"});
+        console.error("Error submitting report and updating territories:", error);
+        toast({ title: "Error al Enviar Reporte", description: "No se pudo guardar el reporte o actualizar los territorios.", variant: "destructive"});
     } finally {
         setIsReportDialogOpen(false);
         setInitialReportDataForDialog(null); 
@@ -684,5 +690,3 @@ export default function MisAsignacionesPage() {
     </TooltipProvider>
   );
 }
-    
-    
