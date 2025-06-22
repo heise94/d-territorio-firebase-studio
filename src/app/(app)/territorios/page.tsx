@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddTerritoryDialog } from "@/components/territorios/add-territory-dialog";
 import { TerritoryCard } from "@/components/territorios/territory-card";
-import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert, Copy, Home, ArrowDownUp, XIcon, LayoutGrid, List } from "lucide-react";
+import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert, Copy, Home, ArrowDownUp, XIcon, LayoutGrid, List, Pencil, ShieldCheck, Trash2 } from "lucide-react";
 import type { Territory, TerritoryType, Casa, PreachingGroup } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, FieldValue, getDocs } from "firebase/firestore";
