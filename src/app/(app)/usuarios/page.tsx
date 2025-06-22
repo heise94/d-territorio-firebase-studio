@@ -14,7 +14,6 @@ import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc, Cas
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, doc, updateDoc, deleteDoc, setDoc, collection, query, orderBy, onSnapshot, deleteField } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { sendPasswordResetEmail } from "firebase/auth";
 import { USER_ROLES, USER_ROLES_LIST, UserRole } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -379,7 +378,7 @@ export default function UsuariosPage() {
 
     const message = `¡Hola ${userToInvite.name}! Has sido invitado a D-TERRITORIO. Para activar tu cuenta y crear tu contraseña, por favor haz clic en el siguiente enlace: ${invitationUrl}`;
     
-    const cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[^0-9+]/g, "");
+    const cleanedPhoneNumber = userToInvite.phoneNumber.replace(/[^0-9]/g, "");
     
     const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${encodeURIComponent(message)}`;
 
@@ -390,29 +389,22 @@ export default function UsuariosPage() {
     });
   };
 
-  const handleSendPasswordReset = async (email: string) => {
-    if (!email) {
-      toast({ title: "Error", description: "El usuario no tiene un email registrado.", variant: "destructive" });
+  const handleSendPasswordResetViaWhatsApp = (user: UserProfile) => {
+    if (!user.phoneNumber) {
+      toast({ title: "Error", description: "Este usuario no tiene un número de teléfono para enviarle instrucciones.", variant: "destructive" });
       return;
     }
-    if (!auth || Object.keys(auth).length === 0) {
-      toast({ title: "Error", description: "El servicio de autenticación no está disponible.", variant: "destructive" });
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      await sendPasswordResetEmail(auth, email);
-      toast({
-        title: "Correo Enviado",
-        description: `Se ha enviado un enlace para restablecer la contraseña a ${email}.`,
-        duration: 7000,
-      });
-    } catch (error) {
-      console.error("Error sending password reset email:", error);
-      toast({ title: "Error", description: "No se pudo enviar el correo para restablecer la contraseña.", variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
+    const appBaseUrl = window.location.origin;
+    const forgotPasswordUrl = `${appBaseUrl}/forgot-password`;
+    const message = `Hola ${user.name}, para restablecer tu contraseña en D-TERRITORIO, por favor visita el siguiente enlace y sigue las instrucciones: ${forgotPasswordUrl}`;
+    const cleanedPhoneNumber = user.phoneNumber.replace(/[^0-9]/g, "");
+    const whatsappUrl = `https://wa.me/${cleanedPhoneNumber}?text=${encodeURIComponent(message)}`;
+    
+    window.open(whatsappUrl, '_blank');
+    toast({
+        title: "Abriendo WhatsApp",
+        description: `Prepara el mensaje con instrucciones para ${user.name}.`,
+    });
   };
 
   const handleOpenEditAvailabilityDialog = (user: UserProfile) => {
@@ -661,26 +653,25 @@ export default function UsuariosPage() {
                                     </AlertDialogTrigger>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                    <p>Enviar enlace para restablecer contraseña</p>
+                                    <p>Enviar instrucciones para restablecer contraseña por WhatsApp</p>
                                     </TooltipContent>
                                 </Tooltip>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
                                     <AlertDialogTitle>¿Confirmar envío?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        Se enviará un correo electrónico a <span className="font-semibold">{user.email}</span> con un enlace para que pueda restablecer su contraseña. ¿Deseas continuar?
+                                        Se abrirá WhatsApp para enviar un mensaje a <span className="font-semibold">{user.name}</span> con instrucciones para que pueda restablecer su contraseña. ¿Deseas continuar?
                                     </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleSendPasswordReset(user.email)}>
-                                        Sí, enviar correo
+                                    <AlertDialogAction onClick={() => handleSendPasswordResetViaWhatsApp(user)}>
+                                        Sí, abrir WhatsApp
                                     </AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                                 </AlertDialog>
                             )}
-
 
                            {canManageUsers && (
                               <Tooltip>
@@ -746,7 +737,7 @@ export default function UsuariosPage() {
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                     <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isSubmitting}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" disabled={isSubmitting}>
                                         <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </AlertDialogTrigger>

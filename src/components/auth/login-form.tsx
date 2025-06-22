@@ -94,11 +94,15 @@ export function LoginForm() {
             </FormItem>
           )}
         />
+        <div className="text-right text-sm">
+          <Link href="/forgot-password" className="text-muted-foreground hover:text-primary underline-offset-4 hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           Iniciar Sesión
         </Button>
-        {/* Removed paragraph about invitation token */}
       </form>
     </Form>
   );
