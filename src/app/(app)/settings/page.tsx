@@ -896,13 +896,13 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                               </TableHeader>
                               <TableBody>
                                 {moduleItem.permissions.map(permission => (
-                                  <TableRow key={permission.id} className="hover:bg-muted/10">
+                                  <TableRow key={`${moduleItem.moduleName}-${permission.id}`} className="hover:bg-muted/10">
                                     <TableCell className="px-4 py-2.5 text-sm">
                                       {permission.description}
                                       <p className="text-xs text-muted-foreground/80">({permission.id})</p>
                                     </TableCell>
                                     {USER_ROLES_LIST.map(role => (
-                                      <TableCell key={`\${permission.id}-\${role}`} className="px-3 py-2.5 text-center">
+                                      <TableCell key={`${moduleItem.moduleName}-${permission.id}-${role}`} className="px-3 py-2.5 text-center">
                                         <Checkbox
                                           checked={
                                             role === USER_ROLES.ENCARGADO_TERRITORIO ||
@@ -910,7 +910,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                                           }
                                           onCheckedChange={(checked) => handlePermissionChange(role as UserRole, permission.id, !!checked)}
                                           disabled={role === USER_ROLES.ENCARGADO_TERRITORIO}
-                                          aria-label={`Permiso \${permission.description} para rol \${role}`}
+                                          aria-label={`Permiso ${permission.description} para rol ${role}`}
                                         />
                                       </TableCell>
                                     ))}
@@ -1269,3 +1269,4 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     </TooltipProvider>
   );
 }
+
