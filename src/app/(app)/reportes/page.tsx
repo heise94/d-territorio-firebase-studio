@@ -26,38 +26,23 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription as DialogDescriptionComponent,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
 import { Filter, FileText, Eye, History, Loader2, Pencil, AlertTriangle, BadgeCent, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
 import { collection, query, onSnapshot, doc, setDoc, Timestamp, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Territory, ReportEntry, CampaignAssignment, S13CycleDetail, ProcessedDetailedReportView } from "@/types";
+import type { Territory, ReportEntry, CampaignAssignment, ProcessedDetailedReportView, S13TerritoryCycleSummary } from "@/types";
 import { format, parse, isValid as isDateValid, compareDesc, getYear as getYearFromDateFn } from "date-fns";
 import { es } from "date-fns/locale";
 import { EditReportEntryDialog } from "@/components/reportes/edit-report-entry-dialog";
 import { historicalReportData } from '@/lib/reports-data';
 import { Badge } from "@/components/ui/badge";
+import { CycleHistoryDialog } from "@/components/reportes/cycle-history-dialog";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 
 const REPORTS_COLLECTION_NAME = "reports";
-
-interface S13CycleViewData {
-  id: string;
-  territoryNumber: string;
-  completionDate: Date;
-  campaignName: string | null;
-}
-
 
 export default function ReportesPage() {
   const { toast } = useToast();
@@ -74,8 +59,8 @@ export default function ReportesPage() {
   const [isReportEntryDialogOpen, setIsReportEntryDialogOpen] = useState(false);
   const [selectedReportData, setSelectedReportData] = useState<{ territory: Territory; report: ReportEntry | null } | null>(null);
   
-  const [isCampaignHistoryModalOpen, setIsCampaignHistoryModalOpen] = useState(false);
-  const [selectedReportForCampaignHistory, setSelectedReportForCampaignHistory] = useState<ReportEntry | null>(null);
+  const [isCycleHistoryDialogOpen, setIsCycleHistoryDialogOpen] = useState(false);
+  const [selectedTerritoryForHistory, setSelectedTerritoryForHistory] = useState<S13TerritoryCycleSummary | null>(null);
 
 
   useEffect(() => {
@@ -140,6 +125,7 @@ export default function ReportesPage() {
           id: liveReport.id!,
           territoryId: territory.id,
           territoryNumber: territory.number || territory.name,
+          name: territory.name,
           status: liveReport.status,
           lastCompletedDate: liveReport.lastCompletedHistoric ? format(liveReport.lastCompletedHistoric, "dd/MM/yyyy") : "N/A",
           assignedTo: lastCampaign?.assignedTo,
@@ -176,6 +162,7 @@ export default function ReportesPage() {
           id: `historical-${territory.id}`,
           territoryId: territory.id,
           territoryNumber: territory.number || territory.name,
+          name: territory.name,
           status: status,
           lastCompletedDate: lastCompletedDate,
           assignedTo: latestAssignment.publicador,
@@ -197,6 +184,7 @@ export default function ReportesPage() {
         id: `new-${territory.id}`,
         territoryId: territory.id,
         territoryNumber: territory.number || territory.name,
+        name: territory.name,
         status: "Disponible",
         lastCompletedDate: "N/A",
         completedCurrentCycleDisplay: "N/A",
@@ -205,41 +193,37 @@ export default function ReportesPage() {
     });
   }, [allTerritories, allReports]);
   
-  const s13Cycles = useMemo((): S13CycleViewData[] => {
-    const cycles: S13CycleViewData[] = [];
+  const s13TerritorySummaries = useMemo((): S13TerritoryCycleSummary[] => {
+    return allTerritories.map(territory => {
+        const historicalCycles = historicalReportData
+            .find(t => String(t.numeroTerritorio) === (territory.number || ''))
+            ?.asignaciones.filter(a => a.completadoAsignacion)
+            .map(a => ({
+                completionDate: parse(a.fechaAsignacion, 'dd/MM/yyyy', new Date()),
+                campaignName: a.esCampanaEspecial ? (a.nombreCampana || 'Campaña Especial') : null
+            }))
+            .filter(c => isDateValid(c.completionDate)) || [];
 
-    // Process historical data
-    historicalReportData.forEach(terrData => {
-      terrData.asignaciones.forEach((asig, index) => {
-        if (asig.completadoAsignacion) {
-          const completionDate = parse(asig.fechaAsignacion, 'dd/MM/yyyy', new Date());
-          if (isDateValid(completionDate)) {
-            cycles.push({
-              id: `hist-${terrData.numeroTerritorio}-${index}`,
-              territoryNumber: String(terrData.numeroTerritorio),
-              completionDate: completionDate,
-              campaignName: asig.esCampanaEspecial ? (asig.nombreCampana || 'Campaña Especial') : null,
-            });
-          }
-        }
-      });
+        const liveReport = allReports.find(r => r.territoryId === territory.id);
+        const liveCycles = liveReport?.completedCurrentCycle instanceof Date ? [{
+            completionDate: liveReport.completedCurrentCycle,
+            campaignName: null // This info is not in the live report currently, which is fine
+        }] : [];
+        
+        const allCycles = [...historicalCycles, ...liveCycles]
+            .sort((a, b) => compareDesc(a.completionDate, b.completionDate));
+
+        return {
+            territoryId: territory.id,
+            territoryNumber: territory.number || 'N/A',
+            name: territory.name,
+            latestCycle: allCycles[0] || null,
+            secondLatestCycle: allCycles[1] || null,
+            allCycles: allCycles,
+            cycleCount: allCycles.length,
+        };
     });
-
-    // Process live data from Firestore
-    allReports.forEach(report => {
-      if (report.status === 'Completado' && report.completedCurrentCycle instanceof Date) {
-        // Future enhancement: Check if this live cycle was part of a campaign
-        cycles.push({
-          id: `live-${report.id}`,
-          territoryNumber: report.territoryNumber,
-          completionDate: report.completedCurrentCycle,
-          campaignName: null, // Placeholder for now
-        });
-      }
-    });
-
-    return cycles.sort((a, b) => compareDesc(a.completionDate, b.completionDate));
-  }, [allReports]);
+  }, [allTerritories, allReports]);
 
 
   const handleOpenReportEntryDialog = (territoryId: string) => {
@@ -302,7 +286,11 @@ export default function ReportesPage() {
       toast({ title: "Error al Guardar", variant: "destructive" });
     }
   };
-
+  
+  const handleOpenCycleHistoryDialog = (territorySummary: S13TerritoryCycleSummary) => {
+    setSelectedTerritoryForHistory(territorySummary);
+    setIsCycleHistoryDialogOpen(true);
+  };
 
   if (isLoadingPermissions || isLoadingData) {
     return <div className="flex items-center justify-center h-screen"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="ml-3 text-muted-foreground">Cargando reportes...</p></div>;
@@ -320,140 +308,147 @@ export default function ReportesPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-6">
-      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Reporte de Actividad de Territorios</h1>
-          <p className="text-sm text-muted-foreground">Consulta y gestiona el historial de actividad de los territorios.</p>
-        </div>
-      </header>
+    <TooltipProvider>
+      <div className="flex flex-col gap-6 p-4 md:p-6">
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Reporte de Actividad de Territorios</h1>
+            <p className="text-sm text-muted-foreground">Consulta y gestiona el historial de actividad de los territorios.</p>
+          </div>
+        </header>
 
-      <Tabs value={activeView} onValueChange={(value) => setActiveView(value as 'detailedReports' | 's13Log')} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="detailedReports">Registro de Actividad Detallado</TabsTrigger>
-          <TabsTrigger value="s13Log">Registro S-13 (Completados)</TabsTrigger>
-        </TabsList>
-        <TabsContent value="detailedReports" className="mt-4">
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle>Vista Detallada de Actividad</CardTitle>
-              <CardDescription>Aquí puedes ver el estado actual de cada territorio y editar su reporte inicial.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Núm. Terr.</TableHead>
-                    <TableHead>Últ. Completó (Hist.)</TableHead>
-                    <TableHead>Asignado a (Actual)</TableHead>
-                    <TableHead>Fecha Asig. (Actual)</TableHead>
-                    <TableHead>Trabajado (Actual)</TableHead>
-                    <TableHead>Pendiente (Actual)</TableHead>
-                    <TableHead>Estado Ciclo Actual</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {processedDetailedData.map((report) => (
-                    <TableRow key={report.id}>
-                      <TableCell>{report.territoryNumber}</TableCell>
-                      <TableCell>{report.lastCompletedDate}</TableCell>
-                      <TableCell>{report.assignedTo || '-'}</TableCell>
-                      <TableCell>{report.assignedDate || '-'}</TableCell>
-                      <TableCell>{report.blocksWorked || '-'}</TableCell>
-                      <TableCell>{report.blocksPending ?? '-'}</TableCell>
-                      <TableCell>{report.status}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenReportEntryDialog(report.territoryId)} className="h-8 w-8">
-                          <Pencil className="h-4 w-4 text-primary" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => { 
-                            const originalReport = allReports.find(r => r.id === report.id);
-                            if (originalReport) {
-                                setSelectedReportForCampaignHistory(originalReport); 
-                                setIsCampaignHistoryModalOpen(true);
-                            }
-                        }} className="h-8 w-8">
-                          <Eye className="h-4 w-4 text-primary" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {processedDetailedData.length === 0 && <TableRow><TableCell colSpan={8} className="h-24 text-center">No hay territorios para mostrar. Ve a la sección de Territorios para añadir algunos.</TableCell></TableRow>}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="s13Log" className="mt-4">
-          <Card className="shadow-md">
-            <CardHeader>
-                <CardTitle>Registro S-13 (Ciclos Completados)</CardTitle>
-                <CardDescription>Esta vista muestra un registro histórico de todos los ciclos de territorios completados.</CardDescription>
-            </CardHeader>
-             <CardContent>
+        <Tabs value={activeView} onValueChange={(value) => setActiveView(value as 'detailedReports' | 's13Log')} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="detailedReports">Registro de Actividad Detallado</TabsTrigger>
+            <TabsTrigger value="s13Log">Registro S-13 (Resumen por Territorio)</TabsTrigger>
+          </TabsList>
+          <TabsContent value="detailedReports" className="mt-4">
+            <Card className="shadow-md">
+              <CardHeader>
+                <CardTitle>Vista Detallada de Actividad</CardTitle>
+                <CardDescription>Aquí puedes ver el estado actual de cada territorio y editar su reporte inicial.</CardDescription>
+              </CardHeader>
+              <CardContent>
                 <Table>
-                    <TableHeader><TableRow><TableHead>Territorio</TableHead><TableHead>Fecha Completado</TableHead><TableHead>Campaña Asociada</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                        {s13Cycles.length === 0 ? (
-                          <TableRow><TableCell colSpan={3} className="h-24 text-center">No hay ciclos completados para mostrar.</TableCell></TableRow>
-                        ) : (
-                          s13Cycles.map((cycle) => (
-                            <TableRow key={cycle.id}>
-                              <TableCell className="font-medium">{cycle.territoryNumber}</TableCell>
-                              <TableCell>{format(cycle.completionDate, "dd/MM/yyyy")}</TableCell>
-                              <TableCell>
-                                {cycle.campaignName ? (
-                                  <Badge variant="outline" className="text-primary border-primary/70 font-semibold bg-primary/10">
-                                    <Star className="mr-1.5 h-3.5 w-3.5" />
-                                    {cycle.campaignName}
-                                  </Badge>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                    </TableBody>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Núm. Terr.</TableHead>
+                      <TableHead>Últ. Completó (Hist.)</TableHead>
+                      <TableHead>Asignado a (Actual)</TableHead>
+                      <TableHead>Fecha Asig. (Actual)</TableHead>
+                      <TableHead>Trabajado (Actual)</TableHead>
+                      <TableHead>Pendiente (Actual)</TableHead>
+                      <TableHead>Estado Ciclo Actual</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {processedDetailedData.map((report) => (
+                      <TableRow key={report.id}>
+                        <TableCell>{report.territoryNumber}</TableCell>
+                        <TableCell>{report.lastCompletedDate}</TableCell>
+                        <TableCell>{report.assignedTo || '-'}</TableCell>
+                        <TableCell>{report.assignedDate || '-'}</TableCell>
+                        <TableCell>{report.blocksWorked || '-'}</TableCell>
+                        <TableCell>{report.blocksPending ?? '-'}</TableCell>
+                        <TableCell>{report.status}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenReportEntryDialog(report.territoryId)} className="h-8 w-8">
+                            <Pencil className="h-4 w-4 text-primary" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {processedDetailedData.length === 0 && <TableRow><TableCell colSpan={8} className="h-24 text-center">No hay territorios para mostrar. Ve a la sección de Territorios para añadir algunos.</TableCell></TableRow>}
+                  </TableBody>
                 </Table>
-             </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-      
-      {isReportEntryDialogOpen && selectedReportData && (
-        <EditReportEntryDialog
-          isOpen={isReportEntryDialogOpen}
-          onOpenChange={setIsReportEntryDialogOpen}
-          territory={selectedReportData.territory}
-          activeReport={selectedReportData.report}
-          onSave={handleSaveReportData}
-        />
-      )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="s13Log" className="mt-4">
+             <Card className="shadow-md">
+              <CardHeader>
+                  <CardTitle>Registro S-13 (Resumen de Ciclos)</CardTitle>
+                  <CardDescription>Esta vista muestra los últimos dos ciclos completados por cada territorio.</CardDescription>
+              </CardHeader>
+               <CardContent>
+                  <Table>
+                      <TableHeader>
+                          <TableRow>
+                              <TableHead>Territorio</TableHead>
+                              <TableHead>Último Ciclo Completado</TableHead>
+                              <TableHead>Ciclo Anterior</TableHead>
+                              <TableHead className="text-center">Total Ciclos</TableHead>
+                              <TableHead className="text-center">Acciones</TableHead>
+                          </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                          {s13TerritorySummaries.length === 0 ? (
+                            <TableRow><TableCell colSpan={5} className="h-24 text-center">No hay datos de ciclos completados para mostrar.</TableCell></TableRow>
+                          ) : (
+                            s13TerritorySummaries.map((summary) => (
+                              <TableRow key={summary.territoryId}>
+                                <TableCell className="font-medium">{summary.territoryNumber} - {summary.name}</TableCell>
+                                <TableCell>
+                                  {summary.latestCycle ? (
+                                      <div className="flex flex-col">
+                                          <span>{format(summary.latestCycle.completionDate, "dd/MM/yyyy")}</span>
+                                          {summary.latestCycle.campaignName && (
+                                              <Badge variant="outline" className="text-xs mt-1 w-fit bg-primary/10 border-primary/30 text-primary">
+                                                  <Star className="mr-1 h-3 w-3"/> {summary.latestCycle.campaignName}
+                                              </Badge>
+                                          )}
+                                      </div>
+                                  ) : <span className="text-muted-foreground">-</span>}
+                                </TableCell>
+                                <TableCell>
+                                   {summary.secondLatestCycle ? (
+                                      <div className="flex flex-col">
+                                          <span>{format(summary.secondLatestCycle.completionDate, "dd/MM/yyyy")}</span>
+                                          {summary.secondLatestCycle.campaignName && (
+                                              <Badge variant="outline" className="text-xs mt-1 w-fit bg-primary/10 border-primary/30 text-primary">
+                                                  <Star className="mr-1 h-3 w-3"/> {summary.secondLatestCycle.campaignName}
+                                              </Badge>
+                                          )}
+                                      </div>
+                                  ) : <span className="text-muted-foreground">-</span>}
+                                </TableCell>
+                                <TableCell className="text-center">{summary.cycleCount}</TableCell>
+                                <TableCell className="text-center">
+                                  {summary.cycleCount > 0 && (
+                                      <Button variant="ghost" size="icon" onClick={() => handleOpenCycleHistoryDialog(summary)} className="h-8 w-8">
+                                          <History className="h-4 w-4 text-primary"/>
+                                      </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                      </TableBody>
+                  </Table>
+               </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+        
+        {isReportEntryDialogOpen && selectedReportData && (
+          <EditReportEntryDialog
+            isOpen={isReportEntryDialogOpen}
+            onOpenChange={setIsReportEntryDialogOpen}
+            territory={selectedReportData.territory}
+            activeReport={selectedReportData.report}
+            onSave={handleSaveReportData}
+          />
+        )}
 
-      {selectedReportForCampaignHistory && (
-        <Dialog open={isCampaignHistoryModalOpen} onOpenChange={setIsCampaignHistoryModalOpen}>
-          <DialogContent className="sm:max-w-xl">
-            <DialogHeader>
-              <DialogTitle>Historial de Campañas del Ciclo: {selectedReportForCampaignHistory.territoryNumber}</DialogTitle>
-              <DialogDescriptionComponent>Detalle de las asignaciones dentro de este ciclo de trabajo.</DialogDescriptionComponent>
-            </DialogHeader>
-            <div className="max-h-[60vh] overflow-y-auto py-4">
-              <Table>
-                <TableHeader><TableRow><TableHead>Asignado a</TableHead><TableHead>Fecha Asignó</TableHead><TableHead>Trabajado</TableHead><TableHead>Pendiente</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {selectedReportForCampaignHistory.campaigns.map((campaign, index) => (
-                    <TableRow key={index}><TableCell>{campaign.assignedTo || '-'}</TableCell><TableCell>{campaign.assignedDate ? format(campaign.assignedDate, "dd/MM/yyyy") : '-'}</TableCell><TableCell>{campaign.blocksWorked || '-'}</TableCell><TableCell>{campaign.blocksPending ?? '-'}</TableCell></TableRow>
-                  ))}
-                   {selectedReportForCampaignHistory.campaigns.length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No hay campañas en este ciclo.</TableCell></TableRow>}
-                </TableBody>
-              </Table>
-            </div>
-            <DialogFooter><DialogClose asChild><Button type="button" variant="outline">Cerrar</Button></DialogClose></DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
+        {isCycleHistoryDialogOpen && selectedTerritoryForHistory && (
+          <CycleHistoryDialog
+            isOpen={isCycleHistoryDialogOpen}
+            onOpenChange={setIsCycleHistoryDialogOpen}
+            territorySummary={selectedTerritoryForHistory}
+          />
+        )}
+      </div>
+    </TooltipProvider>
   );
 }

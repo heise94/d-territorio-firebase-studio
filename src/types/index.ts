@@ -1,5 +1,3 @@
-
-
 import type { Timestamp } from 'firebase/firestore';
 import type { UserRole, PermissionId } from '@/lib/constants';
 
@@ -278,6 +276,7 @@ export interface ProcessedDetailedReportView {
   id: string;
   territoryId: string;
   territoryNumber: string;
+  name: string;
   status: "Disponible" | "En Curso";
   lastCompletedDate: string;
   assignedTo?: string | null;
@@ -288,14 +287,21 @@ export interface ProcessedDetailedReportView {
   campaignsForHistoryModal: CampaignAssignment[];
 }
 
-export interface S13CycleDetail {
-  reportId: string;
-  territoryNumber: string;
-  lastCompletedHistoric: string;
-  firstAssignedToInCycle: string | null;
-  firstAssignedDateInCycle: string | null;
-  dateCycleCompleted: string;
+export interface S13TerritoryCycle {
+  completionDate: Date;
+  campaignName: string | null;
 }
+
+export interface S13TerritoryCycleSummary {
+  territoryId: string;
+  territoryNumber: string;
+  name: string;
+  latestCycle: S13TerritoryCycle | null;
+  secondLatestCycle: S13TerritoryCycle | null;
+  allCycles: S13TerritoryCycle[];
+  cycleCount: number;
+}
+
 
 // --- Notifications ---
 export type NotificationType =
