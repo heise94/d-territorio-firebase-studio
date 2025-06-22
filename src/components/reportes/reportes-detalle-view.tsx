@@ -1,16 +1,30 @@
 
 "use client";
 
-import type { Territory } from "@/types";
-import { ReportTerritoryCard } from "./report-territory-card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Eye } from "lucide-react";
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
-interface ReportesDetalleViewProps {
-    territories: Territory[];
-    getStatus: (territory: Territory) => 'Disponible' | 'En Curso' | 'Bloqueado';
+export interface ReportRowData {
+  territoryId: string;
+  territoryNumber?: string;
+  territoryName: string;
+  lastWorked: string;
+  lastAssignmentDate: string;
+  assignedTo: string;
+  blocksWorked: string;
+  blocksPending: string;
+  status: 'Completado' | 'Parcial' | 'Pendiente de Reporte' | 'Disponible' | 'En Curso' | 'Bloqueado';
 }
 
-export function ReportesDetalleView({ territories, getStatus }: ReportesDetalleViewProps) {
-  if (territories.length === 0) {
+interface ReportesDetalleViewProps {
+    data: ReportRowData[];
+}
+
+export function ReportesDetalleView({ data }: ReportesDetalleViewProps) {
+  if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
         <p className="text-xl font-medium text-muted-foreground mb-2">No hay territorios que mostrar</p>
@@ -21,11 +35,71 @@ export function ReportesDetalleView({ territories, getStatus }: ReportesDetalleV
     );
   }
 
+  const getStatusVariant = (status: ReportRowData['status']): 'default' | 'secondary' | 'destructive' | 'outline' => {
+    switch (status) {
+        case 'Completado':
+        case 'Disponible':
+            return 'default';
+        case 'Parcial':
+        case 'En Curso':
+            return 'secondary';
+        case 'Pendiente de Reporte':
+            return 'outline';
+         case 'Bloqueado':
+            return 'destructive';
+        default:
+            return 'outline';
+    }
+  };
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      {territories.map(territory => (
-        <ReportTerritoryCard key={territory.id} territory={territory} status={getStatus(territory)} />
-      ))}
-    </div>
+    <TooltipProvider>
+      <div className="border rounded-md">
+          <Table>
+              <TableHeader>
+                  <TableRow>
+                      <TableHead className="w-[150px]">N° / Territorio</TableHead>
+                      <TableHead>Últ. Trabajo</TableHead>
+                      <TableHead>Últ. Asignación</TableHead>
+                      <TableHead>Publicador</TableHead>
+                      <TableHead>Trabajadas</TableHead>
+                      <TableHead>Pendientes</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-center">Acciones</TableHead>
+                  </TableRow>
+              </TableHeader>
+              <TableBody>
+                  {data.map((row) => (
+                      <TableRow key={row.territoryId}>
+                          <TableCell className="font-medium">
+                            <div className="flex flex-col">
+                                <span>{row.territoryNumber || 'Rural'}</span>
+                                <span className="text-xs text-muted-foreground truncate" title={row.territoryName}>{row.territoryName}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>{row.lastWorked}</TableCell>
+                          <TableCell>{row.lastAssignmentDate}</TableCell>
+                          <TableCell>{row.assignedTo}</TableCell>
+                          <TableCell>{row.blocksWorked}</TableCell>
+                          <TableCell>{row.blocksPending}</TableCell>
+                          <TableCell>
+                              <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon">
+                                        <Eye className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Ver historial del ciclo</p></TooltipContent>
+                              </Tooltip>
+                          </TableCell>
+                      </TableRow>
+                  ))}
+              </TableBody>
+          </Table>
+      </div>
+    </TooltipProvider>
   );
 }

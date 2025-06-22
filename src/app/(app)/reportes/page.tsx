@@ -11,12 +11,14 @@ import { Loader2, Search, XIcon, BarChartHorizontal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Territory } from "@/types";
+import type { Territory, Assignment } from "@/types";
 import { S13View } from "@/components/reportes/s13-view";
-import { ReportesDetalleView } from "@/components/reportes/reportes-detalle-view";
+import { ReportesDetalleView, type ReportRowData } from "@/components/reportes/reportes-detalle-view";
+import { format, parseISO, isBefore } from "date-fns";
 
 export default function ReportesPage() {
   const [territories, setTerritories] = useState<Territory[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -25,55 +27,129 @@ export default function ReportesPage() {
   useEffect(() => {
     setIsLoading(true);
     if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
       setIsLoading(false);
       return;
     }
+
     const territoriesQuery = query(collection(db, "territories"), orderBy("number", "asc"));
-    const unsubscribe = onSnapshot(territoriesQuery, (snapshot) => {
-      const fetchedTerritories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Territory));
-      setTerritories(fetchedTerritories);
-      setIsLoading(false);
+    const unsubTerritories = onSnapshot(territoriesQuery, (snapshot) => {
+      setTerritories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Territory)));
     }, (error) => {
       console.error("Error fetching territories: ", error);
       toast({ title: "Error", description: "No se pudieron cargar los territorios.", variant: "destructive" });
-      setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    const assignmentsQuery = query(collection(db, "assignments"), orderBy("date", "desc"));
+    const unsubAssignments = onSnapshot(assignmentsQuery, (snapshot) => {
+        setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment)));
+    }, (error) => {
+        console.error("Error fetching assignments: ", error);
+        toast({ title: "Error", description: "No se pudieron cargar las asignaciones.", variant: "destructive" });
+    });
+
+    // Simple loading state management: turn off loading when both have fired at least once
+    let territoriesLoaded = false;
+    let assignmentsLoaded = false;
+    const checkLoading = () => {
+        if (territoriesLoaded && assignmentsLoaded) {
+            setIsLoading(false);
+        }
+    }
+    const unsubTerritoriesLoader = onSnapshot(territoriesQuery, () => { territoriesLoaded = true; checkLoading(); });
+    const unsubAssignmentsLoader = onSnapshot(assignmentsQuery, () => { assignmentsLoaded = true; checkLoading(); });
+
+
+    return () => {
+      unsubTerritories();
+      unsubAssignments();
+      unsubTerritoriesLoader();
+      unsubAssignmentsLoader();
+    };
   }, [toast]);
   
-  const getTerritoryStatus = (territory: Territory): 'Disponible' | 'En Curso' | 'Bloqueado' => {
-      if (territory.isBlocked) {
-        return 'Bloqueado';
-      }
-      // This is a placeholder logic. A real implementation would check assignment cycles.
-      // For now, any territory that is not blocked is considered available.
-      return 'Disponible';
-  };
 
   const filteredTerritories = useMemo(() => {
     return territories.filter(territory => {
       const searchMatch = searchTerm === "" ||
         (territory.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (territory.number && territory.number.toLowerCase().includes(searchTerm.toLowerCase()));
-      
       if (!searchMatch) return false;
-
-      const status = getTerritoryStatus(territory);
-      const statusMatch = filterStatus === "all" ||
-        (filterStatus === "disponible" && status === "Disponible") ||
-        (filterStatus === "en_curso" && status === "En Curso") ||
-        (filterStatus === "bloqueado" && status === "Bloqueado");
-        
-      if (!statusMatch) return false;
-
       return true;
     }).sort((a, b) => {
         const numA = parseInt(a.number || '9999', 10);
         const numB = parseInt(b.number || '9999', 10);
         return numA - numB;
     });
-  }, [territories, searchTerm, filterStatus]);
+  }, [territories, searchTerm]);
+
+
+  const processedReportData: ReportRowData[] = useMemo(() => {
+    return filteredTerritories.map(territory => {
+      const territoryAssignments = assignments
+        .filter(a => a.locationId === territory.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      const latestAssignment = territoryAssignments[0];
+      
+      let status: ReportRowData['status'] = 'Disponible';
+      let blocksWorked = "-";
+      let blocksPending = "-";
+
+      if (latestAssignment) {
+        if (latestAssignment.lastReportData) {
+          const report = latestAssignment.lastReportData.reports.find(r => r.territoryId === territory.id);
+          if (report) {
+            const totalBlocks = territory.totalBlocks || 0;
+            const workedCount = report.workedBlocksIds.length;
+            
+            if (report.territoryNotWorked) {
+              status = 'Parcial';
+              blocksWorked = "No trabajado";
+              blocksPending = totalBlocks > 0 ? `Todas (${totalBlocks})` : "-";
+            } else {
+              blocksWorked = `${workedCount} de ${totalBlocks}`;
+              if (totalBlocks > 0 && workedCount >= totalBlocks) {
+                status = 'Completado';
+                blocksPending = "Ninguna";
+              } else if (totalBlocks > 0) {
+                status = 'Parcial';
+                blocksPending = `${totalBlocks - workedCount} de ${totalBlocks}`;
+              } else {
+                status = 'Completado'; // No blocks to work
+                blocksPending = "N/A";
+              }
+            }
+          }
+        } else if (isBefore(parseISO(latestAssignment.date), new Date())) {
+          status = 'Pendiente de Reporte';
+        } else {
+          status = 'En Curso';
+        }
+      }
+
+      // Final status check based on user filter
+      const matchesFilter = filterStatus === 'all' || 
+                            (filterStatus === 'disponible' && status === 'Disponible') ||
+                            (filterStatus === 'en_curso' && (status === 'En Curso' || status === 'Parcial' || status === 'Pendiente de Reporte')) ||
+                            (filterStatus === 'bloqueado' && territory.isBlocked);
+
+      if (territory.isBlocked) status = 'Bloqueado';
+
+      return {
+        territoryId: territory.id,
+        territoryNumber: territory.number,
+        territoryName: territory.name,
+        lastWorked: territory.lastWorked ? format(parseISO(territory.lastWorked), "dd/MM/yy") : 'Nunca',
+        lastAssignmentDate: latestAssignment?.date ? format(parseISO(latestAssignment.date), "dd/MM/yy") : 'N/A',
+        assignedTo: latestAssignment?.userName || 'N/A',
+        blocksWorked,
+        blocksPending,
+        status,
+        matchesFilter, // Add this to filter later
+      };
+    }).filter(row => row.matchesFilter);
+  }, [filteredTerritories, assignments, filterStatus]);
   
   const handleClearFilters = () => {
     setSearchTerm("");
@@ -110,7 +186,7 @@ export default function ReportesPage() {
                         <SelectContent>
                             <SelectItem value="all">Todos</SelectItem>
                             <SelectItem value="disponible">Disponible</SelectItem>
-                            <SelectItem value="en_curso">En Curso</SelectItem>
+                            <SelectItem value="en_curso">En Curso / Parcial</SelectItem>
                             <SelectItem value="bloqueado">Bloqueado</SelectItem>
                         </SelectContent>
                     </Select>
@@ -131,7 +207,7 @@ export default function ReportesPage() {
                     {isLoading ? (
                         <div className="flex justify-center py-16"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>
                     ) : (
-                        <ReportesDetalleView territories={filteredTerritories} getStatus={getTerritoryStatus} />
+                        <ReportesDetalleView data={processedReportData} />
                     )}
                 </TabsContent>
                 <TabsContent value="s13" className="mt-6">
