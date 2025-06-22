@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -8,16 +7,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
-} from "@/components/ui/sidebar";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS, PermissionId } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
+
 
 export interface NavItemConfig {
   title: string;
@@ -38,9 +36,9 @@ const navItems: NavItemConfig[] = [
     title: "Programa",
     href: "/programa", 
     icon: CalendarDays,
-    segment: "programa", // Segment for the parent accordion item
+    segment: "programa",
     children: [
-      { title: "Mensual", href: "/programa", icon: CircleDot, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM, segment: "programa" }, // Child segment should match exact sub-path or be unique if needed
+      { title: "Mensual", href: "/programa", icon: CircleDot, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM, segment: "programa" },
       { title: "Semanal", href: "/programa/semanal", icon: GanttChartSquare, permission: PERMISSIONS.VIEW_WEEKLY_PROGRAM, segment: "semanal" },
     ]
   },
@@ -62,79 +60,98 @@ const navItems: NavItemConfig[] = [
   { title: "Configuración", href: "/settings", icon: Settings, permission: PERMISSIONS.MANAGE_PROGRAM_SETTINGS, segment: "settings" }, 
 ];
 
-
 export function SidebarNav() {
   const pathname = usePathname() ?? "";
   const { hasPermission, isLoadingPermissions } = usePermissions();
 
   if (isLoadingPermissions) {
     return (
-      <div className="p-2 space-y-1">
-        {[...Array(8)].map((_, i) => <SidebarMenuSkeleton key={i} showIcon />)}
+      <div className="space-y-2 px-2 py-4">
+        {[...Array(8)].map((_, i) => (
+          <Skeleton key={i} className="h-9 w-full rounded-md" />
+        ))}
       </div>
     );
   }
-
-  const renderNavItem = (item: NavItemConfig) => {
+  
+  const createNavItem = (item: NavItemConfig) => {
     if (item.permission && !hasPermission(item.permission)) {
       return null;
     }
-
     const Icon = item.icon;
-    const isActive = item.children 
-      ? pathname.startsWith(item.href) && item.href !== "/"
-      : pathname === item.href;
+    const isActive = pathname === item.href;
+    
+    return (
+        <Link
+            key={item.title}
+            href={item.href}
+            className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                isActive && "bg-muted text-primary"
+            )}
+            >
+            <Icon className="h-4 w-4" />
+            {item.title}
+        </Link>
+    )
+  }
 
+  const createNavGroup = (item: NavItemConfig) => {
     const visibleChildren = item.children?.filter(child => !child.permission || hasPermission(child.permission)) || [];
-    const hasVisibleChildren = visibleChildren.length > 0;
+    if (visibleChildren.length === 0) return null;
+    
+    const Icon = item.icon;
+    const isGroupActive = pathname.startsWith(item.href);
 
     return (
-      <SidebarMenuItem key={item.title}>
-        <SidebarMenuButton
-          asChild
-          isActive={isActive && !hasVisibleChildren} // Only active if it's a direct link without children
-          tooltip={{
-            children: item.title,
-            side: "right",
-            align: "center",
-          }}
-        >
-          <Link href={hasVisibleChildren ? "#" : item.href}>
-            <Icon />
-            <span>{item.title}</span>
-          </Link>
-        </SidebarMenuButton>
-        {hasVisibleChildren && (
-          <SidebarMenuSub>
-            {visibleChildren.map(child => {
-               const isChildActive = pathname === child.href;
-               return (
-                <SidebarMenuSubItem key={child.title}>
-                    <SidebarMenuSubButton asChild isActive={isChildActive}>
-                        <Link href={child.href}>
-                            {child.title}
-                        </Link>
-                    </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-               )
-            })}
-          </SidebarMenuSub>
-        )}
-      </SidebarMenuItem>
-    );
-  };
+        <Accordion type="single" collapsible key={item.title} defaultValue={isGroupActive ? item.title : ""}>
+            <AccordionItem value={item.title} className="border-b-0">
+                <AccordionTrigger className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary hover:no-underline",
+                    isGroupActive && "text-primary"
+                )}>
+                    <div className="flex items-center gap-3">
+                      <Icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </div>
+                </AccordionTrigger>
+                <AccordionContent className="pl-8 pt-1 pb-0">
+                    <nav className="grid items-start gap-1">
+                        {visibleChildren.map(child => {
+                            const isChildActive = pathname === child.href;
+                            return (
+                                <Link
+                                    key={child.title}
+                                    href={child.href}
+                                    className={cn(
+                                        "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary text-sm",
+                                        isChildActive && "bg-muted text-primary"
+                                    )}
+                                >
+                                    {child.title}
+                                </Link>
+                            )
+                        })}
+                    </nav>
+                </AccordionContent>
+            </AccordionItem>
+        </Accordion>
+    )
+  }
 
   const visibleNavItems = navItems.filter(item => {
-     if (item.permission && !hasPermission(item.permission)) return false;
-     if (item.children) {
-        return item.children.some(child => !child.permission || hasPermission(child.permission));
-     }
-     return true;
+    if (item.permission && !hasPermission(item.permission)) return false;
+    if (item.children) {
+      return item.children.some(child => !child.permission || hasPermission(child.permission));
+    }
+    return true;
   });
 
   return (
-    <SidebarMenu>
-      {visibleNavItems.map(item => renderNavItem(item))}
-    </SidebarMenu>
+    <nav className="grid items-start gap-y-1 px-2 text-sm font-medium lg:px-4">
+        {visibleNavItems.map(item => 
+            item.children ? createNavGroup(item) : createNavItem(item)
+        )}
+    </nav>
   );
 }
