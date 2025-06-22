@@ -1,4 +1,5 @@
 
+
 import type { Timestamp } from 'firebase/firestore';
 import type { UserRole, PermissionId } from '@/lib/constants';
 
@@ -249,4 +250,48 @@ export interface GroupAssignment {
   notes?: string;
   createdAt: Timestamp;
   createdBy: string;
+}
+
+// --- Reportes Page Types ---
+
+export interface CampaignAssignment {
+  assignedTo: string | null;
+  assignedDate: Date | null;
+  blocksWorked: string | null;
+  blocksPending: string | number | null;
+}
+
+export interface ReportEntry {
+  id?: string;
+  territoryId: string;
+  territoryNumber: string;
+  lastCompletedHistoric: Date | null;
+  campaigns: CampaignAssignment[];
+  status: "En Curso" | "Completado";
+  completedCurrentCycle: Date | 'En curso' | null;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface ProcessedDetailedReportView {
+  id: string;
+  territoryId: string;
+  territoryNumber: string;
+  status: "Disponible" | "En Curso";
+  lastCompletedDate: string;
+  assignedTo?: string | null;
+  assignedDate?: string | null;
+  blocksWorked?: string | null;
+  blocksPending?: string | number | null;
+  completedCurrentCycleDisplay: string | null;
+  campaignsForHistoryModal: CampaignAssignment[];
+}
+
+export interface S13CycleDetail {
+  reportId: string;
+  territoryNumber: string;
+  lastCompletedHistoric: string;
+  firstAssignedToInCycle: string | null;
+  firstAssignedDateInCycle: string | null;
+  dateCycleCompleted: string;
 }
