@@ -35,7 +35,9 @@ export function S13View({ territories }: S13ViewProps) {
             <TableBody>
                 {territories.map(territory => (
                     <TableRow key={territory.id}>
-                        <TableCell className="font-medium">T-{territory.number || territory.name}</TableCell>
+                        <TableCell className="font-medium">
+                            <span className="font-bold">{territory.type === 'urban' ? `U-${territory.number}` : territory.name}</span>
+                        </TableCell>
                         <TableCell>--/--/----</TableCell> 
                         <TableCell>
                             {territory.lastWorked ? format(parseISO(territory.lastWorked), "dd/MM/yyyy", { locale: es }) : '--/--/----'}

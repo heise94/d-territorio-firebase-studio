@@ -73,7 +73,7 @@ export default function ReportesPage() {
   }, [toast]);
   
 
-  const filteredTerritories = useMemo(() => {
+  const filteredTerritoriesForS13 = useMemo(() => {
     return territories.filter(territory => {
       const searchMatch = searchTerm === "" ||
         (territory.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -89,7 +89,16 @@ export default function ReportesPage() {
 
 
   const processedReportData: ReportRowData[] = useMemo(() => {
-    return filteredTerritories.map(territory => {
+    // First, filter territories by search term
+    const searchedTerritories = territories.filter(territory => {
+      const searchMatch = searchTerm === "" ||
+        (territory.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (territory.number && territory.number.toLowerCase().includes(searchTerm.toLowerCase()));
+      return searchMatch;
+    });
+    
+    // Then, process each filtered territory to determine its report data and status
+    const dataWithStatus = searchedTerritories.map(territory => {
       const territoryAssignments = assignments
         .filter(a => a.locationId === territory.id)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -100,7 +109,9 @@ export default function ReportesPage() {
       let blocksWorked = "-";
       let blocksPending = "-";
 
-      if (latestAssignment) {
+      if (territory.isBlocked) {
+        status = 'Bloqueado';
+      } else if (latestAssignment) {
         if (latestAssignment.lastReportData) {
           const report = latestAssignment.lastReportData.reports.find(r => r.territoryId === territory.id);
           if (report) {
@@ -108,7 +119,7 @@ export default function ReportesPage() {
             const workedCount = report.workedBlocksIds.length;
             
             if (report.territoryNotWorked) {
-              status = 'Parcial';
+              status = 'Parcial'; // Not worked is a form of partial completion of the assignment
               blocksWorked = "No trabajado";
               blocksPending = totalBlocks > 0 ? `Todas (${totalBlocks})` : "-";
             } else {
@@ -132,14 +143,6 @@ export default function ReportesPage() {
         }
       }
 
-      // Final status check based on user filter
-      const matchesFilter = filterStatus === 'all' || 
-                            (filterStatus === 'disponible' && status === 'Disponible') ||
-                            (filterStatus === 'en_curso' && (status === 'En Curso' || status === 'Parcial' || status === 'Pendiente de Reporte')) ||
-                            (filterStatus === 'bloqueado' && territory.isBlocked);
-
-      if (territory.isBlocked) status = 'Bloqueado';
-
       return {
         territoryId: territory.id,
         territoryNumber: territory.number,
@@ -151,10 +154,22 @@ export default function ReportesPage() {
         blocksWorked,
         blocksPending,
         status,
-        matchesFilter, // Add this to filter later
       };
-    }).filter(row => row.matchesFilter);
-  }, [filteredTerritories, assignments, filterStatus]);
+    });
+    
+    // Finally, filter by status and sort
+    return dataWithStatus.filter(row => {
+      if (filterStatus === 'all') return true;
+      if (filterStatus === 'disponible') return row.status === 'Disponible';
+      if (filterStatus === 'en_curso') return ['En Curso', 'Parcial', 'Pendiente de Reporte'].includes(row.status);
+      if (filterStatus === 'bloqueado') return row.status === 'Bloqueado';
+      return false;
+    }).sort((a, b) => {
+        const numA = parseInt(a.territoryNumber || '9999', 10);
+        const numB = parseInt(b.territoryNumber || '9999', 10);
+        return numA - numB;
+    });
+  }, [territories, assignments, filterStatus, searchTerm]);
   
   const handleClearFilters = () => {
     setSearchTerm("");
@@ -219,7 +234,7 @@ export default function ReportesPage() {
                      {isLoading ? (
                         <div className="flex justify-center py-16"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>
                     ) : (
-                        <S13View territories={filteredTerritories} />
+                        <S13View territories={filteredTerritoriesForS13} />
                     )}
                 </TabsContent>
             </Tabs>
