@@ -26,7 +26,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Filter, FileText, Eye, History, Loader2, Pencil, AlertTriangle, BadgeCent, Star, User, Search } from "lucide-react";
+import { Filter, FileText, Eye, History, Loader2, Pencil, AlertTriangle, BadgeCent, Star, User, Search, PlusCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
@@ -122,7 +122,7 @@ export default function ReportesPage() {
 
     const data: ProcessedDetailedReportView[] = allTerritories.map(territory => {
       const liveReport = allReports.find(r => r.territoryId === territory.id);
-      const displayIdentifier = territory.type === 'urban' ? territory.number || 'S/N' : territory.name;
+      const displayIdentifier = territory.number || 'S/N';
 
       if (liveReport) {
          let lastCycleCompletionDate = 'N/A';
@@ -253,7 +253,7 @@ export default function ReportesPage() {
             .filter(c => isDateValid(c.completionDate)) || [];
 
         const liveReport = allReports.find(r => r.territoryId === territory.id);
-        const liveCycles = liveReport?.completedCurrentCycle instanceof Date ? [{
+        const liveCycles = liveReport?.status === "Completado" && liveReport.completedCurrentCycle instanceof Date ? [{
             completionDate: liveReport.completedCurrentCycle,
             campaignName: null,
             completedBy: liveReport.campaigns.find(c => c.assignedDate === liveReport.completedCurrentCycle)?.assignedTo || liveReport.campaigns[liveReport.campaigns.length - 1]?.assignedTo || null,
@@ -262,7 +262,7 @@ export default function ReportesPage() {
         const allCycles = [...historicalCycles, ...liveCycles]
             .sort((a, b) => compareDesc(a.completionDate, b.completionDate));
 
-        const displayIdentifier = territory.type === 'urban' ? territory.number || 'S/N' : territory.name;
+        const displayIdentifier = territory.number || 'S/N';
 
         return {
             territoryId: territory.id,
@@ -390,7 +390,7 @@ export default function ReportesPage() {
               <CardHeader>
                 <CardTitle>Vista Detallada de Actividad</CardTitle>
                 <div className="flex flex-col sm:flex-row justify-between items-center pt-2 gap-3">
-                    <CardDescription>Aquí puedes ver el estado actual de cada territorio y editar su reporte inicial.</CardDescription>
+                    <CardDescription>Aquí puedes ver el estado actual de cada territorio y editar su reporte.</CardDescription>
                     <div className="relative w-full sm:w-auto">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
@@ -406,7 +406,7 @@ export default function ReportesPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Terr.</TableHead>
+                      <TableHead>N° Terr.</TableHead>
                       <TableHead>Últ. Ciclo Completado</TableHead>
                       <TableHead>Asignado a (Actual)</TableHead>
                       <TableHead>Fecha Asig. (Actual)</TableHead>
@@ -427,16 +427,29 @@ export default function ReportesPage() {
                         <TableCell>{report.blocksPending ?? '-'}</TableCell>
                         <TableCell>{report.status}</TableCell>
                         <TableCell className="text-right">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" onClick={() => handleOpenReportEntryDialog(report.territoryId)} className="h-8 w-8">
-                                <Pencil className="h-4 w-4 text-primary" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Ingresar/Editar Reporte</p>
-                            </TooltipContent>
-                          </Tooltip>
+                            {report.status === 'En Curso' ? (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={() => handleOpenReportEntryDialog(report.territoryId)} className="h-8 w-8">
+                                            <Pencil className="h-4 w-4 text-primary" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Editar Ciclo Actual</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            ) : (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={() => handleOpenReportEntryDialog(report.territoryId)} className="h-8 w-8">
+                                            <PlusCircle className="h-4 w-4 text-green-600" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Registrar Actividad (Iniciar Ciclo)</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
                         </TableCell>
                       </TableRow>
                     )) : (
@@ -468,7 +481,7 @@ export default function ReportesPage() {
                   <Table>
                       <TableHeader>
                           <TableRow>
-                              <TableHead>Territorio</TableHead>
+                              <TableHead>N° Terr.</TableHead>
                               <TableHead>Último Ciclo Completado</TableHead>
                               <TableHead>Ciclo Anterior</TableHead>
                               <TableHead className="text-center">Total Ciclos</TableHead>
