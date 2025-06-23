@@ -24,12 +24,15 @@ export default function ReportesPage() {
 
   const allReports = useMemo(() => {
     setIsLoading(true);
-    const { territories } = processReportData({});
+    // The processor returns an object { territories: Report[] }
+    const processedData = processReportData({});
     setIsLoading(false);
-    return territories;
+    // We need to return the array of territories
+    return processedData.territories;
   }, []);
 
   const filteredReports = useMemo(() => {
+    // Ensure allReports is an array before filtering
     if (!Array.isArray(allReports)) return [];
     return allReports.filter(report => {
       if (filters.territoryNumber && !report.territoryNumber.toString().includes(filters.territoryNumber)) return false;
@@ -62,7 +65,7 @@ export default function ReportesPage() {
     const activityData: ReporteActividadData[] = [];
     
     for (const [territoryNumber, reports] of reportsByTerritory.entries()) {
-      let latestReport = reports.find(r => r.completedCurrentCycle === 'En curso' || r.completedCurrentCycle === 'Disponible');
+      let latestReport = reports.find(r => r.completedCurrentCycle === 'En curso');
 
       if (!latestReport) {
         latestReport = [...reports].sort((a, b) => {
@@ -78,10 +81,15 @@ export default function ReportesPage() {
           const lastCampaign = latestReport.campaigns[latestReport.campaigns.length - 1];
           const isInProgress = latestReport.completedCurrentCycle === 'En curso';
           
+          // Corrected logic for displaying the last completed date
+          const displayLastCompletedDate = isInProgress
+            ? (latestReport.lastCompletedHistoric || "Nunca")
+            : (latestReport.completedCurrentCycle || "Nunca");
+
           activityData.push({
             id: latestReport.id,
             territoryNumber: latestReport.territoryNumber.toString(),
-            lastCompletedHistoric: latestReport.lastCompletedHistoric || "Nunca",
+            lastCompletedHistoric: displayLastCompletedDate,
             assignedTo: isInProgress ? lastCampaign?.assignedTo || "N/A" : "N/A",
             assignedDate: isInProgress ? lastCampaign?.assignedDate || "N/A" : "N/A",
             blocksWorked: isInProgress ? lastCampaign?.blocksWorked || "-" : "-",
