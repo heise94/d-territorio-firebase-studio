@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 import type { UserRole, PermissionId } from '@/lib/constants';
 
@@ -282,6 +281,8 @@ export interface CampaignAssignmentInReport {
   assignedDate?: string; // "dd/MM/yyyy"
   blocksWorked?: string;
   blocksPending?: string;
+  isSpecialCampaign?: boolean;
+  campaignName?: string | null;
 }
 
 export interface Report {
@@ -291,5 +292,3 @@ export interface Report {
   campaigns: CampaignAssignmentInReport[];
   completedCurrentCycle: string; // "dd/MM/yyyy" or "En curso"
 }
-
-    

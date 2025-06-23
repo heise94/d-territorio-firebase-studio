@@ -1,12 +1,14 @@
-
 "use client";
 
 import { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Eye } from "lucide-react";
+import { Eye, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import type { CampaignAssignmentInReport, Report } from "@/types";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 export interface ReporteS13Data {
   id: string;
@@ -56,7 +58,7 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
   }
 
   return (
-    <>
+    <TooltipProvider>
       <div className="border rounded-md">
         <Table>
           <TableHeader>
@@ -64,8 +66,9 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
               <TableHead>Territorio</TableHead>
               <TableHead>Completó Hist.</TableHead>
               <TableHead>Primer Asignado</TableHead>
-              <TableHead>Fecha Inicio Ciclo</TableHead>
-              <TableHead>Fecha Fin Ciclo</TableHead>
+              <TableHead>Inicio Ciclo</TableHead>
+              <TableHead>Campaña Especial</TableHead>
+              <TableHead>Fin Ciclo</TableHead>
               <TableHead className="text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -76,11 +79,34 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
                 <TableCell>{row.lastCompletedHistoric}</TableCell>
                 <TableCell>{row.firstAssignedTo}</TableCell>
                 <TableCell>{row.firstAssignedDate}</TableCell>
+                 <TableCell>
+                    {row.fullCampaignHistory[0]?.isSpecialCampaign ? (
+                       <Tooltip>
+                         <TooltipTrigger asChild>
+                           <Badge variant="outline" className="text-purple-600 border-purple-400">
+                             <Sparkles className="h-3 w-3 mr-1" /> Sí
+                           </Badge>
+                         </TooltipTrigger>
+                         <TooltipContent>
+                           <p>{row.fullCampaignHistory[0]?.campaignName || "Campaña especial"}</p>
+                         </TooltipContent>
+                       </Tooltip>
+                    ) : (
+                        <span className="text-muted-foreground text-sm">No</span>
+                    )}
+                </TableCell>
                 <TableCell className="font-semibold text-primary">{row.completedCurrentCycle}</TableCell>
                 <TableCell className="text-center">
-                  <Button variant="ghost" size="icon" onClick={() => handleViewFullHistory(row.territoryNumber)}>
-                    <Eye className="h-4 w-4" />
-                  </Button>
+                   <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={() => handleViewFullHistory(row.territoryNumber)}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Ver todos los ciclos de este territorio</p>
+                    </TooltipContent>
+                   </Tooltip>
                 </TableCell>
               </TableRow>
             ))}
@@ -103,6 +129,7 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
                   <TableHead>Completó Hist.</TableHead>
                   <TableHead>Inicio Ciclo</TableHead>
                   <TableHead>Fin Ciclo</TableHead>
+                   <TableHead>Campaña Esp.</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -111,10 +138,17 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
                     <TableCell>{cycle.lastCompletedHistoric}</TableCell>
                     <TableCell>{cycle.firstAssignedDate}</TableCell>
                     <TableCell className="font-semibold text-primary">{cycle.completedCurrentCycle}</TableCell>
+                    <TableCell>
+                        {cycle.fullCampaignHistory[0]?.isSpecialCampaign ? (
+                             <Badge variant="outline" className="text-purple-600 border-purple-400">Sí</Badge>
+                        ) : (
+                            <span>No</span>
+                        )}
+                    </TableCell>
                   </TableRow>
                 )) : (
                    <TableRow>
-                    <TableCell colSpan={3} className="text-center">No hay historial para este territorio.</TableCell>
+                    <TableCell colSpan={4} className="text-center">No hay historial para este territorio.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -127,8 +161,6 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </TooltipProvider>
   );
 }
-
-    

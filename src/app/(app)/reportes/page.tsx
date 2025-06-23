@@ -6,73 +6,35 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Filter, FileDown } from "lucide-react";
-import type { Report, CampaignAssignmentInReport } from "@/types";
+import type { Report } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { collection, query, onSnapshot, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import Papa from "papaparse";
 
 import { ReporteActividadView, type ReporteActividadData } from "@/components/reportes/reporte-actividad-view";
 import { ReporteS13View, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
 import { FiltrosReportesSheet, type ReportFilters } from "@/components/reportes/filtros-reportes-sheet";
-
-// MOCK DATA - Replace with Firestore fetching
-const MOCK_REPORTS_DATA: Report[] = [
-  { id: 'RPT-001', territoryNumber: '101', lastCompletedHistoric: '15/01/2024', campaigns: [ { assignedTo: 'Ana Pérez', assignedDate: '01/06/2024', blocksWorked: 'Manzanas 1 y 2', blocksPending: 'Manzanas 3, 4, 5', }, { assignedTo: 'Luis Gómez', assignedDate: '15/06/2024', blocksWorked: 'Manzana 3', blocksPending: 'Manzanas 4, 5', }, ], completedCurrentCycle: 'En curso', },
-  { id: 'RPT-002', territoryNumber: '102', lastCompletedHistoric: '05/11/2023', campaigns: [ { assignedTo: 'Carlos Díaz', assignedDate: '10/04/2024', blocksWorked: 'Todas', blocksPending: 'Ninguna', }, ], completedCurrentCycle: '25/05/2024', },
-  { id: 'RPT-003', territoryNumber: '103', lastCompletedHistoric: 'N/A', campaigns: [ { assignedTo: 'Elena Jara', assignedDate: '01/02/2024', blocksWorked: 'Todo el sector rural', blocksPending: 'Ninguno', }, ], completedCurrentCycle: '28/02/2024', },
-  { id: 'RPT-004', territoryNumber: '101', lastCompletedHistoric: '20/07/2023', campaigns: [ { assignedTo: 'Sofía Castro (SG G1)', assignedDate: '01/12/2023', blocksWorked: 'Manzanas 1-3', blocksPending: 'Manzanas 4-5', }, { assignedTo: 'Ana Pérez', assignedDate: '20/12/2023', blocksWorked: 'Manzanas 4-5', blocksPending: 'Ninguna', }, ], completedCurrentCycle: '15/01/2024', },
-];
+import { processReportData } from "@/data/reports-data-processor";
 
 
 export default function ReportesPage() {
-  const [allReports, setAllReports] = useState<Report[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isFiltersSheetOpen, setIsFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ReportFilters>({});
   const { toast } = useToast();
 
-  useEffect(() => {
-    // In a real scenario, you'd fetch from Firestore here.
-    // For now, we use mock data.
-    setTimeout(() => {
-        setAllReports(MOCK_REPORTS_DATA);
-        setIsLoading(false);
-    }, 1000);
-
-    /*
-    // Firestore implementation (to be used when ready)
-    if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
-      setIsLoading(false);
-      return;
-    }
-    
-    const reportsQuery = query(collection(db, "reports"), orderBy("territoryNumber"));
-    const unsubscribe = onSnapshot(reportsQuery, (snapshot) => {
-      const fetchedReports = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Report));
-      setAllReports(fetchedReports);
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching reports:", error);
-      toast({ title: "Error", description: "No se pudieron cargar los reportes.", variant: "destructive" });
-      setIsLoading(false);
-    });
-
-    return () => unsubscribe();
-    */
-  }, [toast]);
-
+  const allReports = useMemo(() => {
+    setIsLoading(true);
+    const data = processReportData();
+    setIsLoading(false);
+    return data;
+  }, []);
 
   const filteredReports = useMemo(() => {
     return allReports.filter(report => {
       if (filters.territoryNumber && !report.territoryNumber.includes(filters.territoryNumber)) return false;
       if (filters.assignedTo && !report.campaigns.some(c => c.assignedTo?.toLowerCase().includes(filters.assignedTo!.toLowerCase()))) return false;
       
-      const lastCampaignDate = report.campaigns.length > 0 
+      const lastCampaignDate = report.campaigns.length > 0 && report.campaigns[report.campaigns.length - 1].assignedDate
         ? new Date(report.campaigns[report.campaigns.length - 1].assignedDate!.split('/').reverse().join('-'))
         : null;
 
@@ -146,6 +108,8 @@ export default function ReportesPage() {
       "PrimerAsignadoCiclo": row.firstAssignedTo,
       "FechaPrimeraAsignaciónCiclo": row.firstAssignedDate,
       "FechaCompletóCiclo": row.completedCurrentCycle,
+      "FueCampañaEspecial": row.fullCampaignHistory[0]?.isSpecialCampaign ? "Sí" : "No",
+      "NombreCampaña": row.fullCampaignHistory[0]?.campaignName || "",
     }));
     
     const csv = Papa.unparse(csvData);
@@ -234,5 +198,3 @@ export default function ReportesPage() {
     </div>
   );
 }
-
-    
