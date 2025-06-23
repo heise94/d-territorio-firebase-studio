@@ -31,6 +31,7 @@ export default function ReportesPage() {
   }, []);
 
   const filteredReports = useMemo(() => {
+    if (!Array.isArray(allReports)) return [];
     return allReports.filter(report => {
       if (filters.territoryNumber && !report.territoryNumber.toString().includes(filters.territoryNumber)) return false;
       if (filters.assignedTo && !report.campaigns.some(c => c.assignedTo?.toLowerCase().includes(filters.assignedTo!.toLowerCase()))) return false;
@@ -48,6 +49,7 @@ export default function ReportesPage() {
 
 
   const processedActividadData: ReporteActividadData[] = useMemo(() => {
+    if (!Array.isArray(filteredReports)) return [];
     const latestCyclesMap = new Map<string, Report>();
     
     filteredReports.forEach(report => {
@@ -81,6 +83,7 @@ export default function ReportesPage() {
   }, [filteredReports]);
 
   const processedS13Data: ReporteS13Data[] = useMemo(() => {
+    if (!Array.isArray(filteredReports)) return [];
     return filteredReports
       .filter(report => report.completedCurrentCycle !== 'En curso')
       .map(report => {
@@ -183,7 +186,7 @@ export default function ReportesPage() {
               {isLoading ? (
                 <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
               ) : (
-                <ReporteS13View data={processedS13Data} allReports={allReports} />
+                <ReporteS13View data={processedS13Data} allReports={allReports || []} />
               )}
             </CardContent>
           </Card>
