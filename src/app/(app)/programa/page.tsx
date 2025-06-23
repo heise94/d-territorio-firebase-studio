@@ -52,7 +52,6 @@ export default function ProgramaMensualPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [holidays, setHolidays] = useState<CustomHoliday[]>([]);
   const [assemblies, setAssemblies] = useState<Assembly[]>([]);
-  const [lastRuralGroupId, setLastRuralGroupId] = useState<string | null | undefined>(undefined);
   const [publishers, setPublishers] = useState<PublisherDetail[]>([]);
   const [casas, setCasas] = useState<Casa[]>([]);
   const [territories, setTerritories] = useState<Territory[]>([]);
@@ -80,11 +79,9 @@ export default function ProgramaMensualPage() {
             }
         });
         setGroupOrganizedDays(organizedDaysMap);
-        setLastRuralGroupId(config.lastRuralWeekendLeadingGroupId === undefined ? null : config.lastRuralWeekendLeadingGroupId);
       } else {
         setProgramScheduleSlots([]);
         setGroupOrganizedDays(initialGroupOrganizedDaysState);
-        setLastRuralGroupId(null);
       }
 
       const specialEventsConfigRef = doc(db, "settings", "specialEventsConfig");
@@ -166,7 +163,7 @@ export default function ProgramaMensualPage() {
     }
   };
 
-  const handleGenerateAssignments = async (dialogData: { additionalInstructions: string; designatedRuralWeekendDays: string[] }) => {
+  const handleGenerateAssignments = async (dialogData: { additionalInstructions: string; }) => {
     setIsLoading(true);
     setGeneratedAssignments(null);
 
@@ -182,11 +179,9 @@ export default function ProgramaMensualPage() {
       year: selectedYear,
       month: selectedMonth, 
       additionalInstructions: dialogData.additionalInstructions,
-      designatedRuralSundays: dialogData.designatedRuralWeekendDays,
       
       availableDaysWithTimeSlots: processedAvailableDays,
       groupPreachingDays: groupOrganizedDays,
-      lastRuralWeekendLeadingGroupId: lastRuralGroupId ?? undefined,
 
       publisherDetailedAvailabilities: publishers.map(p => ({ id: p.firebaseAuthUid || p.id, name: p.name })),
       availableCasas: casas.map(c => ({ 
@@ -241,7 +236,7 @@ export default function ProgramaMensualPage() {
             const assemblyEndMonth = assemblyEndDate.getMonth();
             const assemblyEndYear = assemblyEndDate.getFullYear();
             return (assemblyStartYear < selectedYear || (assemblyStartYear === selectedYear && assemblyStartMonth <= selectedMonth)) &&
-                   (campaignEndYear > selectedYear || (campaignEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
+                   (assemblyEndYear > selectedYear || (assemblyEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
         })
         .map(a => ({
             name: a.name,
@@ -253,7 +248,6 @@ export default function ProgramaMensualPage() {
       assignCasas: true,
       assignTerritories: true, 
       detailedTerritoryReports: territories, // Pass all territories so AI can check lastWorked date
-      predeterminedRuralSundayAssignments: [],
       specialCampaignTerritoriesPerDay: 1,
     };
 
@@ -314,7 +308,7 @@ export default function ProgramaMensualPage() {
                 locationName: assign.territoryName || assign.casaName || "Lugar no especificado",
                 status: 'pending', 
                 assignedBy: 'Admin IA',
-                assignedGroupId: assign.assignedGroupId || null,
+                assignedGroupId: captainUser?.assignedGroupId || null,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
             });
@@ -431,7 +425,6 @@ export default function ProgramaMensualPage() {
                               <p className="text-sm capitalize">Tipo: {assign.preachingType}</p>
                               {assign.territoryName && <p className="text-sm">Territorio: {assign.territoryName}</p>}
                               {assign.casaName && <p className="text-sm">Casa: {assign.casaName}</p>}
-                              {assign.assignedGroupId && <p className="text-xs text-muted-foreground">Grupo ID: {assign.assignedGroupId}</p>}
                             </li>
                           ))}
                         </ul>
@@ -469,9 +462,6 @@ export default function ProgramaMensualPage() {
           isOpen={isGenerationDialogOpen}
           onOpenChange={setIsGenerationDialogOpen}
           onSubmitGeneration={handleGenerateAssignments}
-          year={selectedYear}
-          month={selectedMonth}
-          programScheduleSlots={programScheduleSlots} 
         />
       )}
     </div>

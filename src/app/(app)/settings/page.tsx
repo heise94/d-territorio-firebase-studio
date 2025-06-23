@@ -109,7 +109,7 @@ const CampaignTypeLabels: Record<CampaignType, string> = {
   special: "Campaña Especial"
 };
 
-type SettingsSectionId = "permissions" | "weeklyProgram" | "specialEvents" | "ruralRotation";
+type SettingsSectionId = "permissions" | "weeklyProgram" | "specialEvents";
 
 interface SettingsSectionInfo {
   id: SettingsSectionId;
@@ -122,7 +122,6 @@ const settingsSections: SettingsSectionInfo[] = [
   { id: "permissions", title: "Roles y Permisos", icon: KeyRound, description: "Define qué puede hacer cada rol de usuario en la aplicación." },
   { id: "weeklyProgram", title: "Programa Semanal", icon: CalendarCog, description: "Define los horarios fijos y tentativos para la predicación y qué días son organizados por grupos." },
   { id: "specialEvents", title: "Eventos Especiales", icon: Briefcase, description: "Gestiona campañas, asambleas y días festivos personalizados." },
-  { id: "ruralRotation", title: "Rotación Rural", icon: UsersRound, description: "Define el último grupo que se hizo cargo de la predicación rural de fin de semana." },
 ];
 
 
@@ -156,11 +155,6 @@ export default function SettingsPage() {
 
   const [isLoadingSpecialEvents, setIsLoadingSpecialEvents] = useState(false);
   const [isSavingSpecialEvents, setIsSavingSpecialEvents] = useState(false);
-
-  const [lastRuralWeekendLeadingGroupIdFromDB, setLastRuralWeekendLeadingGroupIdFromDB] = useState<string | null | undefined>(undefined);
-  const [availablePreachingGroupsForRotation, setAvailablePreachingGroupsForRotation] = useState<PreachingGroup[]>([]);
-  const [isLoadingPreachingGroupsForRotation, setIsLoadingPreachingGroupsForRotation] = useState(true);
-  const [isSavingRuralRotation, setIsSavingRuralRotation] = useState(false);
 
   const [editableRolePermissions, setEditableRolePermissions] = useState<RoleConfiguration>(DEFAULT_ROLE_PERMISSIONS);
   const [isLoadingPermissionsSettings, setIsLoadingPermissionsSettings] = useState(true);
@@ -212,11 +206,9 @@ export default function SettingsPage() {
     if (!db || Object.keys(db).length === 0) {
         toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
         setIsLoadingProgramSettings(false);
-        setIsLoadingPreachingGroupsForRotation(false);
         return;
     }
     setIsLoadingProgramSettings(true);
-    setIsLoadingPreachingGroupsForRotation(true);
     try {
         const docRef = doc(db, "settings", "programConfig");
         const docSnap = await getDoc(docRef);
@@ -224,29 +216,18 @@ export default function SettingsPage() {
             const data = docSnap.data() as Partial<SettingsDoc>;
             setScheduleSlots(data.programScheduleSlots || []);
             setGroupOrganizedDays(data.groupOrganizedDays || []);
-            setLastRuralWeekendLeadingGroupIdFromDB(data.lastRuralWeekendLeadingGroupId === undefined ? null : data.lastRuralWeekendLeadingGroupId);
         } else {
             setScheduleSlots([]);
             setGroupOrganizedDays([]);
-            setLastRuralWeekendLeadingGroupIdFromDB(null); 
             console.log("Program config document (settings/programConfig) does not exist. Initializing with empty/default values.");
         }
-
-        const groupsQuery = query(collection(db, "preachingGroups"), orderBy("name", "asc"));
-        const groupsSnapshot = await getDocs(groupsQuery);
-        const fetchedGroups = groupsSnapshot.docs.map(docData => ({ id: docData.id, ...docData.data() } as PreachingGroup));
-        setAvailablePreachingGroupsForRotation(fetchedGroups);
-
     } catch (error) {
-        console.error("Error fetching program configuration or groups:", error);
-        toast({ title: "Error al Cargar Config. Programa", description: "No se pudo cargar la configuración del programa o los grupos.", variant: "destructive" });
+        console.error("Error fetching program configuration:", error);
+        toast({ title: "Error al Cargar Config. Programa", description: "No se pudo cargar la configuración del programa.", variant: "destructive" });
         setScheduleSlots([]);
         setGroupOrganizedDays([]);
-        setLastRuralWeekendLeadingGroupIdFromDB(null);
-        setAvailablePreachingGroupsForRotation([]);
     } finally {
         setIsLoadingProgramSettings(false);
-        setIsLoadingPreachingGroupsForRotation(false);
     }
   }, [toast]);
   
@@ -309,7 +290,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeSectionId === "permissions") {
       loadPermissionsConfiguration();
-    } else if (activeSectionId === "weeklyProgram" || activeSectionId === "ruralRotation") {
+    } else if (activeSectionId === "weeklyProgram") {
       loadProgramConfiguration();
     } else if (activeSectionId === "specialEvents") {
       loadSpecialEventsConfiguration();
@@ -362,7 +343,7 @@ export default function SettingsPage() {
   };
 
   const saveProgramConfigToFirestore = async (
-    configToSave: Partial<Pick<SettingsDoc, 'programScheduleSlots' | 'groupOrganizedDays' | 'lastRuralWeekendLeadingGroupId'>>
+    configToSave: Partial<Pick<SettingsDoc, 'programScheduleSlots' | 'groupOrganizedDays'>>
   ) => {
     if (!db || Object.keys(db).length === 0) {
         toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
@@ -376,11 +357,6 @@ export default function SettingsPage() {
     }
     if (configToSave.hasOwnProperty('groupOrganizedDays')) {
         dataToSave.groupOrganizedDays = configToSave.groupOrganizedDays;
-    }
-    if (configToSave.hasOwnProperty('lastRuralWeekendLeadingGroupId')) {
-        dataToSave.lastRuralWeekendLeadingGroupId = configToSave.lastRuralWeekendLeadingGroupId === undefined 
-            ? deleteField() 
-            : configToSave.lastRuralWeekendLeadingGroupId; 
     }
     
     const sanitizedData = Object.entries(dataToSave).reduce((acc, [key, value]) => {
@@ -804,18 +780,6 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
       });
   }, [customHolidays, selectedHolidayYear, selectedHolidayMonth]);
 
-
-  const handleSaveRuralRotation = async () => {
-    setIsSavingRuralRotation(true);
-    const valueToSave = lastRuralWeekendLeadingGroupIdFromDB === undefined ? deleteField() : lastRuralWeekendLeadingGroupIdFromDB;
-    const success = await saveProgramConfigToFirestore({ lastRuralWeekendLeadingGroupId: valueToSave as string | null | undefined });
-    
-    if (success) {
-        toast({ title: "Configuración Guardada", description: "La rotación para predicación rural de fin de semana ha sido actualizada." });
-    }
-    setIsSavingRuralRotation(false);
-  };
-
   const currentSection = settingsSections.find(sec => sec.id === activeSectionId);
   const PERMISSIONS_MODULES_ORDERED_FOR_ACCORDION = PERMISSIONS_BY_MODULE.map(m => m.moduleName);
 
@@ -1200,48 +1164,6 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
               )}
             </div>
           )}
-
-          {activeSectionId === "ruralRotation" && (
-            <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center text-xl"><UsersRound className="mr-3 h-6 w-6 text-primary" />Rotación Rural Fin de Semana</CardTitle>
-                <CardDescription>Define el último grupo que se hizo cargo de la predicación rural de fin de semana para una rotación equitativa.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoadingProgramSettings || isLoadingPreachingGroupsForRotation ? (
-                  <div className="space-y-3 py-6">
-                    <Skeleton className="h-6 w-1/2" />
-                    <Skeleton className="h-10 w-full sm:w-[300px]" />
-                    <Skeleton className="h-4 w-3/4" />
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label htmlFor="ruralRotationSelect">Último grupo que dirigió el rural de fin de semana</Label>
-                    <Select
-                        value={lastRuralWeekendLeadingGroupIdFromDB === null ? "NONE_OR_RESET" : lastRuralWeekendLeadingGroupIdFromDB || "NONE_OR_RESET"}
-                        onValueChange={(value) => setLastRuralWeekendLeadingGroupIdFromDB(value === "NONE_OR_RESET" ? null : value)}
-                        disabled={availablePreachingGroupsForRotation.length === 0 && !lastRuralWeekendLeadingGroupIdFromDB}
-                    >
-                      <SelectTrigger className="w-full sm:w-[300px]" id="ruralRotationSelect">
-                        <SelectValue placeholder={availablePreachingGroupsForRotation.length === 0 ? "No hay grupos para seleccionar" : "Seleccionar grupo..."} />
-                        </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NONE_OR_RESET">Ninguno / Reiniciar Rotación</SelectItem>
-                        {availablePreachingGroupsForRotation.map(group => (<SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-sm text-muted-foreground">Selecciona el grupo más reciente. Si es la primera vez, selecciona "Ninguno".</p>
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="border-t pt-4">
-                <Button onClick={handleSaveRuralRotation} disabled={isSavingRuralRotation || isLoadingProgramSettings || isLoadingPreachingGroupsForRotation}>
-                  {isSavingRuralRotation && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}<Save className="mr-2 h-4 w-4" /> Guardar Rotación Rural
-                </Button>
-              </CardFooter>
-            </Card>
-          )}
-
         </div>
       </div>
 
@@ -1269,5 +1191,3 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     </TooltipProvider>
   );
 }
-
-    
