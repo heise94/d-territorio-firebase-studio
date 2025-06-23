@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Filter, FileDown } from "lucide-react";
+import { Loader2, Filter, FileDown, PlusCircle } from "lucide-react";
 import type { Report } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
@@ -24,7 +24,6 @@ export default function ReportesPage() {
 
   const allReports = useMemo(() => {
     setIsLoading(true);
-    // Correctly destructure the 'territories' array from the returned object
     const { territories } = processReportData({});
     setIsLoading(false);
     return territories;
@@ -50,42 +49,57 @@ export default function ReportesPage() {
 
   const processedActividadData: ReporteActividadData[] = useMemo(() => {
     if (!Array.isArray(filteredReports)) return [];
-    const latestCyclesMap = new Map<string, Report>();
-    
+
+    const reportsByTerritory = new Map<string, Report[]>();
     filteredReports.forEach(report => {
-      const existing = latestCyclesMap.get(report.territoryNumber.toString());
-      if (!existing || (report.completedCurrentCycle === 'En curso' && existing.completedCurrentCycle !== 'En curso')) {
-        latestCyclesMap.set(report.territoryNumber.toString(), report);
-      } else if (report.completedCurrentCycle !== 'En curso' && existing.completedCurrentCycle !== 'En curso') {
-        const reportDate = new Date(report.completedCurrentCycle.split('/').reverse().join('-'));
-        const existingDate = new Date(existing.completedCurrentCycle.split('/').reverse().join('-'));
-        if (reportDate > existingDate) {
-          latestCyclesMap.set(report.territoryNumber.toString(), report);
-        }
+      const key = report.territoryNumber.toString();
+      if (!reportsByTerritory.has(key)) {
+        reportsByTerritory.set(key, []);
       }
+      reportsByTerritory.get(key)!.push(report);
     });
 
-    return Array.from(latestCyclesMap.values()).map(report => {
-      const lastCampaign = report.campaigns[report.campaigns.length - 1];
-      const isInProgress = report.completedCurrentCycle === 'En curso';
-      return {
-        id: report.id,
-        territoryNumber: report.territoryNumber.toString(),
-        lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
-        assignedTo: isInProgress ? lastCampaign?.assignedTo || "N/A" : "N/A",
-        assignedDate: isInProgress ? lastCampaign?.assignedDate || "N/A" : "N/A",
-        blocksWorked: isInProgress ? lastCampaign?.blocksWorked || "-" : "-",
-        blocksPending: isInProgress ? lastCampaign?.blocksPending || "-" : "-",
-        status: isInProgress ? "En Curso" : "Disponible",
-        campaignHistory: report.campaigns,
-      };
-    });
+    const activityData: ReporteActividadData[] = [];
+    
+    for (const [territoryNumber, reports] of reportsByTerritory.entries()) {
+      let latestReport = reports.find(r => r.completedCurrentCycle === 'En curso' || r.completedCurrentCycle === 'Disponible');
+
+      if (!latestReport) {
+        latestReport = [...reports].sort((a, b) => {
+          try {
+            const dateA = new Date(a.completedCurrentCycle.split('/').reverse().join('-'));
+            const dateB = new Date(b.completedCurrentCycle.split('/').reverse().join('-'));
+            return dateB.getTime() - dateA.getTime();
+          } catch(e) { return 0; }
+        })[0];
+      }
+      
+      if (latestReport) {
+          const lastCampaign = latestReport.campaigns[latestReport.campaigns.length - 1];
+          const isInProgress = latestReport.completedCurrentCycle === 'En curso';
+          
+          activityData.push({
+            id: latestReport.id,
+            territoryNumber: latestReport.territoryNumber.toString(),
+            lastCompletedHistoric: latestReport.lastCompletedHistoric || "Nunca",
+            assignedTo: isInProgress ? lastCampaign?.assignedTo || "N/A" : "N/A",
+            assignedDate: isInProgress ? lastCampaign?.assignedDate || "N/A" : "N/A",
+            blocksWorked: isInProgress ? lastCampaign?.blocksWorked || "-" : "-",
+            blocksPending: isInProgress ? lastCampaign?.blocksPending || "-" : "-",
+            status: isInProgress ? "En Curso" : "Disponible",
+            campaignHistory: latestReport.campaigns,
+          });
+      }
+    }
+    
+    return activityData.sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, {numeric: true}));
+
   }, [filteredReports]);
 
   const processedS13Data: ReporteS13Data[] = useMemo(() => {
     if (!Array.isArray(filteredReports)) return [];
     return filteredReports
-      .filter(report => report.completedCurrentCycle !== 'En curso')
+      .filter(report => report.completedCurrentCycle !== 'En curso' && report.completedCurrentCycle !== 'Disponible')
       .map(report => {
         const firstCampaign = report.campaigns[0];
         return {
@@ -121,7 +135,7 @@ export default function ReportesPage() {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `Reporte_S13_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `Reporte_S-13_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -146,14 +160,19 @@ export default function ReportesPage() {
       </Card>
       
       <Tabs defaultValue="detalle" className="w-full">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-wrap gap-4 justify-between items-center mb-4">
           <TabsList>
             <TabsTrigger value="detalle">Registro de Actividad Detallado</TabsTrigger>
             <TabsTrigger value="s13">Registro S-13 (Completados)</TabsTrigger>
           </TabsList>
-          <Button variant="outline" onClick={handleExportS13} size="sm">
-            <FileDown className="mr-2 h-4 w-4" /> Exportar S-13 a CSV
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => toast({title: "Próximamente", description: "La entrada manual de reportes estará disponible pronto."})} size="sm">
+                <PlusCircle className="mr-2 h-4 w-4" /> Ingresar Reporte Manual
+            </Button>
+            <Button variant="outline" onClick={handleExportS13} size="sm">
+              <FileDown className="mr-2 h-4 w-4" /> Exportar S-13 a CSV
+            </Button>
+          </div>
         </div>
 
         <TabsContent value="detalle">

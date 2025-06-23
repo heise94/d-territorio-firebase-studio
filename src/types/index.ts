@@ -290,5 +290,5 @@ export interface Report {
   territoryNumber: string;
   lastCompletedHistoric?: string; // "dd/MM/yyyy"
   campaigns: CampaignAssignmentInReport[];
-  completedCurrentCycle: string; // "dd/MM/yyyy" or "En curso"
+  completedCurrentCycle: string; // "dd/MM/yyyy", "En curso", or "Disponible"
 }
