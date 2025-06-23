@@ -24,9 +24,10 @@ export default function ReportesPage() {
 
   const allReports = useMemo(() => {
     setIsLoading(true);
-    const data = processReportData({});
+    // Correctly destructure the 'territories' array from the returned object
+    const { territories } = processReportData({});
     setIsLoading(false);
-    return data.territories;
+    return territories;
   }, []);
 
   const filteredReports = useMemo(() => {
