@@ -82,11 +82,11 @@ export default function MisAsignacionesPage() {
 
     setIsLoadingAssignments(true);
     const assignmentsCollectionRef = collection(db, "assignments");
+    // The query was changed to remove orderBy clauses to avoid needing a composite index.
+    // Sorting is now handled on the client-side after fetching the data.
     const q = query(
       assignmentsCollectionRef,
-      where("userId", "==", userProfile.firebaseAuthUid),
-      orderBy("date", "desc"), // Order by date to help with active/history logic
-      orderBy("time", "desc")  // Then by time
+      where("userId", "==", userProfile.firebaseAuthUid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -106,6 +106,16 @@ export default function MisAsignacionesPage() {
             : undefined,
         } as UserAssignment;
       });
+
+      // Client-side sorting to replace Firestore's orderBy
+      fetchedAssignments.sort((a, b) => {
+        const aDateTime = `${a.date} ${a.time}`;
+        const bDateTime = `${b.date} ${b.time}`;
+        if (aDateTime > bDateTime) return -1; // For descending order
+        if (aDateTime < bDateTime) return 1;
+        return 0;
+      });
+      
       setAssignments(fetchedAssignments);
       setIsLoadingAssignments(false);
     }, (error) => {
