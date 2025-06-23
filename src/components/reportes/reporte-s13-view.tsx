@@ -4,11 +4,11 @@
 import { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Eye, Sparkles } from "lucide-react";
+import { Eye, Sparkles, User } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import type { CampaignAssignmentInReport, Report } from "@/types";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 
 export interface ReporteS13Data {
@@ -67,7 +67,8 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
   const renderCycleCell = (cycle: ReporteS13Data | undefined) => {
     if (!cycle) return <span className="text-muted-foreground">N/A</span>;
     return (
-      <div className="text-xs">
+      <div className="text-xs space-y-0.5">
+        <p className="font-medium flex items-center"><User className="h-3 w-3 mr-1.5 shrink-0" />{cycle.firstAssignedTo}</p>
         <p><span className="font-semibold text-primary">{cycle.completedCurrentCycle}</span> (Fin)</p>
         <p className="text-muted-foreground">{cycle.firstAssignedDate} (Inicio)</p>
         {cycle.fullCampaignHistory[0]?.isSpecialCampaign && (
@@ -134,7 +135,7 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Completó Hist.</TableHead>
+                  <TableHead>Publicador (Inicio)</TableHead>
                   <TableHead>Inicio Ciclo</TableHead>
                   <TableHead>Fin Ciclo</TableHead>
                    <TableHead>Campaña Esp.</TableHead>
@@ -143,7 +144,7 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
               <TableBody>
                 {selectedHistory.length > 0 ? selectedHistory.map((cycle) => (
                   <TableRow key={cycle.id}>
-                    <TableCell>{cycle.lastCompletedHistoric}</TableCell>
+                    <TableCell>{cycle.firstAssignedTo}</TableCell>
                     <TableCell>{cycle.firstAssignedDate}</TableCell>
                     <TableCell className="font-semibold text-primary">{cycle.completedCurrentCycle}</TableCell>
                     <TableCell>
