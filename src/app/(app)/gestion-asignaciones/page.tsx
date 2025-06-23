@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -51,7 +50,7 @@ import {
 } from "lucide-react";
 import type { Assignment, AssignmentStatus, PreachingAssignedType, PublisherDetail, ProgramScheduleSlot, SettingsDoc } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, onSnapshot, query, orderBy, updateDoc, serverTimestamp } from "firebase/firestore";
+import { Timestamp, collection, doc, onSnapshot, query, orderBy, updateDoc, serverTimestamp, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format, parse, isBefore } from "date-fns";
 import { es } from "date-fns/locale";
@@ -471,3 +470,4 @@ export default function GestionAsignacionesPage() {
     </TooltipProvider>
   );
 }
+    
