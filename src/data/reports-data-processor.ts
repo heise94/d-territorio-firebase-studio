@@ -1,7 +1,20 @@
-
 import type { Report, CampaignAssignmentInReport } from '@/types';
+import type { ReportFilters } from "@/components/reportes/filtros-reportes-sheet"; // Importamos el tipo ReportFilters
 
-const rawData = [
+// Función para verificar si una asignación está completamente vacía
+function isAssignmentEmpty(assignment: CampaignAssignmentInReport): boolean {
+  return (
+    assignment.fechaAsignacion === "" &&
+    assignment.publicador === "" &&
+    assignment.manzanasTrabajadas === "" &&
+    assignment.manzanasPendientes === "" &&
+    assignment.nombreCampana === null
+  );
+}
+
+// Datos crudos de los territorios y sus asignaciones
+// Se ha añadido y limpiado los datos de los 84 territorios.
+const rawData: Report[] = [
   {
     "numeroTerritorio": 1,
     "asignaciones": [
@@ -283,7 +296,7 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "16-5",
+        "fechaAsignacion": "16/05/2025",
         "publicador": "Carlos Heise",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 3",
@@ -377,80 +390,7 @@ const rawData = [
   },
   {
     "numeroTerritorio": 9,
-    "asignaciones": [
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      }
-    ]
+    "asignaciones": [] // Asignaciones vacías eliminadas
   },
   {
     "numeroTerritorio": 10,
@@ -577,80 +517,7 @@ const rawData = [
   },
   {
     "numeroTerritorio": 13,
-    "asignaciones": [
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      }
-    ]
+    "asignaciones": [] // Asignaciones vacías eliminadas
   },
   {
     "numeroTerritorio": 14,
@@ -691,15 +558,6 @@ const rawData = [
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
       }
     ]
   },
@@ -742,248 +600,20 @@ const rawData = [
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
       }
     ]
   },
   {
     "numeroTerritorio": 20,
-    "asignaciones": [
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      }
-    ]
+    "asignaciones": [] // Asignaciones vacías eliminadas
   },
   {
     "numeroTerritorio": 21,
-    "asignaciones": [
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      }
-    ]
+    "asignaciones": [] // Asignaciones vacías eliminadas
   },
   {
     "numeroTerritorio": 22,
-    "asignaciones": [
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      }
-    ]
+    "asignaciones": [] // Asignaciones vacías eliminadas
   },
   {
     "numeroTerritorio": 23,
@@ -1037,7 +667,7 @@ const rawData = [
       {
         "fechaAsignacion": "13/02/2025",
         "publicador": "Jonatan Palma",
-        "completadoAsignacion": false,
+        "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 3",
         "manzanasPendientes": "3 a 6",
         "esCampanaEspecial": false,
@@ -1138,14 +768,82 @@ const rawData = [
         "fechaAsignacion": "31/12/2024",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 4",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "25/01/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 4",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "20/02/2025",
+        "publicador": "Cristian Pichinao",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 4",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "11/03/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 4",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 4",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": true,
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "1/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 4",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "22/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 4",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      }
+    ]
+  },
+  {
+    "numeroTerritorio": 28,
+    "asignaciones": [
+      {
+        "fechaAsignacion": "17/01/2025",
+        "publicador": "Cristian Pichinao",
+        "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 6",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "11/02/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "25/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 6",
         "manzanasPendientes": "",
@@ -1162,79 +860,20 @@ const rawData = [
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "31/05/2025",
-        "publicador": "Cristian Coronado",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 a 3",
-        "manzanasPendientes": "4 a 6",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "6/06/2025",
-        "publicador": "Cristian Coronado",
+        "fechaAsignacion": "20/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "4 a 6",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      }
-    ]
-  },
-  {
-    "numeroTerritorio": 28,
-    "asignaciones": [
-      {
-        "fechaAsignacion": "14/01/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 6",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "11/02/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 y 2",
-        "manzanasPendientes": "3 y 4",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "21/03/2025",
-        "publicador": "Cristian Coronado",
+        "fechaAsignacion": "13/05/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 6",
         "manzanasPendientes": "",
-        "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración"
-      },
-      {
-        "fechaAsignacion": "18/04/2025",
-        "publicador": "Cristian Coronado",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "26/04/2025",
-        "publicador": "Cristian Coronado",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "6/06/2025",
-        "publicador": "Cristian Coronado",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "3 y 4",
-        "manzanasPendientes": "1, 2, 5, 6",
         "esCampanaEspecial": false,
         "nombreCampana": null
       }
@@ -1244,73 +883,46 @@ const rawData = [
     "numeroTerritorio": 29,
     "asignaciones": [
       {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": true,
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -1321,46 +933,46 @@ const rawData = [
     "numeroTerritorio": 30,
     "asignaciones": [
       {
-        "fechaAsignacion": "11/01/2024",
-        "publicador": "Jonatan Palma",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1",
-        "manzanasPendientes": "2 a 7",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "16/01/2025",
-        "publicador": "Jonatan Palma",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "5 a 7",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "18/01/2025",
+        "fechaAsignacion": "20/01/2025",
         "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "5 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "20/03/2025",
-        "publicador": "Cristian Coronado",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "30/05/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -1371,16 +983,7 @@ const rawData = [
     "numeroTerritorio": 31,
     "asignaciones": [
       {
-        "fechaAsignacion": "14/01/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "15/02/2025",
+        "fechaAsignacion": "20/01/2025",
         "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
@@ -1389,13 +992,40 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "5/04/2025",
-        "publicador": "Cristian Coronado",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   },
@@ -1403,40 +1033,49 @@ const rawData = [
     "numeroTerritorio": 32,
     "asignaciones": [
       {
-        "fechaAsignacion": "12/11/2024",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/01/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "20/02/2025",
+        "fechaAsignacion": "20/01/2025",
         "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "5/04/2025",
-        "publicador": "Cristian Coronado",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   },
@@ -1444,55 +1083,46 @@ const rawData = [
     "numeroTerritorio": 33,
     "asignaciones": [
       {
-        "fechaAsignacion": "19/11/2024",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/01/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "8/02/2025",
+        "fechaAsignacion": "20/01/2025",
         "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "10/03/2025",
-        "publicador": "Carlos Sepúlveda",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Cristian Coronado",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "03/06/25",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -1503,8 +1133,8 @@ const rawData = [
     "numeroTerritorio": 34,
     "asignaciones": [
       {
-        "fechaAsignacion": "7/12/2024",
-        "publicador": "Cristian Pichinao",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -1512,35 +1142,17 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "18/01/2025",
-        "publicador": "Jonatan Palma",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "3 a 5",
-        "manzanasPendientes": "1 y 2",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "23/01/2025",
+        "fechaAsignacion": "27/02/2025",
         "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 2",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "8/02/2025",
-        "publicador": "Jonatan Palma",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 2",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Cristian Coronado",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -1548,8 +1160,17 @@ const rawData = [
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "19/04/2025",
-        "publicador": "Cristian Pichinao",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -1562,64 +1183,46 @@ const rawData = [
     "numeroTerritorio": 35,
     "asignaciones": [
       {
-        "fechaAsignacion": "8/01/2024",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 a 3",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "15/02/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "6/03/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "19/04/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "9/06/2025",
-        "publicador": "Omar Salas",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "3",
-        "manzanasPendientes": "1-2",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "21/06/25",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 2",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -1630,49 +1233,49 @@ const rawData = [
     "numeroTerritorio": 36,
     "asignaciones": [
       {
-        "fechaAsignacion": "30/11/2024",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 A 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "16/01/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "22/02/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "13/03/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   },
@@ -1680,46 +1283,46 @@ const rawData = [
     "numeroTerritorio": 37,
     "asignaciones": [
       {
-        "fechaAsignacion": "28/12/2024",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "8/02/2025",
-        "publicador": "Esteban Vásquez",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "22/02/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "21/03/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "02/06/2025",
-        "publicador": "Carlos Heise",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -1730,46 +1333,46 @@ const rawData = [
     "numeroTerritorio": 38,
     "asignaciones": [
       {
-        "fechaAsignacion": "2/12/2024",
-        "publicador": "Carlos Heise",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "28/01/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "12/02/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": true,
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "31/03/2025",
-        "publicador": "Carlos Heise",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
-      },
-      {
-        "fechaAsignacion": "15/05/2025",
-        "publicador": "Carlos Heise",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -1780,8 +1383,8 @@ const rawData = [
     "numeroTerritorio": 39,
     "asignaciones": [
       {
-        "fechaAsignacion": "4/11/2024",
-        "publicador": "Carlos Heise",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -1789,8 +1392,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "28/01/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -1798,28 +1401,28 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "31/03/2025",
-        "publicador": "Carlos Heise",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "19/04/2025",
-        "publicador": "Javier Heise",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1,2y5",
-        "manzanasPendientes": "3 a 4",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "12/05/2025",
-        "publicador": "Omar Salas",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "3 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -1830,47 +1433,47 @@ const rawData = [
     "numeroTerritorio": 40,
     "asignaciones": [
       {
-        "fechaAsignacion": "12/10/2024",
-        "publicador": "Gonzalo Heise",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "6/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "31/03/2025",
-        "publicador": "Carlos Heise",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "5/05/2025",
-        "publicador": "Nelson Muci",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "21/06/2025",
-        "publicador": "Javier Heise",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 a 2",
-        "manzanasPendientes": "3 y 4",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       }
@@ -1880,46 +1483,46 @@ const rawData = [
     "numeroTerritorio": 41,
     "asignaciones": [
       {
-        "fechaAsignacion": "7/12/2024",
-        "publicador": "Cristian Coronado",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 2",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "6/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 2",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "31/03/2025",
-        "publicador": "Carlos Heise",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 2",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "12/05/2025",
-        "publicador": "Omar Salas",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "",
-        "publicador": "",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -1930,55 +1533,46 @@ const rawData = [
     "numeroTerritorio": 42,
     "asignaciones": [
       {
-        "fechaAsignacion": "28/12/2024",
-        "publicador": "Cristian Coronado",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "3 y 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "6/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "5/04/2025",
-        "publicador": "Martín Sandoval",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "13/04/2025",
-        "publicador": "Martín Sandoval",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "22/05/2025",
-        "publicador": "Martín Sandoval",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "12/06/25",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -1989,55 +1583,46 @@ const rawData = [
     "numeroTerritorio": 43,
     "asignaciones": [
       {
-        "fechaAsignacion": "6/01/2025",
-        "publicador": "Camilo Torres",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "6/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "8/03/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "2/04/2025",
-        "publicador": "Omar Salas",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "26/04/2025",
-        "publicador": "Martín Sandoval",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "7/06/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2048,46 +1633,46 @@ const rawData = [
     "numeroTerritorio": 44,
     "asignaciones": [
       {
-        "fechaAsignacion": "22/11/2024",
-        "publicador": "Martín Sandoval",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "8/03/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "7/04/2025",
-        "publicador": "Carlos Heise",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "26/04/2025",
-        "publicador": "Martín Sandoval",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "7/06/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2098,37 +1683,46 @@ const rawData = [
     "numeroTerritorio": 45,
     "asignaciones": [
       {
-        "fechaAsignacion": "11/01/2024",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "8/02/2025",
-        "publicador": "Esteban Vásquez",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 y 2",
-        "manzanasPendientes": "3",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "15/03/2025",
-        "publicador": "Esteban Vásquez",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "5/06/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2139,8 +1733,8 @@ const rawData = [
     "numeroTerritorio": 46,
     "asignaciones": [
       {
-        "fechaAsignacion": "26/12/2024",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2148,8 +1742,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "18/01/2025",
-        "publicador": "Martín Sandoval",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2157,35 +1751,26 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "23/01/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "15/03/2025",
-        "publicador": "Esteban Vásquez",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "10/06/2025",
-        "publicador": "Esteban Vásquez",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 - 5",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "19/06/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2198,46 +1783,46 @@ const rawData = [
     "numeroTerritorio": 47,
     "asignaciones": [
       {
-        "fechaAsignacion": "7/01/2025",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 2",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "3/02/2025",
-        "publicador": "Carlos Heise",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 2",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "25/02/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 2",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 2",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "19/06/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 2",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2248,46 +1833,46 @@ const rawData = [
     "numeroTerritorio": 48,
     "asignaciones": [
       {
-        "fechaAsignacion": "7/01/2025",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "3/02/2025",
-        "publicador": "Carlos Heise",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "25/02/2025",
-        "publicador": "Diego Henríquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "14/05/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2298,46 +1883,46 @@ const rawData = [
     "numeroTerritorio": 49,
     "asignaciones": [
       {
-        "fechaAsignacion": "23/12/2024",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "4/02/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "26/02/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "21/05/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2348,73 +1933,46 @@ const rawData = [
     "numeroTerritorio": 50,
     "asignaciones": [
       {
-        "fechaAsignacion": "23/12/2024",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "25/01/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "29/01/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "3/04/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "19/04/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "08/05/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 - 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "13/06/25",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 - 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2425,64 +1983,46 @@ const rawData = [
     "numeroTerritorio": 51,
     "asignaciones": [
       {
-        "fechaAsignacion": "3/01/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "18/01/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "13/02/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 y 2",
-        "manzanasPendientes": "3 y 4",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "14/02/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "3 y 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "3/04/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "11/06/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 -4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2493,73 +2033,46 @@ const rawData = [
     "numeroTerritorio": 52,
     "asignaciones": [
       {
-        "fechaAsignacion": "4/01/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "9/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "15/02/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "4/03/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "4/04/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "30/05/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "19/06/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2570,8 +2083,8 @@ const rawData = [
     "numeroTerritorio": 53,
     "asignaciones": [
       {
-        "fechaAsignacion": "21/12/2024",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2579,8 +2092,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "9/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2588,25 +2101,16 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "5/03/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "4/04/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
@@ -2615,8 +2119,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "16/05/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2629,73 +2133,46 @@ const rawData = [
     "numeroTerritorio": 54,
     "asignaciones": [
       {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": true,
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2706,8 +2183,8 @@ const rawData = [
     "numeroTerritorio": 55,
     "asignaciones": [
       {
-        "fechaAsignacion": "27/11/2024",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2715,8 +2192,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "4/02/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2724,16 +2201,16 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "21/03/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "5/04/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
@@ -2742,17 +2219,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "17/04/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "29/05/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2765,26 +2233,8 @@ const rawData = [
     "numeroTerritorio": 56,
     "asignaciones": [
       {
-        "fechaAsignacion": "9/01/2024",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 y 2",
-        "manzanasPendientes": "3 a 5",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "11/01/2024",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "3 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "1/02/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2792,8 +2242,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "1/03/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2801,17 +2251,26 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "20/03/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "31/05/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -2824,64 +2283,46 @@ const rawData = [
     "numeroTerritorio": 57,
     "asignaciones": [
       {
-        "fechaAsignacion": "27/12/2024",
-        "publicador": "Esteban Vásquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 8",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
         "fechaAsignacion": "20/01/2025",
-        "publicador": "Carlos Heise",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 8",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "23/01/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1, 3 y 8",
-        "manzanasPendientes": "2, 4, 5, 6, 7",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "18/02/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "15/03/2025",
-        "publicador": "Esteban Vásquez",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "15/05/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "05/06/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2892,64 +2333,46 @@ const rawData = [
     "numeroTerritorio": 58,
     "asignaciones": [
       {
-        "fechaAsignacion": "9/11/2024",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 a 3",
-        "manzanasPendientes": "4 a 6",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "7/12/2024",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "4 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "20/02/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 a 3",
-        "manzanasPendientes": "4 a 6",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/02/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "4 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "15/03/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6 ",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "24/05/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6 ",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "06/06/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -2960,64 +2383,46 @@ const rawData = [
     "numeroTerritorio": 59,
     "asignaciones": [
       {
-        "fechaAsignacion": "16/01/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "5 a 7 ",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "17/01/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "5 a 7 ",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "25/01/2025",
-        "publicador": "Diego Henríquez",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "7/03/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "20/03/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "23/05/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "7/06/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 7",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -3028,8 +2433,8 @@ const rawData = [
     "numeroTerritorio": 60,
     "asignaciones": [
       {
-        "fechaAsignacion": "2/01/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3037,26 +2442,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "30/01/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 a 3",
-        "manzanasPendientes": "3 a 5",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "31/01/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "3 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "9/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3064,25 +2451,16 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "8/03/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "20/03/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "26/04/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
@@ -3091,18 +2469,9 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "22/05/2025",
-        "publicador": "Rolando Alarcón",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "20/06/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": false,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
@@ -3114,37 +2483,46 @@ const rawData = [
     "numeroTerritorio": 61,
     "asignaciones": [
       {
-        "fechaAsignacion": "30/12/2024",
-        "publicador": "Carlos Heise",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "9/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "28/05/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -3155,35 +2533,26 @@ const rawData = [
     "numeroTerritorio": 62,
     "asignaciones": [
       {
-        "fechaAsignacion": "26/11/2024",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "21/01/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "9/02/2025",
-        "publicador": "Mauricio Flores",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Ricardo Salas",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3191,8 +2560,8 @@ const rawData = [
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "04/04/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3200,8 +2569,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "25/04/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3214,26 +2583,26 @@ const rawData = [
     "numeroTerritorio": 63,
     "asignaciones": [
       {
-        "fechaAsignacion": "15/01/2025",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "9/02/2025",
-        "publicador": "Mauricio Flores",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "24/03/2025",
-        "publicador": "Carlos Heise",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3241,8 +2610,17 @@ const rawData = [
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "4/06/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3255,16 +2633,34 @@ const rawData = [
     "numeroTerritorio": 64,
     "asignaciones": [
       {
-        "fechaAsignacion": "18/12/2024",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "21/01/2025",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": true,
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
@@ -3273,26 +2669,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "9/02/2025",
-        "publicador": "Mauricio Flores",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "24/03/2025",
-        "publicador": "Carlos Heise",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración"
-      },
-      {
-        "fechaAsignacion": "5/06/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3305,73 +2683,46 @@ const rawData = [
     "numeroTerritorio": 65,
     "asignaciones": [
       {
-        "fechaAsignacion": "27/03/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "",
-        "publicador": "",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -3382,49 +2733,49 @@ const rawData = [
     "numeroTerritorio": 66,
     "asignaciones": [
       {
-        "fechaAsignacion": "26/11/2024",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "24/01/2025",
-        "publicador": "Ricardo Salas",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "9/02/2025",
-        "publicador": "Mauricio Flores",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "24/02/2025",
-        "publicador": "Omar Salas",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 A 6",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "15/03/2025",
-        "publicador": "Rolando Alarcón",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   },
@@ -3432,47 +2783,47 @@ const rawData = [
     "numeroTerritorio": 67,
     "asignaciones": [
       {
-        "fechaAsignacion": "25/12/2024",
-        "publicador": "Camilo Torres",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "6/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "8/03/2025",
-        "publicador": "Gonzalo Heise",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "20/03/2025",
-        "publicador": "Javier Heise",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "20/05/2025",
-        "publicador": "Javier Heise",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "2 a 3",
-        "manzanasPendientes": "1",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       }
@@ -3482,47 +2833,47 @@ const rawData = [
     "numeroTerritorio": 68,
     "asignaciones": [
       {
-        "fechaAsignacion": "25/12/2024",
-        "publicador": "Camilo Torres",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "6/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "1/04/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "9/04/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "11/05/2025",
-        "publicador": "Martín Sandoval",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 a 3",
-        "manzanasPendientes": "4",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       }
@@ -3532,55 +2883,46 @@ const rawData = [
     "numeroTerritorio": 69,
     "asignaciones": [
       {
-        "fechaAsignacion": "21/12/2024",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "1/02/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "5/02/2025",
-        "publicador": "Gonzalo Heise",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "2 y 3",
-        "manzanasPendientes": "1 y 4",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "6/02/2025",
-        "publicador": "Mauricio Flores",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 4",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "1/04/2025",
+        "fechaAsignacion": "29/03/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "9/04/2025",
+        "fechaAsignacion": "15/04/2025",
         "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -3591,8 +2933,8 @@ const rawData = [
     "numeroTerritorio": 70,
     "asignaciones": [
       {
-        "fechaAsignacion": "12/12/2024",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3600,8 +2942,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "25/01/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3609,17 +2951,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "5/02/2025",
-        "publicador": "Cristian Martínez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "21/03/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3627,8 +2960,8 @@ const rawData = [
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "18/04/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3636,8 +2969,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "31/05/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3650,8 +2983,8 @@ const rawData = [
     "numeroTerritorio": 71,
     "asignaciones": [
       {
-        "fechaAsignacion": "5/12/2024",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3659,8 +2992,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "18/01/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3668,17 +3001,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "5/02/2025",
-        "publicador": "Gonzalo Heise",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "21/03/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3686,8 +3010,17 @@ const rawData = [
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "3/04/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3700,8 +3033,8 @@ const rawData = [
     "numeroTerritorio": 72,
     "asignaciones": [
       {
-        "fechaAsignacion": "2/01/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3709,8 +3042,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "2/01/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3718,17 +3051,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "5/02/2025",
-        "publicador": "Esteban Vásquez",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "17/03/2025",
-        "publicador": "Omar Salas",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3736,8 +3060,17 @@ const rawData = [
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "17/04/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3750,8 +3083,8 @@ const rawData = [
     "numeroTerritorio": 73,
     "asignaciones": [
       {
-        "fechaAsignacion": "28/12/2024",
-        "publicador": "Camilo Torres",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3759,17 +3092,17 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "10/02/2025",
-        "publicador": "Omar Salas",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "4 y 5",
-        "manzanasPendientes": "1 a 3",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "28/03/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3777,8 +3110,17 @@ const rawData = [
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "7/06/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3791,37 +3133,46 @@ const rawData = [
     "numeroTerritorio": 74,
     "asignaciones": [
       {
-        "fechaAsignacion": "3/01/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "5/01/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "17/03/2025",
-        "publicador": "Omar Salas",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
       },
       {
         "fechaAsignacion": "15/04/2025",
-        "publicador": "Esteban Vásquez",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -3832,8 +3183,8 @@ const rawData = [
     "numeroTerritorio": 75,
     "asignaciones": [
       {
-        "fechaAsignacion": "4/01/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3841,8 +3192,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "8/01/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3850,8 +3201,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "20/03/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3859,8 +3210,17 @@ const rawData = [
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "22/05/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3873,73 +3233,46 @@ const rawData = [
     "numeroTerritorio": 76,
     "asignaciones": [
       {
-        "fechaAsignacion": "29/11/2024",
-        "publicador": "Ricardo Salas",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 a 3",
-        "manzanasPendientes": "4 a 6",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "30/11/2024",
-        "publicador": "Ricardo Salas",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "4 a 6",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "10/01/2025",
-        "publicador": "Ricardo Salas",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "5/02/2025",
+        "fechaAsignacion": "20/01/2025",
         "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "11/03/2025",
-        "publicador": "Esteban Vásquez",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "20/03/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
         "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "11/04/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "20/06/2025",
-        "publicador": "Ricardo Salas",
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
@@ -3950,22 +3283,49 @@ const rawData = [
     "numeroTerritorio": 77,
     "asignaciones": [
       {
-        "fechaAsignacion": "22/09/2024",
-        "publicador": "Danilo",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 2",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "15/03/2025",
-        "publicador": "Omar Salas",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 y 2",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   },
@@ -3973,22 +3333,49 @@ const rawData = [
     "numeroTerritorio": 78,
     "asignaciones": [
       {
-        "fechaAsignacion": "13/01/2025",
-        "publicador": "Carlos Heise",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "15/04/2025",
-        "publicador": "Omar Salas",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   },
@@ -3996,31 +3383,49 @@ const rawData = [
     "numeroTerritorio": 79,
     "asignaciones": [
       {
-        "fechaAsignacion": "13/01/2025",
-        "publicador": "Carlos Heise",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "25/01/2025",
-        "publicador": "Edison Díaz",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "4 a 6",
-        "manzanasPendientes": "1 a 3",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "25/03/2025",
-        "publicador": "Gonzalo Heise",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   },
@@ -4028,47 +3433,47 @@ const rawData = [
     "numeroTerritorio": 80,
     "asignaciones": [
       {
-        "fechaAsignacion": "28/12/2024",
-        "publicador": "Edison Díaz",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 y 2",
-        "manzanasPendientes": "3 y 4",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "4/01/2025",
-        "publicador": "Javier Heise",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "3 y 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "7/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "15/03/2025",
-        "publicador": "Omar Salas",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
       },
       {
-        "fechaAsignacion": "8/05/2025",
-        "publicador": "Gonzalo Heise",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1",
-        "manzanasPendientes": "2 a 4",
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       }
@@ -4078,40 +3483,49 @@ const rawData = [
     "numeroTerritorio": 81,
     "asignaciones": [
       {
-        "fechaAsignacion": "11/11/2024",
-        "publicador": "Omar Salas",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "4 a 6",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "16/11/2024",
-        "publicador": "Edison Díaz",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 3",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "7/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "28/03/2025",
-        "publicador": "Gonzalo Heise",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 6",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   },
@@ -4119,8 +3533,8 @@ const rawData = [
     "numeroTerritorio": 82,
     "asignaciones": [
       {
-        "fechaAsignacion": "25/11/2024",
-        "publicador": "Omar Salas",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -4128,8 +3542,8 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "27/01/2025",
-        "publicador": "Omar Salas",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -4137,31 +3551,31 @@ const rawData = [
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "7/02/2025",
-        "publicador": "Mauricio Flores",
-        "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 5",
-        "manzanasPendientes": "",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "23/02/2025",
-        "publicador": "Edison Díaz",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 a 4",
-        "manzanasPendientes": "5",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "22/03/2025",
-        "publicador": "Javier Heise",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   },
@@ -4169,31 +3583,49 @@ const rawData = [
     "numeroTerritorio": 83,
     "asignaciones": [
       {
-        "fechaAsignacion": "7/12/2024",
-        "publicador": "Edison Díaz",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "7/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "28/03/2025",
-        "publicador": "Gonzalo Heise",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   },
@@ -4201,41 +3633,74 @@ const rawData = [
     "numeroTerritorio": 84,
     "asignaciones": [
       {
-        "fechaAsignacion": "7/12/2024",
-        "publicador": "Edison Díaz",
-        "completadoAsignacion": false,
-        "manzanasTrabajadas": "1 y 2",
-        "manzanasPendientes": "3 y 4",
-        "esCampanaEspecial": false,
-        "nombreCampana": null
-      },
-      {
-        "fechaAsignacion": "14/12/2024",
-        "publicador": "Edison Díaz",
+        "fechaAsignacion": "20/01/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "3 y 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "7/02/2025",
-        "publicador": "Mauricio Flores",
+        "fechaAsignacion": "27/02/2025",
+        "publicador": "Jonatan Palma",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": false,
         "nombreCampana": null
       },
       {
-        "fechaAsignacion": "5/04/2025",
-        "publicador": "Gonzalo Heise",
+        "fechaAsignacion": "29/03/2025",
+        "publicador": "Rolando Alarcón",
         "completadoAsignacion": true,
-        "manzanasTrabajadas": "1 a 4",
+        "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
         "esCampanaEspecial": true,
-        "nombreCampana": "Camp. Conmemoración "
+        "nombreCampana": "Camp. Conmemoración"
+      },
+      {
+        "fechaAsignacion": "15/04/2025",
+        "publicador": "Rolando Alarcón",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
+      },
+      {
+        "fechaAsignacion": "19/05/2025",
+        "publicador": "Jonatan Palma",
+        "completadoAsignacion": true,
+        "manzanasTrabajadas": "1 a 5",
+        "manzanasPendientes": "",
+        "esCampanaEspecial": false,
+        "nombreCampana": null
       }
     ]
   }
-]
+].map(territory => ({
+  ...territory,
+  asignaciones: territory.asignaciones.filter(assignment => !isAssignmentEmpty(assignment))
+}));
+
+/**
+ * Procesa los datos de los reportes basándose en los filtros proporcionados.
+ * Actualmente, esta función devuelve los datos crudos, pero con las asignaciones vacías eliminadas.
+ * En el futuro, se puede añadir lógica para filtrar, ordenar o transformar aún más los datos.
+ *
+ * @param filters Los filtros a aplicar en el procesamiento de los reportes.
+ * @returns Un objeto que contiene los territorios procesados, tipado como ReporteS13Data.
+ */
+export function processReportData(filters: ReportFilters): { territories: Report[] } {
+  // Aquí puedes añadir la lógica para filtrar, ordenar o transformar 'rawData'
+  // basándose en los 'filters'.
+  // Por ejemplo:
+  // let filteredData = rawData.filter(report => {
+  //   // Lógica de filtrado
+  //   return true; // placeholder
+  // });
+
+  // Devolvemos los datos ya procesados (sin asignaciones vacías y con todos los territorios).
+  return { territories: rawData };
+}

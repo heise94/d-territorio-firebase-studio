@@ -24,14 +24,14 @@ export default function ReportesPage() {
 
   const allReports = useMemo(() => {
     setIsLoading(true);
-    const data = processReportData();
+    const data = processReportData({});
     setIsLoading(false);
-    return data;
+    return data.territories;
   }, []);
 
   const filteredReports = useMemo(() => {
     return allReports.filter(report => {
-      if (filters.territoryNumber && !report.territoryNumber.includes(filters.territoryNumber)) return false;
+      if (filters.territoryNumber && !report.territoryNumber.toString().includes(filters.territoryNumber)) return false;
       if (filters.assignedTo && !report.campaigns.some(c => c.assignedTo?.toLowerCase().includes(filters.assignedTo!.toLowerCase()))) return false;
       
       const lastCampaignDate = report.campaigns.length > 0 && report.campaigns[report.campaigns.length - 1].assignedDate
@@ -50,14 +50,14 @@ export default function ReportesPage() {
     const latestCyclesMap = new Map<string, Report>();
     
     filteredReports.forEach(report => {
-      const existing = latestCyclesMap.get(report.territoryNumber);
+      const existing = latestCyclesMap.get(report.territoryNumber.toString());
       if (!existing || (report.completedCurrentCycle === 'En curso' && existing.completedCurrentCycle !== 'En curso')) {
-        latestCyclesMap.set(report.territoryNumber, report);
+        latestCyclesMap.set(report.territoryNumber.toString(), report);
       } else if (report.completedCurrentCycle !== 'En curso' && existing.completedCurrentCycle !== 'En curso') {
         const reportDate = new Date(report.completedCurrentCycle.split('/').reverse().join('-'));
         const existingDate = new Date(existing.completedCurrentCycle.split('/').reverse().join('-'));
         if (reportDate > existingDate) {
-          latestCyclesMap.set(report.territoryNumber, report);
+          latestCyclesMap.set(report.territoryNumber.toString(), report);
         }
       }
     });
@@ -67,7 +67,7 @@ export default function ReportesPage() {
       const isInProgress = report.completedCurrentCycle === 'En curso';
       return {
         id: report.id,
-        territoryNumber: report.territoryNumber,
+        territoryNumber: report.territoryNumber.toString(),
         lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
         assignedTo: isInProgress ? lastCampaign?.assignedTo || "N/A" : "N/A",
         assignedDate: isInProgress ? lastCampaign?.assignedDate || "N/A" : "N/A",
@@ -86,7 +86,7 @@ export default function ReportesPage() {
         const firstCampaign = report.campaigns[0];
         return {
           id: report.id,
-          territoryNumber: report.territoryNumber,
+          territoryNumber: report.territoryNumber.toString(),
           lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
           firstAssignedTo: firstCampaign?.assignedTo || "N/A",
           firstAssignedDate: firstCampaign?.assignedDate || "N/A",
@@ -113,7 +113,7 @@ export default function ReportesPage() {
     }));
     
     const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' }); // Add BOM for Excel
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
