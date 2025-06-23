@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Eye, History } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import type { CampaignAssignmentInReport } from "@/types";
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 export interface ReporteActividadData {
   id: string;
@@ -17,8 +18,9 @@ export interface ReporteActividadData {
   assignedDate: string;
   blocksWorked: string;
   blocksPending: string;
-  status: 'Disponible' | 'En Curso';
+  status: 'Disponible' | 'En Curso' | 'Bloqueado';
   campaignHistory: CampaignAssignmentInReport[];
+  blockReason?: string;
 }
 
 interface ReporteActividadViewProps {
@@ -40,6 +42,7 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
     switch (status) {
         case 'Disponible': return 'text-blue-700 bg-blue-100 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700/50';
         case 'En Curso': return 'text-sky-700 bg-sky-100 border-sky-200 dark:text-sky-300 dark:bg-sky-900/30 dark:border-sky-700/50';
+        case 'Bloqueado': return 'text-red-700 bg-red-100 border-red-200 dark:text-red-300 dark:bg-red-900/30 dark:border-red-700/50';
         default: return 'text-gray-700 bg-gray-100 border-gray-200';
     }
   };
@@ -54,6 +57,7 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
 
   return (
     <>
+    <TooltipProvider>
       <div className="border rounded-md">
         <Table>
           <TableHeader>
@@ -78,7 +82,16 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
                 <TableCell>{row.blocksWorked}</TableCell>
                 <TableCell>{row.blocksPending}</TableCell>
                 <TableCell>
-                  <Badge className={getStatusColorClass(row.status)}>{row.status}</Badge>
+                   <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Badge className={getStatusColorClass(row.status)}>{row.status}</Badge>
+                    </TooltipTrigger>
+                    {row.status === 'Bloqueado' && row.blockReason && (
+                    <TooltipContent>
+                        <p>Razón: {row.blockReason}</p>
+                    </TooltipContent>
+                    )}
+                </Tooltip>
                 </TableCell>
                 <TableCell className="text-center">
                   <Button variant="ghost" size="icon" onClick={() => handleViewHistory(row.campaignHistory, row.territoryNumber)}>
@@ -90,6 +103,7 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
           </TableBody>
         </Table>
       </div>
+    </TooltipProvider>
 
       <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
         <DialogContent className="sm:max-w-xl">
@@ -135,5 +149,3 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
     </>
   );
 }
-
-    

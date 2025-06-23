@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Filter, FileDown, PlusCircle, UploadCloud } from "lucide-react";
-import type { Report } from "@/types";
+import type { Report, Territory } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
 import { collection, onSnapshot, query, writeBatch, doc, getDocs } from "firebase/firestore";
@@ -18,34 +18,53 @@ import { FiltrosReportesSheet, type ReportFilters } from "@/components/reportes/
 
 
 export default function ReportesPage() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingReports, setIsLoadingReports] = useState(true);
+  const [isLoadingTerritories, setIsLoadingTerritories] = useState(true);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isFiltersSheetOpen, setIsFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ReportFilters>({});
   const { toast } = useToast();
   const [allReports, setAllReports] = useState<Report[]>([]);
+  const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
 
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error", description: "La base de datos no está disponible.", variant: "destructive" });
-      setIsLoading(false);
+      setIsLoadingReports(false);
+      setIsLoadingTerritories(false);
       return;
     }
     
-    setIsLoading(true);
+    setIsLoadingReports(true);
     const reportsQuery = query(collection(db, "reports")); 
     
-    const unsubscribe = onSnapshot(reportsQuery, (snapshot) => {
+    const unsubscribeReports = onSnapshot(reportsQuery, (snapshot) => {
       const fetchedReports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Report));
       setAllReports(fetchedReports);
-      setIsLoading(false);
+      setIsLoadingReports(false);
     }, (error) => {
       console.error("Error fetching reports:", error);
       toast({ title: "Error al Cargar Reportes", description: "No se pudieron cargar los datos de los reportes desde Firestore.", variant: "destructive" });
-      setIsLoading(false);
+      setIsLoadingReports(false);
     });
 
-    return () => unsubscribe();
+    setIsLoadingTerritories(true);
+    const territoriesQuery = query(collection(db, "territories"));
+    const unsubscribeTerritories = onSnapshot(territoriesQuery, (snapshot) => {
+      const fetchedTerritories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Territory));
+      setAllTerritories(fetchedTerritories);
+      setIsLoadingTerritories(false);
+    }, (error) => {
+        console.error("Error fetching territories:", error);
+        toast({ title: "Error al Cargar Territorios", description: "No se pudieron cargar los datos de los territorios.", variant: "destructive" });
+        setIsLoadingTerritories(false);
+    });
+
+
+    return () => {
+        unsubscribeReports();
+        unsubscribeTerritories();
+    };
   }, [toast]);
 
 
@@ -130,33 +149,42 @@ export default function ReportesPage() {
       }
       
       if (latestReport) {
-          const lastCampaign = latestReport.campaigns[latestReport.campaigns.length - 1];
+          const territoryDetails = allTerritories.find(t => t.number === territoryNumber);
           const isInProgress = latestReport.completedCurrentCycle === 'En curso';
+          const lastCampaign = latestReport.campaigns[latestReport.campaigns.length - 1];
+
+          let finalStatus: ReporteActividadData['status'] = 'Disponible';
+          if (territoryDetails?.isBlocked) {
+            finalStatus = 'Bloqueado';
+          } else if (isInProgress) {
+            finalStatus = 'En Curso';
+          }
           
           let displayLastCompletedDate = "Nunca";
-          if (latestReport.lastCompletedHistoric && latestReport.lastCompletedHistoric !== "Nunca") {
-            displayLastCompletedDate = latestReport.lastCompletedHistoric;
-          } else if (!isInProgress && latestReport.completedCurrentCycle !== 'Disponible') {
+          if (!isInProgress && latestReport.completedCurrentCycle !== 'Disponible') {
             displayLastCompletedDate = latestReport.completedCurrentCycle;
+          } else if (latestReport.lastCompletedHistoric && latestReport.lastCompletedHistoric !== "Nunca") {
+            displayLastCompletedDate = latestReport.lastCompletedHistoric;
           }
 
           activityData.push({
             id: latestReport.id,
             territoryNumber: latestReport.territoryNumber.toString(),
             lastCompletedHistoric: displayLastCompletedDate,
-            assignedTo: isInProgress ? lastCampaign?.assignedTo || "N/A" : "N/A",
-            assignedDate: isInProgress ? lastCampaign?.assignedDate || "N/A" : "N/A",
-            blocksWorked: isInProgress ? lastCampaign?.blocksWorked || "-" : "-",
-            blocksPending: isInProgress ? lastCampaign?.blocksPending || "-" : "-",
-            status: isInProgress ? "En Curso" : "Disponible",
+            assignedTo: finalStatus === 'En Curso' ? lastCampaign?.assignedTo || "N/A" : "N/A",
+            assignedDate: finalStatus === 'En Curso' ? lastCampaign?.assignedDate || "N/A" : "N/A",
+            blocksWorked: finalStatus === 'En Curso' ? lastCampaign?.blocksWorked || "-" : "-",
+            blocksPending: finalStatus === 'En Curso' ? lastCampaign?.blocksPending || "-" : "-",
+            status: finalStatus,
             campaignHistory: latestReport.campaigns,
+            blockReason: territoryDetails?.blockReason
           });
       }
     }
     
     return activityData.sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, {numeric: true}));
 
-  }, [filteredReports]);
+  }, [filteredReports, allTerritories]);
 
   const processedS13Data: ConsolidatedS13Data[] = useMemo(() => {
     if (!Array.isArray(filteredReports)) return [];
@@ -234,6 +262,7 @@ export default function ReportesPage() {
     toast({ title: "Exportación Iniciada", description: "El archivo CSV se está descargando." });
   };
 
+  const isLoading = isLoadingReports || isLoadingTerritories;
 
   return (
     <div className="space-y-6">
@@ -278,7 +307,7 @@ export default function ReportesPage() {
             <CardHeader>
               <CardTitle>Estado Actual de los Territorios</CardTitle>
               <CardDescription>
-                Muestra el estado más reciente de cada territorio, priorizando los que están actualmente "En curso".
+                Muestra el estado más reciente de cada territorio, priorizando los que están actualmente "En curso" o "Bloqueados".
               </CardDescription>
             </CardHeader>
             <CardContent>
