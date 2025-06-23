@@ -274,3 +274,22 @@ export interface Notification {
   link?: string; // e.g., /asignaciones#A123
   recipientUserId: string; // The user
 }
+
+// --- Report Page Specific Types ---
+
+export interface CampaignAssignmentInReport {
+  assignedTo?: string;
+  assignedDate?: string; // "dd/MM/yyyy"
+  blocksWorked?: string;
+  blocksPending?: string;
+}
+
+export interface Report {
+  id: string; // Firestore Document ID
+  territoryNumber: string;
+  lastCompletedHistoric?: string; // "dd/MM/yyyy"
+  campaigns: CampaignAssignmentInReport[];
+  completedCurrentCycle: string; // "dd/MM/yyyy" or "En curso"
+}
+
+    

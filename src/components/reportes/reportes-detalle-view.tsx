@@ -69,7 +69,7 @@ export function ReportesDetalleView({ data }: ReportesDetalleViewProps) {
                   {data.map((row) => (
                       <TableRow key={row.territoryId}>
                           <TableCell className="font-medium">
-                            <span className="font-bold">{row.type === 'urban' ? `U-${row.territoryNumber}` : row.territoryName}</span>
+                            <span className="font-bold">{row.type === 'urban' && row.territoryNumber ? `U-${row.territoryNumber}` : row.territoryName}</span>
                           </TableCell>
                           <TableCell>{row.lastWorked}</TableCell>
                           <TableCell>{row.lastAssignmentDate}</TableCell>
@@ -97,3 +97,5 @@ export function ReportesDetalleView({ data }: ReportesDetalleViewProps) {
     </TooltipProvider>
   );
 }
+
+    

@@ -1,192 +1,238 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Search, XIcon, BarChartHorizontal } from "lucide-react";
-import { ReportesDetalleView, type ReportRowData } from "@/components/reportes/reportes-detalle-view";
-import { S13View } from "@/components/reportes/s13-view";
-import { format, parseISO, isBefore } from "date-fns";
-import { MOCK_TERRITORIES, MOCK_ASSIGNMENTS } from "@/data/reports-mock-data";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Filter, FileDown } from "lucide-react";
+import type { Report, CampaignAssignmentInReport } from "@/types";
+import { useToast } from "@/hooks/use-toast";
+import { collection, query, onSnapshot, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import Papa from "papaparse";
+
+import { ReporteActividadView, type ReporteActividadData } from "@/components/reportes/reporte-actividad-view";
+import { ReporteS13View, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
+import { FiltrosReportesSheet, type ReportFilters } from "@/components/reportes/filtros-reportes-sheet";
+
+// MOCK DATA - Replace with Firestore fetching
+const MOCK_REPORTS_DATA: Report[] = [
+  { id: 'RPT-001', territoryNumber: '101', lastCompletedHistoric: '15/01/2024', campaigns: [ { assignedTo: 'Ana Pérez', assignedDate: '01/06/2024', blocksWorked: 'Manzanas 1 y 2', blocksPending: 'Manzanas 3, 4, 5', }, { assignedTo: 'Luis Gómez', assignedDate: '15/06/2024', blocksWorked: 'Manzana 3', blocksPending: 'Manzanas 4, 5', }, ], completedCurrentCycle: 'En curso', },
+  { id: 'RPT-002', territoryNumber: '102', lastCompletedHistoric: '05/11/2023', campaigns: [ { assignedTo: 'Carlos Díaz', assignedDate: '10/04/2024', blocksWorked: 'Todas', blocksPending: 'Ninguna', }, ], completedCurrentCycle: '25/05/2024', },
+  { id: 'RPT-003', territoryNumber: '103', lastCompletedHistoric: 'N/A', campaigns: [ { assignedTo: 'Elena Jara', assignedDate: '01/02/2024', blocksWorked: 'Todo el sector rural', blocksPending: 'Ninguno', }, ], completedCurrentCycle: '28/02/2024', },
+  { id: 'RPT-004', territoryNumber: '101', lastCompletedHistoric: '20/07/2023', campaigns: [ { assignedTo: 'Sofía Castro (SG G1)', assignedDate: '01/12/2023', blocksWorked: 'Manzanas 1-3', blocksPending: 'Manzanas 4-5', }, { assignedTo: 'Ana Pérez', assignedDate: '20/12/2023', blocksWorked: 'Manzanas 4-5', blocksPending: 'Ninguna', }, ], completedCurrentCycle: '15/01/2024', },
+];
+
 
 export default function ReportesPage() {
-  const territories = MOCK_TERRITORIES;
-  const assignments = MOCK_ASSIGNMENTS;
-  const [isLoading, setIsLoading] = useState(false); // Kept for potential future async operations
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [allReports, setAllReports] = useState<Report[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFiltersSheetOpen, setIsFiltersSheetOpen] = useState(false);
+  const [filters, setFilters] = useState<ReportFilters>({});
+  const { toast } = useToast();
 
-  const filteredTerritoriesForS13 = useMemo(() => {
-    return territories.filter(territory => {
-      const searchMatch = searchTerm === "" ||
-        (territory.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (territory.number && territory.number.toLowerCase().includes(searchTerm.toLowerCase()));
-      if (!searchMatch) return false;
-      return true;
-    }).sort((a, b) => {
-        const numA = parseInt(a.number || '9999', 10);
-        const numB = parseInt(b.number || '9999', 10);
-        return numA - numB;
-    });
-  }, [territories, searchTerm]);
+  useEffect(() => {
+    // In a real scenario, you'd fetch from Firestore here.
+    // For now, we use mock data.
+    setTimeout(() => {
+        setAllReports(MOCK_REPORTS_DATA);
+        setIsLoading(false);
+    }, 1000);
 
-
-  const processedReportData: ReportRowData[] = useMemo(() => {
-    // First, filter territories by search term
-    const searchedTerritories = territories.filter(territory => {
-      const searchMatch = searchTerm === "" ||
-        (territory.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (territory.number && territory.number.toLowerCase().includes(searchTerm.toLowerCase()));
-      return searchMatch;
-    });
+    /*
+    // Firestore implementation (to be used when ready)
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      setIsLoading(false);
+      return;
+    }
     
-    // Then, process each filtered territory to determine its report data and status
-    const dataWithStatus = searchedTerritories.map(territory => {
-      const territoryAssignments = assignments
-        .filter(a => a.locationId === territory.id)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
-      const latestAssignment = territoryAssignments[0];
-      
-      let status: ReportRowData['status'] = 'Disponible';
-      let blocksWorked = "-";
-      let blocksPending = "-";
+    const reportsQuery = query(collection(db, "reports"), orderBy("territoryNumber"));
+    const unsubscribe = onSnapshot(reportsQuery, (snapshot) => {
+      const fetchedReports = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Report));
+      setAllReports(fetchedReports);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching reports:", error);
+      toast({ title: "Error", description: "No se pudieron cargar los reportes.", variant: "destructive" });
+      setIsLoading(false);
+    });
 
-      if (territory.isBlocked) {
-        status = 'Bloqueado';
-      } else if (latestAssignment) {
-        if (latestAssignment.lastReportData) {
-          const report = latestAssignment.lastReportData.reports.find(r => r.territoryId === territory.id);
-          if (report) {
-            const totalBlocks = territory.totalBlocks || 0;
-            const workedCount = report.workedBlocksIds.length;
-            
-            if (report.territoryNotWorked) {
-              status = 'Parcial'; // Not worked is a form of partial completion of the assignment
-              blocksWorked = "No trabajado";
-              blocksPending = totalBlocks > 0 ? `Todas (${totalBlocks})` : "-";
-            } else {
-              blocksWorked = `${workedCount} de ${totalBlocks}`;
-              if (totalBlocks > 0 && workedCount >= totalBlocks) {
-                status = 'Completado';
-                blocksPending = "Ninguna";
-              } else if (totalBlocks > 0) {
-                status = 'Parcial';
-                blocksPending = `${totalBlocks - workedCount} de ${totalBlocks}`;
-              } else {
-                status = 'Completado'; // No blocks to work
-                blocksPending = "N/A";
-              }
-            }
-          }
-        } else if (isBefore(parseISO(latestAssignment.date), new Date())) {
-          status = 'Pendiente de Reporte';
-        } else {
-          status = 'En Curso';
+    return () => unsubscribe();
+    */
+  }, [toast]);
+
+
+  const filteredReports = useMemo(() => {
+    return allReports.filter(report => {
+      if (filters.territoryNumber && !report.territoryNumber.includes(filters.territoryNumber)) return false;
+      if (filters.assignedTo && !report.campaigns.some(c => c.assignedTo?.toLowerCase().includes(filters.assignedTo!.toLowerCase()))) return false;
+      
+      const lastCampaignDate = report.campaigns.length > 0 
+        ? new Date(report.campaigns[report.campaigns.length - 1].assignedDate!.split('/').reverse().join('-'))
+        : null;
+
+      if (filters.fromDate && lastCampaignDate && lastCampaignDate < filters.fromDate) return false;
+      if (filters.toDate && lastCampaignDate && lastCampaignDate > filters.toDate) return false;
+      
+      return true;
+    });
+  }, [allReports, filters]);
+
+
+  const processedActividadData: ReporteActividadData[] = useMemo(() => {
+    const latestCyclesMap = new Map<string, Report>();
+    
+    filteredReports.forEach(report => {
+      const existing = latestCyclesMap.get(report.territoryNumber);
+      if (!existing || (report.completedCurrentCycle === 'En curso' && existing.completedCurrentCycle !== 'En curso')) {
+        latestCyclesMap.set(report.territoryNumber, report);
+      } else if (report.completedCurrentCycle !== 'En curso' && existing.completedCurrentCycle !== 'En curso') {
+        const reportDate = new Date(report.completedCurrentCycle.split('/').reverse().join('-'));
+        const existingDate = new Date(existing.completedCurrentCycle.split('/').reverse().join('-'));
+        if (reportDate > existingDate) {
+          latestCyclesMap.set(report.territoryNumber, report);
         }
       }
+    });
 
+    return Array.from(latestCyclesMap.values()).map(report => {
+      const lastCampaign = report.campaigns[report.campaigns.length - 1];
+      const isInProgress = report.completedCurrentCycle === 'En curso';
       return {
-        territoryId: territory.id,
-        territoryNumber: territory.number,
-        territoryName: territory.name,
-        type: territory.type,
-        lastWorked: territory.lastWorked ? format(parseISO(territory.lastWorked), "dd/MM/yy") : 'Nunca',
-        lastAssignmentDate: latestAssignment?.date ? format(parseISO(latestAssignment.date), "dd/MM/yy") : 'N/A',
-        assignedTo: latestAssignment?.userName || 'N/A',
-        blocksWorked,
-        blocksPending,
-        status,
+        id: report.id,
+        territoryNumber: report.territoryNumber,
+        lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
+        assignedTo: isInProgress ? lastCampaign?.assignedTo || "N/A" : "N/A",
+        assignedDate: isInProgress ? lastCampaign?.assignedDate || "N/A" : "N/A",
+        blocksWorked: isInProgress ? lastCampaign?.blocksWorked || "-" : "-",
+        blocksPending: isInProgress ? lastCampaign?.blocksPending || "-" : "-",
+        status: isInProgress ? "En Curso" : "Disponible",
+        campaignHistory: report.campaigns,
       };
     });
+  }, [filteredReports]);
+
+  const processedS13Data: ReporteS13Data[] = useMemo(() => {
+    return filteredReports
+      .filter(report => report.completedCurrentCycle !== 'En curso')
+      .map(report => {
+        const firstCampaign = report.campaigns[0];
+        return {
+          id: report.id,
+          territoryNumber: report.territoryNumber,
+          lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
+          firstAssignedTo: firstCampaign?.assignedTo || "N/A",
+          firstAssignedDate: firstCampaign?.assignedDate || "N/A",
+          completedCurrentCycle: report.completedCurrentCycle,
+          fullCampaignHistory: report.campaigns,
+        };
+      })
+      .sort((a,b) => new Date(b.completedCurrentCycle.split('/').reverse().join('-')).getTime() - new Date(a.completedCurrentCycle.split('/').reverse().join('-')).getTime());
+  }, [filteredReports]);
+
+  const handleExportS13 = () => {
+    if (processedS13Data.length === 0) {
+      toast({ title: "Sin datos", description: "No hay datos en la vista S-13 para exportar.", variant: "default" });
+      return;
+    }
+    const csvData = processedS13Data.map(row => ({
+      "Territorio": row.territoryNumber,
+      "FechaCompletóHistórica": row.lastCompletedHistoric,
+      "PrimerAsignadoCiclo": row.firstAssignedTo,
+      "FechaPrimeraAsignaciónCiclo": row.firstAssignedDate,
+      "FechaCompletóCiclo": row.completedCurrentCycle,
+    }));
     
-    // Finally, filter by status and sort
-    return dataWithStatus.filter(row => {
-      if (filterStatus === 'all') return true;
-      if (filterStatus === 'disponible') return row.status === 'Disponible';
-      if (filterStatus === 'en_curso') return ['En Curso', 'Parcial', 'Pendiente de Reporte'].includes(row.status);
-      if (filterStatus === 'bloqueado') return row.status === 'Bloqueado';
-      return false;
-    }).sort((a, b) => {
-        const numA = parseInt(a.territoryNumber || '9999', 10);
-        const numB = parseInt(b.territoryNumber || '9999', 10);
-        return numA - numB;
-    });
-  }, [territories, assignments, filterStatus, searchTerm]);
-  
-  const handleClearFilters = () => {
-    setSearchTerm("");
-    setFilterStatus("all");
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Reporte_S13_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Exportación Iniciada", description: "El archivo CSV se está descargando." });
   };
 
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
-            <BarChartHorizontal className="mr-3 h-8 w-8 text-primary" />
-            Reportes de Territorios
-        </h1>
-        <p className="text-muted-foreground mt-1">
-            Visualiza el estado y la actividad de los territorios.
-        </p>
-      </div>
 
-      <Card className="shadow-lg">
+  return (
+    <div className="space-y-6">
+      <Card>
         <CardHeader>
-            <CardTitle>Filtros de Reportes</CardTitle>
-            <div className="flex flex-col sm:flex-row gap-4 items-end pt-2">
-                <div className="relative flex-grow">
-                    <label htmlFor="search" className="text-xs text-muted-foreground">Buscar por nombre o número</label>
-                    <Search className="absolute left-2.5 top-[calc(0.75rem+14px)] -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input id="search" placeholder="Buscar..." className="pl-8 w-full h-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                </div>
-                <div>
-                     <label htmlFor="status" className="text-xs text-muted-foreground">Filtrar por estado</label>
-                    <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger className="w-full sm:w-[180px] h-9" id="status">
-                            <SelectValue placeholder="Estado" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Todos</SelectItem>
-                            <SelectItem value="disponible">Disponible</SelectItem>
-                            <SelectItem value="en_curso">En Curso / Parcial</SelectItem>
-                            <SelectItem value="bloqueado">Bloqueado</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <Button variant="outline" size="sm" onClick={handleClearFilters} className="h-9">
-                    <XIcon className="mr-2 h-4 w-4" />
-                    Limpiar
-                </Button>
-            </div>
+          <CardTitle>Página de Reportes</CardTitle>
+          <CardDescription>
+            Herramientas para visualizar, analizar y exportar datos de la actividad en los territorios.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-            <Tabs defaultValue="detalle" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="detalle">Vista Detallada</TabsTrigger>
-                    <TabsTrigger value="s13">Vista S-13</TabsTrigger>
-                </TabsList>
-                <TabsContent value="detalle" className="mt-6">
-                    {isLoading ? (
-                        <div className="flex justify-center py-16"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>
-                    ) : (
-                        <ReportesDetalleView data={processedReportData} />
-                    )}
-                </TabsContent>
-                <TabsContent value="s13" className="mt-6">
-                     {isLoading ? (
-                        <div className="flex justify-center py-16"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>
-                    ) : (
-                        <S13View territories={filteredTerritoriesForS13} />
-                    )}
-                </TabsContent>
-            </Tabs>
+          <Button onClick={() => setIsFiltersSheetOpen(true)}>
+            <Filter className="mr-2 h-4 w-4" /> Mostrar Filtros
+          </Button>
         </CardContent>
       </Card>
+      
+      <Tabs defaultValue="detalle" className="w-full">
+        <div className="flex justify-between items-center mb-4">
+          <TabsList>
+            <TabsTrigger value="detalle">Registro de Actividad Detallado</TabsTrigger>
+            <TabsTrigger value="s13">Registro S-13 (Completados)</TabsTrigger>
+          </TabsList>
+          <Button variant="outline" onClick={handleExportS13} size="sm">
+            <FileDown className="mr-2 h-4 w-4" /> Exportar S-13 a CSV
+          </Button>
+        </div>
+
+        <TabsContent value="detalle">
+          <Card>
+            <CardHeader>
+              <CardTitle>Estado Actual de los Territorios</CardTitle>
+              <CardDescription>
+                Muestra el estado más reciente de cada territorio, priorizando los que están actualmente "En curso".
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
+              ) : (
+                <ReporteActividadView data={processedActividadData} />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="s13">
+           <Card>
+            <CardHeader>
+              <CardTitle>Historial de Ciclos Completados (S-13)</CardTitle>
+              <CardDescription>
+                Cada fila representa un ciclo de trabajo completado para un territorio.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
+              ) : (
+                <ReporteS13View data={processedS13Data} allReports={allReports} />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+      
+      <FiltrosReportesSheet 
+        isOpen={isFiltersSheetOpen}
+        onOpenChange={setIsFiltersSheetOpen}
+        onApplyFilters={setFilters}
+        currentFilters={filters}
+      />
     </div>
   );
 }
+
+    
