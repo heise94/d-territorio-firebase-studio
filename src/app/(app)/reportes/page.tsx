@@ -9,25 +9,44 @@ import { Loader2, Filter, FileDown, PlusCircle } from "lucide-react";
 import type { Report } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
+import { collection, onSnapshot, query } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 import { ReporteActividadView, type ReporteActividadData } from "@/components/reportes/reporte-actividad-view";
 import { ReporteS13View, type ConsolidatedS13Data, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
 import { FiltrosReportesSheet, type ReportFilters } from "@/components/reportes/filtros-reportes-sheet";
-import { processReportData } from "@/data/reports-data-processor";
 
 
 export default function ReportesPage() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFiltersSheetOpen, setIsFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ReportFilters>({});
   const { toast } = useToast();
+  const [allReports, setAllReports] = useState<Report[]>([]);
 
-  const allReports = useMemo(() => {
+  useEffect(() => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error", description: "La base de datos no está disponible.", variant: "destructive" });
+      setIsLoading(false);
+      return;
+    }
+    
     setIsLoading(true);
-    const processedData = processReportData({});
-    setIsLoading(false);
-    return processedData.territories;
-  }, []);
+    const reportsQuery = query(collection(db, "reports")); // This will be the collection name
+    
+    const unsubscribe = onSnapshot(reportsQuery, (snapshot) => {
+      const fetchedReports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Report));
+      setAllReports(fetchedReports);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching reports:", error);
+      toast({ title: "Error al Cargar Reportes", description: "No se pudieron cargar los datos de los reportes.", variant: "destructive" });
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
+
 
   const filteredReports = useMemo(() => {
     if (!Array.isArray(allReports)) return [];
@@ -48,8 +67,6 @@ export default function ReportesPage() {
 
 
   const processedActividadData: ReporteActividadData[] = useMemo(() => {
-    if (!Array.isArray(filteredReports)) return [];
-
     const reportsByTerritory = new Map<string, Report[]>();
     filteredReports.forEach(report => {
       const key = report.territoryNumber.toString();
