@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
 
 import { ReporteActividadView, type ReporteActividadData } from "@/components/reportes/reporte-actividad-view";
-import { ReporteS13View, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
+import { ReporteS13View, type ConsolidatedS13Data, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
 import { FiltrosReportesSheet, type ReportFilters } from "@/components/reportes/filtros-reportes-sheet";
 import { processReportData } from "@/data/reports-data-processor";
 
@@ -24,15 +24,12 @@ export default function ReportesPage() {
 
   const allReports = useMemo(() => {
     setIsLoading(true);
-    // The processor returns an object { territories: Report[] }
     const processedData = processReportData({});
     setIsLoading(false);
-    // We need to return the array of territories
     return processedData.territories;
   }, []);
 
   const filteredReports = useMemo(() => {
-    // Ensure allReports is an array before filtering
     if (!Array.isArray(allReports)) return [];
     return allReports.filter(report => {
       if (filters.territoryNumber && !report.territoryNumber.toString().includes(filters.territoryNumber)) return false;
@@ -81,7 +78,6 @@ export default function ReportesPage() {
           const lastCampaign = latestReport.campaigns[latestReport.campaigns.length - 1];
           const isInProgress = latestReport.completedCurrentCycle === 'En curso';
           
-          // Corrected logic for displaying the last completed date
           const displayLastCompletedDate = isInProgress
             ? (latestReport.lastCompletedHistoric || "Nunca")
             : (latestReport.completedCurrentCycle || "Nunca");
@@ -104,31 +100,60 @@ export default function ReportesPage() {
 
   }, [filteredReports]);
 
-  const processedS13Data: ReporteS13Data[] = useMemo(() => {
+  const processedS13Data: ConsolidatedS13Data[] = useMemo(() => {
     if (!Array.isArray(filteredReports)) return [];
-    return filteredReports
+
+    const allCompletedCycles: ReporteS13Data[] = filteredReports
       .filter(report => report.completedCurrentCycle !== 'En curso' && report.completedCurrentCycle !== 'Disponible')
-      .map(report => {
-        const firstCampaign = report.campaigns[0];
+      .map(report => ({
+        id: report.id,
+        territoryNumber: report.territoryNumber.toString(),
+        lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
+        firstAssignedTo: report.campaigns[0]?.assignedTo || "N/A",
+        firstAssignedDate: report.campaigns[0]?.assignedDate || "N/A",
+        completedCurrentCycle: report.completedCurrentCycle,
+        fullCampaignHistory: report.campaigns,
+      }));
+
+    const groupedByTerritory = new Map<string, ReporteS13Data[]>();
+    allCompletedCycles.forEach(cycle => {
+        if (!groupedByTerritory.has(cycle.territoryNumber)) {
+            groupedByTerritory.set(cycle.territoryNumber, []);
+        }
+        groupedByTerritory.get(cycle.territoryNumber)!.push(cycle);
+    });
+
+    const consolidatedData = Array.from(groupedByTerritory.entries()).map(([territoryNumber, cycles]) => {
+        const sortedCycles = [...cycles].sort((a, b) => new Date(b.completedCurrentCycle.split('/').reverse().join('-')).getTime() - new Date(a.completedCurrentCycle.split('/').reverse().join('-')).getTime());
         return {
-          id: report.id,
-          territoryNumber: report.territoryNumber.toString(),
-          lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
-          firstAssignedTo: firstCampaign?.assignedTo || "N/A",
-          firstAssignedDate: firstCampaign?.assignedDate || "N/A",
-          completedCurrentCycle: report.completedCurrentCycle,
-          fullCampaignHistory: report.campaigns,
+            territoryNumber: territoryNumber,
+            lastCycle: sortedCycles[0] || undefined,
+            penultimateCycle: sortedCycles[1] || undefined,
         };
-      })
-      .sort((a,b) => new Date(b.completedCurrentCycle.split('/').reverse().join('-')).getTime() - new Date(a.completedCurrentCycle.split('/').reverse().join('-')).getTime());
+    });
+
+    return consolidatedData.sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, {numeric: true}));
   }, [filteredReports]);
 
+
   const handleExportS13 = () => {
-    if (processedS13Data.length === 0) {
-      toast({ title: "Sin datos", description: "No hay datos en la vista S-13 para exportar.", variant: "default" });
+    const allCompletedCyclesForExport = filteredReports
+      .filter(report => report.completedCurrentCycle !== 'En curso' && report.completedCurrentCycle !== 'Disponible')
+      .map(report => ({
+        id: report.id,
+        territoryNumber: report.territoryNumber.toString(),
+        lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
+        firstAssignedTo: report.campaigns[0]?.assignedTo || "N/A",
+        firstAssignedDate: report.campaigns[0]?.assignedDate || "N/A",
+        completedCurrentCycle: report.completedCurrentCycle,
+        fullCampaignHistory: report.campaigns,
+      }));
+
+    if (allCompletedCyclesForExport.length === 0) {
+      toast({ title: "Sin datos", description: "No hay datos de ciclos completados para exportar con los filtros actuales.", variant: "default" });
       return;
     }
-    const csvData = processedS13Data.map(row => ({
+    const csvData = allCompletedCyclesForExport.map(row => ({
       "Territorio": row.territoryNumber,
       "FechaCompletóHistórica": row.lastCompletedHistoric,
       "PrimerAsignadoCiclo": row.firstAssignedTo,
@@ -206,7 +231,7 @@ export default function ReportesPage() {
             <CardHeader>
               <CardTitle>Historial de Ciclos Completados (S-13)</CardTitle>
               <CardDescription>
-                Cada fila representa un ciclo de trabajo completado para un territorio.
+                Cada fila representa un territorio, mostrando sus últimos dos ciclos de trabajo completados.
               </CardDescription>
             </CardHeader>
             <CardContent>

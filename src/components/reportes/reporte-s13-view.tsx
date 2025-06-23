@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -20,8 +21,14 @@ export interface ReporteS13Data {
   fullCampaignHistory: CampaignAssignmentInReport[];
 }
 
+export interface ConsolidatedS13Data {
+  territoryNumber: string;
+  lastCycle?: ReporteS13Data;
+  penultimateCycle?: ReporteS13Data;
+}
+
 interface ReporteS13ViewProps {
-    data: ReporteS13Data[];
+    data: ConsolidatedS13Data[];
     allReports: Report[]; // To find all cycles for a territory
 }
 
@@ -32,10 +39,10 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
 
   const handleViewFullHistory = (territoryNumber: string) => {
     const territoryHistory = allReports
-      .filter(r => r.territoryNumber === territoryNumber && r.completedCurrentCycle !== 'En curso')
+      .filter(r => r.territoryNumber.toString() === territoryNumber && r.completedCurrentCycle !== 'En curso')
       .map(report => ({
         id: report.id,
-        territoryNumber: report.territoryNumber,
+        territoryNumber: report.territoryNumber.toString(),
         lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
         firstAssignedTo: report.campaigns[0]?.assignedTo || "N/A",
         firstAssignedDate: report.campaigns[0]?.assignedDate || "N/A",
@@ -57,45 +64,46 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
     );
   }
 
+  const renderCycleCell = (cycle: ReporteS13Data | undefined) => {
+    if (!cycle) return <span className="text-muted-foreground">N/A</span>;
+    return (
+      <div className="text-xs">
+        <p><span className="font-semibold text-primary">{cycle.completedCurrentCycle}</span> (Fin)</p>
+        <p className="text-muted-foreground">{cycle.firstAssignedDate} (Inicio)</p>
+        {cycle.fullCampaignHistory[0]?.isSpecialCampaign && (
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Badge variant="outline" className="mt-1 text-purple-600 border-purple-400 cursor-default">
+                        <Sparkles className="h-3 w-3 mr-1" /> Campaña Especial
+                    </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>{cycle.fullCampaignHistory[0]?.campaignName || "Campaña especial"}</p>
+                </TooltipContent>
+            </Tooltip>
+        )}
+      </div>
+    );
+  };
+
   return (
     <TooltipProvider>
       <div className="border rounded-md">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Territorio</TableHead>
-              <TableHead>Completó Hist.</TableHead>
-              <TableHead>Primer Asignado</TableHead>
-              <TableHead>Inicio Ciclo</TableHead>
-              <TableHead>Campaña Especial</TableHead>
-              <TableHead>Fin Ciclo</TableHead>
-              <TableHead className="text-center">Acciones</TableHead>
+              <TableHead className="w-[100px]">Territorio</TableHead>
+              <TableHead>Último Ciclo Completado</TableHead>
+              <TableHead>Penúltimo Ciclo Completado</TableHead>
+              <TableHead className="text-center">Historial</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow key={row.territoryNumber}>
                 <TableCell className="font-bold">{row.territoryNumber}</TableCell>
-                <TableCell>{row.lastCompletedHistoric}</TableCell>
-                <TableCell>{row.firstAssignedTo}</TableCell>
-                <TableCell>{row.firstAssignedDate}</TableCell>
-                 <TableCell>
-                    {row.fullCampaignHistory[0]?.isSpecialCampaign ? (
-                       <Tooltip>
-                         <TooltipTrigger asChild>
-                           <Badge variant="outline" className="text-purple-600 border-purple-400">
-                             <Sparkles className="h-3 w-3 mr-1" /> Sí
-                           </Badge>
-                         </TooltipTrigger>
-                         <TooltipContent>
-                           <p>{row.fullCampaignHistory[0]?.campaignName || "Campaña especial"}</p>
-                         </TooltipContent>
-                       </Tooltip>
-                    ) : (
-                        <span className="text-muted-foreground text-sm">No</span>
-                    )}
-                </TableCell>
-                <TableCell className="font-semibold text-primary">{row.completedCurrentCycle}</TableCell>
+                <TableCell>{renderCycleCell(row.lastCycle)}</TableCell>
+                <TableCell>{renderCycleCell(row.penultimateCycle)}</TableCell>
                 <TableCell className="text-center">
                    <Tooltip>
                     <TooltipTrigger asChild>
@@ -140,7 +148,14 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
                     <TableCell className="font-semibold text-primary">{cycle.completedCurrentCycle}</TableCell>
                     <TableCell>
                         {cycle.fullCampaignHistory[0]?.isSpecialCampaign ? (
-                             <Badge variant="outline" className="text-purple-600 border-purple-400">Sí</Badge>
+                             <Tooltip>
+                                <TooltipTrigger asChild>
+                                     <Badge variant="outline" className="text-purple-600 border-purple-400">Sí</Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{cycle.fullCampaignHistory[0]?.campaignName || "Campaña especial"}</p>
+                                </TooltipContent>
+                             </Tooltip>
                         ) : (
                             <span>No</span>
                         )}
