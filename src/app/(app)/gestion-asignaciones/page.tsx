@@ -50,7 +50,7 @@ import {
 } from "lucide-react";
 import type { Assignment, AssignmentStatus, PreachingAssignedType, PublisherDetail, ProgramScheduleSlot, SettingsDoc } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, onSnapshot, query, orderBy, updateDoc, serverTimestamp, where } from "firebase/firestore";
+import { Timestamp, collection, doc, onSnapshot, query, updateDoc, serverTimestamp, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format, parse, isBefore } from "date-fns";
 import { es } from "date-fns/locale";
@@ -107,9 +107,21 @@ export default function GestionAsignacionesPage() {
 
   useEffect(() => {
     setIsLoading(true);
-    const q = query(collection(db, "assignments"), orderBy("date", "desc"), orderBy("time", "desc"));
+    // The query is simplified to avoid needing a composite index. Sorting is handled client-side.
+    const q = query(collection(db, "assignments"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment)));
+      const fetchedAssignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment));
+      
+      // Client-side sorting to order by date and time descending
+      fetchedAssignments.sort((a, b) => {
+        const aDateTime = `${a.date} ${a.time}`;
+        const bDateTime = `${b.date} ${b.time}`;
+        if (aDateTime > bDateTime) return -1;
+        if (aDateTime < bDateTime) return 1;
+        return 0;
+      });
+
+      setAssignments(fetchedAssignments);
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching assignments: ", error);
