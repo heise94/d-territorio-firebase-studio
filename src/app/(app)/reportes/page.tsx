@@ -5,20 +5,22 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Filter, FileDown, PlusCircle } from "lucide-react";
+import { Loader2, Filter, FileDown, PlusCircle, UploadCloud } from "lucide-react";
 import type { Report } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
-import { collection, onSnapshot, query } from "firebase/firestore";
+import { collection, onSnapshot, query, writeBatch, doc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 import { ReporteActividadView, type ReporteActividadData } from "@/components/reportes/reporte-actividad-view";
 import { ReporteS13View, type ConsolidatedS13Data, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
 import { FiltrosReportesSheet, type ReportFilters } from "@/components/reportes/filtros-reportes-sheet";
+import { MOCK_REPORTS_DATA } from "@/data/reports-data-processor";
 
 
 export default function ReportesPage() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isSeeding, setIsSeeding] = useState(false);
   const [isFiltersSheetOpen, setIsFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ReportFilters>({});
   const { toast } = useToast();
@@ -32,7 +34,7 @@ export default function ReportesPage() {
     }
     
     setIsLoading(true);
-    const reportsQuery = query(collection(db, "reports")); // This will be the collection name
+    const reportsQuery = query(collection(db, "reports")); 
     
     const unsubscribe = onSnapshot(reportsQuery, (snapshot) => {
       const fetchedReports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Report));
@@ -40,12 +42,40 @@ export default function ReportesPage() {
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching reports:", error);
-      toast({ title: "Error al Cargar Reportes", description: "No se pudieron cargar los datos de los reportes.", variant: "destructive" });
+      toast({ title: "Error al Cargar Reportes", description: "No se pudieron cargar los datos de los reportes desde Firestore.", variant: "destructive" });
       setIsLoading(false);
     });
 
     return () => unsubscribe();
   }, [toast]);
+
+
+  const handleSeedDatabase = async () => {
+      if (!db) {
+          toast({ title: "Error", description: "La base de datos no está disponible.", variant: "destructive" });
+          return;
+      }
+      setIsSeeding(true);
+      toast({ title: "Iniciando carga...", description: "Guardando datos de ejemplo en Firestore. Esto puede tardar un momento." });
+
+      const reportsCollection = collection(db, "reports");
+      const batch = writeBatch(db);
+      
+      MOCK_REPORTS_DATA.forEach(report => {
+          const docRef = doc(reportsCollection, report.id); // Usamos el ID del mock para consistencia
+          batch.set(docRef, report);
+      });
+
+      try {
+          await batch.commit();
+          toast({ title: "Éxito", description: `${MOCK_REPORTS_DATA.length} reportes han sido cargados a Firestore.`, variant: "default" });
+      } catch (error) {
+          console.error("Error seeding database: ", error);
+          toast({ title: "Error en la Carga", description: "No se pudieron guardar los datos en la base de datos.", variant: "destructive" });
+      } finally {
+          setIsSeeding(false);
+      }
+  };
 
 
   const filteredReports = useMemo(() => {
@@ -66,7 +96,7 @@ export default function ReportesPage() {
   }, [allReports, filters]);
 
 
-  const processedActividadData: ReporteActividadData[] = useMemo(() => {
+ const processedActividadData: ReporteActividadData[] = useMemo(() => {
     const reportsByTerritory = new Map<string, Report[]>();
     filteredReports.forEach(report => {
       const key = report.territoryNumber.toString();
@@ -84,6 +114,14 @@ export default function ReportesPage() {
       if (!latestReport) {
         latestReport = [...reports].sort((a, b) => {
           try {
+            // Check if dates are valid before creating Date objects
+            const dateAValid = a.completedCurrentCycle && a.completedCurrentCycle.match(/^\d{2}\/\d{2}\/\d{4}$/);
+            const dateBValid = b.completedCurrentCycle && b.completedCurrentCycle.match(/^\d{2}\/\d{2}\/\d{4}$/);
+
+            if (!dateAValid && !dateBValid) return 0;
+            if (!dateAValid) return 1;
+            if (!dateBValid) return -1;
+            
             const dateA = new Date(a.completedCurrentCycle.split('/').reverse().join('-'));
             const dateB = new Date(b.completedCurrentCycle.split('/').reverse().join('-'));
             return dateB.getTime() - dateA.getTime();
@@ -95,9 +133,12 @@ export default function ReportesPage() {
           const lastCampaign = latestReport.campaigns[latestReport.campaigns.length - 1];
           const isInProgress = latestReport.completedCurrentCycle === 'En curso';
           
-          const displayLastCompletedDate = isInProgress
-            ? (latestReport.lastCompletedHistoric || "Nunca")
-            : (latestReport.completedCurrentCycle || "Nunca");
+          let displayLastCompletedDate = "Nunca";
+          if (!isInProgress && latestReport.completedCurrentCycle !== 'Disponible') {
+            displayLastCompletedDate = latestReport.completedCurrentCycle;
+          } else if (latestReport.lastCompletedHistoric) {
+            displayLastCompletedDate = latestReport.lastCompletedHistoric;
+          }
 
           activityData.push({
             id: latestReport.id,
@@ -120,24 +161,25 @@ export default function ReportesPage() {
   const processedS13Data: ConsolidatedS13Data[] = useMemo(() => {
     if (!Array.isArray(filteredReports)) return [];
 
-    const allCompletedCycles: ReporteS13Data[] = filteredReports
-      .filter(report => report.completedCurrentCycle !== 'En curso' && report.completedCurrentCycle !== 'Disponible')
-      .map(report => ({
-        id: report.id,
-        territoryNumber: report.territoryNumber.toString(),
-        lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
-        firstAssignedTo: report.campaigns[0]?.assignedTo || "N/A",
-        firstAssignedDate: report.campaigns[0]?.assignedDate || "N/A",
-        completedCurrentCycle: report.completedCurrentCycle,
-        fullCampaignHistory: report.campaigns,
-      }));
-
     const groupedByTerritory = new Map<string, ReporteS13Data[]>();
-    allCompletedCycles.forEach(cycle => {
-        if (!groupedByTerritory.has(cycle.territoryNumber)) {
-            groupedByTerritory.set(cycle.territoryNumber, []);
+    
+    filteredReports
+      .filter(report => report.completedCurrentCycle && !['En curso', 'Disponible'].includes(report.completedCurrentCycle))
+      .forEach(report => {
+        const cycleData = {
+          id: report.id,
+          territoryNumber: report.territoryNumber.toString(),
+          lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
+          firstAssignedTo: report.campaigns[0]?.assignedTo || "N/A",
+          firstAssignedDate: report.campaigns[0]?.assignedDate || "N/A",
+          completedCurrentCycle: report.completedCurrentCycle,
+          fullCampaignHistory: report.campaigns,
+        };
+
+        if (!groupedByTerritory.has(cycleData.territoryNumber)) {
+            groupedByTerritory.set(cycleData.territoryNumber, []);
         }
-        groupedByTerritory.get(cycle.territoryNumber)!.push(cycle);
+        groupedByTerritory.get(cycleData.territoryNumber)!.push(cycleData);
     });
 
     const consolidatedData = Array.from(groupedByTerritory.entries()).map(([territoryNumber, cycles]) => {
@@ -202,10 +244,16 @@ export default function ReportesPage() {
             Herramientas para visualizar, analizar y exportar datos de la actividad en los territorios.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-wrap gap-2">
           <Button onClick={() => setIsFiltersSheetOpen(true)}>
             <Filter className="mr-2 h-4 w-4" /> Mostrar Filtros
           </Button>
+           {allReports.length === 0 && !isLoading && (
+              <Button onClick={handleSeedDatabase} disabled={isSeeding} variant="outline">
+                {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
+                {isSeeding ? 'Cargando...' : 'Cargar Datos a Firestore'}
+              </Button>
+            )}
         </CardContent>
       </Card>
       
