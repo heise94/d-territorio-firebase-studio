@@ -15,7 +15,6 @@ import { db } from "@/lib/firebase";
 import { ReporteActividadView, type ReporteActividadData } from "@/components/reportes/reporte-actividad-view";
 import { ReporteS13View, type ConsolidatedS13Data, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
 import { FiltrosReportesSheet, type ReportFilters } from "@/components/reportes/filtros-reportes-sheet";
-import { MOCK_REPORTS_DATA } from "@/data/reports-data-processor";
 
 
 export default function ReportesPage() {
@@ -58,17 +57,20 @@ export default function ReportesPage() {
       setIsSeeding(true);
       toast({ title: "Iniciando carga...", description: "Guardando datos de ejemplo en Firestore. Esto puede tardar un momento." });
 
+      const { getReportsForSeeding } = await import('@/data/reports-data-processor');
+      const reportsToSeed = getReportsForSeeding();
+      
       const reportsCollection = collection(db, "reports");
       const batch = writeBatch(db);
       
-      MOCK_REPORTS_DATA.forEach(report => {
-          const docRef = doc(reportsCollection, report.id); // Usamos el ID del mock para consistencia
+      reportsToSeed.forEach(report => {
+          const docRef = doc(reportsCollection, report.id); 
           batch.set(docRef, report);
       });
 
       try {
           await batch.commit();
-          toast({ title: "Éxito", description: `${MOCK_REPORTS_DATA.length} reportes han sido cargados a Firestore.`, variant: "default" });
+          toast({ title: "Éxito", description: `${reportsToSeed.length} reportes han sido cargados a Firestore.`, variant: "default" });
       } catch (error) {
           console.error("Error seeding database: ", error);
           toast({ title: "Error en la Carga", description: "No se pudieron guardar los datos en la base de datos.", variant: "destructive" });
@@ -114,13 +116,11 @@ export default function ReportesPage() {
       if (!latestReport) {
         latestReport = [...reports].sort((a, b) => {
           try {
-            // Check if dates are valid before creating Date objects
-            const dateAValid = a.completedCurrentCycle && a.completedCurrentCycle.match(/^\d{2}\/\d{2}\/\d{4}$/);
-            const dateBValid = b.completedCurrentCycle && b.completedCurrentCycle.match(/^\d{2}\/\d{2}\/\d{4}$/);
+            const dateAValid = a.completedCurrentCycle && a.completedCurrentCycle.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/);
+            const dateBValid = b.completedCurrentCycle && b.completedCurrentCycle.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/);
 
-            if (!dateAValid && !dateBValid) return 0;
-            if (!dateAValid) return 1;
-            if (!dateBValid) return -1;
+            if (!dateAValid || a.completedCurrentCycle === 'Disponible') return 1;
+            if (!dateBValid || b.completedCurrentCycle === 'Disponible') return -1;
             
             const dateA = new Date(a.completedCurrentCycle.split('/').reverse().join('-'));
             const dateB = new Date(b.completedCurrentCycle.split('/').reverse().join('-'));
@@ -134,10 +134,10 @@ export default function ReportesPage() {
           const isInProgress = latestReport.completedCurrentCycle === 'En curso';
           
           let displayLastCompletedDate = "Nunca";
-          if (!isInProgress && latestReport.completedCurrentCycle !== 'Disponible') {
-            displayLastCompletedDate = latestReport.completedCurrentCycle;
-          } else if (latestReport.lastCompletedHistoric) {
+          if (latestReport.lastCompletedHistoric && latestReport.lastCompletedHistoric !== "Nunca") {
             displayLastCompletedDate = latestReport.lastCompletedHistoric;
+          } else if (!isInProgress && latestReport.completedCurrentCycle !== 'Disponible') {
+            displayLastCompletedDate = latestReport.completedCurrentCycle;
           }
 
           activityData.push({
