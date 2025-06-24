@@ -190,18 +190,22 @@ export default function UsuariosPage() {
   const handleUserAdded = async (newUserData: { name: string, email: string, role: UserRole, assignedGroupId?: string, phoneNumber: string }) => {
     setIsSubmitting(true);
     const newUserDocRef = doc(collection(db, "users"));
-    const newUserProfile: UserProfile = {
+    
+    const newUserProfile: any = {
       id: newUserDocRef.id,
       name: newUserData.name,
       email: newUserData.email.toLowerCase(),
       phoneNumber: newUserData.phoneNumber,
       role: newUserData.role,
-      assignedGroupId: newUserData.assignedGroupId || undefined,
       status: 'Pendiente Invitación',
       adminApprovalStatus: 'approved',
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
+
+    if (newUserData.assignedGroupId && newUserData.assignedGroupId.trim() !== "") {
+      newUserProfile.assignedGroupId = newUserData.assignedGroupId;
+    }
     
     try {
       await setDoc(newUserDocRef, newUserProfile);
