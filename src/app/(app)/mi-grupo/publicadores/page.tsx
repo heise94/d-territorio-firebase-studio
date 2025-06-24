@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -14,8 +13,19 @@ import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/comp
 import { Button } from "@/components/ui/button";
 import { AddPublishersToGroupDialog } from "@/components/mi-grupo/publicadores/add-publishers-to-group-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, query, onSnapshot, doc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { Timestamp } from "firebase/firestore";
+
+// MOCK DATA - En una aplicación real, estos datos vendrían de Firestore
+const MOCK_ALL_PUBLISHERS_COPY: UserProfile[] = [
+    { id: "uidUser1", name: "Ana Pérez", email: "ana@example.com", phoneNumber: "+56911111111", availability: { availableSlotIds: ["mon-0900-gen", "wed-0930-gen"] }, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser1", adminApprovalStatus: "approved" },
+    { id: "uidUser2", name: "Luis Gómez", email: "luis@example.com", phoneNumber: "+56922222222", availability: { availableSlotIds: [] }, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser2", adminApprovalStatus: "approved" },
+    { id: "uidUser3", name: "Carlos Díaz", email: "carlos@example.com", phoneNumber: "+56933333333", availability: { availableSlotIds: ["tue-1000-rur"] }, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser3", adminApprovalStatus: "approved" },
+    { id: "uidUser4", name: "Elena Jara", email: "elena@example.com", phoneNumber: "+56944444444", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser4", adminApprovalStatus: "approved" },
+    { id: "uidUser5", name: "Pedro Velez (Admin)", email: "pedro@example.com", phoneNumber: "+56955555555", availability: { availableSlotIds: ["sat-1000-gen"] }, role: USER_ROLES.ENCARGADO_TERRITORIO, status: "Activo", firebaseAuthUid: "uidUser5", adminApprovalStatus: "approved" },
+    { id: "uidUser6", name: "Sofía Castro (SG G1)", email: "sofia.castro.sg@example.com", phoneNumber: "+56966666666", availability: { availableSlotIds: ["fri-1000-gen", "sun-1500-zoom"] }, assignedGroupId: "G1", role: USER_ROLES.SG, status: "Activo", firebaseAuthUid: "uidUser6", adminApprovalStatus: "approved" },
+    { id: "uidUser7", name: "Marcos Solis (Sin Grupo)", email: "marcos@example.com", phoneNumber: "+56977777777", availability: { availableSlotIds: ["mon-0900-gen"] }, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser7", adminApprovalStatus: "approved" },
+    { id: "uidUser8", name: "Laura Nuñez (Auxiliar G2)", email: "laura.nunez.aux@example.com", phoneNumber: "+56988888888", availability: { availableSlotIds: ["wed-0930-gen"] }, assignedGroupId: "G2", role: USER_ROLES.AUXILIAR_TERRITORIO, status: "Activo", firebaseAuthUid: "uidUser8", adminApprovalStatus: "approved" },
+];
 
 
 const getInitials = (name?: string) => {
@@ -28,50 +38,13 @@ const getInitials = (name?: string) => {
   };
 
 export default function MiGrupoPublicadoresPage() {
-  const { userProfile, isLoadingPermissions, hasPermission, isImpersonating } = usePermissions();
+  const { userProfile, isLoadingPermissions, hasPermission, isImpersonating } = usePermissions(); // Correctly destructure isImpersonating
   const { toast } = useToast();
 
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
-  const [allGroups, setAllGroups] = useState<PreachingGroup[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [allPublishersData, setAllPublishersData] = useState<UserProfile[]>(() =>
+    JSON.parse(JSON.stringify(MOCK_ALL_PUBLISHERS_COPY)) 
+  );
   const [isInviteUserFromGroupDialogOpen, setIsInviteUserFromGroupDialogOpen] = useState(false);
-  
-  useEffect(() => {
-    setIsLoading(true);
-    if (!db || Object.keys(db).length === 0) {
-      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
-      setIsLoading(false);
-      return;
-    }
-    
-    const unsubscribers: (() => void)[] = [];
-
-    const usersQuery = query(collection(db, "users"));
-    unsubscribers.push(onSnapshot(usersQuery, (snapshot) => {
-        setAllUsers(snapshot.docs.map(d => ({id: d.id, ...d.data() as UserProfile})));
-    }, (error) => {
-        console.error("Error fetching users:", error);
-        toast({ title: "Error", description: "No se pudieron cargar los publicadores.", variant: "destructive"});
-    }));
-
-    const groupsQuery = query(collection(db, "preachingGroups"));
-    unsubscribers.push(onSnapshot(groupsQuery, (snapshot) => {
-        setAllGroups(snapshot.docs.map(d => ({id: d.id, ...d.data() as PreachingGroup})));
-    }, (error) => {
-        console.error("Error fetching groups:", error);
-        toast({ title: "Error", description: "No se pudieron cargar los grupos.", variant: "destructive"});
-    }));
-
-    // Simple loading state manager
-    Promise.all([
-      new Promise(res => onSnapshot(usersQuery, () => res(true), () => res(false))),
-      new Promise(res => onSnapshot(groupsQuery, () => res(true), () => res(false))),
-    ]).finally(() => setIsLoading(false));
-
-    return () => unsubscribers.forEach(unsub => unsub());
-
-  }, [toast]);
-
 
   if (isLoadingPermissions) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -100,12 +73,16 @@ export default function MiGrupoPublicadoresPage() {
 
   const currentGroupIdForManagement = userProfile?.assignedGroupId;
   
-  const currentGroup = useMemo(() => {
-      if (!currentGroupIdForManagement) return null;
-      return allGroups.find(g => g.id === currentGroupIdForManagement);
-  }, [allGroups, currentGroupIdForManagement]);
-  
-  const currentGroupName = currentGroup?.name || "Tu Grupo";
+  const currentGroupName = useMemo(() => {
+      if (currentGroupIdForManagement) {
+          const sgOfGroup = MOCK_ALL_PUBLISHERS_COPY.find(p => p.assignedGroupId === currentGroupIdForManagement && p.role === USER_ROLES.SG);
+          if (sgOfGroup) return `Grupo de ${sgOfGroup.name.split(' ')[0]}`; 
+          const groupInfo = MOCK_ALL_PUBLISHERS_COPY.find(p => p.assignedGroupId === currentGroupIdForManagement);
+          if (groupInfo) return `Grupo ${currentGroupIdForManagement}`; 
+          return `Grupo ${currentGroupIdForManagement}`;
+      }
+      return "Tu Grupo";
+  }, [currentGroupIdForManagement]);
 
 
   if (userProfile?.role === USER_ROLES.SG && !currentGroupIdForManagement) {
@@ -129,45 +106,38 @@ export default function MiGrupoPublicadoresPage() {
 
   const groupPublishers = useMemo(() => {
     if (currentGroupIdForManagement) {
-      return allUsers.filter(p => p.assignedGroupId === currentGroupIdForManagement);
+      return allPublishersData.filter(p => p.assignedGroupId === currentGroupIdForManagement);
     }
     return [];
-  }, [allUsers, currentGroupIdForManagement]);
+  }, [allPublishersData, currentGroupIdForManagement]);
 
-  const handleUserInvitedFromGroup = async (newUserData: { name: string, email: string, phoneNumber: string }) => {
-    if (!currentGroupIdForManagement || !userProfile) {
-        toast({ title: "Error", description: "No se pudo identificar el grupo o tu perfil para completar la acción.", variant: "destructive"});
+  const handleUserInvitedFromGroup = (newUserData: { name: string, email: string, phoneNumber: string }) => {
+    if (!currentGroupIdForManagement) {
+        toast({ title: "Error", description: "No se pudo identificar el grupo actual para añadir al publicador.", variant: "destructive"});
         return;
     }
 
-    const newUserDocRef = doc(collection(db, "users"));
-
     const newUserProfile: UserProfile = {
-        id: newUserDocRef.id,
+        id: crypto.randomUUID(),
         name: newUserData.name,
-        email: newUserData.email.toLowerCase(),
+        email: newUserData.email,
         phoneNumber: newUserData.phoneNumber,
-        role: USER_ROLES.PUBLICADOR,
+        role: USER_ROLES.PUBLICADOR, 
         assignedGroupId: currentGroupIdForManagement,
-        status: 'Pendiente Aprobación Admin',
+        status: 'Pendiente Aprobación Admin', 
         adminApprovalStatus: 'pending',
         addedByGroupId: currentGroupIdForManagement,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
+        
     };
-    
-    try {
-        await setDoc(newUserDocRef, newUserProfile);
-        toast({
-          title: "Invitación Enviada para Aprobación",
-          description: `${newUserData.name} ha sido añadido y está pendiente de aprobación por un Encargado de Territorio.`,
-          duration: 7000,
-        });
-        setIsInviteUserFromGroupDialogOpen(false);
-    } catch (error) {
-        console.error("Error adding user from group:", error);
-        toast({ title: "Error", description: "No se pudo registrar al nuevo publicador.", variant: "destructive" });
-    }
+
+    setAllPublishersData(prevAllUsers => [newUserProfile, ...prevAllUsers]);
+    toast({
+      title: "Invitación de Publicador Enviada",
+      description: `${newUserData.name} ha sido invitado al ${currentGroupName}. Quedará pendiente de aprobación por el administrador. (Simulación)`
+    });
+    setIsInviteUserFromGroupDialogOpen(false);
   };
 
 
@@ -177,7 +147,7 @@ export default function MiGrupoPublicadoresPage() {
         <div>
           <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
             <Users className="mr-3 h-8 w-8 text-primary" />
-            Publicadores {userProfile?.role === USER_ROLES.SG ? `de ${currentGroupName}` : '(Gestión de Grupo)'}
+            Publicadores {userProfile?.role === USER_ROLES.SG ? `del ${currentGroupName}` : '(Gestión de Grupo)'}
           </h1>
           <p className="text-muted-foreground mt-1">
             Consulta y gestiona la información de los publicadores asignados e invita nuevos miembros a tu grupo.
@@ -202,9 +172,7 @@ export default function MiGrupoPublicadoresPage() {
             )}
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-                 <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
-            ) : !currentGroupIdForManagement && userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !isImpersonating ? (
+            {!currentGroupIdForManagement && userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !isImpersonating ? (
                 <div className="flex flex-col items-center justify-center h-64 bg-muted/30 rounded-md border border-dashed">
                     <Users className="h-20 w-20 text-muted-foreground/70 mb-6" />
                     <p className="text-xl font-medium text-muted-foreground mb-2">Página "Mi Grupo"</p>
@@ -313,5 +281,3 @@ export default function MiGrupoPublicadoresPage() {
     </TooltipProvider>
   );
 }
-
-    
