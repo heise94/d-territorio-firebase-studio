@@ -1,7 +1,78 @@
+
+"use client";
+
+import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { FileText, Map, Users } from "lucide-react";
+import { FileText, Map, Users, Loader2 } from "lucide-react";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { startOfMonth, endOfMonth } from "date-fns";
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState({
+    activeTerritories: 0,
+    activePublishers: 0,
+    reportsThisMonth: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!db || Object.keys(db).length === 0) {
+      console.warn("Firestore not available");
+      setLoading(false);
+      return;
+    }
+
+    const territoriesQuery = query(collection(db, "territories"), where("isBlocked", "==", false));
+    const usersQuery = query(collection(db, "users"), where("status", "==", "Activo"));
+    
+    // For reports, we fetch all assignments and filter client-side to avoid needing a composite index on lastReportData
+    const assignmentsQuery = collection(db, "assignments");
+
+    const unsubscribers = [
+      onSnapshot(territoriesQuery, (snapshot) => {
+        setStats(prev => ({ ...prev, activeTerritories: snapshot.size }));
+      }, (error) => console.error("Error fetching territories count:", error)),
+      
+      onSnapshot(usersQuery, (snapshot) => {
+        setStats(prev => ({ ...prev, activePublishers: snapshot.size }));
+      }, (error) => console.error("Error fetching users count:", error)),
+      
+      onSnapshot(assignmentsQuery, (snapshot) => {
+        const now = new Date();
+        const startOfThisMonth = startOfMonth(now);
+        const endOfThisMonth = endOfMonth(now);
+
+        const reportsCount = snapshot.docs.filter(doc => {
+          const data = doc.data();
+          if (data.lastReportData && data.lastReportData.reportedAt) {
+            const reportedAtDate = data.lastReportData.reportedAt.toDate();
+            return reportedAtDate >= startOfThisMonth && reportedAtDate <= endOfThisMonth;
+          }
+          return false;
+        }).length;
+
+        setStats(prev => ({ ...prev, reportsThisMonth: reportsCount }));
+      }, (error) => console.error("Error fetching assignments for reports count:", error))
+    ];
+
+    // Stop loading after a short delay to allow all snapshots to fire at least once.
+    const timer = setTimeout(() => setLoading(false), 1500);
+    unsubscribers.push(() => clearTimeout(timer));
+    
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+
+  }, []);
+
+  const renderStat = (value: number) => {
+    if (loading) {
+      return <Loader2 className="h-8 w-8 animate-spin text-primary" />;
+    }
+    return <div className="text-4xl font-bold">{value}</div>;
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -18,28 +89,28 @@ export default function DashboardPage() {
             <Map className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground pt-1">Número total de territorios en uso.</p>
+            {renderStat(stats.activeTerritories)}
+            <p className="text-xs text-muted-foreground pt-1">Número total de territorios no bloqueados.</p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-lg transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Publicadores</CardTitle>
+            <CardTitle className="text-sm font-medium">Publicadores Activos</CardTitle>
             <Users className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground pt-1">Total de usuarios registrados.</p>
+            {renderStat(stats.activePublishers)}
+            <p className="text-xs text-muted-foreground pt-1">Total de usuarios con estado "Activo".</p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-lg transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Reportes Recientes</CardTitle>
+            <CardTitle className="text-sm font-medium">Reportes de este Mes</CardTitle>
             <FileText className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground pt-1">Reportes enviados este mes.</p>
+            {renderStat(stats.reportsThisMonth)}
+            <p className="text-xs text-muted-foreground pt-1">Reportes de predicación enviados este mes.</p>
           </CardContent>
         </Card>
          <Card className="hover:shadow-lg transition-shadow duration-300 bg-primary/10 border-primary/30">
