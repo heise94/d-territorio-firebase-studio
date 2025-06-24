@@ -82,12 +82,15 @@ export default function ReportesPage() {
         
         const relevantAssignment = assignmentsForTerritory.find(a => {
             try {
-                const assignmentDate = parse(a.date, 'yyyy-MM-dd', new Date());
-                const isPast = isBefore(assignmentDate, startOfDay(now));
-
+                // Find the most recent assignment that is either in the future or in the past but not yet reported.
+                const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
+                const isPast = isBefore(assignmentDateTime, startOfDay(now));
+                
+                // Active future assignment
                 if (!isPast && (a.status === 'accepted' || a.status === 'pending' || a.status === 'replacement_requested')) {
                     return true;
                 }
+                // Past assignment that is still 'open' and needs a report
                 if (isPast && a.status === 'accepted' && !a.lastReportData) {
                     return true;
                 }
@@ -101,6 +104,9 @@ export default function ReportesPage() {
         let status: ReporteActividadData['status'] = 'Disponible';
         let assignedTo = "N/A";
         let assignedDate = "N/A";
+        let blocksWorked: string | number = "N/A";
+        let blocksPending: string | number = "N/A";
+
 
         if (territory.isBlocked) {
             status = 'Bloqueado';
@@ -108,6 +114,32 @@ export default function ReportesPage() {
             status = 'En Curso';
             assignedTo = relevantAssignment.userName || 'N/A';
             assignedDate = relevantAssignment.date;
+
+            const totalTerritoryBlocks = territory.totalBlocks || 0;
+            
+            // Check if a report has been submitted for this exact assignment
+            const reportData = allAssignments.find(a => a.id === relevantAssignment.id)?.lastReportData;
+
+            if (reportData) {
+                const territoryReport = reportData.reports.find(r => r.territoryId === territory.id);
+                if (territoryReport) {
+                    if (territoryReport.territoryNotWorked) {
+                        blocksWorked = "No trabajado";
+                        blocksPending = totalTerritoryBlocks;
+                    } else {
+                        const workedCount = territoryReport.workedBlocksIds?.length || 0;
+                        blocksWorked = workedCount;
+                        blocksPending = totalTerritoryBlocks - workedCount;
+                    }
+                } else {
+                    blocksWorked = 0;
+                    blocksPending = totalTerritoryBlocks;
+                }
+            } else {
+                // Assignment is active but not yet reported
+                blocksWorked = 0;
+                blocksPending = totalTerritoryBlocks;
+            }
         }
 
         const passesPublisherFilter = !filters.assignedTo || (status === 'En Curso' && assignedTo.toLowerCase().includes(filters.assignedTo.toLowerCase()));
@@ -119,8 +151,8 @@ export default function ReportesPage() {
             lastCompletedHistoric: territory.lastWorked || "Nunca",
             assignedTo,
             assignedDate,
-            blocksWorked: "N/A",
-            blocksPending: "N/A",
+            blocksWorked: String(blocksWorked),
+            blocksPending: String(blocksPending),
             status,
             campaignHistory: assignmentsForTerritory.filter(a => a.lastReportData).map(a => ({
                 assignedTo: a.userName,
@@ -129,7 +161,7 @@ export default function ReportesPage() {
             blockReason: territory.blockReason,
         }
     }).filter((item): item is ReporteActividadData => item !== null)
-      .sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, {numeric: true}));
+      .sort((a,b) => (a.territoryNumber || "").localeCompare(b.territoryNumber || "", undefined, {numeric: true}));
 
   }, [filteredTerritories, allAssignments, filters.assignedTo]);
 

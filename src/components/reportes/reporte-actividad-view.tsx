@@ -16,8 +16,8 @@ export interface ReporteActividadData {
   lastCompletedHistoric: string;
   assignedTo: string;
   assignedDate: string;
-  blocksWorked: string; // Will be "N/A"
-  blocksPending: string; // Will be "N/A"
+  blocksWorked: string;
+  blocksPending: string;
   status: 'Disponible' | 'En Curso' | 'Bloqueado';
   campaignHistory: CampaignAssignmentInReport[];
   blockReason?: string;
@@ -62,12 +62,14 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Territorio</TableHead>
-              <TableHead>Últ. Trabajo</TableHead>
-              <TableHead>Asignado a</TableHead>
-              <TableHead>Fecha Asig.</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead className="text-center">Historial</TableHead>
+              <TableHead>Núm. Terr.</TableHead>
+              <TableHead>Últ. Completó (Hist.)</TableHead>
+              <TableHead>Asignado a (Actual)</TableHead>
+              <TableHead>Fecha Asig. (Actual)</TableHead>
+              <TableHead>Trabajado (Actual)</TableHead>
+              <TableHead>Pendiente (Actual)</TableHead>
+              <TableHead>Estado Ciclo Actual</TableHead>
+              <TableHead className="text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -77,6 +79,8 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
                 <TableCell>{row.lastCompletedHistoric}</TableCell>
                 <TableCell>{row.assignedTo}</TableCell>
                 <TableCell>{row.assignedDate}</TableCell>
+                <TableCell>{row.blocksWorked}</TableCell>
+                <TableCell>{row.blocksPending}</TableCell>
                 <TableCell>
                    <Tooltip>
                     <TooltipTrigger asChild>
