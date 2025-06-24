@@ -36,8 +36,6 @@ export const PERMISSIONS = {
   MANAGE_GROUPS: "manage_groups", // CRUD for preaching groups
   VIEW_GROUPS: "view_groups",
   MANAGE_OWN_GROUP_PROGRAM: "manage_own_group_program", // For SG/Aux in /mi-grupo/programa
-  MANAGE_OWN_GROUP_PUBLISHERS: "manage_own_group_publishers", // Add publishers in /mi-grupo/publicadores
-  MANAGE_OWN_GROUP_CASAS: "manage_own_group_casas", // Add casas in /mi-grupo/casas
 
   // Program Management (Monthly/Weekly)
   GENERATE_MONTHLY_PROGRAM: "generate_monthly_program", // AI generation
@@ -165,8 +163,6 @@ export const PERMISSIONS_BY_MODULE: ModulePermissions[] = [
     permissions: [
       { id: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM, description: "Gestionar el programa de predicación de mi grupo" },
       { id: PERMISSIONS.ASSIGN_TERRITORIES_GROUP, description: "Asignar territorios específicos a las salidas de mi grupo"},
-      { id: PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS, description: "Invitar y ver publicadores de mi grupo" },
-      { id: PERMISSIONS.MANAGE_OWN_GROUP_CASAS, description: "Gestionar casas de reunión para mi grupo" },
     ],
   },
   {
@@ -217,8 +213,6 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
     PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM,
-    PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS,
-    PERMISSIONS.MANAGE_OWN_GROUP_CASAS,
     PERMISSIONS.ASSIGN_TERRITORIES_GROUP,
     PERMISSIONS.VIEW_REPORTS,
   ],
