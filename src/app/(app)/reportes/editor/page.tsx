@@ -12,17 +12,20 @@ import { AlertTriangle, Edit, Loader2, FileText, History, PlusCircle } from "luc
 import { useToast } from "@/hooks/use-toast";
 import { collection, query, where, onSnapshot, doc, getDoc, writeBatch, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Territory, Assignment, ReportedAssignmentData } from "@/types";
+import type { Territory, Assignment, ReportedAssignmentData, UserProfile, PreachingAssignedType } from "@/types";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
+import { AddHistoricalReportDialog, type HistoricalReportSubmitData } from "@/components/reportes/add-historical-report-dialog";
 
 export default function EditorHistorialPage() {
   const { userProfile, isLoadingPermissions, hasPermission } = usePermissions();
   const { toast } = useToast();
 
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
+  const [allPublishers, setAllPublishers] = useState<UserProfile[]>([]);
   const [isLoadingTerritories, setIsLoadingTerritories] = useState(true);
+  const [isLoadingPublishers, setIsLoadingPublishers] = useState(true);
 
   const [selectedTerritoryId, setSelectedTerritoryId] = useState<string>("");
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -38,7 +41,7 @@ export default function EditorHistorialPage() {
   useEffect(() => {
     setIsLoadingTerritories(true);
     const territoriesQuery = query(collection(db, "territories"));
-    const unsubscribe = onSnapshot(territoriesQuery, (snapshot) => {
+    const unsubscribeTerritories = onSnapshot(territoriesQuery, (snapshot) => {
         setAllTerritories(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Territory)).sort((a,b) => (a.number || a.name).localeCompare(b.number || b.name, undefined, {numeric: true})));
         setIsLoadingTerritories(false);
     }, (error) => {
@@ -46,7 +49,22 @@ export default function EditorHistorialPage() {
         toast({ title: "Error", description: "No se pudieron cargar los territorios.", variant: "destructive" });
         setIsLoadingTerritories(false);
     });
-    return () => unsubscribe();
+
+    setIsLoadingPublishers(true);
+    const publishersQuery = query(collection(db, "users"), where("status", "==", "Activo"));
+    const unsubscribePublishers = onSnapshot(publishersQuery, (snapshot) => {
+        setAllPublishers(snapshot.docs.map(d => ({id: d.id, ...d.data()} as UserProfile)));
+        setIsLoadingPublishers(false);
+    }, (error) => {
+        console.error("Error fetching publishers:", error);
+        toast({ title: "Error", description: "No se pudieron cargar los publicadores.", variant: "destructive" });
+        setIsLoadingPublishers(false);
+    });
+    
+    return () => {
+      unsubscribeTerritories();
+      unsubscribePublishers();
+    };
   }, [toast]);
   
   useEffect(() => {
@@ -134,6 +152,74 @@ export default function EditorHistorialPage() {
     }
   };
 
+  const handleAddHistoricalReport = async (data: HistoricalReportSubmitData) => {
+    if (!selectedTerritoryId || !userProfile?.firebaseAuthUid) {
+      toast({ title: "Error", description: "Datos de sesión o territorio incompletos.", variant: "destructive" });
+      return;
+    }
+    const territory = allTerritories.find(t => t.id === selectedTerritoryId);
+    const publisher = allPublishers.find(p => p.id === data.publisherId);
+    if (!territory || !publisher) {
+       toast({ title: "Error", description: "Territorio o publicador no encontrado.", variant: "destructive" });
+       return;
+    }
+
+    const batch = writeBatch(db);
+    
+    // 1. Create the new assignment document
+    const newAssignmentRef = doc(collection(db, "assignments"));
+    const newAssignmentData: Omit<Assignment, 'id'> = {
+        date: format(data.assignmentDate, "yyyy-MM-dd"),
+        time: "10:00", // Default time for historical records
+        type: territory.type === "urban" ? "publica" : "rural",
+        locationName: territory.name,
+        locationId: territory.id,
+        status: "accepted",
+        assignedBy: "Registro Histórico",
+        userId: publisher.id,
+        userName: publisher.name,
+        userEmail: publisher.email,
+        userPhoneNumber: publisher.phoneNumber,
+        assignedGroupId: publisher.assignedGroupId,
+        createdAt: Timestamp.fromDate(data.assignmentDate),
+        updatedAt: Timestamp.now(),
+    };
+    
+    // 2. Create the report data linked to this new assignment
+    const reportDetails: ReportedAssignmentData = {
+        assignmentId: newAssignmentRef.id,
+        reports: [{
+            territoryId: territory.id,
+            territoryName: territory.name,
+            territoryNotWorked: data.territoryNotWorked,
+            workedBlocksIds: data.workedBlocksIds || [],
+        }],
+        generalNotes: data.generalNotes,
+        reportedAt: Timestamp.fromDate(data.assignmentDate),
+        reportedByUserId: userProfile.firebaseAuthUid,
+    };
+    (newAssignmentData as any).lastReportData = reportDetails;
+    
+    batch.set(newAssignmentRef, newAssignmentData);
+
+    // 3. Update territory's last worked date if it was worked
+    if (!data.territoryNotWorked) {
+        const territoryRef = doc(db, "territories", territory.id);
+        batch.update(territoryRef, { lastWorked: format(data.assignmentDate, "yyyy-MM-dd") });
+    }
+
+    try {
+        await batch.commit();
+        toast({
+            title: "Registro Histórico Añadido",
+            description: `Se ha creado una nueva asignación para ${publisher.name} en el territorio ${territory.name}.`,
+        });
+    } catch(error) {
+        console.error("Error adding historical record:", error);
+        toast({ title: "Error al Guardar", description: "No se pudo añadir el registro histórico.", variant: "destructive" });
+    }
+  };
+
 
   const getWorkedBlocksDisplay = (reportData?: ReportedAssignmentData): React.ReactNode => {
     if (!reportData || !reportData.reports || reportData.reports.length === 0) return "No reportado";
@@ -211,9 +297,9 @@ export default function EditorHistorialPage() {
               </div>
               <Button
                 onClick={() => setIsAddHistoricalDialogOpen(true)}
-                disabled={!selectedTerritoryId}
+                disabled={!selectedTerritoryId || isLoadingPublishers}
               >
-                <PlusCircle className="mr-2 h-4 w-4" />
+                {isLoadingPublishers ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4" />}
                 Añadir Registro
               </Button>
             </div>
@@ -275,6 +361,18 @@ export default function EditorHistorialPage() {
           initialReportData={assignmentToEdit.lastReportData}
         />
       )}
+
+      {isAddHistoricalDialogOpen && (
+        <AddHistoricalReportDialog 
+          isOpen={isAddHistoricalDialogOpen}
+          onOpenChange={setIsAddHistoricalDialogOpen}
+          onAddHistoricalReport={handleAddHistoricalReport}
+          territory={allTerritories.find(t => t.id === selectedTerritoryId) || null}
+          allPublishers={allPublishers}
+        />
+      )}
+
     </div>
   );
 }
+
