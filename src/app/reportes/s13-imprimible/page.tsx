@@ -3,11 +3,11 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ReporteS13Imprimible } from '@/components/reportes/reporte-s13-imprimible';
-import type { Assignment, ConsolidatedS13Data, ReporteS13Data, Territory } from '@/types';
+import { ReporteS13Imprimible, type PrintableS13TerritoryData } from '@/components/reportes/reporte-s13-imprimible';
+import type { Assignment, Territory } from '@/types';
 import { collection, onSnapshot, query, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { format, parse, parseISO, startOfDay } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { Loader2 } from 'lucide-react';
 
 function PrintableS13PageContent() {
@@ -41,103 +41,76 @@ function PrintableS13PageContent() {
         };
     }, []);
 
-    const processedData = useMemo((): ConsolidatedS13Data[] => {
+    const processedData = useMemo((): PrintableS13TerritoryData[] => {
         if (!serviceYear || allAssignments.length === 0 || allTerritories.length === 0) {
             return [];
         }
 
         const year = parseInt(serviceYear, 10);
         const serviceYearStart = new Date(year, 8, 1); // September 1st
-        const serviceYearEnd = new Date(year + 1, 7, 31, 23, 59, 59); // August 31st
+        const serviceYearEnd = new Date(year + 1, 8, 1); // September 1st of next year (exclusive)
 
-        const s13Data: ConsolidatedS13Data[] = [];
+        const finalReportData: PrintableS13TerritoryData[] = [];
 
         for (const territory of allTerritories) {
             if (!territory.totalBlocks || territory.totalBlocks === 0) continue;
 
-            const assignmentsWithReports = allAssignments
-                .filter(a => a.locationId === territory.id && a.lastReportData?.reportedAt)
-                .sort((a, b) => (a.lastReportData!.reportedAt as Timestamp).toMillis() - (b.lastReportData!.reportedAt as Timestamp).toMillis());
-
-            if (assignmentsWithReports.length === 0) continue;
-
-            let completedCyclesInServiceYear: any[] = [];
-            let currentCycleWorkedBlocks = new Set<number>();
-            let currentCycleStartAssignment: Assignment | null = null;
-            let lastCycleCompletionDate: Date | null = null;
-            
             const allAssignmentsForTerritory = allAssignments
-                .filter(a => a.locationId === territory.id)
+                .filter(a => a.locationId === territory.id && a.lastReportData?.reportedAt)
                 .sort((a, b) => (a.createdAt as Timestamp).toMillis() - (b.createdAt as Timestamp).toMillis());
-                
-            let penultimateCycleCompletionDate: Date | null = null;
-            let lastCompletionDate: Date | null = null;
             
+            if (allAssignmentsForTerritory.length === 0) continue;
+
+            const allCycles: any[] = [];
             let tempWorkedBlocks = new Set<number>();
             let cycleStartIndex = 0;
 
             for (let i = 0; i < allAssignmentsForTerritory.length; i++) {
                 const assignment = allAssignmentsForTerritory[i];
-                if (assignment.lastReportData) {
-                    const report = assignment.lastReportData.reports.find(r => r.territoryId === territory.id);
-                    if (report && !report.territoryNotWorked) {
-                        (report.workedBlocksIds || []).forEach(id => tempWorkedBlocks.add(parseInt(id.split('-').pop()!)));
-                    }
+                if (!assignment.lastReportData) continue;
+                
+                const report = assignment.lastReportData.reports.find(r => r.territoryId === territory.id);
+                if (report && !report.territoryNotWorked) {
+                    (report.workedBlocksIds || []).forEach(id => {
+                        const blockNum = parseInt(id.split('-').pop()!, 10);
+                        if (!isNaN(blockNum)) tempWorkedBlocks.add(blockNum);
+                    });
+                }
 
-                    if (tempWorkedBlocks.size >= (territory.totalBlocks || 1)) {
-                        const completionDate = (assignment.lastReportData.reportedAt as Timestamp).toDate();
-                        const startAssignment = allAssignmentsForTerritory[cycleStartIndex];
-                        
-                        if (completionDate >= serviceYearStart && completionDate <= serviceYearEnd) {
-                            completedCyclesInServiceYear.push({
-                                ...assignment,
-                                _cycleStartAssignment: startAssignment,
-                            });
-                        }
-                        
-                        penultimateCycleCompletionDate = lastCompletionDate;
-                        lastCompletionDate = completionDate;
-                        tempWorkedBlocks.clear();
-                        cycleStartIndex = i + 1;
-                    }
+                if (tempWorkedBlocks.size >= (territory.totalBlocks || 1)) {
+                    const completionDate = (assignment.lastReportData.reportedAt as Timestamp).toDate();
+                    const startAssignment = allAssignmentsForTerritory[cycleStartIndex];
+                    
+                    allCycles.push({
+                        assignedTo: startAssignment.userName || 'N/A',
+                        assignedDate: format(parseISO(startAssignment.date), 'dd/MM/yy'),
+                        completedDate: format(completionDate, 'dd/MM/yy'),
+                        completionTimestamp: completionDate.getTime()
+                    });
+                    
+                    tempWorkedBlocks.clear();
+                    cycleStartIndex = i + 1;
                 }
             }
 
-
-            if (completedCyclesInServiceYear.length === 0) continue;
+            const cyclesInYear = allCycles.filter(c => c.completionTimestamp >= serviceYearStart.getTime() && c.completionTimestamp < serviceYearEnd.getTime());
             
-            const transformToS13 = (endAssignment: any): ReporteS13Data => {
-                const isStartDateValid = endAssignment._cycleStartAssignment?.date && endAssignment._cycleStartAssignment.date !== 'N/A';
-                return {
-                    id: endAssignment.id,
-                    territoryNumber: territory.number || territory.name,
-                    lastCompletedHistoric: '', // This will be handled by the penultimate date
-                    firstAssignedTo: endAssignment._cycleStartAssignment?.userName || 'N/A',
-                    firstAssignedDate: isStartDateValid ? format(parseISO(endAssignment._cycleStartAssignment.date), 'dd/MM/yy') : 'N/A',
-                    completedCurrentCycle: format((endAssignment.lastReportData!.reportedAt as Timestamp).toDate(), "dd/MM/yy"),
-                    fullCampaignHistory: [],
-                }
-            };
+            const cyclesBeforeYear = allCycles.filter(c => c.completionTimestamp < serviceYearStart.getTime());
+            const lastCompletedBefore = cyclesBeforeYear.length > 0 ? cyclesBeforeYear[cyclesBeforeYear.length - 1].completedDate : '';
             
-            const lastCycleInYear = completedCyclesInServiceYear[completedCyclesInServiceYear.length - 1];
-
-            s13Data.push({
-                territoryId: territory.id,
-                territoryNumber: territory.number || territory.name,
-                lastCycle: lastCycleInYear ? transformToS13(lastCycleInYear) : undefined,
-                penultimateCycle: penultimateCycleCompletionDate ? {
-                    id: 'penultimate',
+            // Only add to report if there's activity for this territory
+            if (cyclesInYear.length > 0 || lastCompletedBefore) {
+                 finalReportData.push({
+                    territoryId: territory.id,
                     territoryNumber: territory.number || territory.name,
-                    firstAssignedTo: 'Histórico',
-                    firstAssignedDate: 'N/A',
-                    completedCurrentCycle: format(penultimateCycleCompletionDate, 'dd/MM/yy'),
-                    lastCompletedHistoric: '',
-                    fullCampaignHistory: []
-                } : undefined,
-            });
+                    lastCompletedBeforeDate: lastCompletedBefore,
+                    cyclesInYear: cyclesInYear,
+                });
+            }
         }
         
-        return s13Data.sort((a, b) => (a.territoryNumber || "").localeCompare(b.territoryNumber || "", undefined, { numeric: true }));
+        return finalReportData.sort((a, b) => (a.territoryNumber || "").localeCompare(b.territoryNumber || "", undefined, { numeric: true }));
+
     }, [serviceYear, allAssignments, allTerritories]);
 
     if (isLoading) {
@@ -171,4 +144,3 @@ export default function PrintableS13Page() {
         </Suspense>
     );
 }
-

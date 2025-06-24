@@ -2,11 +2,21 @@
 "use client";
 
 import React from 'react';
-import type { ConsolidatedS13Data, ReporteS13Data } from '@/types';
 import { Button } from '@/components/ui/button';
 
+export interface PrintableS13TerritoryData {
+  territoryId: string;
+  territoryNumber: string;
+  lastCompletedBeforeDate: string;
+  cyclesInYear: Array<{
+    assignedTo: string;
+    assignedDate: string;
+    completedDate: string;
+  }>;
+}
+
 interface ReporteS13ImprimibleProps {
-  data: ConsolidatedS13Data[];
+  data: PrintableS13TerritoryData[];
   serviceYear: string;
 }
 
@@ -20,28 +30,45 @@ export function ReporteS13Imprimible({ data, serviceYear }: ReporteS13Imprimible
   const territoriesPerPage = 20;
   const pages = chunk(data, territoriesPerPage);
 
-  const tableBodyContent = (pageData: ConsolidatedS13Data[]) => {
+  const tableBodyContent = (pageData: PrintableS13TerritoryData[]) => {
     const rows: React.ReactNode[] = [];
-    pageData.forEach((territoryData, index) => {
+    pageData.forEach((territoryData) => {
+      const cycles = territoryData.cyclesInYear.slice(0, 4); // Max 4 cycles
+      
       rows.push(
         <React.Fragment key={`${territoryData.territoryId}-row`}>
           <tr>
             <td rowSpan={2} className="data-cell d-num-terr">{territoryData.territoryNumber}</td>
-            <td rowSpan={2} className="data-cell data-cell-date-main d-last-completed">{territoryData.penultimateCycle?.completedCurrentCycle || ''}</td>
-            <td colSpan={2} className="data-cell d-name first-cycle">{territoryData.lastCycle?.firstAssignedTo || ''}</td>
-            <td colSpan={2} className="data-cell d-name-middle">&nbsp;</td>
-            <td colSpan={2} className="data-cell d-name-middle">&nbsp;</td>
-            <td colSpan={2} className="data-cell d-name-last">&nbsp;</td>
+            <td rowSpan={2} className="data-cell data-cell-date-main d-last-completed">{territoryData.lastCompletedBeforeDate}</td>
+            
+            {/* Cycle 1 */}
+            <td colSpan={2} className="data-cell d-name first-cycle">{cycles[0]?.assignedTo || ''}</td>
+            
+            {/* Cycle 2 */}
+            <td colSpan={2} className="data-cell d-name-middle">{cycles[1]?.assignedTo || ''}</td>
+            
+            {/* Cycle 3 */}
+            <td colSpan={2} className="data-cell d-name-middle">{cycles[2]?.assignedTo || ''}</td>
+            
+            {/* Cycle 4 */}
+            <td colSpan={2} className="data-cell d-name-last">{cycles[3]?.assignedTo || ''}</td>
           </tr>
           <tr>
-            <td className="data-cell data-cell-date-main d-assigned-date first-cycle">{territoryData.lastCycle?.firstAssignedDate || ''}</td>
-            <td className="data-cell data-cell-date-main d-completed-date first-cycle">{territoryData.lastCycle?.completedCurrentCycle || ''}</td>
-            <td className="data-cell data-cell-date-main d-assigned-date-middle">&nbsp;</td>
-            <td className="data-cell data-cell-date-main d-completed-date-middle">&nbsp;</td>
-            <td className="data-cell data-cell-date-main d-assigned-date-middle">&nbsp;</td>
-            <td className="data-cell data-cell-date-main d-completed-date-middle">&nbsp;</td>
-            <td className="data-cell data-cell-date-main d-assigned-date-last">&nbsp;</td>
-            <td className="data-cell data-cell-date-main d-completed-date-last">&nbsp;</td>
+            {/* Cycle 1 Dates */}
+            <td className="data-cell data-cell-date-main d-assigned-date first-cycle">{cycles[0]?.assignedDate || ''}</td>
+            <td className="data-cell data-cell-date-main d-completed-date first-cycle">{cycles[0]?.completedDate || ''}</td>
+
+            {/* Cycle 2 Dates */}
+            <td className="data-cell data-cell-date-main d-assigned-date-middle">{cycles[1]?.assignedDate || ''}</td>
+            <td className="data-cell data-cell-date-main d-completed-date-middle">{cycles[1]?.completedDate || ''}</td>
+            
+            {/* Cycle 3 Dates */}
+            <td className="data-cell data-cell-date-main d-assigned-date-middle">{cycles[2]?.assignedDate || ''}</td>
+            <td className="data-cell data-cell-date-main d-completed-date-middle">{cycles[2]?.completedDate || ''}</td>
+
+            {/* Cycle 4 Dates */}
+            <td className="data-cell data-cell-date-main d-assigned-date-last">{cycles[3]?.assignedDate || ''}</td>
+            <td className="data-cell data-cell-date-main d-completed-date-last">{cycles[3]?.completedDate || ''}</td>
           </tr>
         </React.Fragment>
       );
@@ -114,7 +141,7 @@ export function ReporteS13Imprimible({ data, serviceYear }: ReporteS13Imprimible
         <Button onClick={() => window.print()}>Imprimir o Guardar como PDF</Button>
       </div>
 
-      {pages.map((pageData, pageIndex) => (
+      {pages.length > 0 ? pages.map((pageData, pageIndex) => (
         <div key={pageIndex} className="document-page">
           <div className="header-content">
             <h1>REGISTRO DE ASIGNACIÓN DE TERRITORIO</h1>
@@ -154,7 +181,21 @@ export function ReporteS13Imprimible({ data, serviceYear }: ReporteS13Imprimible
           </div>
           <div className="page-number">{pageIndex + 1} / {pages.length}</div>
         </div>
-      ))}
+      )) : (
+        <div className="document-page">
+          <div className="header-content">
+            <h1>REGISTRO DE ASIGNACIÓN DE TERRITORIO</h1>
+            <h2></h2>
+            <div className="year-section">
+              <p className="year-label">Año de servicio:</p>
+              <p className="year-value">{serviceYear}</p>
+            </div>
+          </div>
+          <div className="text-center py-10 text-muted-foreground">
+            No hay datos de ciclos completados para el año de servicio {serviceYear}.
+          </div>
+        </div>
+      )}
     </>
   );
 }
