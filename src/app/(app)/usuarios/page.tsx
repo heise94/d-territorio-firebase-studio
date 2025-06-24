@@ -534,9 +534,9 @@ export default function UsuariosPage() {
                   <TableBody>
                     {filteredUsers.map((user) => {
                       const isUserAdmin = user.role === USER_ROLES.ENCARGADO_TERRITORIO;
-                      const displayStatus = (canViewSensitiveUserDetails || user.status !== 'Bloqueado') ? user.status : 'Activo';
-                      const showBlockReasonTooltip = canViewSensitiveUserDetails && user.status === 'Bloqueado' && (user.blockInfo?.reason || user.blockInfo?.forSystem || user.blockInfo?.forGroup);
                       const isPendingAdminApprovalFromGroup = user.addedByGroupId && user.adminApprovalStatus === 'pending';
+                      const displayStatus = isPendingAdminApprovalFromGroup ? 'Pendiente Aprobación Admin' : user.status;
+                      const showBlockReasonTooltip = canViewSensitiveUserDetails && user.status === 'Bloqueado' && (user.blockInfo?.reason || user.blockInfo?.forSystem || user.blockInfo?.forGroup);
                       const groupName = user.assignedGroupId ? availableGroups.find(g => g.id === user.assignedGroupId)?.name : null;
 
                       return (
@@ -569,16 +569,16 @@ export default function UsuariosPage() {
                             <TooltipTrigger asChild>
                               <Badge variant={
                                   displayStatus === 'Activo' ? 'default'
-                                  : displayStatus === 'Pendiente Aprobación Admin' || isPendingAdminApprovalFromGroup || displayStatus === 'Pendiente Invitación' ? 'outline'
+                                  : displayStatus === 'Pendiente Aprobación Admin' || displayStatus === 'Pendiente Invitación' ? 'outline'
                                   : 'destructive' 
                                 }
                                 className={
-                                    displayStatus === 'Pendiente Aprobación Admin' || isPendingAdminApprovalFromGroup ? 'border-blue-500 text-blue-600 bg-blue-500/10' 
+                                    displayStatus === 'Pendiente Aprobación Admin' ? 'border-blue-500 text-blue-600 bg-blue-500/10' 
                                     : displayStatus === 'Pendiente Invitación' ? 'border-purple-500 text-purple-600 bg-purple-500/10'
                                     : ''
                                 }
                               >
-                                {isPendingAdminApprovalFromGroup ? 'Pendiente Aprobación Admin' : displayStatus}
+                                {displayStatus}
                               </Badge>
                             </TooltipTrigger>
                             {showBlockReasonTooltip && (
@@ -601,7 +601,7 @@ export default function UsuariosPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-0.5">
-                            {(user.adminApprovalStatus === 'pending' || (user.addedByGroupId && user.status === 'Pendiente Aprobación Admin') ) && canManageUsers && (
+                            {user.adminApprovalStatus === 'pending' && canManageUsers && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700" onClick={() => handleApproveUser(user.id)} disabled={isSubmitting}>
@@ -809,14 +809,14 @@ export default function UsuariosPage() {
                   {blockForm.formState.errors.forSystem && <p className="text-sm font-medium text-destructive">{blockForm.formState.errors.forSystem.message}</p>}
                 </div>
                 <FormField
-                  control={blockForm.control}
+                  control={form.control}
                   name="reason"
                   render={({ field }) => (
                     <FormItem><Label>Razón del Bloqueo (Opcional)</Label><FormControl><Textarea placeholder="Ej: Inactividad, solicitud del usuario, etc." {...field} /></FormControl></FormItem>
                   )}
                 />
                 <DialogFooter className="pt-4">
-                  <DialogClose asChild><Button type="button" variant="outline" onClick={() => setIsBlockUserDialogOpen(false)}>Cancelar</Button></DialogClose>
+                  <DialogClose asChild><Button type="button" variant="outline" disabled={isSubmitting}>Cancelar</Button></DialogClose>
                   <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Confirmar Bloqueo
@@ -831,3 +831,5 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
+
+    
