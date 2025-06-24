@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -22,7 +21,14 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES } from "@/lib/constants";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription as DialogDescriptionComponent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormDescription as FormFieldDescription } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -814,9 +820,9 @@ export default function CasasPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="flex items-center"><ShieldAlert className="mr-2 h-5 w-5 text-amber-500"/>Bloquear Casa: {casaToBlock?.ownerName}</DialogTitle>
-              <DialogDescription>
+              <DialogDescriptionComponent>
                 Define el alcance y la razón del bloqueo.
-              </DialogDescription>
+              </DialogDescriptionComponent>
             </DialogHeader>
             <Form {...blockForm}>
             <form onSubmit={blockForm.handleSubmit(onBlockCasaSubmit)} className="space-y-4 py-2">
