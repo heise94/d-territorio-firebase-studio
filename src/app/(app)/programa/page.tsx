@@ -5,10 +5,11 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, Bot, AlertTriangle, CheckCircle2, Save, Trash2 } from "lucide-react";
+import { Loader2, CalendarDays, Bot, AlertTriangle, CheckCircle2, Save, Trash2, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateMonthlyAssignments, type GenerateMonthlyAssignmentsInput, type GenerateMonthlyAssignmentsOutput } from "@/ai/flows/generate-monthly-assignments";
 import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
+import { EditAssignmentDialog } from "@/components/programa/edit-assignment-dialog";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, getDay, isWithinInterval, parseISO, parse } from 'date-fns';
 import { Timestamp, writeBatch, collection, doc, getDoc, getDocs, query, where, orderBy, deleteField, serverTimestamp } from "firebase/firestore";
@@ -47,6 +48,9 @@ export default function ProgramaMensualPage() {
   const [generatedAssignments, setGeneratedAssignments] = useState<GenerateMonthlyAssignmentsOutput | null>(null);
   const [isGenerationDialogOpen, setIsGenerationDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [assignmentToEdit, setAssignmentToEdit] = useState<GenerateMonthlyAssignmentsOutput['captainAssignments'][string][0] | null>(null);
 
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [groupOrganizedDays, setGroupOrganizedDays] = useState<Record<TypeDayOfWeek, boolean>>(initialGroupOrganizedDaysState);
@@ -239,7 +243,7 @@ export default function ProgramaMensualPage() {
             const assemblyEndMonth = assemblyEndDate.getMonth();
             const assemblyEndYear = assemblyEndDate.getFullYear();
             return (assemblyStartYear < selectedYear || (assemblyStartYear === selectedYear && assemblyStartMonth <= selectedMonth)) &&
-                   (assemblyEndYear > selectedYear || (assemblyEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
+                   (campaignEndYear > selectedYear || (campaignEndYear === selectedYear && assemblyEndMonth >= selectedMonth));
         })
         .map(a => ({
             name: a.name,
@@ -357,6 +361,38 @@ export default function ProgramaMensualPage() {
         description: "La asignación ha sido quitada y no se guardará.",
     });
   };
+
+  const handleOpenEditDialog = (assignment: GenerateMonthlyAssignmentsOutput['captainAssignments'][string][0]) => {
+    setAssignmentToEdit(assignment);
+    setIsEditDialogOpen(true);
+  };
+  
+  const handleUpdateAssignment = (updatedAssignment: GenerateMonthlyAssignmentsOutput['captainAssignments'][string][0]) => {
+    setGeneratedAssignments(prev => {
+      if (!prev || !prev.captainAssignments) return prev;
+  
+      const dayKey = updatedAssignment.date;
+      const dayAssignments = prev.captainAssignments[dayKey] || [];
+  
+      const updatedDayAssignments = dayAssignments.map(a => 
+        a.id === updatedAssignment.id ? updatedAssignment : a
+      );
+  
+      const newCaptainAssignments = {
+        ...prev.captainAssignments,
+        [dayKey]: updatedDayAssignments,
+      };
+  
+      return {
+        ...prev,
+        captainAssignments: newCaptainAssignments,
+      };
+    });
+    toast({
+        title: "Asignación actualizada en el borrador",
+        description: `Se ha cambiado el capitán para el ${updatedAssignment.date}.`,
+    });
+  };
   
   const monthDays = useMemo(() => {
     const date = new Date(selectedYear, selectedMonth);
@@ -454,21 +490,38 @@ export default function ProgramaMensualPage() {
                                   {assign.casaName && <p className="text-sm">Casa: {assign.casaName}</p>}
                                 </div>
                                 <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="ml-2 h-7 w-7 text-destructive hover:bg-destructive/10 shrink-0"
-                                        onClick={() => handleDeleteAssignment(assign.id, dayString)}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Eliminar esta asignación del borrador</p>
-                                    </TooltipContent>
-                                  </Tooltip>
+                                  <div className="flex items-center shrink-0 ml-2">
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-blue-600 hover:bg-blue-500/10"
+                                          onClick={() => handleOpenEditDialog(assign)}
+                                        >
+                                          <Edit className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Editar esta asignación</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                                          onClick={() => handleDeleteAssignment(assign.id, dayString)}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Eliminar esta asignación del borrador</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </div>
                                 </TooltipProvider>
                               </div>
                             </li>
@@ -511,6 +564,16 @@ export default function ProgramaMensualPage() {
           year={selectedYear}
           month={selectedMonth}
           holidays={holidays}
+        />
+      )}
+
+      {isEditDialogOpen && (
+        <EditAssignmentDialog
+          isOpen={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onUpdateAssignment={handleUpdateAssignment}
+          assignmentToEdit={assignmentToEdit}
+          availablePublishers={publishers}
         />
       )}
     </div>
