@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import type { CampaignAssignmentInReport, Assignment, Territory } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { format, Timestamp } from "date-fns";
+import { format } from "date-fns";
+import type { Timestamp } from "firebase/firestore";
 
 
 export interface ReporteS13Data {
