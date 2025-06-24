@@ -30,7 +30,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Bot, CalendarDays, AlertTriangle } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { format, getDaysInMonth, getDay, startOfMonth, addDays, isSameMonth } from "date-fns";
+import { format, getDaysInMonth, getDay, startOfMonth, addDays, isSameMonth, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import type { CustomHoliday, PreachingType } from "@/types";
 import { Timestamp } from "firebase/firestore";
