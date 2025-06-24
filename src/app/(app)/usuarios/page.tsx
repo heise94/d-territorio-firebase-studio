@@ -12,7 +12,8 @@ import { EditUserDialog } from "@/components/usuarios/edit-user-dialog";
 import { EditUserAvailabilityDialog } from "@/components/usuarios/edit-user-availability-dialog";
 import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc, Casa } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, updateDoc, writeBatch } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { USER_ROLES, USER_ROLES_LIST, UserRole } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -41,7 +42,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MOCK_ALL_USERS_DATA } from "@/lib/mock-data";
 
 
 export default function UsuariosPage() {
@@ -49,8 +49,8 @@ export default function UsuariosPage() {
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<UserProfile | null>(null);
 
-  const [users, setUsers] = useState<UserProfile[]>(MOCK_ALL_USERS_DATA);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false); // No longer loading from firestore here
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const router = useRouter();
@@ -72,34 +72,65 @@ export default function UsuariosPage() {
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(true);
 
-  // MOCK DATA: Simulating fetching related data
+  // Fetch all necessary data from Firestore
   useEffect(() => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
+      setIsLoadingUsers(false);
+      setIsLoadingGroups(false);
+      setIsLoadingCasas(false);
+      setIsLoadingSlots(false);
+      return;
+    }
+    
+    const unsubscribers: (()=>void)[] = [];
+
+    setIsLoadingUsers(true);
+    const usersQuery = query(collection(db, "users"), orderBy("createdAt", "desc"));
+    unsubscribers.push(onSnapshot(usersQuery, (snapshot) => {
+      const fetchedUsers = snapshot.docs.map(d => ({id: d.id, ...d.data() } as UserProfile));
+      setUsers(fetchedUsers);
+      setIsLoadingUsers(false);
+    }, (error) => {
+      console.error("Error fetching users:", error);
+      setIsLoadingUsers(false);
+    }));
+
     setIsLoadingGroups(true);
-    setIsLoadingCasas(true);
-    setIsLoadingSlots(true);
-    // Simulating async fetch
-    setTimeout(() => {
-        setAvailableGroups([
-            { id: 'G1', name: 'Grupo Los Pioneros', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-            { id: 'G2', name: 'Grupo Betel', createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-        ]);
-        setAvailableCasas([
-            { id: 'C1', ownerName: 'Familia Pérez', address: 'Calle Sol 123', isBlocked: false, createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-            { id: 'C2', ownerName: 'Hna. Ana', address: 'Av. Luna 456', isBlocked: false, createdAt: Timestamp.now(), updatedAt: Timestamp.now() }
-        ]);
-        setProgramScheduleSlots([
-            { id: 'mon-0900-gen', dayOfWeek: 'monday', startTime: '09:00', type: 'general', status: 'fixed' },
-            { id: 'wed-0930-gen', dayOfWeek: 'wednesday', startTime: '09:30', type: 'general', status: 'fixed' },
-            { id: 'fri-1000-gen', dayOfWeek: 'friday', startTime: '10:00', type: 'general', status: 'fixed' },
-            { id: 'sat-1000-gen', dayOfWeek: 'saturday', startTime: '10:00', type: 'general', status: 'fixed' },
-            { id: 'sun-1500-zoom', dayOfWeek: 'sunday', startTime: '15:00', type: 'zoom', status: 'tentative' },
-            { id: 'tue-1000-rur', dayOfWeek: 'tuesday', startTime: '10:00', type: 'rural', status: 'fixed' },
-        ]);
+    const groupsQuery = query(collection(db, "preachingGroups"), orderBy("name", "asc"));
+    unsubscribers.push(onSnapshot(groupsQuery, (snapshot) => {
+        setAvailableGroups(snapshot.docs.map(d => ({id: d.id, ...d.data() } as PreachingGroup)));
         setIsLoadingGroups(false);
+    }, (error) => {
+        console.error("Error fetching groups:", error);
+        setIsLoadingGroups(false);
+    }));
+
+    setIsLoadingCasas(true);
+    const casasQuery = query(collection(db, "casas"), orderBy("ownerName", "asc"));
+    unsubscribers.push(onSnapshot(casasQuery, (snapshot) => {
+        setAvailableCasas(snapshot.docs.map(d => ({id: d.id, ...d.data() } as Casa)));
         setIsLoadingCasas(false);
+    }, (error) => {
+        console.error("Error fetching casas:", error);
+        setIsLoadingCasas(false);
+    }));
+
+    setIsLoadingSlots(true);
+    const settingsDocRef = doc(db, "settings", "programConfig");
+    unsubscribers.push(onSnapshot(settingsDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const settingsData = docSnap.data() as SettingsDoc;
+            setProgramScheduleSlots(settingsData.programScheduleSlots || []);
+        }
         setIsLoadingSlots(false);
-    }, 500);
-  }, []);
+    }, (error) => {
+        console.error("Error fetching program slots:", error);
+        setIsLoadingSlots(false);
+    }));
+
+    return () => unsubscribers.forEach(unsub => unsub());
+  }, [toast]);
 
 
   const handleOpenAddUserDialog = () => {
@@ -112,36 +143,57 @@ export default function UsuariosPage() {
 
   const handleUserAdded = async (newUserData: { name: string, email: string, role: UserRole, assignedGroupId?: string, phoneNumber: string }) => {
     setIsSubmitting(true);
+    const newUserDocRef = doc(collection(db, "users"));
     const newUserProfile: UserProfile = {
-      id: crypto.randomUUID(),
+      id: newUserDocRef.id,
       name: newUserData.name,
-      email: newUserData.email,
+      email: newUserData.email.toLowerCase(),
       phoneNumber: newUserData.phoneNumber,
       role: newUserData.role,
       assignedGroupId: newUserData.assignedGroupId || undefined,
-      status: 'Pendiente Invitación', 
-      adminApprovalStatus: 'approved', 
+      status: 'Pendiente Invitación',
+      adminApprovalStatus: 'approved',
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
     
-    setUsers(prev => [newUserProfile, ...prev]);
-    
-    toast({
-      title: "Usuario Añadido (Simulación)",
-      description: `${newUserData.name} ha sido añadido a la lista local.`,
-      duration: 7000,
-    });
-    setIsAddUserDialogOpen(false);
-    setIsSubmitting(false);
+    try {
+      await setDoc(newUserDocRef, newUserProfile);
+      toast({
+        title: "Usuario Añadido",
+        description: `${newUserData.name} ha sido añadido al sistema. Ahora puedes enviarle una invitación.`,
+        duration: 7000,
+      });
+      setIsAddUserDialogOpen(false);
+    } catch (error) {
+      console.error("Error adding user to Firestore:", error);
+      toast({ title: "Error", description: "No se pudo añadir el usuario a la base de datos.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleUserUpdate = async (userId: string, data: Partial<Pick<UserProfile, 'role' | 'assignedGroupId' | 'managedCasaId'>>) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...data, updatedAt: Timestamp.now() } : u));
-    toast({
-      title: "Usuario Actualizado (Simulación)",
-      description: `El perfil de ${userToEdit?.name} ha sido actualizado localmente.`,
-    });
+    setIsSubmitting(true);
+    const userDocRef = doc(db, "users", userId);
+    const updateData = {
+        ...data,
+        updatedAt: Timestamp.now(),
+    };
+    try {
+        await updateDoc(userDocRef, updateData);
+        toast({
+          title: "Usuario Actualizado",
+          description: `El perfil de ${userToEdit?.name} ha sido actualizado.`,
+        });
+        onOpenChange(false);
+    } catch (error) {
+        console.error("Error updating user:", error);
+        toast({ title: "Error", description: "No se pudo actualizar el perfil del usuario.", variant: "destructive" });
+    } finally {
+        setIsSubmitting(false);
+        setIsEditUserDialogOpen(false);
+    }
   };
 
 
@@ -155,30 +207,46 @@ export default function UsuariosPage() {
     if (!userToBlock) return;
     setIsSubmitting(true);
     const newStatus = userToBlock.status === 'Activo' ? 'Bloqueado' : 'Activo';
+    const userDocRef = doc(db, "users", userToBlock.id);
     
-    setUsers(prev => prev.map(u => u.id === userToBlock.id ? { ...u, status: newStatus, blockReason: newStatus === 'Bloqueado' ? blockReasonUser : undefined, updatedAt: Timestamp.now() } : u));
-    
-    toast({
-      title: `Usuario ${newStatus === 'Bloqueado' ? 'Bloqueado' : 'Desbloqueado'} (Simulación)`,
-      description: `${userToBlock.name} ha sido ${newStatus === 'Bloqueado' ? 'bloqueado' : 'desbloqueado'} localmente.`,
-    });
-    setIsBlockReasonUserDialogOpen(false);
-    setUserToBlock(null);
-    setBlockReasonUser("");
-    setIsSubmitting(false);
+    try {
+        await updateDoc(userDocRef, {
+            status: newStatus,
+            blockReason: newStatus === 'Bloqueado' ? blockReasonUser : deleteField(),
+            updatedAt: Timestamp.now()
+        });
+        toast({
+          title: `Usuario ${newStatus === 'Bloqueado' ? 'Bloqueado' : 'Desbloqueado'}`,
+          description: `${userToBlock.name} ha sido ${newStatus === 'Bloqueado' ? 'bloqueado' : 'desbloqueado'}.`,
+        });
+    } catch(error) {
+        console.error("Error toggling user block status:", error);
+        toast({title: "Error", description: "No se pudo actualizar el estado del usuario.", variant: "destructive"});
+    } finally {
+        setIsBlockReasonUserDialogOpen(false);
+        setUserToBlock(null);
+        setBlockReasonUser("");
+        setIsSubmitting(false);
+    }
   };
 
   const handleDeleteUser = async (userId: string) => {
     setIsSubmitting(true);
     const userToDelete = users.find(u => u.id === userId);
-    setUsers(prev => prev.filter(u => u.id !== userId));
-    toast({
-      title: "Usuario Eliminado (Simulación)",
-      description: `${userToDelete?.name || 'El usuario'} ha sido eliminado de la lista local.`,
-      variant: "default",
-      duration: 7000,
-    });
-    setIsSubmitting(false);
+    try {
+        await deleteDoc(doc(db, "users", userId));
+        toast({
+          title: "Usuario Eliminado",
+          description: `${userToDelete?.name || 'El usuario'} ha sido eliminado del sistema.`,
+          variant: "default",
+          duration: 7000,
+        });
+    } catch(error) {
+        console.error("Error deleting user:", error);
+        toast({title: "Error", description: "No se pudo eliminar el usuario.", variant: "destructive"});
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   const handleEditUser = (user: UserProfile) => {
@@ -205,14 +273,25 @@ export default function UsuariosPage() {
 
   const handleApproveUser = async (userId: string) => {
     setIsSubmitting(true);
-    const userToApprove = users.find(u => u.id === userId);
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, adminApprovalStatus: 'approved', status: 'Pendiente Invitación' } : u));
-    toast({
-      title: "Usuario Aprobado (Simulación)",
-      description: `${userToApprove?.name || 'El usuario'} ha sido aprobado localmente. Ahora puedes enviarle una invitación.`,
-      duration: 7000,
-    });
-    setIsSubmitting(false);
+    const userDocRef = doc(db, "users", userId);
+    try {
+        await updateDoc(userDocRef, {
+            adminApprovalStatus: 'approved',
+            status: 'Pendiente Invitación',
+            updatedAt: Timestamp.now()
+        });
+        const userToApprove = users.find(u => u.id === userId);
+        toast({
+          title: "Usuario Aprobado",
+          description: `${userToApprove?.name || 'El usuario'} ha sido aprobado. Ahora puedes enviarle una invitación.`,
+          duration: 7000,
+        });
+    } catch (error) {
+        console.error("Error approving user:", error);
+        toast({title: "Error", description: "No se pudo aprobar al usuario.", variant: "destructive"});
+    } finally {
+        setIsSubmitting(false);
+    }
   };
   
   const handleSendInvitation = (userToInvite: UserProfile) => {
@@ -256,11 +335,21 @@ export default function UsuariosPage() {
   };
 
   const handleAvailabilityUpdate = async (userId: string, availability: { availableSlotIds: string[] }) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, availability: { ...u.availability, ...availability }, updatedAt: Timestamp.now() } : u));
-    toast({
-      title: "Disponibilidad Actualizada (Simulación)",
-      description: `La disponibilidad del usuario ha sido actualizada localmente.`,
-    });
+    const userDocRef = doc(db, "users", userId);
+    try {
+        await updateDoc(userDocRef, {
+            "availability.availableSlotIds": availability.availableSlotIds,
+            updatedAt: Timestamp.now()
+        });
+        toast({
+          title: "Disponibilidad Actualizada",
+          description: `La disponibilidad del usuario ha sido actualizada.`,
+        });
+        setIsEditAvailabilityDialogOpen(false);
+    } catch(error) {
+        console.error("Error updating availability:", error);
+        toast({ title: "Error", description: "No se pudo actualizar la disponibilidad.", variant: "destructive" });
+    }
   };
 
 
@@ -303,6 +392,7 @@ export default function UsuariosPage() {
   }, [users, searchTerm]);
 
   const canImpersonate = actualUserRole === USER_ROLES.ENCARGADO_TERRITORIO;
+  const isLoadingAnyData = isLoadingUsers || isLoadingGroups || isLoadingSlots || isLoadingCasas;
 
   return (
     <TooltipProvider>
@@ -331,7 +421,7 @@ export default function UsuariosPage() {
             <CardTitle>Lista de Usuarios</CardTitle>
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
               <CardDescription>
-                {isLoadingUsers ? "Cargando usuarios..." :
+                {isLoadingAnyData ? "Cargando usuarios..." :
                   (filteredUsers.length > 0
                     ? `Mostrando ${filteredUsers.length} de ${users.length} usuario(s) registrados.`
                     : users.length > 0 ? "Ningún usuario coincide con la búsqueda."
@@ -352,7 +442,7 @@ export default function UsuariosPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoadingUsers || isLoadingGroups || isLoadingSlots || isLoadingCasas ? (
+            {isLoadingAnyData ? (
                 <div className="flex items-center justify-center py-16">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 </div>
@@ -661,3 +751,5 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
+
+    
