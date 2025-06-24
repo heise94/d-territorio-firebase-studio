@@ -85,6 +85,7 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
       time: z.string().describe("The specific time (HH:MM) for this holiday assignment."),
       type: z.enum(['general', 'rural', 'zoom']).describe("The type of preaching for this holiday assignment.")
   })).optional().describe("A list of specific assignments for holidays, overriding the default behavior of no preaching. Use this to schedule preaching on specific holidays at specific times."),
+  designatedRuralWeekendDays: z.array(z.string()).optional().describe("A list of dates (YYYY-MM-DD) for special rural weekend preaching. These dates should receive special consideration as per any additional instructions."),
   assembliesInMonth: z.array(AssemblyAISchema).optional().describe('List of assemblies (Circuit, Regional, etc.) occurring in the scheduling month. No preaching should be scheduled on these dates.'),
   publisherDetailedAvailabilities: z
     .array(PublisherDetailForAISchema)
@@ -200,6 +201,14 @@ const prompt = ai.definePrompt({
   {{else}}
     No special holiday assignments requested.
   {{/if}}
+  
+  Designated Rural Weekends:
+  {{#if designatedRuralWeekendDays}}
+    The following dates are designated for special rural preaching: {{join designatedRuralWeekendDays ", "}}. Please handle them according to any special instructions provided.
+  {{else}}
+    No special rural weekends have been designated.
+  {{/if}}
+
   Additional Instructions: {{{additionalInstructions}}}
 
   Configured Campaigns:
@@ -241,6 +250,9 @@ const prompt = ai.definePrompt({
   4. Group Preaching Days:
      - For any day where 'groupPreachingDays' indicates it's a group-organized day (and it's not a holiday or assembly day), do NOT generate centralized captain assignments.
 
+  5. Designated Rural Weekends:
+     - For any date listed in 'designatedRuralWeekendDays', apply any relevant special logic from the 'additionalInstructions' when creating assignments for the rural slots on that day. For example, if instructed to assign an SG, attempt to do so.
+
   Return the schedule in the following JSON format. Ensure 'status' is 'pending' for all new assignments. For assembly days and un-scheduled holidays, the array for that date must be empty.
   {
     "captainAssignments": {
@@ -260,3 +272,4 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
     return output!;
   }
 );
+

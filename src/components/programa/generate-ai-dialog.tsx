@@ -32,7 +32,7 @@ import { Loader2, Bot, CalendarDays, AlertTriangle } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { format, getDaysInMonth, getDay, startOfMonth, addDays, isSameMonth, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import type { CustomHoliday, PreachingType } from "@/types";
+import type { CustomHoliday, PreachingType, ProgramScheduleSlot } from "@/types";
 import { Timestamp } from "firebase/firestore";
 
 const holidayOverrideSchema = z.object({
@@ -53,6 +53,7 @@ const holidayOverrideSchema = z.object({
 const generateAIDialogSchema = z.object({
   additionalInstructions: z.string().max(1000, "Máximo 1000 caracteres.").optional().or(z.literal('')),
   holidayOverrides: z.array(holidayOverrideSchema).optional(),
+  designatedRuralWeekendDays: z.array(z.string()).optional().default([]),
 });
 
 type GenerateAIDialogValues = z.infer<typeof generateAIDialogSchema>;
@@ -60,13 +61,14 @@ type GenerateAIDialogValues = z.infer<typeof generateAIDialogSchema>;
 interface GenerateAIDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSubmitGeneration: (data: { additionalInstructions: string; holidayOverrides?: Array<{date: string, time: string, type: PreachingType}> }) => Promise<void>;
+  onSubmitGeneration: (data: { additionalInstructions: string; holidayOverrides?: Array<{date: string, time: string, type: PreachingType}>; designatedRuralWeekendDays: string[] }) => Promise<void>;
   year: number;
   month: number; // 0-indexed
   holidays: CustomHoliday[];
+  programScheduleSlots: ProgramScheduleSlot[];
 }
 
-export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, year, month, holidays }: GenerateAIDialogProps) {
+export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, year, month, holidays, programScheduleSlots }: GenerateAIDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -75,6 +77,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
     defaultValues: {
       additionalInstructions: "",
       holidayOverrides: [],
+      designatedRuralWeekendDays: [],
     },
   });
 
@@ -92,18 +95,44 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
       .sort((a,b) => (a.date as Date).getTime() - (b.date as Date).getTime());
   }, [holidays, year, month]);
 
+  const weekendDaysForSelection = useMemo(() => {
+    const days: { date: Date; dayName: string; type: 'saturday' | 'sunday' }[] = [];
+    const firstDayOfMonth = startOfMonth(new Date(year, month));
+    const numDaysInMonth = getDaysInMonth(firstDayOfMonth);
+
+    const hasSaturdayRuralSlot = programScheduleSlots.some(slot => slot.dayOfWeek === 'saturday' && slot.type === 'rural');
+    const hasSundayRuralSlot = programScheduleSlots.some(slot => slot.dayOfWeek === 'sunday' && slot.type === 'rural');
+
+    for (let i = 0; i < numDaysInMonth; i++) {
+      const currentDate = addDays(firstDayOfMonth, i);
+      const dayOfWeek = getDay(currentDate);
+
+      if (dayOfWeek === 6 && hasSaturdayRuralSlot) {
+        days.push({ date: currentDate, dayName: format(currentDate, "EEEE, d 'de' MMMM", { locale: es }), type: 'saturday' });
+      } else if (dayOfWeek === 0 && hasSundayRuralSlot) {
+        days.push({ date: currentDate, dayName: format(currentDate, "EEEE, d 'de' MMMM", { locale: es }), type: 'sunday' });
+      }
+    }
+    return days;
+  }, [year, month, programScheduleSlots]);
+
   useEffect(() => {
     if (isOpen) {
         const overrides = holidaysForMonth.map(h => ({
             date: format(h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date), "yyyy-MM-dd"),
             name: h.name,
             enabled: false,
-            time: '10:00', // Default time
-            type: 'general' as PreachingType, // Default type
+            time: '10:00',
+            type: 'general' as PreachingType,
         }));
         replace(overrides);
+        form.reset({
+            additionalInstructions: "",
+            holidayOverrides: overrides,
+            designatedRuralWeekendDays: [],
+        });
     } else {
-        form.reset({ additionalInstructions: "", holidayOverrides: [] });
+        form.reset({ additionalInstructions: "", holidayOverrides: [], designatedRuralWeekendDays: [] });
     }
   }, [isOpen, holidaysForMonth, form, replace]);
 
@@ -122,6 +151,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
       await onSubmitGeneration({
         additionalInstructions: values.additionalInstructions || "",
         holidayOverrides: activeHolidayOverrides,
+        designatedRuralWeekendDays: values.designatedRuralWeekendDays || [],
       });
     } catch (error) {
       console.error("Error in dialog submission:", error);
@@ -130,13 +160,13 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
         description: "Ocurrió un error al procesar la solicitud.",
         variant: "destructive",
       });
-       setIsSubmitting(false); // Only set false on error, parent will close on success
+       setIsSubmitting(false);
     }
   }
 
   const handleDialogClose = (open: boolean) => {
     if (!open && !isSubmitting) {
-      form.reset({ additionalInstructions: "", holidayOverrides: [] });
+      form.reset({ additionalInstructions: "", holidayOverrides: [], designatedRuralWeekendDays: [] });
     }
     onOpenChange(open);
   };
@@ -152,66 +182,100 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
             Generar Programa con IA para {monthName} {year}
           </DialogTitle>
           <DialogDescription>
-             Define instrucciones y habilita la predicación en días festivos con horarios personalizados.
+             Define instrucciones y habilita la predicación en días festivos y fines de semana rurales especiales.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 py-2 pr-1">
-
-            {fields.length > 0 && (
-                <div className="space-y-3">
-                    <FormLabel className="text-base font-semibold flex items-center">
-                        <CalendarDays className="mr-2 h-5 w-5 text-primary" />
-                        Predicación en Días Festivos
-                    </FormLabel>
-                    <FormFieldDescription>
-                        Habilita y personaliza la predicación para los días festivos de este mes.
-                    </FormFieldDescription>
-                    <div className="max-h-52 overflow-y-auto space-y-2 rounded-md border p-3 shadow-sm bg-muted/30">
-                        {fields.map((field, index) => {
-                             const isEnabled = form.watch(`holidayOverrides.${index}.enabled`);
-                             return (
-                                <div key={field.id} className="p-3 border bg-card rounded-md space-y-2">
-                                    <FormField
-                                        control={form.control}
-                                        name={`holidayOverrides.${index}.enabled`}
-                                        render={({ field: checkboxField }) => (
-                                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                                <FormControl><Checkbox checked={checkboxField.value} onCheckedChange={checkboxField.onChange} /></FormControl>
-                                                <div className="space-y-0.5 leading-none">
-                                                    <FormLabel className="cursor-pointer">{form.getValues(`holidayOverrides.${index}.name`)} ({format(parseISO(form.getValues(`holidayOverrides.${index}.date`)), "EEEE d", {locale: es})})</FormLabel>
-                                                    <FormFieldDescription className="text-xs">Marcar para programar predicación en este día.</FormFieldDescription>
-                                                </div>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    {isEnabled && (
-                                        <div className="grid grid-cols-2 gap-3 pl-8 pt-2">
-                                             <FormField
-                                                control={form.control}
-                                                name={`holidayOverrides.${index}.time`}
-                                                render={({ field: timeField }) => (
-                                                    <FormItem><FormLabel className="text-xs">Hora</FormLabel><FormControl><Input {...timeField} placeholder="11:00" className="h-8 text-xs" /></FormControl><FormMessage /></FormItem>
-                                                )}
-                                             />
-                                             <FormField
-                                                control={form.control}
-                                                name={`holidayOverrides.${index}.type`}
-                                                render={({ field: typeField }) => (
-                                                     <FormItem><FormLabel className="text-xs">Tipo</FormLabel>
-                                                     <Select onValueChange={typeField.onChange} value={typeField.value}><FormControl><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="general">General</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select>
-                                                     <FormMessage />
-                                                     </FormItem>
-                                                )}
-                                             />
-                                        </div>
-                                    )}
+            
+            <div className="space-y-3">
+              <FormLabel className="text-base font-semibold flex items-center">
+                <CalendarDays className="mr-2 h-5 w-5 text-primary" />
+                Configuración Especial de Días
+              </FormLabel>
+              <div className="max-h-52 overflow-y-auto space-y-2 rounded-md border p-3 shadow-sm bg-muted/30">
+                {holidaysForMonth.length > 0 && (
+                  <>
+                    <p className="text-xs font-medium text-muted-foreground px-1 pb-1">Días Festivos:</p>
+                    {fields.map((field, index) => {
+                      const isEnabled = form.watch(`holidayOverrides.${index}.enabled`);
+                      return (
+                        <div key={field.id} className="p-3 border bg-card rounded-md space-y-2">
+                          <FormField
+                            control={form.control}
+                            name={`holidayOverrides.${index}.enabled`}
+                            render={({ field: checkboxField }) => (
+                              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                <FormControl><Checkbox checked={checkboxField.value} onCheckedChange={checkboxField.onChange} /></FormControl>
+                                <div className="space-y-0.5 leading-none">
+                                  <FormLabel className="cursor-pointer">{form.getValues(`holidayOverrides.${index}.name`)} ({format(parseISO(form.getValues(`holidayOverrides.${index}.date`)), "EEEE d", {locale: es})})</FormLabel>
+                                  <FormFieldDescription className="text-xs">Marcar para programar predicación en este día.</FormFieldDescription>
                                 </div>
-                             )
-                        })}
-                    </div>
-                </div>
-            )}
+                              </FormItem>
+                            )}
+                          />
+                          {isEnabled && (
+                            <div className="grid grid-cols-2 gap-3 pl-8 pt-2">
+                              <FormField
+                                control={form.control}
+                                name={`holidayOverrides.${index}.time`}
+                                render={({ field: timeField }) => (<FormItem><FormLabel className="text-xs">Hora</FormLabel><FormControl><Input {...timeField} placeholder="11:00" className="h-8 text-xs" /></FormControl><FormMessage /></FormItem>)}
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`holidayOverrides.${index}.type`}
+                                render={({ field: typeField }) => (
+                                  <FormItem><FormLabel className="text-xs">Tipo</FormLabel>
+                                  <Select onValueChange={typeField.onChange} value={typeField.value}><FormControl><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="general">General</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select>
+                                  <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </>
+                )}
+
+                {weekendDaysForSelection.length > 0 && (
+                  <>
+                    <p className="text-xs font-medium text-muted-foreground px-1 pt-2 pb-1">Fines de Semana Rurales:</p>
+                    {weekendDaysForSelection.map((day) => (
+                      <FormField
+                        key={day.date.toISOString()}
+                        control={form.control}
+                        name="designatedRuralWeekendDays"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-2.5 rounded-md hover:bg-muted/50 transition-colors bg-card">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value?.includes(format(day.date, "yyyy-MM-dd"))}
+                                onCheckedChange={(checked) => {
+                                  const dateString = format(day.date, "yyyy-MM-dd");
+                                  return checked
+                                    ? field.onChange([...(field.value || []), dateString])
+                                    : field.onChange((field.value || []).filter((value) => value !== dateString));
+                                }}
+                                id={`rural-day-${day.date.toISOString()}`}
+                              />
+                            </FormControl>
+                            <FormLabel htmlFor={`rural-day-${day.date.toISOString()}`} className="font-normal text-sm cursor-pointer w-full">
+                              {day.dayName} (Designar como rural especial)
+                            </FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                    ))}
+                  </>
+                )}
+                {holidaysForMonth.length === 0 && weekendDaysForSelection.length === 0 && (
+                   <p className="text-sm text-muted-foreground text-center py-4">No hay días festivos o fines de semana rurales configurados para este mes.</p>
+                )}
+
+              </div>
+            </div>
 
             <FormField
               control={form.control}
@@ -221,7 +285,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
                   <FormLabel className="text-base font-semibold">Instrucciones Adicionales para la IA (Opcional)</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Ej: Priorizar territorios no trabajados recientemente. Considerar asignar al Hno. X el día Y."
+                      placeholder="Ej: Priorizar territorios no trabajados recientemente. En los días rurales especiales, asignar a los Superintendentes de Grupo."
                       {...field}
                       rows={3}
                     />

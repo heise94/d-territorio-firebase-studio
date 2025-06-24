@@ -144,7 +144,7 @@ export default function ProgramaMensualPage() {
     setIsGenerationDialogOpen(true);
   };
 
-  const handleGenerateAssignments = async (dialogData: { additionalInstructions: string; holidayOverrides?: Array<{ date: string; time: string; type: PreachingType }>; }) => {
+  const handleGenerateAssignments = async (dialogData: { additionalInstructions: string; holidayOverrides?: Array<{ date: string; time: string; type: PreachingType }>; designatedRuralWeekendDays: string[] }) => {
     setIsLoading(true);
     setGeneratedAssignments(null);
 
@@ -199,6 +199,7 @@ export default function ProgramaMensualPage() {
         .map(h => format(h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date), "yyyy-MM-dd")),
       
       holidaySchedulingOverrides: dialogData.holidayOverrides || [],
+      designatedRuralWeekendDays: dialogData.designatedRuralWeekendDays || [],
 
       assembliesInMonth: assemblies
          .filter(a => isWithinInterval(new Date(selectedYear, selectedMonth, 15), { start: a.startDate as Date, end: a.endDate as Date }))
@@ -462,6 +463,7 @@ export default function ProgramaMensualPage() {
           year={selectedYear}
           month={selectedMonth}
           holidays={holidays}
+          programScheduleSlots={programScheduleSlots}
         />
       )}
 
