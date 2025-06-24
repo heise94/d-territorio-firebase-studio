@@ -94,8 +94,8 @@ export default function ReportesPage() {
         const assignmentsForTerritory = allAssignments
             .filter(a => a.locationId === territory.id)
             .sort((a,b) => {
-                const dateA = parse(a.date, "yyyy-MM-dd", new Date());
-                const dateB = parse(b.date, "yyyy-MM-dd", new Date());
+                const dateA = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
+                const dateB = parse(`${b.date} ${b.time}`, "yyyy-MM-dd HH:mm", new Date());
                 if (dateB.getTime() !== dateA.getTime()) {
                     return dateB.getTime() - dateA.getTime();
                 }
@@ -106,7 +106,11 @@ export default function ReportesPage() {
 
         const assignmentsWithReports = assignmentsForTerritory
             .filter(a => a.lastReportData?.reportedAt)
-            .sort((a, b) => (a.lastReportData!.reportedAt as Timestamp).toMillis() - (b.lastReportData!.reportedAt as Timestamp).toMillis()); // Oldest to newest
+            .sort((a, b) => {
+                const dateA = a.lastReportData!.reportedAt as Timestamp;
+                const dateB = b.lastReportData!.reportedAt as Timestamp;
+                return dateA.toMillis() - dateB.toMillis()
+            });
         
         let lastCompletionDate: Timestamp | null = null;
         let cumulativeWorkedBlocksForCycle = new Set<number>();
@@ -114,12 +118,12 @@ export default function ReportesPage() {
         for (const assignment of assignmentsWithReports) {
             const report = assignment.lastReportData!.reports.find(r => r.territoryId === territory.id);
             if (report && !report.territoryNotWorked) {
-                const workedInThisAssignment = (report.workedBlocksIds || []).map(id => parseInt(id.split('-').pop()!));
+                const workedInThisAssignment = (report.workedBlocksIds || []).map(id => parseInt(id.split('-').pop()!, 10));
                 workedInThisAssignment.forEach(blockNum => cumulativeWorkedBlocksForCycle.add(blockNum));
 
-                if (cumulativeWorkedBlocksForCycle.size >= (territory.totalBlocks || 0) && (territory.totalBlocks || 0) > 0) {
+                if ((territory.totalBlocks || 0) > 0 && cumulativeWorkedBlocksForCycle.size >= (territory.totalBlocks || 0)) {
                     lastCompletionDate = assignment.lastReportData!.reportedAt as Timestamp;
-                    cumulativeWorkedBlocksForCycle.clear(); // Reset for next cycle
+                    cumulativeWorkedBlocksForCycle.clear();
                 }
             }
         }
@@ -127,63 +131,56 @@ export default function ReportesPage() {
         const ultimaFechaCompletado = lastCompletionDate ? format(lastCompletionDate.toDate(), "dd/MM/yyyy") : "Nunca";
 
         const currentCycleAssignments = assignmentsForTerritory.filter(a => {
-            const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
-            if (isAfter(assignmentDateTime, new Date())) {
-                return true; 
-            }
             if (!a.lastReportData?.reportedAt) {
                 return true; 
             }
             return lastCompletionDate ? (a.lastReportData.reportedAt as Timestamp).toMillis() > lastCompletionDate.toMillis() : true;
         });
 
-        const workedBlocksInCurrentCycleFinal = new Set<number>();
+        const workedBlocksInCurrentCycle = new Set<number>();
         currentCycleAssignments.forEach(assignment => {
             const report = assignment.lastReportData?.reports.find(r => r.territoryId === territory.id);
              if (report && !report.territoryNotWorked) {
                 (report.workedBlocksIds || []).forEach(blockId => {
-                    workedBlocksInCurrentCycleFinal.add(parseInt(blockId.split('-').pop()!));
+                    workedBlocksInCurrentCycle.add(parseInt(blockId.split('-').pop()!));
                 });
             }
         });
 
-        const workedBlockNumbers = Array.from(workedBlocksInCurrentCycleFinal).sort((a, b) => a - b);
+        const workedBlockNumbers = Array.from(workedBlocksInCurrentCycle).sort((a, b) => a - b);
         const pendingBlockNumbers = allBlockNumbers.filter(n => !workedBlockNumbers.includes(n));
-
-        const latestAssignmentOverall = assignmentsForTerritory[0];
         
         let estado: ReporteActividadData['estado'] = 'Disponible';
         let asignadoA = "N/A";
         let fechaAsignacion = "N/A";
+        let manzanasTrabajadas = 'N/A';
+        let manzanasPendientes = 'Ninguna';
+
+        const lastAssignmentInCycle = currentCycleAssignments[0];
 
         if (territory.isBlocked) {
             estado = 'Bloqueado';
-        } else if (latestAssignmentOverall) {
-            const assignmentDateTime = parse(`${latestAssignmentOverall.date} ${latestAssignmentOverall.time}`, "yyyy-MM-dd HH:mm", new Date());
-            
-            if (isAfter(assignmentDateTime, startOfDay(new Date()))) {
-                estado = 'En Curso';
-                asignadoA = latestAssignmentOverall.userName || 'N/A';
-                fechaAsignacion = format(parseISO(latestAssignmentOverall.date), 'dd/MM/yyyy');
-            } else if (workedBlockNumbers.length > 0 && pendingBlockNumbers.length > 0) {
-                 estado = 'Parcial';
-                 const latestAssigneeInCycle = currentCycleAssignments[0];
-                 asignadoA = latestAssigneeInCycle?.userName || 'N/A';
-                 fechaAsignacion = latestAssigneeInCycle ? format(parseISO(latestAssigneeInCycle.date), 'dd/MM/yyyy') : 'N/A';
-            } else if (workedBlockNumbers.length > 0 && pendingBlockNumbers.length === 0 && allBlockNumbers.length > 0) {
-                 estado = 'Disponible'; 
-            } else if (currentCycleAssignments.length > 0 && !currentCycleAssignments[0].lastReportData) {
-                 estado = 'En Curso'; 
-                 asignadoA = currentCycleAssignments[0].userName || 'N/A';
-                 fechaAsignacion = format(parseISO(currentCycleAssignments[0].date), 'dd/MM/yyyy');
-            }
+            manzanasPendientes = allBlockNumbers.length > 0 ? allBlockNumbers.join(', ') : 'N/A';
+        } else if (lastAssignmentInCycle && isAfter(parse(`${lastAssignmentInCycle.date} ${lastAssignmentInCycle.time}`, "yyyy-MM-dd HH:mm", new Date()), new Date())) {
+            estado = 'En Curso';
+            asignadoA = lastAssignmentInCycle.userName || 'N/A';
+            fechaAsignacion = format(parseISO(lastAssignmentInCycle.date), 'dd/MM/yyyy');
+            manzanasPendientes = allBlockNumbers.join(', ');
+        } else if (lastAssignmentInCycle && isBefore(parse(`${lastAssignmentInCycle.date} ${lastAssignmentInCycle.time}`, "yyyy-MM-dd HH:mm", new Date()), startOfDay(new Date())) && !lastAssignmentInCycle.lastReportData) {
+            estado = 'En Curso';
+            asignadoA = lastAssignmentInCycle.userName || 'N/A';
+            fechaAsignacion = format(parseISO(lastAssignmentInCycle.date), 'dd/MM/yyyy');
+            manzanasPendientes = allBlockNumbers.join(', ');
+        } else if (workedBlockNumbers.length > 0 && pendingBlockNumbers.length > 0) {
+            estado = 'Parcial';
+            asignadoA = lastAssignmentInCycle?.userName || 'N/A';
+            fechaAsignacion = lastAssignmentInCycle ? format(parseISO(lastAssignmentInCycle.date), 'dd/MM/yyyy') : 'N/A';
+            manzanasTrabajadas = workedBlockNumbers.join(', ');
+            manzanasPendientes = pendingBlockNumbers.join(', ');
+        } else {
+             estado = 'Disponible';
         }
         
-        if (estado === 'Disponible' || estado === 'Bloqueado') {
-            asignadoA = "N/A";
-            fechaAsignacion = "N/A";
-        }
-
         const passesPublisherFilter = !filters.assignedTo || (asignadoA !== "N/A" && asignadoA.toLowerCase().includes(filters.assignedTo.toLowerCase()));
         if (!passesPublisherFilter) return null;
 
@@ -193,8 +190,8 @@ export default function ReportesPage() {
             ultimaFechaCompletado,
             asignadoA,
             fechaAsignacion,
-            manzanasTrabajadas: workedBlockNumbers.length > 0 ? workedBlockNumbers.join(', ') : 'N/A',
-            manzanasPendientes: pendingBlockNumbers.length > 0 ? pendingBlockNumbers.join(', ') : 'Ninguna',
+            manzanasTrabajadas,
+            manzanasPendientes,
             estado,
             blockReason: territory.blockReason,
             campaignHistory: assignmentsForTerritory.filter(a => a.lastReportData).map(a => ({
