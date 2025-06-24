@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UploadCloud, AlertTriangle, Database, CheckCircle2, List, Users, Eye } from "lucide-react";
+import { Loader2, UploadCloud, AlertTriangle, Database, CheckCircle2, List, Users, Eye, Trash2 as TrashIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES } from "@/lib/constants";
@@ -13,7 +13,7 @@ import { historicalTerritoryData } from "@/lib/historical-data";
 import { usersToImport } from "@/lib/users-data"; // Import user data
 import { db } from "@/lib/firebase";
 import { collection, doc, writeBatch, getDocs, query, where, Timestamp } from "firebase/firestore";
-import type { Territory, UserProfile, ReportedAssignmentData, SingleTerritoryReportDetails } from "@/types";
+import type { Territory, UserProfile, ReportedAssignmentData, SingleTerritoryReportDetails, Assignment } from "@/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 
@@ -37,6 +37,9 @@ export default function ImportarDatosPage() {
   const [isImportingUsers, setIsImportingUsers] = useState(false);
   const [userImportLogs, setUserImportLogs] = useState<LogMessage[]>([]);
   const [previewUsers, setPreviewUsers] = useState<PreviewUser[]>([]);
+
+  const [isCleaning, setIsCleaning] = useState(false);
+  const [cleanupLogs, setCleanupLogs] = useState<LogMessage[]>([]);
 
   const { toast } = useToast();
   const { userProfile } = usePermissions();
@@ -65,7 +68,7 @@ export default function ImportarDatosPage() {
         return;
     }
     setIsImportingUsers(true);
-    setUserImportLogs(prev => [...prev, { type: 'success', message: 'Iniciando importación de usuarios a Firestore...' }]);
+    setUserImportLogs([{ type: 'success', message: 'Iniciando importación de usuarios a Firestore...' }]);
     
     try {
         const batch = writeBatch(db);
@@ -250,6 +253,58 @@ export default function ImportarDatosPage() {
     }
   };
 
+  const handleCleanDuplicates = async () => {
+    setIsCleaning(true);
+    setCleanupLogs([{ type: 'success', message: 'Iniciando limpieza de asignaciones duplicadas...' }]);
+    try {
+        const assignmentsSnapshot = await getDocs(collection(db, "assignments"));
+        setCleanupLogs(prev => [...prev, { type: 'success', message: `Se encontraron ${assignmentsSnapshot.size} asignaciones en total para revisar.` }]);
+
+        const uniqueAssignments = new Map<string, string>();
+        const batch = writeBatch(db);
+        let duplicatesFound = 0;
+
+        for (const docSnap of assignmentsSnapshot.docs) {
+            const assignment = docSnap.data() as Assignment;
+            // Create a unique key for each assignment
+            const key = `${assignment.userId}-${assignment.date}-${assignment.time}-${assignment.locationName}`;
+            
+            if (uniqueAssignments.has(key)) {
+                // This is a duplicate, mark it for deletion
+                batch.delete(docSnap.ref);
+                duplicatesFound++;
+            } else {
+                // This is the first time we see this assignment, keep it
+                uniqueAssignments.set(key, docSnap.id);
+            }
+        }
+        setCleanupLogs(prev => [...prev, { type: 'success', message: `Análisis completo. Se encontraron ${duplicatesFound} asignaciones duplicadas.` }]);
+        
+        if (duplicatesFound > 0) {
+            setCleanupLogs(prev => [...prev, { type: 'success', message: 'Eliminando duplicados de la base de datos...' }]);
+            await batch.commit();
+            toast({
+                title: "Limpieza Completada",
+                description: `Se eliminaron ${duplicatesFound} asignaciones duplicadas.`
+            });
+            setCleanupLogs(prev => [...prev, { type: 'success', message: `¡Limpieza finalizada! Se borraron ${duplicatesFound} registros.` }]);
+        } else {
+            toast({
+                title: "Sin Duplicados",
+                description: "No se encontraron asignaciones duplicadas para eliminar."
+            });
+            setCleanupLogs(prev => [...prev, { type: 'success', message: 'No se encontraron duplicados.' }]);
+        }
+
+    } catch (error: any) {
+        console.error("Error cleaning duplicates:", error);
+        toast({ title: "Error de Limpieza", description: error.message, variant: "destructive" });
+        setCleanupLogs(prev => [...prev, { type: 'error', message: `Error: ${error.message}` }]);
+    } finally {
+        setIsCleaning(false);
+    }
+  };
+
   const format = (date: Date, formatStr: string) => {
     const pad = (n: number) => n < 10 ? '0' + n : n;
     const year = date.getFullYear();
@@ -365,7 +420,7 @@ export default function ImportarDatosPage() {
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>¡Atención!</AlertTitle>
             <AlertDescription>
-              Asegúrate de que los publicadores ya existan en el sistema (Paso 1). Este proceso podría fallar si no encuentra a los publicadores o territorios. Ejecútalo solo una vez.
+              Asegúrate de que los publicadores ya existan en el sistema (Paso 1). Este proceso podría fallar si no encuentra a los publicadores o territorios.
             </AlertDescription>
           </Alert>
           <div className="text-center">
@@ -382,6 +437,50 @@ export default function ImportarDatosPage() {
               <CardContent className="max-h-60 overflow-y-auto p-2">
                   <div className="space-y-1 text-xs font-mono p-2">
                     {assignmentImportLogs.map((log, index) => (
+                      <p key={index} className={
+                        log.type === 'success' ? 'text-green-600' :
+                        log.type === 'warning' ? 'text-amber-600' :
+                        'text-red-600'
+                      }>
+                        {log.message}
+                      </p>
+                    ))}
+                  </div>
+              </CardContent>
+            </Card>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-lg border-destructive">
+        <CardHeader>
+          <CardTitle className="flex items-center text-destructive"><TrashIcon className="mr-3 h-7 w-7" /> Paso 3: Limpieza de Datos Duplicados</CardTitle>
+          <CardDescription>
+            Utiliza esta herramienta si ejecutaste accidentalmente el Paso 2 varias veces y tienes asignaciones duplicadas.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>¡Acción Irreversible!</AlertTitle>
+            <AlertDescription>
+              Este proceso buscará y eliminará permanentemente todas las asignaciones duplicadas de la base de datos. Se conservará solo un registro único por cada asignación. Asegúrate de querer continuar.
+            </AlertDescription>
+          </Alert>
+          <div className="text-center">
+             <Button onClick={handleCleanDuplicates} disabled={isCleaning} size="lg" variant="destructive">
+              {isCleaning ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <TrashIcon className="mr-2 h-5 w-5" />}
+              {isCleaning ? 'Limpiando Duplicados...' : 'Buscar y Eliminar Asignaciones Duplicadas'}
+            </Button>
+          </div>
+          {cleanupLogs.length > 0 && (
+            <Card className="mt-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center"><List className="mr-2 h-4 w-4"/>Registro de Limpieza</CardTitle>
+              </CardHeader>
+              <CardContent className="max-h-60 overflow-y-auto p-2">
+                  <div className="space-y-1 text-xs font-mono p-2">
+                    {cleanupLogs.map((log, index) => (
                       <p key={index} className={
                         log.type === 'success' ? 'text-green-600' :
                         log.type === 'warning' ? 'text-amber-600' :
