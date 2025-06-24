@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -11,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
 import { collection, onSnapshot, query, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { format } from "date-fns";
+import { format, parse, isBefore, startOfDay } from "date-fns";
 
 import { ReporteActividadView, type ReporteActividadData } from "@/components/reportes/reporte-actividad-view";
 import { ReporteS13View, type ConsolidatedS13Data, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
@@ -79,15 +78,33 @@ export default function ReportesPage() {
 
 
   const processedActividadData: ReporteActividadData[] = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
 
     return filteredTerritories.map(territory => {
         const assignmentsForTerritory = allAssignments
             .filter(a => a.locationId === territory.id)
             .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         
-        const futureAssignment = assignmentsForTerritory.find(a => new Date(a.date) >= today && a.status !== 'rejected' && a.status !== 'cancelled_by_admin');
+        // Find the most relevant current or future assignment to determine the status
+        const relevantAssignment = assignmentsForTerritory.find(a => {
+            try {
+                const assignmentDate = parse(a.date, 'yyyy-MM-dd', new Date());
+                const isPast = isBefore(assignmentDate, startOfDay(now));
+
+                // An active future assignment (today or in the future)
+                if (!isPast && (a.status === 'accepted' || a.status === 'pending' || a.status === 'replacement_requested')) {
+                    return true;
+                }
+                // A past assignment that is awaiting a report
+                if (isPast && a.status === 'accepted' && !a.lastReportData) {
+                    return true;
+                }
+            } catch (e) {
+                console.warn(`Could not parse date for assignment ${a.id}: ${a.date}`);
+                return false;
+            }
+            return false;
+        });
         
         let status: ReporteActividadData['status'] = 'Disponible';
         let assignedTo = "N/A";
@@ -95,10 +112,10 @@ export default function ReportesPage() {
 
         if (territory.isBlocked) {
             status = 'Bloqueado';
-        } else if (futureAssignment) {
+        } else if (relevantAssignment) {
             status = 'En Curso';
-            assignedTo = futureAssignment.userName || 'N/A';
-            assignedDate = futureAssignment.date;
+            assignedTo = relevantAssignment.userName || 'N/A';
+            assignedDate = relevantAssignment.date;
         }
 
         const passesPublisherFilter = !filters.assignedTo || (status === 'En Curso' && assignedTo.toLowerCase().includes(filters.assignedTo.toLowerCase()));
@@ -143,7 +160,11 @@ export default function ReportesPage() {
         const territory = allTerritories.find(t => t.id === territoryId);
         if (!territory) continue;
 
-        const sortedAssignments = assignments.sort((a,b) => (b.lastReportData!.reportedAt as Timestamp).toMillis() - (a.lastReportData!.reportedAt as Timestamp).toMillis());
+        const sortedAssignments = assignments.sort((a,b) => {
+            const dateA = a.lastReportData!.reportedAt as Timestamp;
+            const dateB = b.lastReportData!.reportedAt as Timestamp;
+            return dateB.toMillis() - dateA.toMillis();
+        });
 
         const transformAssignmentToS13 = (assignment: Assignment): ReporteS13Data => ({
             id: assignment.id,
