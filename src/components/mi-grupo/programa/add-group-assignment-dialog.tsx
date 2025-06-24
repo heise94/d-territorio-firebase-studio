@@ -23,7 +23,6 @@ import {
   FormMessage,
   FormDescription as FormFieldDescription,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -38,7 +37,8 @@ import { cn } from "@/lib/utils";
 
 const groupAssignmentFormSchema = z.object({
   date: z.date({ required_error: "La fecha es obligatoria." }),
-  time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Formato 24h (ej: 09:00, 14:30)."}),
+  hour: z.string().min(1, "La hora es obligatoria."),
+  minute: z.string().min(1, "El minuto es obligatorio."),
   preachingType: z.enum(['general', 'rural', 'zoom'], { required_error: "Debes seleccionar un tipo."}),
   captainUserId: z.string().min(1, "Debes seleccionar un encargado."),
   casaId: z.string().optional(),
@@ -99,7 +99,8 @@ export function AddGroupAssignmentDialog({
     resolver: zodResolver(groupAssignmentFormSchema),
     defaultValues: {
       date: undefined,
-      time: "",
+      hour: "",
+      minute: "",
       preachingType: undefined,
       captainUserId: "",
       casaId: "",
@@ -110,9 +111,11 @@ export function AddGroupAssignmentDialog({
   useEffect(() => {
     if (isOpen) {
       if (assignmentToEdit) {
+        const [hour = "", minute = ""] = assignmentToEdit.time.split(":");
         form.reset({
           date: parse(assignmentToEdit.date, 'yyyy-MM-dd', new Date()),
-          time: assignmentToEdit.time,
+          hour,
+          minute,
           preachingType: assignmentToEdit.preachingType,
           captainUserId: assignmentToEdit.captainUserId,
           casaId: assignmentToEdit.casaId || "",
@@ -121,7 +124,8 @@ export function AddGroupAssignmentDialog({
       } else {
         form.reset({
           date: initialDate || undefined,
-          time: "",
+          hour: "",
+          minute: "",
           preachingType: undefined,
           captainUserId: "",
           casaId: "",
@@ -155,7 +159,7 @@ export function AddGroupAssignmentDialog({
       id: isEditMode ? assignmentToEdit?.id : undefined, 
       date: format(values.date, "yyyy-MM-dd"),
       preachingType: values.preachingType,
-      time: values.time,
+      time: `${values.hour}:${values.minute}`,
       captainUserId: values.captainUserId,
       captainName: selectedPublisher?.name || "Desconocido",
       casaId: selectedCasa?.id || undefined,
@@ -234,19 +238,55 @@ export function AddGroupAssignmentDialog({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="time"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Hora de Inicio (Formato 24h)</FormLabel>
-                  <FormControl>
-                    <Input type="text" placeholder="HH:mm" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div>
+                <FormLabel>Hora de Inicio</FormLabel>
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                    <FormField
+                    control={form.control}
+                    name="hour"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-xs text-muted-foreground">Hora</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="HH" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            {Array.from({ length: 15 }, (_, i) => (i + 8).toString().padStart(2, '0')).map(hour => (
+                                <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="minute"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-xs text-muted-foreground">Minuto</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="MM" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            {['00', '15', '30', '45'].map(minute => (
+                                <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
+            </div>
 
             <FormField
               control={form.control}
