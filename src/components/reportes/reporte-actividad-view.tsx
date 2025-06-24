@@ -13,15 +13,16 @@ import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/comp
 export interface ReporteActividadData {
   id: string;
   territoryNumber: string;
-  lastCompletedHistoric: string;
-  assignedTo: string;
-  assignedDate: string;
-  blocksWorked: string;
-  blocksPending: string;
-  status: 'Disponible' | 'En Curso' | 'Bloqueado';
+  ultimaFechaCompletado: string;
+  asignadoA: string;
+  fechaAsignacion: string;
+  manzanasTrabajadas: string;
+  manzanasPendientes: string;
+  estado: 'Disponible' | 'En Curso' | 'Parcial' | 'Bloqueado';
   campaignHistory: CampaignAssignmentInReport[];
   blockReason?: string;
 }
+
 
 interface ReporteActividadViewProps {
     data: ReporteActividadData[];
@@ -38,10 +39,11 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
     setHistoryModalOpen(true);
   };
 
-  const getStatusColorClass = (status: ReporteActividadData['status']): string => {
+  const getStatusColorClass = (status: ReporteActividadData['estado']): string => {
     switch (status) {
         case 'Disponible': return 'text-blue-700 bg-blue-100 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700/50';
         case 'En Curso': return 'text-sky-700 bg-sky-100 border-sky-200 dark:text-sky-300 dark:bg-sky-900/30 dark:border-sky-700/50';
+        case 'Parcial': return 'text-orange-700 bg-orange-100 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700/50';
         case 'Bloqueado': return 'text-red-700 bg-red-100 border-red-200 dark:text-red-300 dark:bg-red-900/30 dark:border-red-700/50';
         default: return 'text-gray-700 bg-gray-100 border-gray-200';
     }
@@ -62,31 +64,31 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Núm. Terr.</TableHead>
-              <TableHead>Últ. Completó (Hist.)</TableHead>
-              <TableHead>Asignado a (Actual)</TableHead>
-              <TableHead>Fecha Asig. (Actual)</TableHead>
-              <TableHead>Trabajado (Actual)</TableHead>
-              <TableHead>Pendiente (Actual)</TableHead>
-              <TableHead>Estado Ciclo Actual</TableHead>
-              <TableHead className="text-center">Acciones</TableHead>
+              <TableHead>N° Terr.</TableHead>
+              <TableHead>Últ. Completó</TableHead>
+              <TableHead>Asignado a</TableHead>
+              <TableHead>Fecha Asig.</TableHead>
+              <TableHead>Manz. Trabajadas</TableHead>
+              <TableHead>Manz. Pendientes</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead className="text-center">Historial</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.map((row) => (
               <TableRow key={row.id}>
                 <TableCell className="font-bold">{row.territoryNumber}</TableCell>
-                <TableCell>{row.lastCompletedHistoric}</TableCell>
-                <TableCell>{row.assignedTo}</TableCell>
-                <TableCell>{row.assignedDate}</TableCell>
-                <TableCell>{row.blocksWorked}</TableCell>
-                <TableCell>{row.blocksPending}</TableCell>
+                <TableCell>{row.ultimaFechaCompletado}</TableCell>
+                <TableCell>{row.asignadoA}</TableCell>
+                <TableCell>{row.fechaAsignacion}</TableCell>
+                <TableCell>{row.manzanasTrabajadas}</TableCell>
+                <TableCell>{row.manzanasPendientes}</TableCell>
                 <TableCell>
                    <Tooltip>
                     <TooltipTrigger asChild>
-                        <Badge className={getStatusColorClass(row.status)}>{row.status}</Badge>
+                        <Badge className={getStatusColorClass(row.estado)}>{row.estado}</Badge>
                     </TooltipTrigger>
-                    {row.status === 'Bloqueado' && row.blockReason && (
+                    {row.estado === 'Bloqueado' && row.blockReason && (
                     <TooltipContent>
                         <p>Razón: {row.blockReason}</p>
                     </TooltipContent>

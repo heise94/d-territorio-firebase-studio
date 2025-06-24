@@ -297,10 +297,32 @@ export interface CampaignAssignmentInReport {
   campaignName?: string | null;
 }
 
-export interface Report {
-  id: string; // Firestore Document ID
+export interface ReporteActividadData {
+  id: string;
   territoryNumber: string;
-  lastCompletedHistoric?: string; // "dd/MM/yyyy"
-  campaigns: CampaignAssignmentInReport[];
-  completedCurrentCycle: string; // "dd/MM/yyyy", "En curso", or "Disponible"
+  ultimaFechaCompletado: string;
+  asignadoA: string;
+  fechaAsignacion: string;
+  manzanasTrabajadas: string;
+  manzanasPendientes: string;
+  estado: 'Disponible' | 'En Curso' | 'Parcial' | 'Bloqueado';
+  blockReason?: string;
+  campaignHistory: CampaignAssignmentInReport[];
+}
+
+export interface ReporteS13Data {
+  id: string;
+  territoryNumber: string;
+  lastCompletedHistoric: string;
+  firstAssignedTo: string;
+  firstAssignedDate: string;
+  completedCurrentCycle: string;
+  fullCampaignHistory: CampaignAssignmentInReport[];
+}
+
+export interface ConsolidatedS13Data {
+  territoryId: string;
+  territoryNumber: string;
+  lastCycle?: ReporteS13Data;
+  penultimateCycle?: ReporteS13Data;
 }
