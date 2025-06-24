@@ -355,14 +355,6 @@ export default function ReportesPage() {
             <TabsTrigger value="detalle">Registro de Actividad Detallado</TabsTrigger>
             <TabsTrigger value="s13">Registro S-13 (Completados)</TabsTrigger>
           </TabsList>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => toast({title: "Próximamente", description: "La entrada manual de reportes estará disponible pronto."})} size="sm">
-                <PlusCircle className="mr-2 h-4 w-4" /> Ingresar Reporte Manual
-            </Button>
-            <Button variant="outline" onClick={handleExportS13} size="sm" disabled={isLoading}>
-              <FileDown className="mr-2 h-4 w-4" /> Exportar S-13 a CSV
-            </Button>
-          </div>
         </div>
 
         <TabsContent value="detalle">
@@ -386,10 +378,17 @@ export default function ReportesPage() {
         <TabsContent value="s13">
            <Card>
             <CardHeader>
-              <CardTitle>Historial de Ciclos Completados (S-13)</CardTitle>
-              <CardDescription>
-                Cada fila representa un territorio, mostrando sus últimos dos ciclos de trabajo completados (basado en la fecha del reporte).
-              </CardDescription>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
+                  <div>
+                    <CardTitle>Historial de Ciclos Completados (S-13)</CardTitle>
+                    <CardDescription>
+                      Cada fila representa un territorio, mostrando sus últimos dos ciclos de trabajo completados (basado en la fecha del reporte).
+                    </CardDescription>
+                  </div>
+                  <Button variant="outline" onClick={handleExportS13} size="sm" disabled={isLoading}>
+                    <FileDown className="mr-2 h-4 w-4" /> Exportar S-13 a CSV
+                  </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
