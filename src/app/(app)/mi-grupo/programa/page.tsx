@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon, AlertTriangle, MountainSnow, Video, Users2 as GroupIconLucide, Eye, Edit, Trash2, Pencil, Gift, MapPin as MapPinIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse, isAfter, isBefore as isBeforeDateFns } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse, isAfter, isBefore as isBeforeDateFns, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingAssignedType, PreachingGroup, DayOfWeek, CustomHoliday, TerritoryType, AdditionalTerritoryInfo, UserProfile, SettingsDoc } from "@/types";
 import { AddGroupAssignmentDialog, type GroupAssignmentSubmitDataType } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
@@ -158,19 +158,22 @@ export default function MiGrupoProgramaPage() {
     }
     setIsLoading(true);
 
-    const startDate = format(startOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
-    const endDate = format(endOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
-
     const q = query(
         collection(db, "groupAssignments"),
-        where("groupId", "==", currentGroupId),
-        where("date", ">=", startDate),
-        where("date", "<=", endDate)
+        where("groupId", "==", currentGroupId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+        const startDate = startOfMonth(new Date(selectedYear, selectedMonth));
+        const endDate = endOfMonth(new Date(selectedYear, selectedMonth));
+
         const fetchedAssignments = snapshot.docs.map(doc => doc.data() as GroupAssignment)
+            .filter(assign => {
+                const assignDate = parse(assign.date, 'yyyy-MM-dd', new Date());
+                return isWithinInterval(assignDate, { start: startDate, end: endDate });
+            })
             .sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time));
+        
         setGroupAssignments(fetchedAssignments);
         setIsLoading(false);
     }, (error) => {
