@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -221,7 +220,7 @@ export default function ImportarDatosPage() {
                     userId: user.firebaseAuthUid || user.id,
                     userName: user.name,
                     userEmail: user.email,
-                    assignedGroupId: user.assignedGroupId,
+                    assignedGroupId: user.assignedGroupId || null,
                     lastReportData: reportData,
                     createdAt: Timestamp.fromDate(assignmentDate),
                     updatedAt: Timestamp.fromDate(assignmentDate),
@@ -399,3 +398,4 @@ export default function ImportarDatosPage() {
     </div>
   );
 }
+    
