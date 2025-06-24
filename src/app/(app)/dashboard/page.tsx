@@ -1,20 +1,31 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { FileText, Map, Users, Loader2 } from "lucide-react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FileCheck, Map as MapIcon, Users, Loader2, ShieldOff, Hourglass, AlertCircle } from "lucide-react";
+import { collection, onSnapshot, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { startOfMonth, endOfMonth } from "date-fns";
+import { startOfMonth, endOfMonth, isFuture, format } from "date-fns";
+import { es } from "date-fns/locale";
+import type { Territory, UserProfile, Assignment } from "@/types";
+import Link from 'next/link';
+
+const currentFilterYear = new Date().getFullYear();
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    activeTerritories: 0,
-    activePublishers: 0,
-    reportsThisMonth: 0,
-  });
   const [loading, setLoading] = useState(true);
+  
+  const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
+  
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(currentFilterYear);
+
+  const monthsForFilter = useMemo(() => Array.from({ length: 12 }, (_, i) => ({ value: i, label: format(new Date(2000, i), "MMMM", { locale: es }) })), []);
+  const yearsForFilter = useMemo(() => Array.from({ length: 5 }, (_, i) => currentFilterYear - 2 + i).sort((a,b) => b - a), [currentFilterYear]);
 
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
@@ -23,56 +34,88 @@ export default function DashboardPage() {
       return;
     }
 
-    const territoriesQuery = query(collection(db, "territories"), where("isBlocked", "==", false));
-    const usersQuery = query(collection(db, "users"), where("status", "==", "Activo"));
-    
-    // For reports, we fetch all assignments and filter client-side to avoid needing a composite index on lastReportData
-    const assignmentsQuery = collection(db, "assignments");
-
     const unsubscribers = [
-      onSnapshot(territoriesQuery, (snapshot) => {
-        setStats(prev => ({ ...prev, activeTerritories: snapshot.size }));
-      }, (error) => console.error("Error fetching territories count:", error)),
+      onSnapshot(collection(db, "territories"), (snapshot) => {
+        setAllTerritories(snapshot.docs.map(doc => doc.data() as Territory));
+      }, (error) => console.error("Error fetching territories:", error)),
       
-      onSnapshot(usersQuery, (snapshot) => {
-        setStats(prev => ({ ...prev, activePublishers: snapshot.size }));
-      }, (error) => console.error("Error fetching users count:", error)),
+      onSnapshot(collection(db, "users"), (snapshot) => {
+        setAllUsers(snapshot.docs.map(doc => doc.data() as UserProfile));
+      }, (error) => console.error("Error fetching users:", error)),
       
-      onSnapshot(assignmentsQuery, (snapshot) => {
-        const now = new Date();
-        const startOfThisMonth = startOfMonth(now);
-        const endOfThisMonth = endOfMonth(now);
-
-        const reportsCount = snapshot.docs.filter(doc => {
-          const data = doc.data();
-          if (data.lastReportData && data.lastReportData.reportedAt) {
-            const reportedAtDate = data.lastReportData.reportedAt.toDate();
-            return reportedAtDate >= startOfThisMonth && reportedAtDate <= endOfThisMonth;
-          }
-          return false;
-        }).length;
-
-        setStats(prev => ({ ...prev, reportsThisMonth: reportsCount }));
-      }, (error) => console.error("Error fetching assignments for reports count:", error))
+      onSnapshot(collection(db, "assignments"), (snapshot) => {
+        setAllAssignments(snapshot.docs.map(doc => ({...doc.data(), id: doc.id} as Assignment)));
+      }, (error) => console.error("Error fetching assignments:", error)),
     ];
 
-    // Stop loading after a short delay to allow all snapshots to fire at least once.
-    const timer = setTimeout(() => setLoading(false), 1500);
+    const timer = setTimeout(() => setLoading(false), 2000);
     unsubscribers.push(() => clearTimeout(timer));
     
-    return () => {
-      unsubscribers.forEach(unsub => unsub());
-    };
-
+    return () => unsubscribers.forEach(unsub => unsub());
   }, []);
 
-  const renderStat = (value: number) => {
+  const stats = useMemo(() => {
+    const activeTerritories = allTerritories.filter(t => !t.isBlocked).length;
+    const blockedTerritories = allTerritories.length - activeTerritories;
+
+    const activePublishers = allUsers.filter(u => u.status === 'Activo').length;
+    const blockedForSystem = allUsers.filter(u => u.blockInfo?.forSystem).length;
+    const blockedForGroup = allUsers.filter(u => u.blockInfo?.forGroup).length;
+    
+    const filterStartDate = startOfMonth(new Date(selectedYear, selectedMonth));
+    const filterEndDate = endOfMonth(new Date(selectedYear, selectedMonth));
+    const workedTerritoryIds = new Set<string>();
+    allAssignments.forEach(a => {
+      const reportedAt = a.lastReportData?.reportedAt;
+      if (reportedAt) {
+        const reportedDate = reportedAt instanceof Timestamp ? reportedAt.toDate() : new Date(reportedAt);
+        if (reportedDate >= filterStartDate && reportedDate <= filterEndDate) {
+          if (a.locationId) workedTerritoryIds.add(a.locationId);
+          if (a.additionalTerritorySelected?.id) workedTerritoryIds.add(a.additionalTerritorySelected.id);
+        }
+      }
+    });
+
+    const pendingAssignments = allAssignments.filter(a => {
+        try {
+            const assignmentDate = new Date(a.date);
+            return (a.status === 'pending' || a.status === 'replacement_requested') && isFuture(assignmentDate);
+        } catch (e) {
+            return false;
+        }
+    }).length;
+
+    return {
+        activeTerritories,
+        blockedTerritories,
+        activePublishers,
+        blockedForSystem,
+        blockedForGroup,
+        workedTerritoriesThisMonth: workedTerritoryIds.size,
+        pendingAssignments
+    };
+  }, [allTerritories, allUsers, allAssignments, selectedMonth, selectedYear]);
+
+  const renderStat = (value: number, subValues?: {label: string, value: number}[]) => {
     if (loading) {
       return <Loader2 className="h-8 w-8 animate-spin text-primary" />;
     }
-    return <div className="text-4xl font-bold">{value}</div>;
+    return (
+        <div>
+            <div className="text-4xl font-bold">{value}</div>
+            {subValues && subValues.length > 0 && (
+                <div className="pt-1">
+                    {subValues.map((sub, index) => (
+                        <p key={index} className="text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-1">
+                           <AlertCircle className="h-3 w-3"/> {sub.value} {sub.label}
+                        </p>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
   };
-
+  
   return (
     <div className="space-y-8">
       <div>
@@ -82,15 +125,15 @@ export default function DashboardPage() {
         </p>
       </div>
       
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="hover:shadow-lg transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Territorios Activos</CardTitle>
-            <Map className="h-5 w-5 text-primary" />
+            <MapIcon className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-            {renderStat(stats.activeTerritories)}
-            <p className="text-xs text-muted-foreground pt-1">Número total de territorios no bloqueados.</p>
+            {renderStat(stats.activeTerritories, [{label: 'bloqueado(s)', value: stats.blockedTerritories}])}
+            <p className="text-xs text-muted-foreground pt-1">Total de territorios no bloqueados.</p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-lg transition-shadow duration-300">
@@ -99,41 +142,43 @@ export default function DashboardPage() {
             <Users className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-            {renderStat(stats.activePublishers)}
+             {renderStat(stats.activePublishers, [
+                {label: 'bloq. p/ sistema', value: stats.blockedForSystem},
+                {label: 'bloq. p/ grupo', value: stats.blockedForGroup}
+             ])}
             <p className="text-xs text-muted-foreground pt-1">Total de usuarios con estado "Activo".</p>
           </CardContent>
         </Card>
-        <Card className="hover:shadow-lg transition-shadow duration-300">
+        <Card className="hover:shadow-lg transition-shadow duration-300 col-span-1 md:col-span-2 lg:col-span-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Reportes de este Mes</CardTitle>
-            <FileText className="h-5 w-5 text-primary" />
+            <CardTitle className="text-sm font-medium">Territorios Trabajados</CardTitle>
+            <FileCheck className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-            {renderStat(stats.reportsThisMonth)}
-            <p className="text-xs text-muted-foreground pt-1">Reportes de predicación enviados este mes.</p>
-          </CardContent>
-        </Card>
-         <Card className="hover:shadow-lg transition-shadow duration-300 bg-primary/10 border-primary/30">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-primary">Próximas Funciones</CardTitle>
-             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-primary"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-primary/80">
-              Más módulos y funcionalidades serán añadidos pronto. ¡Mantente atento!
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="pt-6">
-        <h2 className="text-2xl font-headline font-semibold mb-4">Actividad Reciente (Placeholder)</h2>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-center h-64 bg-muted/50 rounded-md">
-              <p className="text-muted-foreground">Gráfico de actividad aparecerá aquí.</p>
+            {renderStat(stats.workedTerritoriesThisMonth)}
+            <div className="flex gap-2 items-center mt-2">
+                <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                    <SelectTrigger className="h-8 text-xs w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>{monthsForFilter.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent>
+                </Select>
+                <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+                     <SelectTrigger className="h-8 text-xs w-[100px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>{yearsForFilter.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+                </Select>
             </div>
           </CardContent>
+        </Card>
+        <Card className="hover:shadow-lg transition-shadow duration-300 bg-amber-50 border-amber-300 dark:bg-amber-900/20 dark:border-amber-700/40">
+           <Link href="/gestion-asignaciones" className="h-full w-full block">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-amber-800 dark:text-amber-300">Asignaciones Pendientes</CardTitle>
+                <Hourglass className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </CardHeader>
+              <CardContent>
+                 <div className="text-4xl font-bold text-amber-900 dark:text-amber-200">{loading ? <Loader2 className="h-8 w-8 animate-spin"/> : stats.pendingAssignments}</div>
+                <p className="text-xs text-amber-700 dark:text-amber-400/80 pt-1">Asignaciones por aceptar o que necesitan reemplazo.</p>
+              </CardContent>
+            </Link>
         </Card>
       </div>
     </div>

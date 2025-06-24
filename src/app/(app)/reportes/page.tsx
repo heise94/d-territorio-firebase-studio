@@ -9,7 +9,7 @@ import { Loader2, Filter, FileDown, PlusCircle } from "lucide-react";
 import type { Territory, Assignment } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
-import { collection, onSnapshot, query } from "firebase/firestore";
+import { collection, onSnapshot, query, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format } from "date-fns";
 
@@ -73,7 +73,6 @@ export default function ReportesPage() {
       if (filters.territoryNumber && !territory.number?.toLowerCase().includes(filters.territoryNumber.toLowerCase())) {
         return false;
       }
-      // Note: assignedTo and date filters are applied in the specific data processors below
       return true;
     });
   }, [allTerritories, filters]);
@@ -81,7 +80,7 @@ export default function ReportesPage() {
 
   const processedActividadData: ReporteActividadData[] = useMemo(() => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to start of day for comparisons
+    today.setHours(0, 0, 0, 0);
 
     return filteredTerritories.map(territory => {
         const assignmentsForTerritory = allAssignments
@@ -111,8 +110,8 @@ export default function ReportesPage() {
             lastCompletedHistoric: territory.lastWorked || "Nunca",
             assignedTo,
             assignedDate,
-            blocksWorked: "N/A", // This is not applicable for a "current status" view.
-            blocksPending: "N/A", // This is not applicable for a "current status" view.
+            blocksWorked: "N/A",
+            blocksPending: "N/A",
             status,
             campaignHistory: assignmentsForTerritory.filter(a => a.lastReportData).map(a => ({
                 assignedTo: a.userName,
@@ -127,15 +126,15 @@ export default function ReportesPage() {
 
 
   const processedS13Data: ConsolidatedS13Data[] = useMemo(() => {
-    const assignmentsWithReports = allAssignments.filter(a => a.lastReportData && a.locationId);
     const reportsByTerritory = new Map<string, Assignment[]>();
 
-    assignmentsWithReports.forEach(a => {
-        const terrId = a.locationId!;
-        if(!reportsByTerritory.has(terrId)) {
-            reportsByTerritory.set(terrId, []);
+    allAssignments.forEach(a => {
+        if (a.lastReportData && a.locationId) {
+            if(!reportsByTerritory.has(a.locationId)) {
+                reportsByTerritory.set(a.locationId, []);
+            }
+            reportsByTerritory.get(a.locationId)!.push(a);
         }
-        reportsByTerritory.get(terrId)!.push(a);
     });
     
     const consolidatedData: ConsolidatedS13Data[] = [];
@@ -144,15 +143,15 @@ export default function ReportesPage() {
         const territory = allTerritories.find(t => t.id === territoryId);
         if (!territory) continue;
 
-        const sortedAssignments = assignments.sort((a,b) => b.lastReportData!.reportedAt.toMillis() - a.lastReportData!.reportedAt.toMillis());
+        const sortedAssignments = assignments.sort((a,b) => (b.lastReportData!.reportedAt as Timestamp).toMillis() - (a.lastReportData!.reportedAt as Timestamp).toMillis());
 
         const transformAssignmentToS13 = (assignment: Assignment): ReporteS13Data => ({
             id: assignment.id,
             territoryNumber: territory.number || territory.name,
-            lastCompletedHistoric: territory.lastWorked || 'N/A', // This is the last time any work was reported, not necessarily the last full cycle. Best effort.
+            lastCompletedHistoric: territory.lastWorked || 'N/A',
             firstAssignedTo: assignment.userName || 'N/A',
             firstAssignedDate: assignment.date,
-            completedCurrentCycle: format(assignment.lastReportData!.reportedAt.toDate(), "dd/MM/yyyy"),
+            completedCurrentCycle: format((assignment.lastReportData!.reportedAt as Timestamp).toDate(), "dd/MM/yyyy"),
             fullCampaignHistory: [{
                 assignedTo: assignment.userName,
                 assignedDate: assignment.date,
@@ -160,6 +159,7 @@ export default function ReportesPage() {
         });
 
         consolidatedData.push({
+            territoryId: territory.id,
             territoryNumber: territory.number || territory.name,
             lastCycle: sortedAssignments[0] ? transformAssignmentToS13(sortedAssignments[0]) : undefined,
             penultimateCycle: sortedAssignments[1] ? transformAssignmentToS13(sortedAssignments[1]) : undefined,
@@ -297,7 +297,7 @@ export default function ReportesPage() {
               {isLoading ? (
                 <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
               ) : (
-                <ReporteS13View data={processedS13Data} allAssignments={allAssignments} />
+                <ReporteS13View data={processedS13Data} allAssignments={allAssignments} allTerritories={allTerritories} />
               )}
             </CardContent>
           </Card>
