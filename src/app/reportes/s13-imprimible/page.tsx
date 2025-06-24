@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
@@ -94,15 +95,18 @@ function PrintableS13PageContent() {
 
             if (completedCyclesInServiceYear.length === 0) continue;
             
-            const transformToS13 = (endAssignment: any): ReporteS13Data => ({
-                id: endAssignment.id,
-                territoryNumber: territory.number || territory.name,
-                lastCompletedHistoric: '', // This will be handled by the penultimate date
-                firstAssignedTo: endAssignment._cycleStartAssignment.userName || 'N/A',
-                firstAssignedDate: format(parseISO(endAssignment._cycleStartAssignment.date), 'dd/MM/yyyy'),
-                completedCurrentCycle: format((endAssignment.lastReportData!.reportedAt as Timestamp).toDate(), "dd/MM/yyyy"),
-                fullCampaignHistory: [],
-            });
+            const transformToS13 = (endAssignment: any): ReporteS13Data => {
+                const isStartDateValid = endAssignment._cycleStartAssignment.date && endAssignment._cycleStartAssignment.date !== 'N/A';
+                return {
+                    id: endAssignment.id,
+                    territoryNumber: territory.number || territory.name,
+                    lastCompletedHistoric: '', // This will be handled by the penultimate date
+                    firstAssignedTo: endAssignment._cycleStartAssignment.userName || 'N/A',
+                    firstAssignedDate: isStartDateValid ? format(parseISO(endAssignment._cycleStartAssignment.date), 'dd/MM/yyyy') : 'N/A',
+                    completedCurrentCycle: format((endAssignment.lastReportData!.reportedAt as Timestamp).toDate(), "dd/MM/yyyy"),
+                    fullCampaignHistory: [],
+                }
+            };
 
             const lastTwoCycles = completedCyclesInServiceYear.slice(-2);
 
