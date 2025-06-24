@@ -79,7 +79,12 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
   specialCampaignTerritoriesPerDay: z
     .number()
     .describe('Default number of territories to assign per day for special campaigns, if not specified in the campaign object itself.'),
-  holidayDatesInMonth: z.array(z.string()).describe('Holiday dates in the month (YYYY-MM-DD format). No preaching on these days unless specified in additional instructions.'),
+  holidayDatesInMonth: z.array(z.string()).describe('Holiday dates in the month (YYYY-MM-DD format). No preaching on these days unless specified in holidaySchedulingOverrides or additionalInstructions.'),
+  holidaySchedulingOverrides: z.array(z.object({
+      date: z.string().describe("The specific holiday date (YYYY-MM-DD) to schedule."),
+      time: z.string().describe("The specific time (HH:MM) for this holiday assignment."),
+      type: z.enum(['general', 'rural', 'zoom']).describe("The type of preaching for this holiday assignment.")
+  })).optional().describe("A list of specific assignments for holidays, overriding the default behavior of no preaching. Use this to schedule preaching on specific holidays at specific times."),
   assembliesInMonth: z.array(AssemblyAISchema).optional().describe('List of assemblies (Circuit, Regional, etc.) occurring in the scheduling month. No preaching should be scheduled on these dates.'),
   publisherDetailedAvailabilities: z
     .array(PublisherDetailForAISchema)
@@ -109,7 +114,7 @@ const GenerateMonthlyAssignmentsOutputSchema = z.object({
   captainAssignments: z.record(
     z.string(), // Key will be YYYY-MM-DD
     z.array(ExtendedMonthlyCaptainAssignmentItemSchema)
-  ).describe('Object, key \"YYYY-MM-DD\", value array of ExtendedMonthlyCaptainAssignmentItem. For days with assemblies or holidays (unless overridden), this array should be empty.'),
+  ).describe('Object, key \"YYYY-MM-DD\", value array of ExtendedMonthlyCaptainAssignmentItem. For days with assemblies or un-scheduled holidays, this array should be empty.'),
 });
 
 
@@ -135,7 +140,7 @@ const prompt = ai.definePrompt({
   Year: {{{year}}}
   Month: {{{month}}} (0-indexed)
   
-  Available Days with Time Slots:
+  Available Days with Time Slots (standard schedule):
   {{#each availableDaysWithTimeSlots}}
   - {{this.dayOfWeek}}:
     {{#each this.slots}}
@@ -144,7 +149,6 @@ const prompt = ai.definePrompt({
   {{else}}
   No specific time slots provided. Assume standard availability based on publisher details.
   {{/each}}
-  (Note: For each time slot in 'availableDaysWithTimeSlots' on a given day, assign ONE captain. If a day has multiple time slots, aim to assign a DIFFERENT captain to each slot, based on their availability.)
   
   Assign Houses: {{{assignCasas}}}
   Available Houses (IMPORTANT: Check 'unavailabilityPeriods' for each house. Do NOT assign a house if the assignment date falls within any of its unavailability periods.):
@@ -187,33 +191,30 @@ const prompt = ai.definePrompt({
     No publisher availability data provided. You MUST still attempt to assign captains based on the general logic and output a placeholder like "PENDING_CAPTAIN_ID" and "Pending Captain Name" if specific publisher IDs cannot be determined, along with a note.
   {{/if}}
   
-  Holiday Dates in Month (YYYY-MM-DD format - no preaching unless specified in additional instructions): {{{holidayDatesInMonth}}}
+  Holiday Dates in Month (YYYY-MM-DD format): {{{holidayDatesInMonth}}}
+  Holiday Scheduling Overrides (Specific assignments for holidays):
+  {{#if holidaySchedulingOverrides}}
+    {{#each holidaySchedulingOverrides}}
+    - On {{this.date}}, schedule a '{{this.type}}' assignment at {{this.time}}.
+    {{/each}}
+  {{else}}
+    No special holiday assignments requested.
+  {{/if}}
   Additional Instructions: {{{additionalInstructions}}}
 
   Configured Campaigns:
   {{#if configuredCampaigns}}
     {{#each configuredCampaigns}}
-    - Campaign Name: {{this.name}}
-      Type: {{this.type}}
-      Start Date: {{this.startDate}}
-      End Date: {{this.endDate}}
-      {{#if this.superintendentName}}Superintendent for this campaign: {{this.superintendentName}}{{/if}}
-      {{#if this.specialCampaignTerritoriesPerDay}}Territories per day for this campaign: {{this.specialCampaignTerritoriesPerDay}}{{else}}Use default logic for territories per day.{{/if}}
-      {{#if this.description}}Description: "{{this.description}}"{{/if}}
-      (AI Note: Determine if this campaign is active for the current scheduling month based on its start/end dates)
+    - Campaign Name: {{this.name}} (Details omitted for brevity, but available to AI)
     {{/each}}
   {{else}}
     No specific campaigns configured for this month.
   {{/if}}
-  Default Special Campaign Territories Per Day (use if a campaign doesn't specify its own, or if relevant for general special days): {{{specialCampaignTerritoriesPerDay}}}
 
   Assemblies in Month (no preaching on these dates):
   {{#if assembliesInMonth}}
     {{#each assembliesInMonth}}
-    - Assembly: {{this.name}}
-      Start Date: {{this.startDate}}
-      End Date: {{this.endDate}}
-      {{#if this.description}}Description: "{{this.description}}"{{/if}}
+    - Assembly: {{this.name}} from {{this.startDate}} to {{this.endDate}}
     {{/each}}
   {{else}}
     No assemblies scheduled for this month.
@@ -221,45 +222,29 @@ const prompt = ai.definePrompt({
 
   Key Considerations for Scheduling:
   1. General Captain Assignment:
-     - For each time slot in 'availableDaysWithTimeSlots' (including 'publica', 'rural', and 'zoom' types) on a given day, assign ONE captain. Use 'publisherDetailedAvailabilities' to select a suitable publisher and set their 'id' as 'captainId' and 'name' as 'captainName'.
-     - If a day has multiple time slots (e.g., morning and afternoon), aim to assign a DIFFERENT captain to each slot, based on their availability.
-     - If no specific instructions are given for holidays, apply this general logic IF preaching is allowed on a holiday per 'additionalInstructions'.
-     - When assigning a 'casaName' or 'casaAddress' (for 'publica' or 'rural' types ONLY), ensure the chosen house is NOT within one of its 'unavailabilityPeriods' for the assignment date. If all suitable houses are unavailable, do not assign a house.
-     - IMPORTANT: If the 'preachingType' for a slot is 'zoom', then 'casaName', 'casaAddress', and 'territoryName' MUST be null or empty in the output. Zoom preaching does not use physical locations.
+     - For each day of the week, use the corresponding time slots from 'availableDaysWithTimeSlots' to create assignments.
+     - For each slot, assign ONE captain. Use 'publisherDetailedAvailabilities' to select a suitable publisher and set their 'id' as 'captainId' and 'name' as 'captainName'.
+     - If a day has multiple time slots, aim to assign a DIFFERENT captain to each slot.
+     - When assigning a 'casaName' or 'casaAddress' (for 'publica' or 'rural' types ONLY), ensure the chosen house is NOT within one of its 'unavailabilityPeriods' for the assignment date.
+     - IMPORTANT: If the 'preachingType' for a slot is 'zoom', then 'casaName', 'casaAddress', and 'territoryName' MUST be null or empty in the output.
 
   2. Assembly Days & Holidays:
-     - For any date that falls within the range of an assembly listed in 'assembliesInMonth', OR is listed in 'holidayDatesInMonth' (unless 'additionalInstructions' explicitly allows preaching on that holiday), NO preaching assignments should be made.
-     - The 'captainAssignments' for such dates should be an empty array.
+     - For any date that falls within the range of an assembly listed in 'assembliesInMonth', NO preaching assignments should be made. The 'captainAssignments' for such dates should be an empty array.
+     - For any date listed in 'holidayDatesInMonth', NO preaching assignments should be made, UNLESS that date is also present in 'holidaySchedulingOverrides'.
+     - If a holiday date is in 'holidaySchedulingOverrides', you MUST create exactly one assignment for that date using the specified time and type from the override object. The general captain assignment logic (picking a suitable publisher) still applies.
 
   3. Campaigns:
-     - Determine active campaigns based on their start/end dates relative to the 'year' and 'month' being scheduled.
-     - 'invitation' (Conmemoración/Asamblea) and 'special': Assign more territories as specified by 'specialCampaignTerritoriesPerDay' for that campaign (or the default if not set per campaign). Captain assignment for each slot follows general logic (one captain per slot, including 'captainId' and 'captainName').
-     - 'superintendent_visit': On the days of this campaign, assign the specified 'specialCampaignTerritoriesPerDay' (for this campaign) to the 'superintendentName' as the captain for one of the slots. You'll need to find the 'id' of the 'superintendentName' from 'publisherDetailedAvailabilities' to set 'captainId'. Ensure other captain assignments for other slots on these days are adjusted accordingly.
+     - Determine active campaigns based on their start/end dates.
+     - Adjust territory assignment logic for 'invitation' and 'special' campaigns as needed (e.g., more territories).
+     - For 'superintendent_visit', assign the superintendent to one of the slots on the campaign days.
 
-  4. Group Preaching Days (that are NOT 'Assembly Days' or 'Holidays'):
-     - For any day where 'groupPreachingDays' indicates it's a group-organized day, do NOT generate centralized captain assignments.
+  4. Group Preaching Days:
+     - For any day where 'groupPreachingDays' indicates it's a group-organized day (and it's not a holiday or assembly day), do NOT generate centralized captain assignments.
 
-  Return the schedule in the following JSON format. Ensure 'status' is 'pending' for all new assignments. 'preachingType' should be 'publica', 'zoom', or 'rural'. For assembly days and holidays (unless overridden), the array for that date must be empty.
-  For 'zoom' preachingType, ensure 'casaName', 'casaAddress', and 'territoryName' are null or empty.
+  Return the schedule in the following JSON format. Ensure 'status' is 'pending' for all new assignments. For assembly days and un-scheduled holidays, the array for that date must be empty.
   {
     "captainAssignments": {
-      "YYYY-MM-DD": [ 
-        // Empty array for assembly/holiday days, e.g., "2024-03-15": [] 
-      ],
-      "YYYY-MM-DD": [
-        {
-          "id": "UUID",
-          "date": "YYYY-MM-DD",
-          "captainId": "firebaseAuthUidForCaptain",
-          "captainName": "Captain's Full Name",
-          "time": "HH:MM",
-          "status": "pending", // Always pending after generation
-          "preachingType": "publica", // or "zoom", "rural"
-          "casaName": null, // Null or empty if preachingType is "zoom"
-          "casaAddress": null, // Null or empty if preachingType is "zoom"
-          "territoryName": null // Null or empty if preachingType is "zoom"
-        }
-      ]
+      "YYYY-MM-DD": [ /* Assignments for the day, or empty array */ ]
     }
   }`,
 });
