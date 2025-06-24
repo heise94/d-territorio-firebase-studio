@@ -78,13 +78,19 @@ export default function DashboardPage() {
     
     const filterStartDate = startOfMonth(new Date(selectedYear, selectedMonth));
     const filterEndDate = endOfMonth(new Date(selectedYear, selectedMonth));
+    
     const workedTerritoryIds = new Set<string>();
     allAssignments.forEach(a => {
       if (a.lastReportData?.reportedAt) {
         const reportedDate = a.lastReportData.reportedAt instanceof Timestamp ? a.lastReportData.reportedAt.toDate() : new Date(a.lastReportData.reportedAt);
         if (reportedDate >= filterStartDate && reportedDate <= filterEndDate) {
-          if (a.locationId) workedTerritoryIds.add(a.locationId);
-          if (a.additionalTerritorySelected?.id) workedTerritoryIds.add(a.additionalTerritorySelected.id);
+          // Iterate through the sub-reports within the assignment's report data
+          a.lastReportData.reports?.forEach(report => {
+            // Only count the territory if it was actually worked (not marked as 'not worked')
+            if (report.territoryId && !report.territoryNotWorked) {
+              workedTerritoryIds.add(report.territoryId);
+            }
+          });
         }
       }
     });
@@ -255,3 +261,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
