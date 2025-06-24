@@ -95,10 +95,20 @@ function PrintableS13PageContent() {
 
             const cyclesInYear = allCycles.filter(c => c.completionTimestamp >= serviceYearStart.getTime() && c.completionTimestamp < serviceYearEnd.getTime());
             
-            const cyclesBeforeYear = allCycles.filter(c => c.completionTimestamp < serviceYearStart.getTime());
-            const lastCompletedBefore = cyclesBeforeYear.length > 0 ? cyclesBeforeYear[cyclesBeforeYear.length - 1].completedDate : '';
+            let lastCompletedBefore = '';
+            if (cyclesInYear.length > 0) {
+                const firstCycleInYear = cyclesInYear[0];
+                const indexOfFirstCycleInAll = allCycles.findIndex(c => c.completionTimestamp === firstCycleInYear.completionTimestamp);
+                if (indexOfFirstCycleInAll > 0) {
+                    lastCompletedBefore = allCycles[indexOfFirstCycleInAll - 1].completedDate;
+                }
+            } else {
+                 const cyclesBeforeYear = allCycles.filter(c => c.completionTimestamp < serviceYearStart.getTime());
+                 if (cyclesBeforeYear.length > 0) {
+                    lastCompletedBefore = cyclesBeforeYear[cyclesBeforeYear.length - 1].completedDate;
+                 }
+            }
             
-            // Only add to report if there's activity for this territory
             if (cyclesInYear.length > 0 || lastCompletedBefore) {
                  finalReportData.push({
                     territoryId: territory.id,
