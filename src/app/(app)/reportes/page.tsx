@@ -5,10 +5,9 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Filter, FileDown, PlusCircle } from "lucide-react";
+import { Loader2, Filter, FileDown } from "lucide-react";
 import type { Territory, Assignment, UserAssignment } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import Papa from "papaparse";
 import { collection, onSnapshot, query, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format, parse, isBefore, startOfDay, parseISO, isAfter } from "date-fns";
@@ -16,6 +15,18 @@ import { format, parse, isBefore, startOfDay, parseISO, isAfter } from "date-fns
 import { ReporteActividadView, type ReporteActividadData } from "@/components/reportes/reporte-actividad-view";
 import { ReporteS13View, type ConsolidatedS13Data, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
 import { FiltrosReportesSheet, type ReportFilters } from "@/components/reportes/filtros-reportes-sheet";
+
+// Imports for the new dialog
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription as DialogDescriptionComponent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 export default function ReportesPage() {
@@ -25,6 +36,17 @@ export default function ReportesPage() {
   const { toast } = useToast();
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
+
+  // State for the new S13 print dialog
+  const [isPrintS13DialogOpen, setIsPrintS13DialogOpen] = useState(false);
+  const [selectedServiceYear, setSelectedServiceYear] = useState<string>(() => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0 = Jan, 8 = Sep
+    // If month is before September, the current service year is the previous calendar year.
+    return (currentMonth < 8 ? currentYear - 1 : currentYear).toString();
+  });
+
 
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
@@ -228,7 +250,7 @@ export default function ReportesPage() {
         const report = assignment.lastReportData!.reports.find(r => r.territoryId === territory.id);
         if (report && !report.territoryNotWorked) {
           const workedInThisAssignment = (report.workedBlocksIds || []).map(id => parseInt(id.split('-').pop()!));
-          workedInThisAssignment.forEach(blockNum => currentCycleWorkedBlocks.add(blockNum));
+          workedInThisAssignment.forEach(blockNum => cumulativeWorkedBlocksForCycle.add(blockNum));
 
           if (currentCycleWorkedBlocks.size >= territory.totalBlocks) {
             completedCycles.push({
@@ -287,50 +309,23 @@ export default function ReportesPage() {
   }, [allAssignments, filteredTerritories, filters]);
 
 
-  const handleExportS13 = () => {
-    if (processedS13Data.length === 0) {
-      toast({ title: "Sin datos", description: "No hay datos de ciclos completados para exportar con los filtros actuales.", variant: "default" });
+  const serviceYearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let i = 0; i < 5; i++) {
+      years.push(currentYear - i);
+    }
+    return years.map(String);
+  }, []);
+
+  const handleGeneratePrintableReport = () => {
+    if (!selectedServiceYear) {
+      toast({ title: "Error", description: "Por favor, selecciona un año de servicio.", variant: "destructive" });
       return;
     }
-
-    const csvData = processedS13Data.flatMap(row => {
-        const rows = [];
-        if (row.lastCycle) {
-            rows.push({
-                "Territorio": row.territoryNumber,
-                "Ciclo": "Último",
-                "FechaCompletóCiclo": row.lastCycle.completedCurrentCycle,
-                "PrimerAsignadoCiclo": row.lastCycle.firstAssignedTo,
-                "FechaPrimeraAsignaciónCiclo": row.lastCycle.firstAssignedDate,
-            });
-        }
-        if (row.penultimateCycle) {
-            rows.push({
-                "Territorio": row.territoryNumber,
-                "Ciclo": "Penúltimo",
-                "FechaCompletóCiclo": row.penultimateCycle.completedCurrentCycle,
-                "PrimerAsignadoCiclo": row.penultimateCycle.firstAssignedTo,
-                "FechaPrimeraAsignaciónCiclo": row.penultimateCycle.firstAssignedDate,
-            });
-        }
-        return rows;
-    });
-
-    if (csvData.length === 0) {
-      toast({ title: "Sin datos", description: "No hay ciclos válidos para exportar.", variant: "default" });
-      return;
-    }
-    
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' }); // Add BOM for Excel
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Reporte_S-13_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({ title: "Exportación Iniciada", description: "El archivo CSV se está descargando." });
+    // In a real app, you might want to pass more parameters, like filters
+    window.open(`/reportes/s13-imprimible?serviceYear=${selectedServiceYear}`, '_blank');
+    setIsPrintS13DialogOpen(false);
   };
 
   return (
@@ -385,7 +380,7 @@ export default function ReportesPage() {
                       Cada fila representa un territorio, mostrando sus últimos dos ciclos de trabajo completados (basado en la fecha del reporte).
                     </CardDescription>
                   </div>
-                  <Button variant="outline" onClick={handleExportS13} size="sm" disabled={isLoading}>
+                  <Button variant="outline" onClick={() => setIsPrintS13DialogOpen(true)} size="sm" disabled={isLoading}>
                     <FileDown className="mr-2 h-4 w-4" /> Exportar S-13
                   </Button>
               </div>
@@ -407,6 +402,38 @@ export default function ReportesPage() {
         onApplyFilters={setFilters}
         currentFilters={filters}
       />
+      
+      <Dialog open={isPrintS13DialogOpen} onOpenChange={setIsPrintS13DialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generar Reporte S-13 Imprimible</DialogTitle>
+            <DialogDescriptionComponent>
+              Selecciona el año de servicio para el cual deseas generar el reporte. El año de servicio va del 1 de septiembre al 31 de agosto.
+            </DialogDescriptionComponent>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="grid items-center gap-4">
+              <Label htmlFor="service-year-select" className="text-left">
+                Año de Servicio
+              </Label>
+              <Select value={selectedServiceYear} onValueChange={setSelectedServiceYear}>
+                <SelectTrigger id="service-year-select">
+                  <SelectValue placeholder="Selecciona un año" />
+                </SelectTrigger>
+                <SelectContent>
+                  {serviceYearOptions.map(year => (
+                    <SelectItem key={year} value={year}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPrintS13DialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleGeneratePrintableReport}>Generar Reporte</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
