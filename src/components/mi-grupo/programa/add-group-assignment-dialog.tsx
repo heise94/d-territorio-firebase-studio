@@ -167,7 +167,6 @@ export function AddGroupAssignmentDialog({
       notes: values.notes || undefined,
     };
 
-    await new Promise(resolve => setTimeout(resolve, 500));
     onAssignmentSubmit(assignmentData);
     setIsSubmitting(false);
   }
@@ -331,7 +330,7 @@ export function AddGroupAssignmentDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  {groupPublishers.length === 0 && <FormFieldDescription className="text-xs text-destructive">Añade publicadores a tu grupo en "Mi Grupo &gt; Publicadores".</FormFieldDescription>}
+                  {groupPublishers.length === 0 && <FormFieldDescription className="text-xs text-destructive">Pide al administrador que añada publicadores a tu grupo.</FormFieldDescription>}
                   <FormMessage />
                 </FormItem>
               )}
@@ -364,7 +363,7 @@ export function AddGroupAssignmentDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                   {groupCasas.length === 0 && <FormFieldDescription className="text-xs text-destructive">Añade casas a tu grupo en "Mi Grupo &gt; Casas".</FormFieldDescription>}
+                   {groupCasas.length === 0 && <FormFieldDescription className="text-xs text-destructive">Pide al administrador que añada casas y las asocie a tu grupo.</FormFieldDescription>}
                   <FormMessage />
                 </FormItem>
               )}
