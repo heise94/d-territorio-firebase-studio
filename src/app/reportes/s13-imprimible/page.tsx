@@ -85,7 +85,9 @@ function PrintableS13PageContent() {
                         assignedTo: startAssignment.userName || 'N/A',
                         assignedDate: format(parseISO(startAssignment.date), 'dd/MM/yy'),
                         completedDate: format(completionDate, 'dd/MM/yy'),
-                        completionTimestamp: completionDate.getTime()
+                        completionTimestamp: completionDate.getTime(),
+                        // Add a unique identifier for the cycle start to find it later
+                        startAssignmentId: startAssignment.id 
                     });
                     
                     tempWorkedBlocks.clear();
@@ -97,20 +99,24 @@ function PrintableS13PageContent() {
 
             const cyclesInYear = allCyclesSorted.filter(c => c.completionTimestamp >= serviceYearStart.getTime() && c.completionTimestamp < serviceYearEnd.getTime());
             
-            const cyclesBeforeYear = allCyclesSorted.filter(c => c.completionTimestamp < serviceYearStart.getTime());
-            
-            const lastCompletedBefore = cyclesBeforeYear.length > 0
-                ? cyclesBeforeYear[cyclesBeforeYear.length - 1].completedDate
-                : '';
-            
-            if (cyclesInYear.length > 0 || lastCompletedBefore) {
-                 finalReportData.push({
-                    territoryId: territory.id,
-                    territoryNumber: territory.number || territory.name,
-                    lastCompletedBeforeDate: lastCompletedBefore,
-                    cyclesInYear: cyclesInYear,
-                });
+            if (cyclesInYear.length === 0) {
+                continue;
             }
+
+            const firstCycleInYear = cyclesInYear[0];
+            const indexOfFirstCycleInAll = allCyclesSorted.findIndex(c => c.startAssignmentId === firstCycleInYear.startAssignmentId && c.completionTimestamp === firstCycleInYear.completionTimestamp);
+
+            let lastCompletedBefore = '';
+            if (indexOfFirstCycleInAll > 0) {
+                lastCompletedBefore = allCyclesSorted[indexOfFirstCycleInAll - 1].completedDate;
+            }
+            
+            finalReportData.push({
+                territoryId: territory.id,
+                territoryNumber: territory.number || territory.name,
+                lastCompletedBeforeDate: lastCompletedBefore,
+                cyclesInYear: cyclesInYear,
+            });
         }
         
         return finalReportData.sort((a, b) => (a.territoryNumber || "").localeCompare(b.territoryNumber || "", undefined, { numeric: true }));
