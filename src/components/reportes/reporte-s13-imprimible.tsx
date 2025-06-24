@@ -22,33 +22,31 @@ export function ReporteS13Imprimible({ data, serviceYear }: ReporteS13Imprimible
   return (
     <>
       <style jsx global>{`
-        /* Custom styles for page layout */
         body {
             font-family: 'Arial', sans-serif;
             background-color: #f3f4f6;
             margin: 0;
             padding: 20px;
             display: flex;
-            flex-direction: column; /* Stacks pages vertically */
-            align-items: center; /* Centers pages horizontally */
-            min-height: 100vh; /* Ensures body takes full height for overall centering */
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
         }
 
         .document-page {
             background-color: #ffffff;
-            padding: 30px; /* Internal padding for the content area */
+            padding: 30px;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            width: 8.5in; /* 8.5 inches wide */
-            height: 11in; /* 11 inches tall */
-            box-sizing: border-box; /* Include padding and border in the element's total width and height */
-            margin-bottom: 20px; /* Space between pages */
-            position: relative; /* For page number positioning */
-            display: flex; /* To manage content layout within the page */
-            flex-direction: column; /* Content inside page stacks vertically */
-            page-break-after: always; /* For print purposes */
+            width: 8.5in;
+            height: 11in;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            page-break-after: always;
         }
-        /* Last page should not have page-break-after */
         .document-page:last-of-type {
             page-break-after: avoid;
             margin-bottom: 0;
@@ -60,326 +58,81 @@ export function ReporteS13Imprimible({ data, serviceYear }: ReporteS13Imprimible
             right: 15px;
             font-size: 9pt;
             color: #6b7280;
-            font-family: Arial, sans-serif;
         }
-
-        /* Common styles for content within pages */
-        .document-page h1 {
-            color: black;
-            font-family: Arial, sans-serif;
-            font-weight: 900;
-            font-size: 14pt;
-            text-align: center;
-            padding-top: 3pt;
-            padding-left: 29pt;
-            text-indent: 0pt;
-            margin: 0;
+        
+        .header-content h1 {
+            color: black; font-family: Arial, sans-serif; font-weight: 900;
+            font-size: 14pt; text-align: center; padding-top: 3pt;
+            padding-left: 29pt; text-indent: 0pt; margin: 0;
         }
-
-        .document-page h2 {
-            color: black;
-            font-family: Arial, sans-serif;
-            font-weight: bold;
-            font-size: 10pt;
-            text-align: center;
-            padding-left: 29pt;
-            margin-top: 5px;
-            margin-bottom: 20px;
+        .header-content h2 {
+            color: black; font-family: Arial, sans-serif; font-weight: bold;
+            font-size: 10pt; text-align: center; padding-left: 29pt;
+            margin-top: 5px; margin-bottom: 20px;
         }
-
         .year-section {
-            display: flex;
-            align-items: baseline;
-            margin-left: 9.775pt;
-            margin-bottom: 15pt;
-            width: auto;
+            display: flex; align-items: baseline; margin-left: 9.775pt;
+            margin-bottom: 15pt; width: auto;
         }
-
         .year-label {
-            color: black;
-            font-family: Arial, sans-serif;
-            font-weight: bold;
-            font-size: 12pt;
-            line-height: 13pt;
-            margin-right: 5pt;
+            color: black; font-family: Arial, sans-serif; font-weight: bold;
+            font-size: 12pt; line-height: 13pt; margin-right: 5pt;
         }
         .year-value {
-            color: black;
-            font-family: "Century Gothic", sans-serif;
-            font-weight: bold;
-            text-decoration: underline;
-            font-size: 12pt;
-            line-height: 14pt;
-            border: none;
-            background-color: transparent;
-            width: 60px;
-            text-align: left;
-            padding: 0;
-            outline: none;
+            color: black; font-family: "Century Gothic", sans-serif; font-weight: bold;
+            text-decoration: underline; font-size: 12pt; line-height: 14pt;
+            border: none; background-color: transparent; width: 60px;
+            text-align: left; padding: 0; outline: none;
         }
 
-        /* Main data table styles */
         .main-table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-left: 9.775pt;
-            border-top: 3pt solid black;
-            border-left: 3pt solid black;
-            border-bottom: 2pt solid black;
-            border-right: 3pt solid black;
+            border-collapse: collapse; width: 100%; margin-left: 9.775pt;
+            border-top: 3pt solid black; border-left: 3pt solid black;
+            border-bottom: 2pt solid black; border-right: 3pt solid black;
         }
-
         .main-table th, .main-table td {
-            vertical-align: middle;
-            padding: 0;
-            box-sizing: border-box;
-            white-space: nowrap;
+            vertical-align: middle; padding: 0; box-sizing: border-box; white-space: nowrap;
         }
+        .header-row, .header-row-sub { background-color: #D9D9D9; }
+        .header-row { height: 14pt; } .header-row-sub { height: 22pt; }
+        .header-cell { color: #404040; font-family: Arial, sans-serif; font-weight: normal; font-size: 9pt; line-height: normal; text-align: center; }
+        .header-cell-small { font-size: 8pt; line-height: 9pt; }
 
-        .header-row {
-            background-color: #D9D9D9;
-            height: 14pt;
-        }
-        .header-row-sub {
-            background-color: #D9D9D9;
-            height: 22pt;
-        }
-
-        .header-cell {
-            color: #404040;
-            font-family: Arial, sans-serif;
-            font-weight: normal;
-            font-size: 9pt;
-            line-height: normal;
-            text-indent: 0;
-            text-align: center;
-        }
-        .header-cell-small {
-            color: #404040;
-            font-family: Arial, sans-serif;
-            font-weight: normal;
-            font-size: 8pt;
-            line-height: 9pt;
-            text-indent: 0;
-            text-align: center;
-        }
-
-        .h-num-terr {
-            width: 36pt;
-            border-top: 3pt solid black;
-            border-left: 3pt solid black;
-            border-bottom: 2pt solid black;
-            border-right: 1pt solid black;
-            padding-top: 8pt;
-            padding-left: 3pt;
-            padding-right: 1pt;
-            text-indent: 3pt;
-        }
-        .h-last-completed {
-            width: 63pt;
-            border-top: 3pt solid black;
-            border-left: 1pt solid black;
-            border-bottom: 2pt solid black;
-            border-right: 3pt solid black;
-            padding-top: 3pt;
-            padding-left: 13pt;
-            padding-right: 3pt;
-            text-indent: -5pt;
-        }
-        .h-assigned-to {
-            width: 107pt;
-            border-top: 3pt solid black;
-            border-left: 3pt solid black;
-            border-bottom: 1pt solid black;
-            border-right: 2pt solid black;
-            padding-top: 2pt;
-            padding-left: 0;
-        }
-        .h-assigned-to-middle {
-            border-left: 2pt solid black;
-            border-bottom: 1pt solid black;
-            border-right: 2pt solid black;
-            padding-top: 2pt;
-            padding-left: 0;
-        }
-        .h-assigned-to-last {
-            border-left: 2pt solid black;
-            border-bottom: 1pt solid black;
-            border-right: 3pt solid black;
-            padding-top: 2pt;
-            padding-left: 0;
-        }
-
-        .h-assigned-date {
-            width: 54pt;
-            border-top: 1pt solid black;
-            border-left: 3pt solid black;
-            border-bottom: 2pt solid black;
-            border-right: 1pt solid black;
-            padding-top: 1pt;
-            padding-left: 0;
-            text-indent: 0;
-        }
-        .h-completed-date {
-            width: 53pt;
-            border-top: 1pt solid black;
-            border-left: 1pt solid black;
-            border-bottom: 2pt solid black;
-            border-right: 2pt solid black;
-            padding-top: 1pt;
-            padding-left: 0;
-            text-indent: 0;
-        }
-        .h-assigned-date-middle {
-            border-left: 2pt solid black;
-            border-right: 1pt solid black;
-        }
-        .h-completed-date-middle {
-            border-left: 1pt solid black;
-            border-right: 2pt solid black;
-        }
-        .h-assigned-date-last {
-            border-left: 2pt solid black;
-            border-right: 1pt solid black;
-        }
-        .h-completed-date-last {
-            border-left: 1pt solid black;
-            border-right: 3pt solid black;
-        }
-
-        /* Data rows styles */
         .data-cell {
-            color: black;
-            font-family: "Century Gothic", sans-serif;
-            font-weight: normal;
-            font-size: 9pt;
-            text-indent: 0;
+            color: black; font-family: "Century Gothic", sans-serif;
+            font-weight: normal; font-size: 9pt; text-align: center;
         }
-        .data-cell-date-main {
-            font-size: 10pt;
-            line-height: normal;
-        }
+        .data-cell-date-main { font-size: 10pt; }
 
-        .d-num-terr {
-            width: 36pt;
+        .d-num-terr, .d-last-completed, .d-name, .d-assigned-date, .d-completed-date {
             border-top: 2pt solid black;
-            border-left: 3pt solid black;
             border-bottom: 2pt solid black;
-            border-right: 1pt solid black;
-            text-align: center;
-            padding-top: 7pt;
         }
-        .d-last-completed {
-            width: 63pt;
-            border-top: 2pt solid black;
-            border-left: 1pt solid black;
-            border-bottom: 2pt solid black;
-            border-right: 3pt solid black;
-            text-align: center;
-            padding-top: 7pt;
-            padding-left: 0;
-        }
-        .d-name {
-            width: 107pt;
-            border-top: 2pt solid black;
-            border-left: 3pt solid black;
-            border-bottom: 1pt solid black;
-            border-right: 2pt solid black;
-            padding-top: 1pt;
-            padding-left: 0;
-            line-height: 10pt;
-            text-align: center;
-        }
-        .d-name-middle {
-            border-left: 2pt solid black;
-            border-bottom: 1pt solid black;
-            border-right: 2pt solid black;
-            padding-top: 1pt;
-            padding-left: 0;
-            line-height: 10pt;
-            text-align: center;
-        }
-        .d-name-last {
-            border-left: 2pt solid black;
-            border-bottom: 1pt solid black;
-            border-right: 3pt solid black;
-            padding-top: 1pt;
-            padding-left: 0;
-            line-height: 10pt;
-            text-align: center;
-        }
+        .d-num-terr { border-left: 3pt solid black; border-right: 1pt solid black; width: 36pt; padding-top: 7pt; }
+        .d-last-completed { border-left: 1pt solid black; border-right: 3pt solid black; width: 63pt; padding-top: 7pt; }
 
-        .d-assigned-date {
-            width: 54pt;
-            border-top: 1pt solid black;
-            border-left: 3pt solid black;
-            border-bottom: 2pt solid black;
-            border-right: 1pt solid black;
-            padding-top: 2pt;
-            padding-left: 0;
-            line-height: 10pt;
-            text-align: center;
-        }
-        .d-completed-date {
-            width: 53pt;
-            border-top: 1pt solid black;
-            border-left: 1pt solid black;
-            border-bottom: 2pt solid black;
-            border-right: 2pt solid black;
-            padding-top: 2pt;
-            padding-left: 0;
-            line-height: 10pt;
-            text-align: center;
-        }
-        .d-assigned-date-middle {
-            border-left: 2pt solid black;
-            border-right: 1pt solid black;
-            padding-left: 0;
-            text-align: center;
-        }
-        .d-completed-date-middle {
-            border-left: 1pt solid black;
-            border-right: 2pt solid black;
-            padding-left: 0;
-            text-align: center;
-        }
-        .d-assigned-date-last {
-            border-left: 2pt solid black;
-            border-right: 1pt solid black;
-            padding-left: 0;
-            text-align: center;
-        }
-        .d-completed-date-last {
-            border-left: 1pt solid black;
-            border-right: 3pt solid black;
-            padding-left: 0;
-            text-align: center;
-        }
+        /* Cycle columns styling */
+        .d-cycle-col-name { border-top: 2pt solid black; border-bottom: 1pt solid black; width: 107pt; line-height: 10pt; padding-top: 1pt;}
+        .d-cycle-col-assigned { border-top: 1pt solid black; border-bottom: 2pt solid black; width: 54pt; line-height: 10pt; padding-top: 2pt;}
+        .d-cycle-col-completed { border-top: 1pt solid black; border-bottom: 2pt solid black; width: 53pt; line-height: 10pt; padding-top: 2pt;}
+
+        .first-cycle .d-cycle-col-name, .first-cycle .d-cycle-col-assigned { border-left: 3pt solid black; }
+        .first-cycle .d-cycle-col-completed, .d-cycle-col-name { border-right: 2pt solid black; }
+        .d-cycle-col-assigned { border-right: 1pt solid black; }
+        
+        .middle-cycle .d-cycle-col-name, .middle-cycle .d-cycle-col-assigned, .middle-cycle .d-cycle-col-completed { border-left: 2pt solid black; }
+        .last-cycle .d-cycle-col-name, .last-cycle .d-cycle-col-assigned { border-left: 2pt solid black; border-right: 1pt solid black; }
+        .last-cycle .d-cycle-col-completed { border-left: 1pt solid black; border-right: 3pt solid black; }
 
         .action-buttons-container-global {
-            margin-top: 0px;
             margin-bottom: 20px;
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            width: 100%;
+            display: flex; gap: 15px; justify-content: center; width: 100%;
         }
 
         @media print {
-            body {
-                background-color: #ffffff;
-                padding: 0;
-            }
-            .action-buttons-container-global {
-                display: none;
-            }
-            .document-page {
-                box-shadow: none;
-                border-radius: 0;
-                margin: 0;
-                width: 100%;
-                height: auto;
-            }
+            body { background-color: #ffffff; padding: 0; }
+            .action-buttons-container-global { display: none; }
+            .document-page { box-shadow: none; border-radius: 0; margin: 0; width: 100%; height: auto; }
         }
       `}</style>
       <div className="action-buttons-container-global">
@@ -401,22 +154,22 @@ export function ReporteS13Imprimible({ data, serviceYear }: ReporteS13Imprimible
             <table className="main-table">
               <thead>
                 <tr className="header-row">
-                  <th rowSpan={2} className="header-cell h-num-terr">Núm.<br /> de terr.</th>
-                  <th rowSpan={2} className="header-cell h-last-completed">Última fecha<br /> en que se<br /> completó*</th>
-                  <th colSpan={2} className="header-cell h-assigned-to">Asignado a</th>
-                  <th colSpan={2} className="header-cell header-cell h-assigned-to-middle">Asignado a</th>
-                  <th colSpan={2} className="header-cell header-cell h-assigned-to-middle">Asignado a</th>
-                  <th colSpan={2} className="header-cell header-cell h-assigned-to-last">Asignado a</th>
+                  <th rowSpan={2} className="header-cell" style={{width: '36pt', borderRight: '1pt solid black'}}>Núm.<br /> de terr.</th>
+                  <th rowSpan={2} className="header-cell" style={{width: '63pt', borderRight: '3pt solid black'}}>Última fecha<br /> en que se<br /> completó*</th>
+                  <th colSpan={2} className="header-cell" style={{borderRight: '2pt solid black'}}>Asignado a</th>
+                  <th colSpan={2} className="header-cell" style={{borderRight: '2pt solid black'}}>Asignado a</th>
+                  <th colSpan={2} className="header-cell" style={{borderRight: '2pt solid black'}}>Asignado a</th>
+                  <th colSpan={2} className="header-cell">Asignado a</th>
                 </tr>
                 <tr className="header-row-sub">
-                  <th className="header-cell-small h-assigned-date">Fecha en que<br /> se asignó</th>
-                  <th className="header-cell-small h-completed-date">Fecha en que<br /> se completó</th>
-                  <th className="header-cell-small h-assigned-date h-assigned-date-middle">Fecha en que<br /> se asignó</th>
-                  <th className="header-cell-small h-completed-date h-completed-date-middle">Fecha en que<br /> se completó</th>
-                  <th className="header-cell-small h-assigned-date h-assigned-date-middle">Fecha en que<br /> se asignó</th>
-                  <th className="header-cell-small h-completed-date h-completed-date-middle">Fecha en que<br /> se completó</th>
-                  <th className="header-cell-small h-assigned-date h-assigned-date-last">Fecha en que<br /> se asignó</th>
-                  <th className="header-cell-small h-completed-date h-completed-date-last">Fecha en que<br /> se completó</th>
+                  <th className="header-cell-small" style={{width: '54pt', borderTop: '1pt solid black', borderRight: '1pt solid black'}}>Fecha en que<br /> se asignó</th>
+                  <th className="header-cell-small" style={{width: '53pt', borderTop: '1pt solid black', borderRight: '2pt solid black'}}>Fecha en que<br /> se completó</th>
+                  <th className="header-cell-small" style={{width: '54pt', borderTop: '1pt solid black', borderRight: '1pt solid black'}}>Fecha en que<br /> se asignó</th>
+                  <th className="header-cell-small" style={{width: '53pt', borderTop: '1pt solid black', borderRight: '2pt solid black'}}>Fecha en que<br /> se completó</th>
+                  <th className="header-cell-small" style={{width: '54pt', borderTop: '1pt solid black', borderRight: '1pt solid black'}}>Fecha en que<br /> se asignó</th>
+                  <th className="header-cell-small" style={{width: '53pt', borderTop: '1pt solid black', borderRight: '2pt solid black'}}>Fecha en que<br /> se completó</th>
+                  <th className="header-cell-small" style={{width: '54pt', borderTop: '1pt solid black', borderRight: '1pt solid black'}}>Fecha en que<br /> se asignó</th>
+                  <th className="header-cell-small" style={{width: '53pt', borderTop: '1pt solid black'}}>Fecha en que<br /> se completó</th>
                 </tr>
               </thead>
               <tbody>
@@ -426,18 +179,33 @@ export function ReporteS13Imprimible({ data, serviceYear }: ReporteS13Imprimible
                     <td className="data-cell data-cell-date-main d-last-completed">{territoryData.penultimateCycle?.completedCurrentCycle || ''}</td>
                     
                     {/* First Cycle Column */}
-                    <td className="data-cell d-name">{territoryData.lastCycle?.firstAssignedTo || ''}</td>
-                    <td className="data-cell data-cell-date-main d-assigned-date">{territoryData.lastCycle?.firstAssignedDate || ''}</td>
-                    <td className="data-cell data-cell-date-main d-completed-date">{territoryData.lastCycle?.completedCurrentCycle || ''}</td>
+                    <td className="data-cell d-cycle-col-name first-cycle">{territoryData.lastCycle?.firstAssignedTo || ''}</td>
+                    <td className="data-cell data-cell-date-main d-cycle-col-assigned first-cycle">{territoryData.lastCycle?.firstAssignedDate || ''}</td>
+                    <td className="data-cell data-cell-date-main d-cycle-col-completed first-cycle">{territoryData.lastCycle?.completedCurrentCycle || ''}</td>
 
                     {/* Placeholder columns */}
-                    <td className="data-cell d-name-middle"></td>
-                    <td className="data-cell data-cell-date-main d-completed-date-middle"></td>
-                    <td className="data-cell d-name-middle"></td>
-                    <td className="data-cell data-cell-date-main d-completed-date-middle"></td>
-                    <td className="data-cell d-name-last"></td>
-                    <td className="data-cell data-cell-date-main d-completed-date-last"></td>
+                    <td className="data-cell d-cycle-col-name middle-cycle"></td>
+                    <td className="data-cell data-cell-date-main d-cycle-col-completed middle-cycle"></td>
+                    <td className="data-cell d-cycle-col-name middle-cycle"></td>
+                    <td className="data-cell data-cell-date-main d-cycle-col-completed middle-cycle"></td>
+                    <td className="data-cell d-cycle-col-name last-cycle"></td>
+                    <td className="data-cell data-cell-date-main d-cycle-col-completed last-cycle"></td>
                   </tr>
+                ))}
+                 {Array.from({ length: territoriesPerPage - pageData.length }).map((_, index) => (
+                    <tr key={`empty-${index}`}>
+                        <td className="data-cell d-num-terr">&nbsp;</td>
+                        <td className="data-cell data-cell-date-main d-last-completed">&nbsp;</td>
+                        <td className="data-cell d-cycle-col-name first-cycle">&nbsp;</td>
+                        <td className="data-cell data-cell-date-main d-cycle-col-assigned first-cycle">&nbsp;</td>
+                        <td className="data-cell data-cell-date-main d-cycle-col-completed first-cycle">&nbsp;</td>
+                        <td className="data-cell d-cycle-col-name middle-cycle">&nbsp;</td>
+                        <td className="data-cell data-cell-date-main d-cycle-col-completed middle-cycle">&nbsp;</td>
+                        <td className="data-cell d-cycle-col-name middle-cycle">&nbsp;</td>
+                        <td className="data-cell data-cell-date-main d-cycle-col-completed middle-cycle">&nbsp;</td>
+                        <td className="data-cell d-cycle-col-name last-cycle">&nbsp;</td>
+                        <td className="data-cell data-cell-date-main d-cycle-col-completed last-cycle">&nbsp;</td>
+                    </tr>
                 ))}
               </tbody>
             </table>
