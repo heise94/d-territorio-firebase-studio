@@ -131,6 +131,7 @@ export default function SettingsPage() {
   const [scheduleSlots, setScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [isAddSlotDialogOpen, setIsAddSlotDialogOpen] = useState(false);
   const [dayForNewSlot, setDayForNewSlot] = useState<DayOfWeek | null>(null);
+  const [slotToEdit, setSlotToEdit] = useState<ProgramScheduleSlot | null>(null);
   const { toast } = useToast();
   const [isSubmittingSlotDialog, setIsSubmittingSlotDialog] = useState(false);
 
@@ -159,6 +160,8 @@ export default function SettingsPage() {
   const [editableRolePermissions, setEditableRolePermissions] = useState<RoleConfiguration>(DEFAULT_ROLE_PERMISSIONS);
   const [isLoadingPermissionsSettings, setIsLoadingPermissionsSettings] = useState(true);
   const [isSavingPermissions, setIsSavingPermissions] = useState(false);
+
+  const isEditMode = !!slotToEdit;
 
   const slotForm = useForm<ScheduleSlotFormValues>({
     resolver: zodResolver(scheduleSlotFormSchema),
@@ -296,6 +299,20 @@ export default function SettingsPage() {
       loadSpecialEventsConfiguration();
     }
   }, [activeSectionId, loadPermissionsConfiguration, loadProgramConfiguration, loadSpecialEventsConfiguration]);
+
+  useEffect(() => {
+    if (isAddSlotDialogOpen) {
+      if (slotToEdit) {
+        slotForm.reset({
+          startTime: slotToEdit.startTime,
+          type: slotToEdit.type,
+          status: slotToEdit.status,
+        });
+      } else {
+        slotForm.reset({ startTime: "", type: undefined, status: "fixed" });
+      }
+    }
+  }, [isAddSlotDialogOpen, slotToEdit, slotForm]);
 
 
   const handlePermissionChange = (role: UserRole, permissionId: PermissionId, checked: boolean) => {
@@ -449,37 +466,57 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
 
 
   const handleOpenAddSlotDialog = (day: DayOfWeek) => {
+    setSlotToEdit(null);
     setDayForNewSlot(day);
-    slotForm.reset({startTime: "", type: undefined, status: "fixed"});
+    setIsAddSlotDialogOpen(true);
+  };
+  
+  const handleOpenEditSlotDialog = (slot: ProgramScheduleSlot) => {
+    setSlotToEdit(slot);
+    setDayForNewSlot(null); // Not needed for editing context
     setIsAddSlotDialogOpen(true);
   };
 
   const onSubmitSlotDialog: SubmitHandler<ScheduleSlotFormValues> = async (data) => {
-    if (!dayForNewSlot) return;
     setIsSubmittingSlotDialog(true);
-    const newSlot: ProgramScheduleSlot = {
-      id: crypto.randomUUID(),
-      dayOfWeek: dayForNewSlot,
-      startTime: data.startTime,
-      type: data.type as PreachingType,
-      status: data.status as ScheduleSlotStatus,
-    };
-    
-    const updatedSlots = [...scheduleSlots, newSlot].sort((a, b) => {
-        const dayCompare = dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek);
-        if (dayCompare !== 0) return dayCompare;
-        return a.startTime.localeCompare(b.startTime);
+    let updatedSlots;
+    const dayForAction = slotToEdit?.dayOfWeek || dayForNewSlot;
+    if (!dayForAction) {
+        toast({ title: "Error", description: "No se pudo determinar el día para la acción.", variant: "destructive" });
+        setIsSubmittingSlotDialog(false);
+        return;
+    }
+
+    if (isEditMode && slotToEdit) {
+      updatedSlots = scheduleSlots.map(s => 
+        s.id === slotToEdit.id ? { ...s, ...data } : s
+      );
+    } else {
+      const newSlot: ProgramScheduleSlot = {
+        id: crypto.randomUUID(),
+        dayOfWeek: dayForAction,
+        ...data,
+      };
+      updatedSlots = [...scheduleSlots, newSlot];
+    }
+
+    updatedSlots.sort((a, b) => {
+      const dayCompare = dayOrder.indexOf(a.dayOfWeek) - dayOrder.indexOf(b.dayOfWeek);
+      if (dayCompare !== 0) return dayCompare;
+      return a.startTime.localeCompare(b.startTime);
     });
-    
+
     setIsSavingProgramSettings(true);
     const success = await saveProgramConfigToFirestore({ programScheduleSlots: updatedSlots });
     setIsSavingProgramSettings(false);
 
     if (success) {
-        setScheduleSlots(updatedSlots);
-        toast({ title: "Horario Añadido", description: `Nuevo horario para ${dayOfWeekLabels[dayForNewSlot]} a las ${data.startTime} guardado.` });
-        setIsAddSlotDialogOpen(false);
-        slotForm.reset();
+      setScheduleSlots(updatedSlots);
+      toast({ 
+        title: isEditMode ? "Horario Actualizado" : "Horario Añadido", 
+        description: `El horario se ha guardado correctamente.` 
+      });
+      setIsAddSlotDialogOpen(false);
     }
     setIsSubmittingSlotDialog(false);
   };
@@ -948,6 +985,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                                             {slot.status === 'fixed' ? 'Fijo' : 'Tentativo'}
                                             {slot.status === 'tentative' && <AlertTriangle className="ml-1 h-3 w-3" />}
                                         </Badge>
+                                        <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" onClick={() => handleOpenEditSlotDialog(slot)} className="h-6 w-6 text-primary hover:text-primary/80 hover:bg-primary/10"><Edit className="h-3.5 w-3.5" /></Button></TooltipTrigger><TooltipContent><p>Editar Horario</p></TooltipContent></Tooltip>
                                         <Tooltip>
                                           <TooltipTrigger asChild>
                                             <Button variant="ghost" size="icon" onClick={() => handleDeleteSlot(slot.id)} className="h-6 w-6 text-destructive hover:text-destructive/80 hover:bg-destructive/10">
@@ -981,8 +1019,8 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                         Marca los días en que la organización recae en los grupos. La IA no asignará horarios centralizados para estos días.
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 p-4 border rounded-md shadow-sm bg-muted/20">
-                      {dayOrder.map(dayKey => (
-                        <div key={`group-day-${dayKey}`} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
+                      {dayOrder.map((dayKey) => (
+                        <div key={dayKey} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
                             <Checkbox id={`group-organized-${dayKey}`} checked={groupOrganizedDays.includes(dayKey)} onCheckedChange={(checked) => handleGroupOrganizedDayChange(dayKey, !!checked)} />
                             <label htmlFor={`group-organized-${dayKey}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">{dayOfWeekLabels[dayKey]}</label>
                         </div>
@@ -1169,16 +1207,20 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
 
       <Dialog open={isAddSlotDialogOpen} onOpenChange={(isOpen) => {
           setIsAddSlotDialogOpen(isOpen);
-          if (!isOpen) { slotForm.reset(); setDayForNewSlot(null); }
+          if (!isOpen) { 
+              slotForm.reset(); 
+              setDayForNewSlot(null);
+              setSlotToEdit(null);
+          }
       }}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Añadir Horario para {dayForNewSlot ? dayOfWeekLabels[dayForNewSlot] : ''}</DialogTitle><DialogDescriptionComponent>Completa los detalles.</DialogDescriptionComponent></DialogHeader>
+          <DialogHeader><DialogTitle>{isEditMode ? "Editar Horario" : `Añadir Horario para ${dayForNewSlot ? dayOfWeekLabels[dayForNewSlot] : ''}`}</DialogTitle><DialogDescriptionComponent>Completa los detalles.</DialogDescriptionComponent></DialogHeader>
           <Form {...slotForm}>
             <form onSubmit={slotForm.handleSubmit(onSubmitSlotDialog)} className="space-y-4 py-2">
               <FormField control={slotForm.control} name="startTime" render={({ field }) => (<FormItem><FormLabel>Hora (Formato 24h)</FormLabel><FormControl><Input type="text" placeholder="HH:mm" {...field} /></FormControl><FormMessage /></FormItem>)} />
               <FormField control={slotForm.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="general">General</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
               <FormField control={slotForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona estado" /></SelectTrigger></FormControl><SelectContent><SelectItem value="fixed">Fijo</SelectItem><SelectItem value="tentative">Tentativo</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-              <DialogFooter className="pt-4"><DialogClose asChild><Button type="button" variant="outline" disabled={isSubmittingSlotDialog}>Cancelar</Button></DialogClose><Button type="submit" disabled={isSubmittingSlotDialog}>{isSubmittingSlotDialog && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Añadir Horario</Button></DialogFooter>
+              <DialogFooter className="pt-4"><DialogClose asChild><Button type="button" variant="outline" disabled={isSubmittingSlotDialog}>Cancelar</Button></DialogClose><Button type="submit" disabled={isSubmittingSlotDialog}>{isSubmittingSlotDialog && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isEditMode ? "Guardar Cambios" : "Añadir Horario"}</Button></DialogFooter>
             </form>
           </Form>
         </DialogContent>
