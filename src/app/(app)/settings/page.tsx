@@ -12,7 +12,7 @@ import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, SettingsDoc } from "@/types";
-import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS, PERMISSION_MODULES, UserRole } from "@/lib/constants";
+import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS, UserRole } from "@/lib/constants";
 import {
   Dialog,
   DialogContent,
@@ -1020,7 +1020,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 p-4 border rounded-md shadow-sm bg-muted/20">
                       {dayOrder.map((dayKey) => (
-                        <div key={dayKey} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
+                        <div key={`group-day-${dayKey}`} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
                             <Checkbox id={`group-organized-${dayKey}`} checked={groupOrganizedDays.includes(dayKey)} onCheckedChange={(checked) => handleGroupOrganizedDayChange(dayKey, !!checked)} />
                             <label htmlFor={`group-organized-${dayKey}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">{dayOfWeekLabels[dayKey]}</label>
                         </div>
