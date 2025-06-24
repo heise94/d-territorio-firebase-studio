@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -223,6 +224,11 @@ export default function GestionAsignacionesPage() {
     }
     setIsFindingReplacement(assignment.id);
     try {
+        const publishersForAI = allPublishers.map(p => ({
+            ...p,
+            availability: p.availability || { availableSlotIds: [] } // Ensure availability object exists
+        }));
+
         const replacementInput = {
             originalAssignment: {
                 date: assignment.date,
@@ -231,7 +237,7 @@ export default function GestionAsignacionesPage() {
                 locationName: assignment.locationName,
             },
             originalCaptainId: assignment.userId,
-            availablePublishers: allPublishers, 
+            availablePublishers: publishersForAI, 
             programScheduleSlots: programSlots, 
             additionalInstructions: "Prioritize captains with good attendance if possible."
         };
@@ -245,7 +251,7 @@ export default function GestionAsignacionesPage() {
                 userId: result.newCaptainId!,
                 userName: result.newCaptainName!,
                 userEmail: result.newCaptainEmail!,
-                userPhoneNumber: newCaptainDetails?.email, // MOCK, fix later
+                userPhoneNumber: newCaptainDetails?.phoneNumber || null,
                 status: 'pending' as AssignmentStatus, 
                 notes: `Reasignado por IA. Original: ${assignment.userName}. ${result.reasoning || ''}`.trim(),
                 updatedAt: serverTimestamp(),
@@ -482,4 +488,6 @@ export default function GestionAsignacionesPage() {
     </TooltipProvider>
   );
 }
+    
+
     
