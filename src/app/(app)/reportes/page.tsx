@@ -250,7 +250,7 @@ export default function ReportesPage() {
         const report = assignment.lastReportData!.reports.find(r => r.territoryId === territory.id);
         if (report && !report.territoryNotWorked) {
           const workedInThisAssignment = (report.workedBlocksIds || []).map(id => parseInt(id.split('-').pop()!));
-          workedInThisAssignment.forEach(blockNum => cumulativeWorkedBlocksForCycle.add(blockNum));
+          workedInThisAssignment.forEach(blockNum => currentCycleWorkedBlocks.add(blockNum));
 
           if (currentCycleWorkedBlocks.size >= territory.totalBlocks) {
             completedCycles.push({
