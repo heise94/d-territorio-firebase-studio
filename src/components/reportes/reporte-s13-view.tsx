@@ -45,9 +45,9 @@ export function ReporteS13View({ data, allAssignments, allTerritories }: Reporte
     const territoryHistory = allAssignments
       .filter(a => a.locationId === territoryId && a.lastReportData)
       .sort((a,b) => {
-        const dateA = a.lastReportData!.reportedAt instanceof Timestamp ? a.lastReportData!.reportedAt.toDate() : new Date(a.lastReportData!.reportedAt);
-        const dateB = b.lastReportData!.reportedAt instanceof Timestamp ? b.lastReportData!.reportedAt.toDate() : new Date(b.lastReportData!.reportedAt);
-        return dateB.getTime() - dateA.getTime();
+        const dateA = a.lastReportData!.reportedAt as Timestamp;
+        const dateB = b.lastReportData!.reportedAt as Timestamp;
+        return dateB.toMillis() - dateA.toMillis();
       });
 
     setSelectedHistory(territoryHistory);

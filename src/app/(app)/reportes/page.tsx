@@ -1,14 +1,15 @@
+
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Filter, FileDown, PlusCircle } from "lucide-react";
+import { Loader2, Filter, FileDown, PlusCircle, DatabaseZap } from "lucide-react";
 import type { Territory, Assignment } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
-import { collection, onSnapshot, query, Timestamp } from "firebase/firestore";
+import { collection, onSnapshot, query, Timestamp, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format, parse, isBefore, startOfDay } from "date-fns";
 
@@ -18,51 +19,45 @@ import { FiltrosReportesSheet, type ReportFilters } from "@/components/reportes/
 
 
 export default function ReportesPage() {
-  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
-  const [isLoadingTerritories, setIsLoadingTerritories] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [isFiltersSheetOpen, setIsFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ReportFilters>({});
   const { toast } = useToast();
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
 
-  useEffect(() => {
+  const handleLoadReports = useCallback(async () => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error", description: "La base de datos no está disponible.", variant: "destructive" });
-      setIsLoadingAssignments(false);
-      setIsLoadingTerritories(false);
       return;
     }
     
-    setIsLoadingAssignments(true);
-    const assignmentsQuery = query(collection(db, "assignments")); 
-    const unsubscribeAssignments = onSnapshot(assignmentsQuery, (snapshot) => {
-      const fetchedAssignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment));
+    setIsLoading(true);
+    try {
+      const assignmentsQuery = query(collection(db, "assignments")); 
+      const territoriesQuery = query(collection(db, "territories"));
+
+      const [assignmentsSnapshot, territoriesSnapshot] = await Promise.all([
+        getDocs(assignmentsQuery),
+        getDocs(territoriesQuery)
+      ]);
+
+      const fetchedAssignments = assignmentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment));
       setAllAssignments(fetchedAssignments);
-      setIsLoadingAssignments(false);
-    }, (error) => {
-      console.error("Error fetching assignments:", error);
-      toast({ title: "Error al Cargar Asignaciones", description: "No se pudieron cargar los datos de las asignaciones desde Firestore.", variant: "destructive" });
-      setIsLoadingAssignments(false);
-    });
 
-    setIsLoadingTerritories(true);
-    const territoriesQuery = query(collection(db, "territories"));
-    const unsubscribeTerritories = onSnapshot(territoriesQuery, (snapshot) => {
-      const fetchedTerritories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Territory));
+      const fetchedTerritories = territoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Territory));
       setAllTerritories(fetchedTerritories);
-      setIsLoadingTerritories(false);
-    }, (error) => {
-        console.error("Error fetching territories:", error);
-        toast({ title: "Error al Cargar Territorios", description: "No se pudieron cargar los datos de los territorios.", variant: "destructive" });
-        setIsLoadingTerritories(false);
-    });
+      
+      setDataLoaded(true);
+      toast({ title: "Datos Cargados", description: "Los reportes han sido actualizados desde Firestore." });
 
-
-    return () => {
-        unsubscribeAssignments();
-        unsubscribeTerritories();
-    };
+    } catch (error) {
+      console.error("Error fetching reports data:", error);
+      toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los datos desde Firestore.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   }, [toast]);
 
 
@@ -85,17 +80,14 @@ export default function ReportesPage() {
             .filter(a => a.locationId === territory.id)
             .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         
-        // Find the most relevant current or future assignment to determine the status
         const relevantAssignment = assignmentsForTerritory.find(a => {
             try {
                 const assignmentDate = parse(a.date, 'yyyy-MM-dd', new Date());
                 const isPast = isBefore(assignmentDate, startOfDay(now));
 
-                // An active future assignment (today or in the future)
                 if (!isPast && (a.status === 'accepted' || a.status === 'pending' || a.status === 'replacement_requested')) {
                     return true;
                 }
-                // A past assignment that is awaiting a report
                 if (isPast && a.status === 'accepted' && !a.lastReportData) {
                     return true;
                 }
@@ -146,7 +138,7 @@ export default function ReportesPage() {
     const reportsByTerritory = new Map<string, Assignment[]>();
 
     allAssignments.forEach(a => {
-        if (a.lastReportData && a.locationId) {
+        if (a.lastReportData && a.locationId && !a.lastReportData.reports.some(r => r.territoryId === a.locationId && r.territoryNotWorked)) {
             if(!reportsByTerritory.has(a.locationId)) {
                 reportsByTerritory.set(a.locationId, []);
             }
@@ -254,8 +246,6 @@ export default function ReportesPage() {
     toast({ title: "Exportación Iniciada", description: "El archivo CSV se está descargando." });
   };
 
-  const isLoading = isLoadingAssignments || isLoadingTerritories;
-
   return (
     <div className="space-y-6">
       <Card>
@@ -266,7 +256,11 @@ export default function ReportesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button onClick={() => setIsFiltersSheetOpen(true)}>
+          <Button onClick={handleLoadReports} disabled={isLoading}>
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseZap className="mr-2 h-4 w-4" />}
+            {dataLoaded ? "Actualizar Datos desde Firestore" : "Cargar Datos desde Firestore"}
+          </Button>
+          <Button onClick={() => setIsFiltersSheetOpen(true)} variant="outline">
             <Filter className="mr-2 h-4 w-4" /> Mostrar Filtros
           </Button>
         </CardContent>
@@ -282,7 +276,7 @@ export default function ReportesPage() {
             <Button variant="outline" onClick={() => toast({title: "Próximamente", description: "La entrada manual de reportes estará disponible pronto."})} size="sm">
                 <PlusCircle className="mr-2 h-4 w-4" /> Ingresar Reporte Manual
             </Button>
-            <Button variant="outline" onClick={handleExportS13} size="sm">
+            <Button variant="outline" onClick={handleExportS13} size="sm" disabled={!dataLoaded}>
               <FileDown className="mr-2 h-4 w-4" /> Exportar S-13 a CSV
             </Button>
           </div>
@@ -299,6 +293,8 @@ export default function ReportesPage() {
             <CardContent>
               {isLoading ? (
                 <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
+              ) : !dataLoaded ? (
+                <div className="text-center py-10 text-muted-foreground">Haz clic en "Cargar Datos" para ver los reportes.</div>
               ) : (
                 <ReporteActividadView data={processedActividadData} />
               )}
@@ -317,6 +313,8 @@ export default function ReportesPage() {
             <CardContent>
               {isLoading ? (
                 <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
+              ) : !dataLoaded ? (
+                <div className="text-center py-10 text-muted-foreground">Haz clic en "Cargar Datos" para ver los reportes.</div>
               ) : (
                 <ReporteS13View data={processedS13Data} allAssignments={allAssignments} allTerritories={allTerritories} />
               )}
