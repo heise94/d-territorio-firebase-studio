@@ -20,7 +20,6 @@ interface ReporteS13ImprimibleProps {
   serviceYear: string;
 }
 
-// Helper to chunk array into pages
 const chunk = <T,>(arr: T[], size: number): T[][] =>
   Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
     arr.slice(i * size, i * size + size)
@@ -33,42 +32,55 @@ export function ReporteS13Imprimible({ data, serviceYear }: ReporteS13Imprimible
   const tableBodyContent = (pageData: PrintableS13TerritoryData[]) => {
     const rows: React.ReactNode[] = [];
     pageData.forEach((territoryData) => {
-      const cycles = territoryData.cyclesInYear.slice(0, 4); // Max 4 cycles
+      const cycles = territoryData.cyclesInYear.slice(0, 4);
+
+      const cycleNameCells = [];
+      for (let i = 0; i < 4; i++) {
+        const cycle = cycles[i];
+        let nameCellClass = 'data-cell d-name';
+        if (i === 0) nameCellClass += ' first-cycle';
+        else if (i === 3) nameCellClass += ' d-name-last';
+        else nameCellClass += ' d-name-middle';
+
+        cycleNameCells.push(
+          <td key={`name-${i}`} colSpan={2} className={nameCellClass}>{cycle?.assignedTo || ''}</td>
+        );
+      }
       
+      const cycleDateCells = [];
+      for (let i = 0; i < 4; i++) {
+        const cycle = cycles[i];
+        let assignedDateClass = 'data-cell data-cell-date-main d-assigned-date';
+        let completedDateClass = 'data-cell data-cell-date-main d-completed-date';
+
+        if (i === 0) { // First cycle
+            assignedDateClass += ' first-cycle';
+            completedDateClass += ' first-cycle';
+        } else if (i === 3) { // Last cycle column
+            assignedDateClass += ' d-assigned-date-last';
+            completedDateClass += ' d-completed-date-last';
+        } else { // Middle cycles
+             assignedDateClass += ' d-assigned-date-middle';
+             completedDateClass += ' d-completed-date-middle';
+        }
+
+        cycleDateCells.push(
+          <React.Fragment key={`dates-${i}`}>
+            <td className={assignedDateClass}>{cycle?.assignedDate || ''}</td>
+            <td className={completedDateClass}>{cycle?.completedDate || ''}</td>
+          </React.Fragment>
+        );
+      }
+
       rows.push(
         <React.Fragment key={`${territoryData.territoryId}-row`}>
           <tr>
             <td rowSpan={2} className="data-cell d-num-terr">{territoryData.territoryNumber}</td>
             <td rowSpan={2} className="data-cell data-cell-date-main d-last-completed">{territoryData.lastCompletedBeforeDate}</td>
-            
-            {/* Cycle 1 */}
-            <td colSpan={2} className="data-cell d-name first-cycle">{cycles[0]?.assignedTo || ''}</td>
-            
-            {/* Cycle 2 */}
-            <td colSpan={2} className="data-cell d-name-middle">{cycles[1]?.assignedTo || ''}</td>
-            
-            {/* Cycle 3 */}
-            <td colSpan={2} className="data-cell d-name-middle">{cycles[2]?.assignedTo || ''}</td>
-            
-            {/* Cycle 4 */}
-            <td colSpan={2} className="data-cell d-name-last">{cycles[3]?.assignedTo || ''}</td>
+            {cycleNameCells}
           </tr>
           <tr>
-            {/* Cycle 1 Dates */}
-            <td className="data-cell data-cell-date-main d-assigned-date first-cycle">{cycles[0]?.assignedDate || ''}</td>
-            <td className="data-cell data-cell-date-main d-completed-date first-cycle">{cycles[0]?.completedDate || ''}</td>
-
-            {/* Cycle 2 Dates */}
-            <td className="data-cell data-cell-date-main d-assigned-date-middle">{cycles[1]?.assignedDate || ''}</td>
-            <td className="data-cell data-cell-date-main d-completed-date-middle">{cycles[1]?.completedDate || ''}</td>
-            
-            {/* Cycle 3 Dates */}
-            <td className="data-cell data-cell-date-main d-assigned-date-middle">{cycles[2]?.assignedDate || ''}</td>
-            <td className="data-cell data-cell-date-main d-completed-date-middle">{cycles[2]?.completedDate || ''}</td>
-
-            {/* Cycle 4 Dates */}
-            <td className="data-cell data-cell-date-main d-assigned-date-last">{cycles[3]?.assignedDate || ''}</td>
-            <td className="data-cell data-cell-date-main d-completed-date-last">{cycles[3]?.completedDate || ''}</td>
+            {cycleDateCells}
           </tr>
         </React.Fragment>
       );
@@ -128,12 +140,14 @@ export function ReporteS13Imprimible({ data, serviceYear }: ReporteS13Imprimible
         .first-cycle { border-right: 2pt solid black; }
         .d-name-middle { border-left: 2pt solid black; border-right: 2pt solid black; }
         .d-name-last { border-left: 2pt solid black; }
-        .d-assigned-date { border-top: 1pt solid black; border-bottom: 2pt solid black; padding-top: 2pt; line-height: 10pt; border-right: 1pt solid black; }
+        .d-assigned-date { border-top: 1pt solid black; border-bottom: 2pt solid black; padding-top: 2pt; line-height: 10pt; }
         .d-completed-date { border-top: 1pt solid black; border-bottom: 2pt solid black; padding-top: 2pt; line-height: 10pt; }
         .d-assigned-date.first-cycle { border-right: 1pt solid black; }
         .d-completed-date.first-cycle { border-left: 1pt solid black; border-right: 2pt solid black; }
-        .d-assigned-date-middle, .d-completed-date-middle { border-left: 2pt solid black; border-right: 2pt solid black; }
-        .d-assigned-date-last, .d-completed-date-last { border-left: 2pt solid black; }
+        .d-assigned-date-middle { border-left: 2pt solid black; border-right: 1pt solid black; }
+        .d-completed-date-middle { border-left: 1pt solid black; border-right: 2pt solid black; }
+        .d-assigned-date-last { border-left: 2pt solid black; border-right: 1pt solid black; }
+        .d-completed-date-last { border-left: 1pt solid black; }
         .action-buttons-container-global { margin-bottom: 20px; display: flex; gap: 15px; justify-content: center; width: 100%; }
         @media print { body { background-color: #ffffff; padding: 0; } .action-buttons-container-global { display: none; } .document-page { box-shadow: none; border-radius: 0; margin: 0; width: 100%; height: auto; } }
       `}</style>

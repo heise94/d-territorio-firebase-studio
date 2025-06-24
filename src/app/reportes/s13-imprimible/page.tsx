@@ -60,8 +60,8 @@ function PrintableS13PageContent() {
                 .sort((a, b) => (a.createdAt as Timestamp).toMillis() - (b.createdAt as Timestamp).toMillis());
             
             if (allAssignmentsForTerritory.length === 0) continue;
-
-            const allCycles: any[] = [];
+            
+            const allCompletedCycles: any[] = [];
             let tempWorkedBlocks = new Set<number>();
             let cycleStartIndex = 0;
 
@@ -81,41 +81,42 @@ function PrintableS13PageContent() {
                     const completionDate = (assignment.lastReportData.reportedAt as Timestamp).toDate();
                     const startAssignment = allAssignmentsForTerritory[cycleStartIndex];
                     
-                    allCycles.push({
+                    allCompletedCycles.push({
                         assignedTo: startAssignment.userName || 'N/A',
                         assignedDate: format(parseISO(startAssignment.date), 'dd/MM/yy'),
                         completedDate: format(completionDate, 'dd/MM/yy'),
                         completionTimestamp: completionDate.getTime(),
-                        // Add a unique identifier for the cycle start to find it later
                         startAssignmentId: startAssignment.id 
                     });
                     
                     tempWorkedBlocks.clear();
-                    cycleStartIndex = i + 1;
+                    // Important: The next cycle starts *after* the assignment that completed the current one.
+                    cycleStartIndex = i + 1; 
                 }
             }
-
-            const allCyclesSorted = allCycles.sort((a, b) => a.completionTimestamp - b.completionTimestamp);
-
-            const cyclesInYear = allCyclesSorted.filter(c => c.completionTimestamp >= serviceYearStart.getTime() && c.completionTimestamp < serviceYearEnd.getTime());
             
-            if (cyclesInYear.length === 0) {
-                continue;
-            }
+            const cyclesInSelectedYear = allCompletedCycles.filter(
+                c => c.completionTimestamp >= serviceYearStart.getTime() && c.completionTimestamp < serviceYearEnd.getTime()
+            );
+            
+            if (cyclesInSelectedYear.length === 0) continue;
 
-            const firstCycleInYear = cyclesInYear[0];
-            const indexOfFirstCycleInAll = allCyclesSorted.findIndex(c => c.startAssignmentId === firstCycleInYear.startAssignmentId && c.completionTimestamp === firstCycleInYear.completionTimestamp);
+            let lastCompletedBeforeDate = '';
+            const firstCycleInYear = cyclesInSelectedYear[0];
+            const indexOfFirstCycleInAll = allCompletedCycles.findIndex(c => 
+                c.startAssignmentId === firstCycleInYear.startAssignmentId && 
+                c.completionTimestamp === firstCycleInYear.completionTimestamp
+            );
 
-            let lastCompletedBefore = '';
             if (indexOfFirstCycleInAll > 0) {
-                lastCompletedBefore = allCyclesSorted[indexOfFirstCycleInAll - 1].completedDate;
+                lastCompletedBeforeDate = allCompletedCycles[indexOfFirstCycleInAll - 1].completedDate;
             }
             
             finalReportData.push({
                 territoryId: territory.id,
                 territoryNumber: territory.number || territory.name,
-                lastCompletedBeforeDate: lastCompletedBefore,
-                cyclesInYear: cyclesInYear,
+                lastCompletedBeforeDate: lastCompletedBeforeDate,
+                cyclesInYear: cyclesInSelectedYear,
             });
         }
         
