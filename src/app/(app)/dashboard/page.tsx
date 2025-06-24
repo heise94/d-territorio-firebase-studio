@@ -63,13 +63,16 @@ export default function DashboardPage() {
 
   const stats = useMemo(() => {
     const activeTerritories = allTerritories.filter(t => !t.isBlocked).length;
-    const blockedTerritories = allTerritories.length - activeTerritories;
+    const totalTerritories = allTerritories.length;
+    const blockedTerritories = totalTerritories - activeTerritories;
 
     const activePublishers = allUsers.filter(u => u.status === 'Activo').length;
+    const totalPublishers = allUsers.length;
     const blockedForSystem = allUsers.filter(u => u.blockInfo?.forSystem).length;
     const blockedForGroup = allUsers.filter(u => u.blockInfo?.forGroup).length;
     
     const totalCasas = allCasas.length;
+    const availableCasasForSystem = allCasas.filter(c => !c.blockInfo?.forSystem).length;
     const blockedCasasSystem = allCasas.filter(c => c.blockInfo?.forSystem).length;
     const blockedCasasGroup = allCasas.filter(c => c.blockInfo?.forGroup).length;
     
@@ -108,26 +111,36 @@ export default function DashboardPage() {
 
     return {
         activeTerritories,
+        totalTerritories,
         blockedTerritories,
         activePublishers,
+        totalPublishers,
         blockedForSystem,
         blockedForGroup,
-        workedTerritoriesThisMonth: workedTerritoryIds.size,
-        pendingAssignments,
+        availableCasasForSystem,
         totalCasas,
         blockedCasasSystem,
         blockedCasasGroup,
+        workedTerritoriesThisMonth: workedTerritoryIds.size,
+        pendingAssignments,
         pendingReports
     };
   }, [allTerritories, allUsers, allAssignments, allCasas, selectedMonth, selectedYear]);
 
-  const renderStat = (value: number, subValues?: {label: string, value: number}[]) => {
+  const renderStat = (
+    numerator: number, 
+    denominator?: number,
+    subValues?: {label: string, value: number}[]
+  ) => {
     if (loading) {
       return <Loader2 className="h-8 w-8 animate-spin text-primary" />;
     }
     return (
         <div>
-            <div className="text-4xl font-bold">{value}</div>
+            <div className="text-4xl font-bold">
+              {numerator}
+              {denominator !== undefined && <span className="text-2xl text-muted-foreground">/{denominator}</span>}
+            </div>
             {subValues && subValues.length > 0 && (
                 <div className="pt-1">
                     {subValues.map((sub, index) => (
@@ -159,7 +172,7 @@ export default function DashboardPage() {
             <MapIcon className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-            {renderStat(stats.activeTerritories, [{label: 'bloqueado(s)', value: stats.blockedTerritories}])}
+            {renderStat(stats.activeTerritories, stats.totalTerritories, [{label: 'bloqueado(s)', value: stats.blockedTerritories}])}
             <p className="text-xs text-muted-foreground pt-1">Total de territorios no bloqueados.</p>
           </CardContent>
         </Card>
@@ -170,11 +183,11 @@ export default function DashboardPage() {
             <Building className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-             {renderStat(stats.totalCasas, [
+             {renderStat(stats.availableCasasForSystem, stats.totalCasas, [
                 {label: 'bloq. p/ sistema', value: stats.blockedCasasSystem},
                 {label: 'bloq. p/ grupo', value: stats.blockedCasasGroup}
              ])}
-            <p className="text-xs text-muted-foreground pt-1">Total de casas de reunión registradas.</p>
+            <p className="text-xs text-muted-foreground pt-1">Casas no bloqueadas para el sistema (IA).</p>
           </CardContent>
         </Card>
 
@@ -184,7 +197,7 @@ export default function DashboardPage() {
             <Users className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-             {renderStat(stats.activePublishers, [
+             {renderStat(stats.activePublishers, stats.totalPublishers, [
                 {label: 'bloq. p/ sistema', value: stats.blockedForSystem},
                 {label: 'bloq. p/ grupo', value: stats.blockedForGroup}
              ])}
