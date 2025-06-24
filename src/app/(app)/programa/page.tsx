@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, Bot, AlertTriangle, CheckCircle2, Save } from "lucide-react";
+import { Loader2, CalendarDays, Bot, AlertTriangle, CheckCircle2, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateMonthlyAssignments, type GenerateMonthlyAssignmentsInput, type GenerateMonthlyAssignmentsOutput } from "@/ai/flows/generate-monthly-assignments";
 import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
@@ -15,6 +15,7 @@ import { Timestamp, writeBatch, collection, doc, getDoc, getDocs, query, where, 
 import { db } from "@/lib/firebase";
 import type { ProgramScheduleSlot, PublisherDetail, PreachingType as TypePreachingType, SettingsDoc, Casa, Territory, PreachingGroup, DayOfWeek as TypeDayOfWeek, Campaign, Assembly, CustomHoliday, PreachingAssignedType, PreachingType } from "@/types";
 import { USER_ROLES } from "@/lib/constants";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 6 }, (_, i) => currentYear + i);
@@ -334,6 +335,28 @@ export default function ProgramaMensualPage() {
         setIsSavingProgram(false);
     }
   };
+
+  const handleDeleteAssignment = (assignmentId: string, dayKey: string) => {
+    setGeneratedAssignments(prev => {
+        if (!prev || !prev.captainAssignments) return prev;
+
+        const updatedDayAssignments = (prev.captainAssignments[dayKey] || []).filter(a => a.id !== assignmentId);
+
+        const newCaptainAssignments = {
+            ...prev.captainAssignments,
+            [dayKey]: updatedDayAssignments,
+        };
+
+        return {
+            ...prev,
+            captainAssignments: newCaptainAssignments,
+        };
+    });
+    toast({
+        title: "Asignación eliminada del borrador",
+        description: "La asignación ha sido quitada y no se guardará.",
+    });
+  };
   
   const monthDays = useMemo(() => {
     const date = new Date(selectedYear, selectedMonth);
@@ -420,13 +443,34 @@ export default function ProgramaMensualPage() {
                         <ul className="space-y-3">
                           {assignmentsForDay.map(assign => (
                             <li key={assign.id} className="p-3 border rounded-md shadow-sm bg-card hover:bg-muted/10 transition-colors">
-                              <div className="flex justify-between items-center">
-                                <span className="font-medium text-primary">{assign.captainName} ({assign.captainId === "PENDING_CAPTAIN_ID" ? "ID Pendiente" : assign.captainId})</span>
-                                <span className="text-sm text-muted-foreground">{assign.time}</span>
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-medium text-primary">{assign.captainName}</span>
+                                    <span className="text-sm text-muted-foreground">{assign.time}</span>
+                                  </div>
+                                  <p className="text-sm capitalize">Tipo: {assign.preachingType}</p>
+                                  {assign.territoryName && <p className="text-sm">Territorio: {assign.territoryName}</p>}
+                                  {assign.casaName && <p className="text-sm">Casa: {assign.casaName}</p>}
+                                </div>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="ml-2 h-7 w-7 text-destructive hover:bg-destructive/10 shrink-0"
+                                        onClick={() => handleDeleteAssignment(assign.id, dayString)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Eliminar esta asignación del borrador</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               </div>
-                              <p className="text-sm capitalize">Tipo: {assign.preachingType}</p>
-                              {assign.territoryName && <p className="text-sm">Territorio: {assign.territoryName}</p>}
-                              {assign.casaName && <p className="text-sm">Casa: {assign.casaName}</p>}
                             </li>
                           ))}
                         </ul>
