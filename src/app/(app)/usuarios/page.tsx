@@ -236,13 +236,12 @@ export default function UsuariosPage() {
           title: "Usuario Actualizado",
           description: `El perfil de ${userToEdit?.name} ha sido actualizado.`,
         });
-        onOpenChange(false);
+        setIsEditUserDialogOpen(false);
     } catch (error) {
         console.error("Error updating user:", error);
         toast({ title: "Error", description: "No se pudo actualizar el perfil del usuario.", variant: "destructive" });
     } finally {
         setIsSubmitting(false);
-        setIsEditUserDialogOpen(false);
     }
   };
 
@@ -835,3 +834,4 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
+

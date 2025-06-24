@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import type { CampaignAssignmentInReport, Assignment, Territory } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { format, Timestamp } from "date-fns";
+import { format, parseISO } from "date-fns";
+import type { Timestamp } from "firebase/firestore";
 
 
 export interface ReporteS13Data {
@@ -23,10 +24,10 @@ export interface ReporteS13Data {
 }
 
 export interface ConsolidatedS13Data {
+  territoryId: string;
   territoryNumber: string;
   lastCycle?: ReporteS13Data;
   penultimateCycle?: ReporteS13Data;
-  territoryId: string;
 }
 
 interface ReporteS13ViewProps {
@@ -43,7 +44,11 @@ export function ReporteS13View({ data, allAssignments, allTerritories }: Reporte
   const handleViewFullHistory = (territoryId: string, territoryNumber: string) => {
     const territoryHistory = allAssignments
       .filter(a => a.locationId === territoryId && a.lastReportData)
-      .sort((a,b) => (b.lastReportData!.reportedAt as Timestamp).toMillis() - (a.lastReportData!.reportedAt as Timestamp).toMillis());
+      .sort((a,b) => {
+        const dateA = a.lastReportData!.reportedAt as Timestamp;
+        const dateB = b.lastReportData!.reportedAt as Timestamp;
+        return dateB.toMillis() - dateA.toMillis();
+      });
 
     setSelectedHistory(territoryHistory);
     setSelectedTerritory(territoryNumber);
@@ -95,7 +100,7 @@ export function ReporteS13View({ data, allAssignments, allTerritories }: Reporte
           </TableHeader>
           <TableBody>
             {data.map((row) => (
-              <TableRow key={row.territoryNumber}>
+              <TableRow key={row.territoryId}>
                 <TableCell className="font-bold">{row.territoryNumber}</TableCell>
                 <TableCell>{renderCycleCell(row.lastCycle)}</TableCell>
                 <TableCell>{renderCycleCell(row.penultimateCycle)}</TableCell>
@@ -138,7 +143,7 @@ export function ReporteS13View({ data, allAssignments, allTerritories }: Reporte
                 {selectedHistory.length > 0 ? selectedHistory.map((assignment) => (
                   <TableRow key={assignment.id}>
                     <TableCell>{assignment.userName}</TableCell>
-                    <TableCell>{assignment.date}</TableCell>
+                    <TableCell>{format(parseISO(assignment.date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell className="font-semibold text-primary">{format((assignment.lastReportData!.reportedAt as Timestamp).toDate(), "dd/MM/yyyy")}</TableCell>
                   </TableRow>
                 )) : (
@@ -159,3 +164,4 @@ export function ReporteS13View({ data, allAssignments, allTerritories }: Reporte
     </TooltipProvider>
   );
 }
+

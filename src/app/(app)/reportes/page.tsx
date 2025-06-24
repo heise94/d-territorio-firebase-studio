@@ -112,7 +112,7 @@ export default function ReportesPage() {
 
 
   const processedActividadData: ReporteActividadData[] = useMemo(() => {
-    return filteredTerritories.map(territory => {
+    return filteredTerritories.map((territory): ReporteActividadData | null => {
         const assignmentsForTerritory = allAssignments
             .filter(a => a.locationId === territory.id)
             .sort((a,b) => {
@@ -249,7 +249,7 @@ export default function ReportesPage() {
         }
         const report = assignment.lastReportData!.reports.find(r => r.territoryId === territory.id);
         if (report && !report.territoryNotWorked) {
-          const workedInThisAssignment = (report.workedBlocksIds || []).map(id => parseInt(id.split('-').pop()!));
+          const workedInThisAssignment = (report.workedBlocksIds || []).map(id => parseInt(id.split('-').pop()!, 10));
           workedInThisAssignment.forEach(blockNum => currentCycleWorkedBlocks.add(blockNum));
 
           if (currentCycleWorkedBlocks.size >= territory.totalBlocks) {
@@ -285,8 +285,8 @@ export default function ReportesPage() {
       };
 
       const passesPublisherFilter = !filters.assignedTo || 
-          dataToAdd.lastCycle?.firstAssignedTo.toLowerCase().includes(filters.assignedTo.toLowerCase()) || 
-          dataToAdd.penultimateCycle?.firstAssignedTo.toLowerCase().includes(filters.assignedTo.toLowerCase());
+          (dataToAdd.lastCycle && dataToAdd.lastCycle.firstAssignedTo.toLowerCase().includes(filters.assignedTo.toLowerCase())) || 
+          (dataToAdd.penultimateCycle && dataToAdd.penultimateCycle.firstAssignedTo.toLowerCase().includes(filters.assignedTo.toLowerCase()));
 
       if (!passesPublisherFilter) continue;
       
@@ -437,3 +437,4 @@ export default function ReportesPage() {
     </div>
   );
 }
+

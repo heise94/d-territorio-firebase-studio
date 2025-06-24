@@ -233,7 +233,7 @@ export function AddCasaDialog({
     if (!selectedIds || selectedIds.length === 0) return "Seleccionar territorios...";
     if (selectedIds.length === 1) {
       const terr = availableTerritories.find(t => t.id === selectedIds[0]);
-      return terr ? terr.name : "Seleccionar territorios...";
+      return terr ? (terr.number ? `U-${terr.number}` : terr.name) : "Seleccionar territorios...";
     }
     return `${selectedIds.length} territorios seleccionados`;
   };
@@ -398,7 +398,7 @@ export function AddCasaDialog({
                     <DropdownMenuTrigger asChild>
                       <FormControl>
                         <Button variant="outline" className="w-full justify-between" disabled={availableTerritories.length === 0}>
-                          {getSelectedTerritoriesText(field.value, availableTerritories.map(t => ({id: t.id, name: t.number ? `U-${t.number}` : t.name})))}
+                          {getSelectedTerritoriesText(field.value)}
                           <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
                         </Button>
                       </FormControl>
@@ -557,3 +557,4 @@ export function AddCasaDialog({
     </Dialog>
   );
 }
+

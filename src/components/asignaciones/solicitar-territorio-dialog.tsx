@@ -48,7 +48,7 @@ export function SolicitarTerritorioDialog({
             const territoriesRef = collection(db, "territories");
             const q = query(territoriesRef, where("isBlocked", "==", false));
             const querySnapshot = await getDocs(q);
-            const allTerritories = querySnapshot.docs.map(doc => ({id: doc.id, ...doc.data() as Territory}));
+            const allTerritories = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Territory));
             
             // Basic filtering: suggest 3 random available territories that are not the current one
             const suggestions = allTerritories
@@ -167,7 +167,7 @@ export function SolicitarTerritorioDialog({
                                 <p><span className="font-medium flex items-center"><ListChecks size={12} className="mr-1.5 shrink-0"/> Manzanas pendientes:</span> {terr.pendingBlockNumbers.join(', ')}</p>
                             )}
                             {terr.approxPendingHousesCount !== undefined && (
-                                <p><span className="font-medium flex items-center"><HomeIcon size={12} className="mr-1.5 shrink-0"/> Casas totales aprox. (pendientes):</span> {terr.approxPendingHousesCount}</p>
+                                <p><span className="font-medium flex items-center"><HomeIcon size={12} className="mr-1.5 shrink-0"/> Casas aprox. (pendientes):</span> {terr.approxPendingHousesCount}</p>
                             )}
                         </>
                     ) : (
@@ -205,3 +205,4 @@ export function SolicitarTerritorioDialog({
     </Dialog>
   );
 }
+
