@@ -1,9 +1,10 @@
 
 
 import type { Timestamp } from 'firebase/firestore';
-import type { UserRole, PermissionId } from '@/lib/constants';
+import type { UserRole as RoleType, PermissionId } from '@/lib/constants';
 
-export type { UserRole };
+export type UserRole = RoleType;
+export type { PermissionId };
 
 export interface UserProfile {
   id: string; // doc ID from Firestore
@@ -33,7 +34,7 @@ export interface PublisherDetail {
   id: string; // Document ID from Firestore users collection
   name: string;
   email: string;
-  availability: {
+  availability?: {
     availableSlotIds?: string[];
   };
   assignedGroupId?: string;

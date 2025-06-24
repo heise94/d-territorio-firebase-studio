@@ -12,7 +12,7 @@ import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
 import { EditAssignmentDialog } from "@/components/programa/edit-assignment-dialog";
 import { AddManualAssignmentDialog } from "@/components/programa/add-manual-assignment-dialog";
 import { es } from "date-fns/locale";
-import { format, getDaysInMonth, startOfMonth, getDay, isWithinInterval, parseISO, parse } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isWithinInterval, parseISO, parse } from 'date-fns';
 import { Timestamp, writeBatch, collection, doc, getDoc, getDocs, query, where, orderBy, deleteField, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { ProgramScheduleSlot, PublisherDetail, PreachingType as TypePreachingType, SettingsDoc, Casa, Territory, PreachingGroup, DayOfWeek as TypeDayOfWeek, Campaign, Assembly, CustomHoliday, PreachingAssignedType, PreachingType } from "@/types";
@@ -96,10 +96,9 @@ export default function ProgramaMensualPage() {
 
       if (specialEventsConfigSnap.exists()) {
         const eventsConfig = specialEventsConfigSnap.data() as SettingsDoc;
-        const convertTimestampToDate = (item: any, dateFields: string[]) => { /* ... */ return item; }; // Simplified for brevity
-        setCampaigns((eventsConfig.campaignsList || []).map(c => ({...c, startDate: (c.startDate as Timestamp).toDate(), endDate: (c.endDate as Timestamp).toDate()})));
-        setHolidays((eventsConfig.holidaysList || []).map(h => ({...h, date: (h.date as Timestamp).toDate()})));
-        setAssemblies((eventsConfig.assembliesList || []).map(a => ({...a, startDate: (a.startDate as Date), endDate: (a.endDate as Date)})));
+        setCampaigns((eventsConfig.campaignsList || []).map(c => ({...c, startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate), endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate)})));
+        setHolidays((eventsConfig.holidaysList || []).map(h => ({...h, date: h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)})));
+        setAssemblies((eventsConfig.assembliesList || []).map(a => ({...a, startDate: a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate), endDate: a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate)})));
       }
 
       const collectionsToFetch = {
@@ -201,14 +200,24 @@ export default function ProgramaMensualPage() {
         })),
       
       holidayDatesInMonth: holidays
-        .filter(h => isWithinInterval(h.date, { start: startOfMonth(new Date(selectedYear, selectedMonth)), end: getDaysInMonth(new Date(selectedYear, selectedMonth)) }))
-        .map(h => format(h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date), "yyyy-MM-dd")),
+        .filter(h => {
+          const holidayDate = h.date instanceof Timestamp ? h.date.toDate() : h.date;
+          return isWithinInterval(holidayDate, { start: startOfMonth(new Date(selectedYear, selectedMonth)), end: endOfMonth(new Date(selectedYear, selectedMonth)) })
+        })
+        .map(h => {
+          const holidayDate = h.date instanceof Timestamp ? h.date.toDate() : h.date;
+          return format(holidayDate, "yyyy-MM-dd");
+        }),
       
       holidaySchedulingOverrides: dialogData.holidayOverrides || [],
       designatedRuralWeekendDays: dialogData.designatedRuralWeekendDays || [],
 
       assembliesInMonth: assemblies
-         .filter(a => isWithinInterval(new Date(selectedYear, selectedMonth, 15), { start: a.startDate as Date, end: a.endDate as Date }))
+        .filter(a => {
+            const assemblyStartDate = a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate);
+            const assemblyEndDate = a.endDate instanceof Timestamp ? a.endDate.toDate() : new Date(a.endDate);
+            return isWithinInterval(new Date(selectedYear, selectedMonth, 15), { start: assemblyStartDate, end: assemblyEndDate });
+        })
         .map(a => ({
             name: a.name,
             startDate: format(a.startDate instanceof Timestamp ? a.startDate.toDate() : new Date(a.startDate), "yyyy-MM-dd"), 

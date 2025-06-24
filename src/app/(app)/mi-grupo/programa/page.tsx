@@ -113,7 +113,7 @@ export default function MiGrupoProgramaPage() {
     unsubscribers.push(onSnapshot(eventsConfigRef, (docSnap) => {
         if (docSnap.exists()) {
             const settings = docSnap.data() as SettingsDoc;
-            const holidays = (settings.holidaysList || []).map(h => ({ ...h, date: (h.date as Timestamp).toDate()}));
+            const holidays = (settings.holidaysList || []).map(h => ({ ...h, date: h.date instanceof Timestamp ? h.date.toDate() : h.date }));
             setCustomHolidays(holidays);
         }
     }));
@@ -492,7 +492,10 @@ export default function MiGrupoProgramaPage() {
                   const isAuthorizedDayForGroup = groupOrganizedDays.includes(dayOfWeekKey);
                   const isPastDay = isBeforeDateFns(day, new Date()) && !isSameDay(day, new Date());
                   
-                  const holidayForDay = customHolidays.find(h => isSameDay(h.date, day));
+                  const holidayForDay = customHolidays.find(h => {
+                    const holidayDate = h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date);
+                    return isSameDay(holidayDate, day);
+                  });
                   
                   const canAddAssignment = isAuthorizedDayForGroup && !isPastDay && currentGroupId; 
 
