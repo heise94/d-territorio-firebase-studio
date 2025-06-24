@@ -23,7 +23,7 @@ export const historicalTerritoryData = [
       },
       {
         "fechaAsignacion": "20/03/2025",
-        "publicador": "Robert Guale",
+        "publicador": "Roberth Guale",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 y 2",
         "manzanasPendientes": "",
@@ -41,7 +41,7 @@ export const historicalTerritoryData = [
       },
       {
         "fechaAsignacion": "01/05/2025",
-        "publicador": "Robert Guale",
+        "publicador": "Roberth Guale",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 y 2",
         "manzanasPendientes": "",
@@ -82,7 +82,7 @@ export const historicalTerritoryData = [
       },
       {
         "fechaAsignacion": "20/03/2025",
-        "publicador": "Robert Guale",
+        "publicador": "Roberth Guale",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 y 2",
         "manzanasPendientes": "",
@@ -150,7 +150,7 @@ export const historicalTerritoryData = [
       },
       {
         "fechaAsignacion": "15/05/2025",
-        "publicador": "Robert Guale",
+        "publicador": "Roberth Guale",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "2 a 4",
         "manzanasPendientes": "",
@@ -346,7 +346,7 @@ export const historicalTerritoryData = [
       },
       {
         "fechaAsignacion": "04/04/2025",
-        "publicador": "Robert Guale",
+        "publicador": "Roberth Guale",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 3",
         "manzanasPendientes": "",
@@ -2979,7 +2979,7 @@ export const historicalTerritoryData = [
       },
       {
         "fechaAsignacion": "05/02/2025",
-        "publicador": "Cristian Martínez",
+        "publicador": "Christian Martínez",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 a 5",
         "manzanasPendientes": "",
@@ -3320,7 +3320,7 @@ export const historicalTerritoryData = [
     "asignaciones": [
       {
         "fechaAsignacion": "22/09/2024",
-        "publicador": "Danilo",
+        "publicador": "Danilo Escobar",
         "completadoAsignacion": true,
         "manzanasTrabajadas": "1 y 2",
         "manzanasPendientes": "",
