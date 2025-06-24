@@ -13,7 +13,7 @@ import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, Preac
 import { AddGroupAssignmentDialog, type GroupAssignmentSubmitDataType } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
 import { SuggestTerritoryForGroupAssignmentDialog } from "@/components/mi-grupo/programa/suggest-territory-for-group-assignment-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
-import { Timestamp, collection, doc, onSnapshot, query, where } from "firebase/firestore";
+import { Timestamp, collection, doc, onSnapshot, query, where, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { USER_ROLES } from "@/lib/constants";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -70,7 +70,7 @@ export default function MiGrupoProgramaPage() {
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch data from Firestore
+  // Fetch static data from Firestore
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error", description: "La base de datos no está disponible.", variant: "destructive" });
@@ -119,8 +119,7 @@ export default function MiGrupoProgramaPage() {
     }));
     
     // Once all initial listeners are set up, we can consider it loaded.
-    // A more robust solution might use Promise.all with getDocs for initial load, then onSnapshot.
-    const loadingTimer = setTimeout(() => setIsLoading(false), 1500); // Give snapshots a moment to fire
+    const loadingTimer = setTimeout(() => setIsLoading(false), 1500); 
     unsubscribers.push(() => clearTimeout(loadingTimer));
 
     return () => unsubscribers.forEach(unsub => unsub());
@@ -148,17 +147,40 @@ export default function MiGrupoProgramaPage() {
   useEffect(() => {
     if (userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !adminSelectedGroupId && allGroups.length > 0) {
       // Optional: auto-select first group for admin or leave as is to force selection
-      // setAdminSelectedGroupId(allGroups[0].id);
     }
   }, [userProfile?.role, adminSelectedGroupId, allGroups]);
 
 
   useEffect(() => {
-    if (currentGroupId) {
-        // TODO: In Step 2, fetch groupAssignments from Firestore for this group and month/year
-        console.log(`Displaying assignments for group ${currentGroupId}, month ${selectedMonth}, year ${selectedYear}`);
+    if (!currentGroupId) {
+        setGroupAssignments([]);
+        return;
     }
-  }, [selectedMonth, selectedYear, currentGroupId]);
+    setIsLoading(true);
+
+    const startDate = format(startOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
+    const endDate = format(endOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
+
+    const q = query(
+        collection(db, "groupAssignments"),
+        where("groupId", "==", currentGroupId),
+        where("date", ">=", startDate),
+        where("date", "<=", endDate)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const fetchedAssignments = snapshot.docs.map(doc => doc.data() as GroupAssignment)
+            .sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time));
+        setGroupAssignments(fetchedAssignments);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching group assignments:", error);
+        toast({ title: "Error", description: "No se pudieron cargar las asignaciones del grupo.", variant: "destructive" });
+        setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [selectedMonth, selectedYear, currentGroupId, toast]);
 
   const handleOpenAddDialog = (dateForAssignment?: Date) => {
     setAssignmentToEdit(null);
@@ -172,38 +194,38 @@ export default function MiGrupoProgramaPage() {
     setIsAddAssignmentDialogOpen(true);
   };
 
-  const handleAssignmentSubmit = (submittedData: GroupAssignmentSubmitDataType) => {
+  const handleAssignmentSubmit = async (submittedData: GroupAssignmentSubmitDataType) => {
     if (!currentGroupId || !userProfile?.firebaseAuthUid) {
       toast({ title: "Error", description: "No se pudo identificar el grupo o usuario.", variant: "destructive" });
       return;
     }
 
-    if (submittedData.id) { 
-      setGroupAssignments(prev =>
-        prev.map(assign =>
-          assign.id === submittedData.id
-            ? { 
-                ...assign, 
-                ...submittedData,
-                groupId: currentGroupId, 
-                updatedAt: Timestamp.now(),
-              } as GroupAssignment
-            : assign
-        ).sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time))
-      );
-      toast({ title: "Asignación Actualizada", description: "La asignación ha sido actualizada." });
-    } else { 
-      const assignmentToAdd: GroupAssignment = {
+    const isEdit = !!submittedData.id;
+    const docId = isEdit ? submittedData.id! : crypto.randomUUID();
+
+    const dataToSave: Partial<GroupAssignment> = {
         ...submittedData,
-        id: crypto.randomUUID(),
+        id: docId,
         groupId: currentGroupId,
-        createdAt: Timestamp.now(),
-        createdBy: userProfile.firebaseAuthUid,
-      };
-      setGroupAssignments(prev => [...prev, assignmentToAdd].sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time)));
-      toast({ title: "Asignación Creada", description: "La nueva asignación ha sido creada." });
+        updatedAt: Timestamp.now(),
+        updatedBy: userProfile.firebaseAuthUid
+    };
+
+    if (!isEdit) {
+        dataToSave.createdAt = Timestamp.now();
+        dataToSave.createdBy = userProfile.firebaseAuthUid;
     }
-    setIsAddAssignmentDialogOpen(false);
+
+    const docRef = doc(db, "groupAssignments", docId);
+    
+    try {
+        await setDoc(docRef, dataToSave, { merge: true });
+        toast({ title: isEdit ? "Asignación Actualizada" : "Asignación Creada", description: "Los cambios se guardaron en Firestore." });
+        setIsAddAssignmentDialogOpen(false);
+    } catch (error) {
+        console.error("Error saving group assignment:", error);
+        toast({ title: "Error al Guardar", description: "No se pudo guardar la asignación.", variant: "destructive" });
+    }
   };
 
   const handleOpenDeleteDialog = (assignmentId: string) => {
@@ -211,12 +233,19 @@ export default function MiGrupoProgramaPage() {
     setIsConfirmDeleteDialogOpen(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!assignmentToDeleteId) return;
-    setGroupAssignments(prev => prev.filter(assign => assign.id !== assignmentToDeleteId));
-    toast({ title: "Asignación Eliminada", description: "La asignación ha sido eliminada.", variant: "destructive" });
-    setIsConfirmDeleteDialogOpen(false);
-    setAssignmentToDeleteId(null);
+    const docRef = doc(db, "groupAssignments", assignmentToDeleteId);
+    try {
+        await deleteDoc(docRef);
+        toast({ title: "Asignación Eliminada", description: "La asignación ha sido eliminada de Firestore.", variant: "destructive" });
+    } catch (error) {
+        console.error("Error deleting group assignment:", error);
+        toast({ title: "Error al Eliminar", description: "No se pudo eliminar la asignación.", variant: "destructive" });
+    } finally {
+        setIsConfirmDeleteDialogOpen(false);
+        setAssignmentToDeleteId(null);
+    }
   };
 
   const handleOpenSuggestTerritoryDialog = (groupAssignment: GroupAssignment) => {
@@ -224,38 +253,47 @@ export default function MiGrupoProgramaPage() {
     setIsSuggestTerritoryDialogOpen(true);
   };
 
-  const handleTerritorySelectedForAssignment = (
+  const handleTerritorySelectedForAssignment = async (
     selectedTerritory: AdditionalTerritoryInfo,
     groupAssignmentContext: GroupAssignment
   ) => {
-    setGroupAssignments(prev =>
-      prev.map(ga =>
-        ga.id === groupAssignmentContext.id
-          ? { ...ga, assignedTerritoryId: selectedTerritory.id, assignedTerritoryName: selectedTerritory.name }
-          : ga
-      )
-    );
+    if (!userProfile?.firebaseAuthUid) return;
 
-    const newUserAssignment = {
-      id: crypto.randomUUID(),
-      date: groupAssignmentContext.date,
-      time: groupAssignmentContext.time,
-      type: selectedTerritory.type === 'urban' ? 'publica' : 'rural' as PreachingType,
-      locationName: selectedTerritory.name,
-      locationId: selectedTerritory.id,
-      status: 'accepted' as const,
-      assignedBy: `SG: ${userProfile?.name || 'Desconocido'}`,
-      userId: groupAssignmentContext.captainUserId,
-      userName: groupAssignmentContext.captainName,
-      notes: `Territorio asignado por SG para la salida de grupo. ${groupAssignmentContext.notes || ''}`.trim(),
-    };
+    const docRef = doc(db, "groupAssignments", groupAssignmentContext.id);
+    
+    try {
+        await updateDoc(docRef, {
+            assignedTerritoryId: selectedTerritory.id,
+            assignedTerritoryName: selectedTerritory.name,
+            updatedAt: Timestamp.now(),
+            updatedBy: userProfile.firebaseAuthUid
+        });
 
-    console.log("Simulando creación de UserAssignment:", newUserAssignment);
-    toast({
-      title: "Territorio Asignado al Grupo",
-      description: `El territorio "${selectedTerritory.name}" ha sido asignado a ${groupAssignmentContext.captainName} para la salida del ${groupAssignmentContext.date} a las ${groupAssignmentContext.time}. Se creó una asignación individual para el reporte.`,
-      duration: 7000,
-    });
+        const newUserAssignment = {
+          id: crypto.randomUUID(),
+          date: groupAssignmentContext.date,
+          time: groupAssignmentContext.time,
+          type: selectedTerritory.type === 'urban' ? 'publica' : 'rural' as PreachingType,
+          locationName: selectedTerritory.name,
+          locationId: selectedTerritory.id,
+          status: 'accepted' as const,
+          assignedBy: `SG: ${userProfile?.name || 'Desconocido'}`,
+          userId: groupAssignmentContext.captainUserId,
+          userName: groupAssignmentContext.captainName,
+          notes: `Territorio asignado por SG para la salida de grupo. ${groupAssignmentContext.notes || ''}`.trim(),
+        };
+
+        console.log("Simulando creación de UserAssignment:", newUserAssignment);
+        toast({
+          title: "Territorio Asignado al Grupo",
+          description: `El territorio "${selectedTerritory.name}" ha sido asignado a ${groupAssignmentContext.captainName}.`,
+          duration: 7000,
+        });
+
+    } catch (error) {
+        console.error("Error updating group assignment with territory:", error);
+        toast({ title: "Error al Asignar", description: "No se pudo guardar el territorio en la asignación.", variant: "destructive" });
+    }
 
     setIsSuggestTerritoryDialogOpen(false);
     setAssignmentForTerritorySuggestion(null);
@@ -563,3 +601,5 @@ export default function MiGrupoProgramaPage() {
     </TooltipProvider>
   );
 }
+
+    

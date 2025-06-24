@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 import type { UserRole, PermissionId } from '@/lib/constants';
 
@@ -237,7 +238,7 @@ export interface GroupAssignment {
   id: string;
   groupId: string;
   date: string; // YYYY-MM-DD
-  preachingType: PreachingType; // Corrected from PreachingAssignedType, this is for group planning
+  preachingType: PreachingType;
   time: string; // HH:MM
   captainUserId: string;
   captainName?: string;
@@ -248,6 +249,8 @@ export interface GroupAssignment {
   notes?: string;
   createdAt: Timestamp;
   createdBy: string;
+  updatedAt?: Timestamp;
+  updatedBy?: string;
 }
 
 // --- Notifications ---
@@ -292,3 +295,5 @@ export interface Report {
   campaigns: CampaignAssignmentInReport[];
   completedCurrentCycle: string; // "dd/MM/yyyy", "En curso", or "Disponible"
 }
+
+    
