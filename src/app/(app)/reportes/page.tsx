@@ -386,7 +386,7 @@ export default function ReportesPage() {
                     </CardDescription>
                   </div>
                   <Button variant="outline" onClick={handleExportS13} size="sm" disabled={isLoading}>
-                    <FileDown className="mr-2 h-4 w-4" /> Exportar S-13 a CSV
+                    <FileDown className="mr-2 h-4 w-4" /> Exportar S-13
                   </Button>
               </div>
             </CardHeader>
