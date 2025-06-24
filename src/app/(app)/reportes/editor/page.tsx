@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES, PERMISSIONS } from "@/lib/constants";
-import { AlertTriangle, Edit, Loader2, FileText, History } from "lucide-react";
+import { AlertTriangle, Edit, Loader2, FileText, History, PlusCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { collection, query, where, onSnapshot, doc, getDoc, writeBatch, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -31,6 +31,9 @@ export default function EditorHistorialPage() {
   const [assignmentToEdit, setAssignmentToEdit] = useState<Assignment | null>(null);
   const [territoryForDialog, setTerritoryForDialog] = useState<Territory | null>(null);
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+
+  // State for the new dialog (Step 1)
+  const [isAddHistoricalDialogOpen, setIsAddHistoricalDialogOpen] = useState(false);
   
   useEffect(() => {
     setIsLoadingTerritories(true);
@@ -199,10 +202,21 @@ export default function EditorHistorialPage() {
       {selectedTerritoryId && (
         <Card>
           <CardHeader>
-            <CardTitle>Paso 2: Historial de Asignaciones</CardTitle>
-            <CardDescription>
-              Mostrando reportes para el territorio seleccionado. Haz clic en Editar para modificar un reporte.
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+              <div>
+                <CardTitle>Paso 2: Historial de Asignaciones</CardTitle>
+                <CardDescription>
+                  Mostrando reportes para el territorio seleccionado. Edita o añade registros históricos.
+                </CardDescription>
+              </div>
+              <Button
+                onClick={() => setIsAddHistoricalDialogOpen(true)}
+                disabled={!selectedTerritoryId}
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Añadir Registro
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoadingAssignments ? (
