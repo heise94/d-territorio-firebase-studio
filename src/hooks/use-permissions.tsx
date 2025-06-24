@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
@@ -69,9 +70,9 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       // --- START SIMULATION BLOCK FOR DEVELOPMENT ---
       if (process.env.NODE_ENV === 'development') {
         if (authUser.email === 'javih.jw@gmail.com') {
-          const devAdminProfile = {
+          const devAdminProfile: UserProfile = {
             id: 'dev-admin-javih', name: 'Javier (Admin Dev)', email: 'javih.jw@gmail.com',
-            role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo' as const, firebaseAuthUid: authUser.uid,
+            phoneNumber: '+10000000000', role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo' as const, firebaseAuthUid: authUser.uid, adminApprovalStatus: 'approved',
           };
           setActualUserProfile(devAdminProfile);
           // Fetch role permissions for admin, then set loading to false
@@ -91,9 +92,9 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
           });
           return;
         } else if (authUser.uid === 'uidElena') {
-          const devSgProfile = {
+          const devSgProfile: UserProfile = {
             id: 'dev-sg-elena', name: 'Elena Campos (SG Dev)', email: 'elena.campos.dev@example.com',
-            role: USER_ROLES.SG, status: 'Activo' as const, firebaseAuthUid: authUser.uid, assignedGroupId: 'G1',
+            phoneNumber: '+10000000001', role: USER_ROLES.SG, status: 'Activo' as const, firebaseAuthUid: authUser.uid, assignedGroupId: 'G1', adminApprovalStatus: 'approved',
           };
           setActualUserProfile(devSgProfile);
           const rolePermissionsDocRefSG = doc(db, "settings", "rolePermissions");

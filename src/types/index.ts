@@ -1,6 +1,9 @@
 
+
 import type { Timestamp } from 'firebase/firestore';
 import type { UserRole, PermissionId } from '@/lib/constants';
+
+export type { UserRole };
 
 export interface UserProfile {
   id: string; // doc ID from Firestore

@@ -1,4 +1,5 @@
 
+
 export const USER_ROLES = {
   ENCARGADO_TERRITORIO: "Encargado Territorio",
   PUBLICADOR: "Publicador",
@@ -36,6 +37,7 @@ export const PERMISSIONS = {
   MANAGE_GROUPS: "manage_groups", // CRUD for preaching groups
   VIEW_GROUPS: "view_groups",
   MANAGE_OWN_GROUP_PROGRAM: "manage_own_group_program", // For SG/Aux in /mi-grupo/programa
+  MANAGE_OWN_GROUP_PUBLISHERS: "manage_own_group_publishers", // Added permission
 
   // Program Management (Monthly/Weekly)
   GENERATE_MONTHLY_PROGRAM: "generate_monthly_program", // AI generation
