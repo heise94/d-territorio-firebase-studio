@@ -9,11 +9,12 @@ import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon
 import { useToast } from "@/hooks/use-toast";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse, isAfter, isBefore as isBeforeDateFns } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek, CustomHoliday, TerritoryType, AdditionalTerritoryInfo, UserProfile } from "@/types";
+import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek, CustomHoliday, TerritoryType, AdditionalTerritoryInfo, UserProfile, SettingsDoc } from "@/types";
 import { AddGroupAssignmentDialog, type GroupAssignmentSubmitDataType } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
 import { SuggestTerritoryForGroupAssignmentDialog } from "@/components/mi-grupo/programa/suggest-territory-for-group-assignment-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, collection, doc, onSnapshot, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { USER_ROLES } from "@/lib/constants";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -25,54 +26,6 @@ const months = Array.from({ length: 12 }, (_, i) => ({
   value: i,
   label: format(new Date(currentYear, i), "MMMM", { locale: es }),
 }));
-
-// MOCK DATA - Consolidated list of users for demonstration
-const MOCK_ALL_PUBLISHERS_DATA: UserProfile[] = [
-    // Special Roles
-    { id: "uidAdmin", name: "Pedro Velez (Admin)", email: "admin@example.com", phoneNumber: "+56955555555", availability: { availableSlotIds: ["sat-1000-gen"] }, role: USER_ROLES.ENCARGADO_TERRITORIO, status: "Activo", firebaseAuthUid: "uidAdmin", adminApprovalStatus: "approved" },
-    { id: "uidSG1", name: "Sofía Castro (SG G1)", email: "sg1@example.com", phoneNumber: "+56966666666", availability: { availableSlotIds: ["fri-1000-gen", "sun-1500-zoom"] }, assignedGroupId: "G1", role: USER_ROLES.SG, status: "Activo", firebaseAuthUid: "uidSG1", adminApprovalStatus: "approved" },
-    { id: "uidAux2", name: "Laura Nuñez (Auxiliar G2)", email: "aux2@example.com", phoneNumber: "+56988888888", availability: { availableSlotIds: ["wed-0930-gen"] }, assignedGroupId: "G2", role: USER_ROLES.AUXILIAR_TERRITORIO, status: "Activo", firebaseAuthUid: "uidAux2", adminApprovalStatus: "approved" },
-    // Publishers from historical data
-    { id: "uidPub1", name: "Camilo Torres", email: "camilo.torres@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub1", adminApprovalStatus: "approved" },
-    { id: "uidPub2", name: "Edison Díaz", email: "edison.diaz@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub2", adminApprovalStatus: "approved" },
-    { id: "uidPub3", name: "Robert Guale", email: "robert.guale@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub3", adminApprovalStatus: "approved" },
-    { id: "uidPub4", name: "Esteban Vásquez", email: "esteban.vasquez@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub4", adminApprovalStatus: "approved" },
-    { id: "uidPub5", name: "Carlos Heise", email: "carlos.heise@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub5", adminApprovalStatus: "approved" },
-    { id: "uidPub6", name: "Jimmy Guale", email: "jimmy.guale@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub6", adminApprovalStatus: "approved" },
-    { id: "uidPub7", name: "Gonzalo Heise", email: "gonzalo.heise@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub7", adminApprovalStatus: "approved" },
-    { id: "uidPub8", name: "Ricardo Salas", email: "ricardo.salas@example.com", phoneNumber: "", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub8", adminApprovalStatus: "approved" },
-    { id: "uidPub9", name: "Rolando Alarcón", email: "rolando.alarcon@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub9", adminApprovalStatus: "approved" },
-    { id: "uidPub10", name: "Jonatan Palma", email: "jonatan.palma@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub10", adminApprovalStatus: "approved" },
-    { id: "uidPub11", name: "Cristian Pichinao", email: "cristian.pichinao@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub11", adminApprovalStatus: "approved" },
-    { id: "uidPub12", name: "Diego Henríquez", email: "diego.henriquez@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub12", adminApprovalStatus: "approved" },
-    { id: "uidPub13", name: "Cristian Coronado", email: "cristian.coronado@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub13", adminApprovalStatus: "approved" },
-    { id: "uidPub14", name: "Carlos Sepúlveda", email: "carlos.sepulveda@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub14", adminApprovalStatus: "approved" },
-    { id: "uidPub15", name: "Omar Salas", email: "omar.salas@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub15", adminApprovalStatus: "approved" },
-    { id: "uidPub16", name: "Javier Heise", email: "javier.heise@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub16", adminApprovalStatus: "approved" },
-    { id: "uidPub17", name: "Mauricio Flores", email: "mauricio.flores@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub17", adminApprovalStatus: "approved" },
-    { id: "uidPub18", name: "Nelsón Muci", email: "nelson.muci@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub18", adminApprovalStatus: "approved" },
-    { id: "uidPub19", name: "Martín Sandoval", email: "martin.sandoval@example.com", phoneNumber: "", availability: {}, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidPub19", adminApprovalStatus: "approved" },
-];
-
-
-const MOCK_GROUP_CASAS: Casa[] = [
-    { id: "casaG1-A", ownerName: "Familia Pérez (G1)", address: "Calle Sol 123, G1", isBlocked: false, createdAt: Timestamp.now(), updatedAt: Timestamp.now(), addedByGroupId: "G1" },
-    { id: "casaG1-B", ownerName: "Hna. Ana (G1)", address: "Av. Luna 456, G1", isBlocked: false, createdAt: Timestamp.now(), updatedAt: Timestamp.now(), addedByGroupId: "G1" },
-    { id: "casaG2-A", ownerName: "Familia Díaz (G2)", address: "Pasaje Estrella 789, G2", isBlocked: false, createdAt: Timestamp.now(), updatedAt: Timestamp.now(), addedByGroupId: "G2" },
-];
-
-const MOCK_ALL_GROUPS_FOR_ADMIN_SELECT: Pick<PreachingGroup, 'id' | 'name'>[] = [
-    { id: 'G1', name: 'Grupo Los Pioneros' },
-    { id: 'G2', name: 'Grupo Betel' },
-    { id: 'G3', name: 'Grupo Emanuel' },
-];
-
-const MOCK_GROUP_ORGANIZED_DAYS: DayOfWeek[] = ['saturday', 'sunday']; 
-
-const MOCK_CUSTOM_HOLIDAYS: CustomHoliday[] = [
-    { id: "h1", name: "Año Nuevo", date: Timestamp.fromDate(new Date(new Date().getFullYear(), 0, 1)), createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-    { id: "h4", name: "Festivo de Prueba", date: Timestamp.fromDate(new Date(new Date().getFullYear(), new Date().getMonth(), 15)), createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-];
 
 
 const DAY_OF_WEEK_MAP_NUM_TO_KEY: Record<number, DayOfWeek> = {
@@ -95,7 +48,6 @@ export default function MiGrupoProgramaPage() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [groupAssignments, setGroupAssignments] = useState<GroupAssignment[]>([]);
   const [isAddAssignmentDialogOpen, setIsAddAssignmentDialogOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); 
   const { toast } = useToast();
   const { userProfile, isLoadingPermissions } = usePermissions();
   const [adminSelectedGroupId, setAdminSelectedGroupId] = useState<string | null>(null);
@@ -107,6 +59,73 @@ export default function MiGrupoProgramaPage() {
   
   const [isSuggestTerritoryDialogOpen, setIsSuggestTerritoryDialogOpen] = useState(false);
   const [assignmentForTerritorySuggestion, setAssignmentForTerritorySuggestion] = useState<GroupAssignment | null>(null);
+  
+  // Data states
+  const [allPublishers, setAllPublishers] = useState<UserProfile[]>([]);
+  const [allCasas, setAllCasas] = useState<Casa[]>([]);
+  const [allGroups, setAllGroups] = useState<PreachingGroup[]>([]);
+  const [groupOrganizedDays, setGroupOrganizedDays] = useState<DayOfWeek[]>([]);
+  const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
+
+  // Loading states
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch data from Firestore
+  useEffect(() => {
+    if (!db || Object.keys(db).length === 0) {
+      toast({ title: "Error", description: "La base de datos no está disponible.", variant: "destructive" });
+      setIsLoading(false);
+      return;
+    }
+    
+    setIsLoading(true);
+
+    const unsubscribers: (() => void)[] = [];
+
+    // Fetch Users
+    const usersQuery = query(collection(db, "users"), where("status", "==", "Activo"));
+    unsubscribers.push(onSnapshot(usersQuery, (snapshot) => {
+        setAllPublishers(snapshot.docs.map(d => ({id: d.id, ...d.data()} as UserProfile)));
+    }));
+
+    // Fetch Casas
+    const casasQuery = query(collection(db, "casas"), where("isBlocked", "==", false));
+    unsubscribers.push(onSnapshot(casasQuery, (snapshot) => {
+        setAllCasas(snapshot.docs.map(d => ({id: d.id, ...d.data()} as Casa)));
+    }));
+
+    // Fetch Groups
+    const groupsQuery = query(collection(db, "preachingGroups"));
+    unsubscribers.push(onSnapshot(groupsQuery, (snapshot) => {
+        setAllGroups(snapshot.docs.map(d => ({id: d.id, ...d.data()} as PreachingGroup)));
+    }));
+
+    // Fetch Settings
+    const programConfigRef = doc(db, "settings", "programConfig");
+    unsubscribers.push(onSnapshot(programConfigRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const settings = docSnap.data() as SettingsDoc;
+            setGroupOrganizedDays(settings.groupOrganizedDays || []);
+        }
+    }));
+
+    const eventsConfigRef = doc(db, "settings", "specialEventsConfig");
+    unsubscribers.push(onSnapshot(eventsConfigRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const settings = docSnap.data() as SettingsDoc;
+            const holidays = (settings.holidaysList || []).map(h => ({ ...h, date: (h.date as Timestamp).toDate()}));
+            setCustomHolidays(holidays);
+        }
+    }));
+    
+    // Once all initial listeners are set up, we can consider it loaded.
+    // A more robust solution might use Promise.all with getDocs for initial load, then onSnapshot.
+    const loadingTimer = setTimeout(() => setIsLoading(false), 1500); // Give snapshots a moment to fire
+    unsubscribers.push(() => clearTimeout(loadingTimer));
+
+    return () => unsubscribers.forEach(unsub => unsub());
+
+  }, [toast]);
 
 
   const currentGroupId = useMemo(() => {
@@ -118,24 +137,25 @@ export default function MiGrupoProgramaPage() {
 
   const currentGroupPublishers = useMemo(() => {
     if (!currentGroupId) return [];
-    return MOCK_ALL_PUBLISHERS_DATA.filter(p => p.assignedGroupId === currentGroupId);
-  }, [currentGroupId]);
+    return allPublishers.filter(p => p.assignedGroupId === currentGroupId);
+  }, [currentGroupId, allPublishers]);
 
   const currentGroupCasas = useMemo(() => {
     if (!currentGroupId) return [];
-    return MOCK_GROUP_CASAS.filter(c => c.addedByGroupId === currentGroupId);
-  }, [currentGroupId]);
+    return allCasas.filter(c => c.addedByGroupId === currentGroupId);
+  }, [currentGroupId, allCasas]);
 
   useEffect(() => {
-    if (userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !adminSelectedGroupId && MOCK_ALL_GROUPS_FOR_ADMIN_SELECT.length > 0) {
+    if (userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !adminSelectedGroupId && allGroups.length > 0) {
       // Optional: auto-select first group for admin or leave as is to force selection
-      // setAdminSelectedGroupId(MOCK_ALL_GROUPS_FOR_ADMIN_SELECT[0].id);
+      // setAdminSelectedGroupId(allGroups[0].id);
     }
-  }, [userProfile?.role, adminSelectedGroupId]);
+  }, [userProfile?.role, adminSelectedGroupId, allGroups]);
 
 
   useEffect(() => {
     if (currentGroupId) {
+        // TODO: In Step 2, fetch groupAssignments from Firestore for this group and month/year
         console.log(`Displaying assignments for group ${currentGroupId}, month ${selectedMonth}, year ${selectedYear}`);
     }
   }, [selectedMonth, selectedYear, currentGroupId]);
@@ -163,13 +183,11 @@ export default function MiGrupoProgramaPage() {
         prev.map(assign =>
           assign.id === submittedData.id
             ? { 
-                ...assign, // Spread existing fields first
-                ...submittedData, // Then overwrite with submitted data
-                // Ensure fields not in SubmittedDialogData but in GroupAssignment are preserved or set
+                ...assign, 
+                ...submittedData,
                 groupId: currentGroupId, 
                 updatedAt: Timestamp.now(),
-                // assignedTerritoryId and assignedTerritoryName would be updated via suggest territory dialog
-              } as GroupAssignment // Cast might be needed if types are very specific
+              } as GroupAssignment
             : assign
         ).sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time))
       );
@@ -181,7 +199,6 @@ export default function MiGrupoProgramaPage() {
         groupId: currentGroupId,
         createdAt: Timestamp.now(),
         createdBy: userProfile.firebaseAuthUid,
-        // assignedTerritoryId and assignedTerritoryName will be added by suggest territory flow
       };
       setGroupAssignments(prev => [...prev, assignmentToAdd].sort((a,b) => parse(a.date, 'yyyy-MM-dd', new Date()).getTime() - parse(b.date, 'yyyy-MM-dd', new Date()).getTime() || a.time.localeCompare(b.time)));
       toast({ title: "Asignación Creada", description: "La nueva asignación ha sido creada." });
@@ -305,10 +322,10 @@ export default function MiGrupoProgramaPage() {
 
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => new Date(selectedYear, selectedMonth, i + 1));
 
-  const selectedGroupName = MOCK_ALL_GROUPS_FOR_ADMIN_SELECT.find(g => g.id === currentGroupId)?.name;
+  const selectedGroupName = allGroups.find(g => g.id === currentGroupId)?.name;
   const pageTitle = isAdminView
     ? `Programa del Grupo ${selectedGroupName ? `- ${selectedGroupName}` : '(Seleccione un grupo)'}`
-    : `Programa de Mi Grupo ${userProfile?.assignedGroupId && !selectedGroupName ? `(${MOCK_ALL_GROUPS_FOR_ADMIN_SELECT.find(g => g.id === userProfile.assignedGroupId)?.name || userProfile.assignedGroupId})` : selectedGroupName ? `(${selectedGroupName})` : ''}`;
+    : `Programa de Mi Grupo ${userProfile?.assignedGroupId && !selectedGroupName ? `(${allGroups.find(g => g.id === userProfile.assignedGroupId)?.name || userProfile.assignedGroupId})` : selectedGroupName ? `(${selectedGroupName})` : ''}`;
 
 
   return (
@@ -336,7 +353,7 @@ export default function MiGrupoProgramaPage() {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="NONE">Ninguno (Seleccione un grupo)</SelectItem>
-                        {MOCK_ALL_GROUPS_FOR_ADMIN_SELECT.map(group => (
+                        {allGroups.map(group => (
                         <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
                         ))}
                     </SelectContent>
@@ -374,7 +391,7 @@ export default function MiGrupoProgramaPage() {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-              <p className="text-lg font-medium text-muted-foreground">Cargando asignaciones...</p>
+              <p className="text-lg font-medium text-muted-foreground">Cargando datos...</p>
             </div>
           ) : !currentGroupId && isAdminView ? (
              <div className="flex flex-col items-center justify-center py-20 text-center bg-muted/20 rounded-lg border border-dashed">
@@ -398,12 +415,10 @@ export default function MiGrupoProgramaPage() {
                                           .sort((a,b) => a.time.localeCompare(b.time));
                   const isToday = isSameDay(day, new Date());
                   const dayOfWeekKey = DAY_OF_WEEK_MAP_NUM_TO_KEY[getDay(day)];
-                  const isAuthorizedDayForGroup = MOCK_GROUP_ORGANIZED_DAYS.includes(dayOfWeekKey);
+                  const isAuthorizedDayForGroup = groupOrganizedDays.includes(dayOfWeekKey);
                   const isPastDay = isBeforeDateFns(day, new Date()) && !isSameDay(day, new Date());
                   
-                  const holidayForDay = MOCK_CUSTOM_HOLIDAYS.find(h => 
-                    isSameDay(h.date instanceof Timestamp ? h.date.toDate() : h.date, day)
-                  );
+                  const holidayForDay = customHolidays.find(h => isSameDay(h.date, day));
                   
                   const canAddAssignment = isAuthorizedDayForGroup && !isPastDay && currentGroupId; 
 
@@ -512,7 +527,7 @@ export default function MiGrupoProgramaPage() {
             currentYear={selectedYear}
             groupPublishers={currentGroupPublishers}
             groupCasas={currentGroupCasas}
-            groupOrganizedDays={MOCK_GROUP_ORGANIZED_DAYS}
+            groupOrganizedDays={groupOrganizedDays}
             assignmentToEdit={assignmentToEdit}
             initialDate={initialDateForDialog}
         />
