@@ -9,7 +9,11 @@ export interface UserProfile {
   phoneNumber: string;
   role: UserRole;
   status: 'Activo' | 'Bloqueado' | 'Pendiente Aprobación Admin' | 'Pendiente Invitación';
-  blockReason?: string;
+  blockInfo?: {
+    forSystem: boolean;
+    forGroup: boolean;
+    reason?: string;
+  };
   assignedGroupId?: string; // FK to preachingGroups
   firebaseAuthUid?: string; // UID from Firebase Auth
   isBlockedForGeneralAI?: boolean;
@@ -31,6 +35,8 @@ export interface PublisherDetail {
   };
   assignedGroupId?: string;
   firebaseAuthUid?: string; // UID from Firebase Authentication
+  status?: 'Activo' | 'Bloqueado'; // Add status to PublisherDetail
+  blockInfo?: { forSystem: boolean; forGroup: boolean; reason?: string }; // Add blockInfo
 }
 
 
@@ -119,8 +125,11 @@ export interface Casa {
   address: string;
   phoneNumber?: string;
   availableDays?: CasaAvailability;
-  isBlocked: boolean;
-  blockReason?: string;
+  blockInfo?: {
+    forSystem: boolean;
+    forGroup: boolean;
+    reason?: string;
+  };
   notes?: string;
   notesForSS?: string;
   isSuitableForRural?: boolean;
@@ -295,5 +304,3 @@ export interface Report {
   campaigns: CampaignAssignmentInReport[];
   completedCurrentCycle: string; // "dd/MM/yyyy", "En curso", or "Disponible"
 }
-
-    

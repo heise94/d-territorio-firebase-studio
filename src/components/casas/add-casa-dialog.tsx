@@ -85,7 +85,7 @@ const PreachingTypeIconDialog = ({ type, className }: { type: PreachingType, cla
 interface AddCasaDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onCasaSubmit: (casa: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] }) => void;
+  onCasaSubmit: (casa: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] }) => void;
   casaToEdit?: Casa | null;
   availableGroups: PreachingGroup[];
   programScheduleSlots: ProgramScheduleSlot[]; 
@@ -175,11 +175,10 @@ export function AddCasaDialog({
   async function onSubmit(values: CasaFormValues) {
     setIsSubmitting(true);
 
-    const submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] } = {
+    const submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] } = {
       id: isEditMode && casaToEdit ? casaToEdit.id : crypto.randomUUID(),
       ownerName: values.ownerName,
       address: values.address,
-      isBlocked: isEditMode && casaToEdit ? casaToEdit.isBlocked : false, 
       createdAt: isEditMode && casaToEdit ? casaToEdit.createdAt : Timestamp.now(),
       updatedAt: Timestamp.now(),
       selectedNearbyTerritoryIds: values.selectedNearbyTerritoryIds || [],
@@ -220,8 +219,8 @@ export function AddCasaDialog({
       reason: p.reason || undefined,
     }));
 
-    if (isEditMode && casaToEdit && casaToEdit.isBlocked && casaToEdit.blockReason) {
-        submittedCasaData.blockReason = casaToEdit.blockReason;
+    if (isEditMode && casaToEdit && casaToEdit.blockInfo) {
+        submittedCasaData.blockInfo = casaToEdit.blockInfo;
     }
     
     onCasaSubmit(submittedCasaData);
@@ -399,7 +398,7 @@ export function AddCasaDialog({
                     <DropdownMenuTrigger asChild>
                       <FormControl>
                         <Button variant="outline" className="w-full justify-between" disabled={availableTerritories.length === 0}>
-                          {getSelectedTerritoriesText(field.value)}
+                          {getSelectedTerritoriesText(field.value, availableTerritories.map(t => ({id: t.id, name: t.number ? `U-${t.number}` : t.name})))}
                           <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
                         </Button>
                       </FormControl>
@@ -558,4 +557,3 @@ export function AddCasaDialog({
     </Dialog>
   );
 }
-

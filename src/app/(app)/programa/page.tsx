@@ -104,7 +104,7 @@ export default function ProgramaMensualPage() {
 
       const collectionsToFetch = {
         users: query(collection(db, "users"), where("status", "==", "Activo"), where("adminApprovalStatus", "==", "approved")),
-        casas: query(collection(db, "casas"), where("isBlocked", "==", false)),
+        casas: query(collection(db, "casas")),
         territories: query(collection(db, "territories"), where("isBlocked", "==", false)),
         preachingGroups: query(collection(db, "preachingGroups")),
       };
@@ -116,8 +116,8 @@ export default function ProgramaMensualPage() {
         getDocs(collectionsToFetch.preachingGroups),
       ]);
       
-      setPublishers(usersSnap.docs.map(d => ({ id: d.id, firebaseAuthUid: d.data().firebaseAuthUid || d.id, name: d.data().name, email: d.data().email, availability: d.data().availability || {}, assignedGroupId: d.data().assignedGroupId } as PublisherDetail)));
-      setCasas(casasSnap.docs.map(d => ({ id: d.id, ownerName: d.data().ownerName, address: d.data().address, unavailabilityPeriods: (d.data().unavailabilityPeriods || []).map((p: any) => ({ ...p, startDate: (p.startDate as Timestamp).toDate(), endDate: (p.endDate as Timestamp).toDate() })) } as Casa)));
+      setPublishers(usersSnap.docs.map(d => ({ ...d.data(), id: d.id, firebaseAuthUid: d.data().firebaseAuthUid || d.id } as PublisherDetail)));
+      setCasas(casasSnap.docs.map(d => ({ ...d.data(), id: d.id } as Casa)));
       setTerritories(territoriesSnap.docs.map(d => ({ id: d.id, ...d.data() } as Territory)));
       setPreachingGroups(groupsSnap.docs.map(d => ({ id: d.id, ...d.data() } as PreachingGroup)));
 
@@ -156,6 +156,10 @@ export default function ProgramaMensualPage() {
         processedAvailableDays[slot.dayOfWeek].push({startTime: slot.startTime, type: slot.type});
     });
     
+    // Filter publishers and casas based on their block status for the system
+    const availablePublishersForAI = publishers.filter(p => p.status !== 'Bloqueado' || !(p.blockInfo?.forSystem));
+    const availableCasasForAI = casas.filter(c => !c.blockInfo || !c.blockInfo.forSystem);
+
     const input: GenerateMonthlyAssignmentsInput = {
       year: selectedYear,
       month: selectedMonth, 
@@ -164,8 +168,8 @@ export default function ProgramaMensualPage() {
       availableDaysWithTimeSlots: processedAvailableDays,
       groupPreachingDays: groupOrganizedDays,
 
-      publisherDetailedAvailabilities: publishers.map(p => ({ id: p.firebaseAuthUid || p.id, name: p.name })),
-      availableCasas: casas.map(c => ({ 
+      publisherDetailedAvailabilities: availablePublishersForAI.map(p => ({ id: p.firebaseAuthUid || p.id, name: p.name })),
+      availableCasas: availableCasasForAI.map(c => ({ 
           id: c.id, 
           name: c.ownerName, 
           address: c.address,

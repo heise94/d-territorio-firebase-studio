@@ -22,6 +22,12 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES } from "@/lib/constants";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormDescription as FormFieldDescription } from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
 
 const DAY_ORDER_AVAILABILITY: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -46,6 +52,17 @@ const PreachingTypeIconSmall = ({ type, className }: { type: PreachingType, clas
   if (type === 'rural') return <MountainSnow className={combinedClass} />;
   return null;
 };
+
+const blockCasaFormSchema = z.object({
+  forSystem: z.boolean().default(false),
+  forGroup: z.boolean().default(false),
+  reason: z.string().max(200, "Máximo 200 caracteres.").optional(),
+}).refine(data => data.forSystem || data.forGroup, {
+  message: "Debes seleccionar al menos un tipo de bloqueo.",
+  path: ["forSystem"], // You can point to any of the checkboxes
+});
+
+type BlockCasaFormValues = z.infer<typeof blockCasaFormSchema>;
 
 
 function formatAvailability(availableSlotIds?: string[], allSlots?: ProgramScheduleSlot[]): string {
@@ -111,10 +128,9 @@ export default function CasasPage() {
   const [availableTerritories, setAvailableTerritories] = useState<Territory[]>([]);
   const [isLoadingTerritories, setIsLoadingTerritories] = useState(true);
 
-  const [isBlockReasonCasaDialogOpen, setIsBlockReasonCasaDialogOpen] = useState(false);
+  const [isBlockCasaDialogOpen, setIsBlockCasaDialogOpen] = useState(false);
   const [casaToBlock, setCasaToBlock] = useState<Casa | null>(null);
-  const [blockReasonCasa, setBlockReasonCasa] = useState("");
-
+  
   const [filterGroupId, setFilterGroupId] = useState<string>("ALL_GROUPS");
   const [filterStatus, setFilterStatus] = useState<string>("all"); 
   const [filterAvailabilityDay, setFilterAvailabilityDay] = useState<string>("ALL_DAYS"); 
@@ -122,6 +138,11 @@ export default function CasasPage() {
   const [filterSuitableForRural, setFilterSuitableForRural] = useState<string>("all"); 
   
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  const blockForm = useForm<BlockCasaFormValues>({
+    resolver: zodResolver(blockCasaFormSchema),
+    defaultValues: { forSystem: false, forGroup: false, reason: "" },
+  });
 
   const nonZoomProgramSlots = useMemo(() => {
     return programScheduleSlots.filter(slot => slot.type !== 'zoom');
@@ -244,6 +265,14 @@ export default function CasasPage() {
     }
   }, [isCasaDialogOpen]);
 
+  useEffect(() => {
+    if (isBlockCasaDialogOpen && casaToBlock) {
+      blockForm.reset(casaToBlock.blockInfo || { forSystem: false, forGroup: false, reason: "" });
+    } else {
+      blockForm.reset({ forSystem: false, forGroup: false, reason: "" });
+    }
+  }, [isBlockCasaDialogOpen, casaToBlock, blockForm]);
+
   const handleOpenAddDialog = () => {
     setCasaToEdit(null);
     setIsCasaDialogOpen(true);
@@ -255,40 +284,24 @@ export default function CasasPage() {
   };
 
   const handleCasaSubmit = async (
-    submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'isBlocked' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] }
+    submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] }
   ) => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error de Base de Datos", description: "No se pudo conectar.", variant: "destructive" });
       return;
     }
     
-    // `casaToEdit` (from CasasPage state) determines if this was an edit operation initiated from the page.
     const isActualEditOperation = !!casaToEdit; 
-    const casaIdToUse = submittedCasaData.id; // The dialog ensures this ID is correct (new or existing).
+    const casaIdToUse = submittedCasaData.id; 
 
     const dataForCasaDoc: { [key: string]: any } = {
         id: casaIdToUse,
         ownerName: submittedCasaData.ownerName,
         address: submittedCasaData.address,
-        isBlocked: submittedCasaData.isBlocked, // This is from the dialog submission.
         updatedAt: Timestamp.now(),
-        createdAt: submittedCasaData.createdAt, // Dialog ensures this is original if edit, or new if add.
+        createdAt: submittedCasaData.createdAt,
     };
     
-    // Handle blockReason based on whether it's an edit of an already blocked casa.
-    // The AddCasaDialog itself doesn't manage blockReason.
-    if (submittedCasaData.isBlocked) {
-        if (isActualEditOperation && casaToEdit?.isBlocked && casaToEdit.blockReason) {
-            dataForCasaDoc.blockReason = casaToEdit.blockReason; // Preserve existing reason if editing other fields.
-        } else {
-            // If newly blocked (or reason was cleared if that were possible via dialog), don't set a reason here.
-            // The explicit block/unblock dialog is responsible for setting/clearing the reason.
-            dataForCasaDoc.blockReason = deleteField(); 
-        }
-    } else {
-        dataForCasaDoc.blockReason = deleteField();
-    }
-
     const optionalFields: (keyof Casa)[] = ['phoneNumber', 'notes', 'notesForSS', 'addedByGroupId', 'isSuitableForRural', 'lastVisitedAt'];
     optionalFields.forEach(key => {
         const K = key as keyof typeof submittedCasaData;
@@ -326,7 +339,6 @@ export default function CasasPage() {
     const casaDocRef = doc(db, "casas", casaIdToUse);
     batch.set(casaDocRef, dataForCasaDoc, { merge: true });
 
-    // Territory synchronization logic
     const newSelectedTerritoryIds = new Set(submittedCasaData.selectedNearbyTerritoryIds || []);
     
     availableTerritories.forEach(terr => {
@@ -362,7 +374,7 @@ export default function CasasPage() {
         title: isActualEditOperation ? "Casa Actualizada" : "Casa Añadida",
         description: `La casa de ${submittedCasaData.ownerName} ha sido ${isActualEditOperation ? 'actualizada' : 'guardada'}. Territorios cercanos sincronizados.`,
       });
-      setIsCasaDialogOpen(false); // This will trigger useEffect to setCasaToEdit(null)
+      setIsCasaDialogOpen(false); 
     } catch (error) {
       console.error("Error saving casa and updating territories:", error);
       toast({ title: "Error al Guardar", description: "No se pudo guardar la casa o sincronizar los territorios.", variant: "destructive" });
@@ -400,42 +412,43 @@ export default function CasasPage() {
     }
   };
 
-  const handleOpenBlockReasonCasaDialog = (casa: Casa) => {
+  const handleOpenBlockCasaDialog = (casa: Casa) => {
     setCasaToBlock(casa);
-    setBlockReasonCasa(casa.blockReason || "");
-    setIsBlockReasonCasaDialogOpen(true);
+    setIsBlockCasaDialogOpen(true);
   };
-
-  const confirmToggleBlockCasa = async () => {
-    if (!casaToBlock || !db || Object.keys(db).length === 0) return;
-
-    const newBlockStatus = !casaToBlock.isBlocked;
-    const updateData: { isBlocked: boolean; updatedAt: Timestamp; blockReason?: any } = {
-      isBlocked: newBlockStatus,
-      updatedAt: Timestamp.now(),
-    };
-
-    if (newBlockStatus) {
-      updateData.blockReason = blockReasonCasa.trim() ? blockReasonCasa.trim() : deleteField();
-    } else {
-      updateData.blockReason = deleteField();
-    }
-
+  
+  const handleUnblockCasa = async (casa: Casa) => {
+    if (!db || Object.keys(db).length === 0) return;
     try {
-      await updateDoc(doc(db, "casas", casaToBlock.id), updateData);
-      toast({
-        title: newBlockStatus ? "Casa Bloqueada" : "Casa Desbloqueada",
-        description: `La casa de ${casaToBlock.ownerName} ha sido ${newBlockStatus ? 'bloqueada' : 'desbloqueada'}.`
+      await updateDoc(doc(db, "casas", casa.id), {
+        blockInfo: deleteField(),
+        updatedAt: Timestamp.now(),
       });
+      toast({ title: "Casa Desbloqueada", description: `La casa de ${casa.ownerName} ha sido desbloqueada.` });
     } catch (error) {
-      console.error("Error toggling block status for casa:", error);
-      toast({ title: "Error al Actualizar", description: "No se pudo cambiar el estado de bloqueo de la casa.", variant: "destructive" });
-    } finally {
-      setIsBlockReasonCasaDialogOpen(false);
-      setCasaToBlock(null);
-      setBlockReasonCasa("");
+      toast({ title: "Error", description: "No se pudo desbloquear la casa.", variant: "destructive" });
     }
   };
+  
+  const onBlockCasaSubmit = async (values: BlockCasaFormValues) => {
+    if (!casaToBlock) return;
+    try {
+      await updateDoc(doc(db, "casas", casaToBlock.id), {
+        blockInfo: {
+          forSystem: values.forSystem,
+          forGroup: values.forGroup,
+          reason: values.reason || "",
+        },
+        updatedAt: Timestamp.now(),
+      });
+      toast({ title: "Casa Bloqueada", description: `La casa de ${casaToBlock.ownerName} ha sido bloqueada.` });
+    } catch (error) {
+      toast({ title: "Error", description: "No se pudo bloquear la casa.", variant: "destructive" });
+    } finally {
+      setIsBlockCasaDialogOpen(false);
+    }
+  };
+
 
   const filteredCasas = useMemo(() => {
     return casas.filter(casa => {
@@ -449,8 +462,8 @@ export default function CasasPage() {
         if (!groupMatch) return false;
 
         const statusMatch = filterStatus === "all" ||
-            (filterStatus === "available" && !casa.isBlocked) ||
-            (filterStatus === "blocked" && casa.isBlocked);
+            (filterStatus === "available" && !casa.blockInfo) ||
+            (filterStatus === "blocked" && !!casa.blockInfo);
         if (!statusMatch) return false;
         
         const ruralMatch = filterSuitableForRural === "all" ||
@@ -513,22 +526,14 @@ export default function CasasPage() {
               <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => {
-                      if (casa.isBlocked) { 
-                          setCasaToBlock(casa); 
-                          setBlockReasonCasa(casa.blockReason || ""); 
-                          confirmToggleBlockCasa(); 
-                      } else { 
-                          handleOpenBlockReasonCasaDialog(casa);
-                      }
-                  }}
-                  aria-label={casa.isBlocked ? "Desbloquear casa" : "Bloquear casa"}
-                  className={`h-8 w-8 ${!casa.isBlocked ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
+                  onClick={() => casa.blockInfo ? handleUnblockCasa(casa) : handleOpenBlockCasaDialog(casa)}
+                  aria-label={casa.blockInfo ? "Desbloquear casa" : "Bloquear casa"}
+                  className={`h-8 w-8 ${!casa.blockInfo ? 'text-amber-600 hover:bg-amber-500/10' : 'text-green-600 hover:bg-green-500/10'}`}
               >
-              {casa.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+              {casa.blockInfo ? <ShieldCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
               </Button>
           </TooltipTrigger>
-          <TooltipContent><p>{casa.isBlocked ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
+          <TooltipContent><p>{casa.blockInfo ? 'Desbloquear' : 'Bloquear'}</p></TooltipContent>
           </Tooltip>
       )}
 
@@ -705,17 +710,15 @@ export default function CasasPage() {
                   {filteredCasas.map((casa) => {
                     const formattedUnavailability = formatUnavailabilityPeriods(casa.unavailabilityPeriods);
                     const formattedAvailability = formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots);
-                    const isCasaActuallyBlocked = casa.isBlocked;
+                    const showBlockedBadge = !!casa.blockInfo && canViewBlockDetails;
                     
                     let cardBaseClass = "flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg";
                     let cardContentClass = "flex-grow space-y-3 pt-2 text-sm";
                     
-                    let showBlockedBadge = false;
-                    if (isCasaActuallyBlocked && canViewBlockDetails) {
+                    if (showBlockedBadge) {
                         cardBaseClass += ' bg-muted/50'; 
-                        showBlockedBadge = true;
                     }
-                     if (isCasaActuallyBlocked && !canManageBlocking && canViewBlockDetails) { 
+                     if (showBlockedBadge && !canManageBlocking) { 
                         cardContentClass += " opacity-70";
                     }
 
@@ -731,7 +734,6 @@ export default function CasasPage() {
                         <CardDescription className="text-sm pt-1 flex items-center"><MapPin size={14} className="mr-1.5 text-muted-foreground shrink-0" /> {casa.address}</CardDescription>
                       </CardHeader>
                       <CardContent className={cardContentClass}>
-                        {/* Content remains the same as before */}
                         {casa.phoneNumber && (
                             <p className="text-xs flex items-center"><Phone size={12} className="mr-1.5 shrink-0" /> {casa.phoneNumber}</p>
                         )}
@@ -742,15 +744,14 @@ export default function CasasPage() {
                             <span className="font-medium text-muted-foreground flex items-center"><CalendarClock size={14} className="mr-2" /> Disponibilidad:</span>
                             <p className="text-foreground pl-1 text-xs">{formattedAvailability}</p>
                         </div>
-                        {/* More content... */}
-                         {showBlockedBadge && casa.blockReason && (
+                         {showBlockedBadge && casa.blockInfo?.reason && (
                             <div className="mt-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
                                 <p className="text-xs font-medium text-destructive flex items-center"><MessageSquareWarning size={13} className="mr-1.5"/> Razón Bloqueo:</p>
-                                <p className="text-xs text-destructive/90 italic">{casa.blockReason}</p>
+                                <p className="text-xs text-destructive/90 italic">{casa.blockInfo.reason}</p>
                             </div>
                         )}
                       </CardContent>
-                       <CardFooter className={`border-t pt-4 pb-4 ${isCasaActuallyBlocked && !canManageBlocking && canViewBlockDetails ? 'opacity-60 pointer-events-none' : ''}`}>
+                       <CardFooter className={`border-t pt-4 pb-4 ${showBlockedBadge && !canManageBlocking ? 'opacity-60 pointer-events-none' : ''}`}>
                           {renderCasaActions(casa)}
                        </CardFooter>
                     </Card>
@@ -774,8 +775,8 @@ export default function CasasPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredCasas.map((casa) => {
-                    const isCasaActuallyBlocked = casa.isBlocked;
-                    const showBlockedBadge = isCasaActuallyBlocked && canViewBlockDetails;
+                    const isCasaBlocked = !!casa.blockInfo;
+                    const showBlockedBadge = isCasaBlocked && canViewBlockDetails;
                     return (
                       <TableRow key={casa.id} className={showBlockedBadge ? "bg-muted/50" : ""}>
                         <TableCell className="font-medium">{casa.ownerName}</TableCell>
@@ -809,36 +810,54 @@ export default function CasasPage() {
         availableTerritories={availableTerritories}
       />
 
-      {casaToBlock && (
-        <AlertDialog open={isBlockReasonCasaDialogOpen} onOpenChange={setIsBlockReasonCasaDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center"><ShieldAlert className="mr-2 h-5 w-5 text-amber-500"/>Bloquear Casa: {casaToBlock.ownerName}</AlertDialogTitle>
-              <AlertDialogDescription>
-                Estás a punto de bloquear esta casa. Si lo deseas, puedes añadir una razón (opcional).
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="py-2">
-              <Label htmlFor="blockReasonCasaInput" className="text-sm font-medium">Razón del Bloqueo (Opcional)</Label>
-              <Textarea
-                id="blockReasonCasaInput"
-                placeholder="Ej: No disponible temporalmente, renovaciones, etc."
-                value={blockReasonCasa}
-                onChange={(e) => setBlockReasonCasa(e.target.value)}
-                className="mt-1"
-                rows={3}
-              />
-            </div>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => { setIsBlockReasonCasaDialogOpen(false); setCasaToBlock(null); setBlockReasonCasa(""); }}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmToggleBlockCasa} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                Confirmar Bloqueo
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-
+       <Dialog open={isBlockCasaDialogOpen} onOpenChange={setIsBlockCasaDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center"><ShieldAlert className="mr-2 h-5 w-5 text-amber-500"/>Bloquear Casa: {casaToBlock?.ownerName}</DialogTitle>
+              <DialogDescription>
+                Define el alcance y la razón del bloqueo.
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...blockForm}>
+            <form onSubmit={blockForm.handleSubmit(onBlockCasaSubmit)} className="space-y-4 py-2">
+                <div className="space-y-3 rounded-md border p-4">
+                  <FormField
+                    control={blockForm.control}
+                    name="forSystem"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        <div className="space-y-1 leading-none"><Label htmlFor="forSystem" className="font-normal">Bloquear para Sistema (IA)</Label><FormFieldDescription className="text-xs">La casa no será considerada por la IA para el programa mensual.</FormFieldDescription></div>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={blockForm.control}
+                    name="forGroup"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        <div className="space-y-1 leading-none"><Label htmlFor="forGroup" className="font-normal">Bloquear para Grupo (Manual)</Label><FormFieldDescription className="text-xs">La casa no aparecerá como opción para los SG en la planificación de grupo.</FormFieldDescription></div>
+                      </FormItem>
+                    )}
+                  />
+                  {blockForm.formState.errors.forSystem && <p className="text-sm font-medium text-destructive">{blockForm.formState.errors.forSystem.message}</p>}
+                </div>
+                <FormField
+                  control={blockForm.control}
+                  name="reason"
+                  render={({ field }) => (
+                    <FormItem><Label>Razón del Bloqueo (Opcional)</Label><FormControl><Textarea placeholder="Ej: Renovaciones..." {...field} /></FormControl></FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsBlockCasaDialogOpen(false)}>Cancelar</Button>
+                  <Button type="submit">Confirmar Bloqueo</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
     </div>
     </TooltipProvider>
   );

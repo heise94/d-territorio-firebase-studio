@@ -89,7 +89,7 @@ export default function MiGrupoProgramaPage() {
     }));
 
     // Fetch Casas
-    const casasQuery = query(collection(db, "casas"), where("isBlocked", "==", false));
+    const casasQuery = query(collection(db, "casas"));
     unsubscribers.push(onSnapshot(casasQuery, (snapshot) => {
         setAllCasas(snapshot.docs.map(d => ({id: d.id, ...d.data()} as Casa)));
     }));
@@ -136,12 +136,18 @@ export default function MiGrupoProgramaPage() {
 
   const currentGroupPublishers = useMemo(() => {
     if (!currentGroupId) return [];
-    return allPublishers.filter(p => p.assignedGroupId === currentGroupId);
+    return allPublishers.filter(p => 
+      p.assignedGroupId === currentGroupId && 
+      (p.status !== 'Bloqueado' || !p.blockInfo?.forGroup)
+    );
   }, [currentGroupId, allPublishers]);
 
   const currentGroupCasas = useMemo(() => {
     if (!currentGroupId) return [];
-    return allCasas.filter(c => c.addedByGroupId === currentGroupId);
+    return allCasas.filter(c => 
+      c.addedByGroupId === currentGroupId && 
+      (!c.blockInfo || !c.blockInfo.forGroup)
+    );
   }, [currentGroupId, allCasas]);
 
   useEffect(() => {
@@ -630,7 +636,3 @@ export default function MiGrupoProgramaPage() {
     </TooltipProvider>
   );
 }
-
-    
-
-    
