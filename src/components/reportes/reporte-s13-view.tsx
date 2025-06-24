@@ -6,10 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Eye, Sparkles, User } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import type { CampaignAssignmentInReport, Assignment } from "@/types";
+import type { CampaignAssignmentInReport, Assignment, Territory } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { format } from "date-fns";
+import { format, Timestamp } from "date-fns";
 
 
 export interface ReporteS13Data {
@@ -23,6 +23,7 @@ export interface ReporteS13Data {
 }
 
 export interface ConsolidatedS13Data {
+  territoryId: string;
   territoryNumber: string;
   lastCycle?: ReporteS13Data;
   penultimateCycle?: ReporteS13Data;
@@ -30,18 +31,23 @@ export interface ConsolidatedS13Data {
 
 interface ReporteS13ViewProps {
     data: ConsolidatedS13Data[];
-    allAssignments: Assignment[]; // Use all assignments for full history
+    allAssignments: Assignment[];
+    allTerritories: Territory[];
 }
 
-export function ReporteS13View({ data, allAssignments }: ReporteS13ViewProps) {
+export function ReporteS13View({ data, allAssignments, allTerritories }: ReporteS13ViewProps) {
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedHistory, setSelectedHistory] = useState<Assignment[]>([]);
   const [selectedTerritory, setSelectedTerritory] = useState<string>("");
 
-  const handleViewFullHistory = (territoryNumber: string) => {
+  const handleViewFullHistory = (territoryId: string, territoryNumber: string) => {
     const territoryHistory = allAssignments
-      .filter(a => (a.locationId && allAssignments.find(t => t.id === a.locationId)?.number === territoryNumber) && a.lastReportData)
-      .sort((a,b) => b.lastReportData!.reportedAt.toMillis() - a.lastReportData!.reportedAt.toMillis());
+      .filter(a => a.locationId === territoryId && a.lastReportData)
+      .sort((a,b) => {
+        const dateA = a.lastReportData!.reportedAt instanceof Timestamp ? a.lastReportData!.reportedAt.toDate() : new Date(a.lastReportData!.reportedAt);
+        const dateB = b.lastReportData!.reportedAt instanceof Timestamp ? b.lastReportData!.reportedAt.toDate() : new Date(b.lastReportData!.reportedAt);
+        return dateB.getTime() - dateA.getTime();
+      });
 
     setSelectedHistory(territoryHistory);
     setSelectedTerritory(territoryNumber);
@@ -93,14 +99,14 @@ export function ReporteS13View({ data, allAssignments }: ReporteS13ViewProps) {
           </TableHeader>
           <TableBody>
             {data.map((row) => (
-              <TableRow key={row.territoryNumber}>
+              <TableRow key={row.territoryId}>
                 <TableCell className="font-bold">{row.territoryNumber}</TableCell>
                 <TableCell>{renderCycleCell(row.lastCycle)}</TableCell>
                 <TableCell>{renderCycleCell(row.penultimateCycle)}</TableCell>
                 <TableCell className="text-center">
                    <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => handleViewFullHistory(row.territoryNumber)}>
+                      <Button variant="ghost" size="icon" onClick={() => handleViewFullHistory(row.territoryId, row.territoryNumber)}>
                         <Eye className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
@@ -137,7 +143,7 @@ export function ReporteS13View({ data, allAssignments }: ReporteS13ViewProps) {
                   <TableRow key={assignment.id}>
                     <TableCell>{assignment.userName}</TableCell>
                     <TableCell>{assignment.date}</TableCell>
-                    <TableCell className="font-semibold text-primary">{format(assignment.lastReportData!.reportedAt.toDate(), "dd/MM/yyyy")}</TableCell>
+                    <TableCell className="font-semibold text-primary">{format((assignment.lastReportData!.reportedAt as Timestamp).toDate(), "dd/MM/yyyy")}</TableCell>
                   </TableRow>
                 )) : (
                    <TableRow>
