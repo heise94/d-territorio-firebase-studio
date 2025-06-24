@@ -4,10 +4,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  LayoutDashboard, Users, MapIcon as Map, Building, Users2 as GroupIcon, CalendarDays, CheckSquare, ListChecks, UserCog, UserCheck, FileText, Settings, BarChartHorizontal
+  LayoutDashboard, Users, MapIcon as Map, Building, Users2 as GroupIcon, CalendarDays, CheckSquare, ListChecks, UserCog, UserCheck, FileText, Settings, BarChartHorizontal, Database
 } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
-import { PERMISSIONS, PermissionId } from "@/lib/constants";
+import { PERMISSIONS, PermissionId, USER_ROLES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 interface BottomNavItemConfig {
@@ -15,6 +15,7 @@ interface BottomNavItemConfig {
   href: string;
   icon: React.ElementType;
   permission?: PermissionId;
+  adminOnly?: boolean;
 }
 
 // Full list of main navigation items for the bottom bar
@@ -30,12 +31,13 @@ const bottomNavItems: BottomNavItemConfig[] = [
   { title: "Reportes", href: "/reportes", icon: BarChartHorizontal, permission: PERMISSIONS.VIEW_REPORTS },
   { title: "Mi Dispo.", href: "/disponibilidad", icon: UserCog, permission: PERMISSIONS.MANAGE_OWN_AVAILABILITY },
   { title: "Mi Grupo", href: "/mi-grupo/programa", icon: UserCheck, permission: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM },
+  { title: "Importar", href: "/admin/import-data", icon: Database, adminOnly: true },
   { title: "Ajustes", href: "/settings", icon: Settings, permission: PERMISSIONS.MANAGE_PROGRAM_SETTINGS },
 ];
 
 export function MobileBottomNav() {
     const pathname = usePathname();
-    const { hasPermission, isLoadingPermissions } = usePermissions();
+    const { userProfile, hasPermission, isLoadingPermissions } = usePermissions();
 
     if (isLoadingPermissions) {
         return (
@@ -44,9 +46,10 @@ export function MobileBottomNav() {
     }
 
     // Filter items based on user permissions
-    const visibleNavItems = bottomNavItems.filter(item => 
-        !item.permission || hasPermission(item.permission)
-    );
+    const visibleNavItems = bottomNavItems.filter(item => {
+        if(item.adminOnly && userProfile?.role !== USER_ROLES.ENCARGADO_TERRITORIO) return false;
+        return !item.permission || hasPermission(item.permission)
+    });
 
     return (
         <footer className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur-sm md:hidden">

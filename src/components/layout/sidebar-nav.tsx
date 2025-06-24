@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  Home, Users, MapIcon as Map, Building, Users2 as GroupIcon, LayoutDashboard, Settings, FileText, CalendarDays, CheckSquare, UserCog, CircleDot, GanttChartSquare, UserCheck, ListChecks, BarChartHorizontal
+  Home, Users, MapIcon as Map, Building, Users2 as GroupIcon, LayoutDashboard, Settings, FileText, CalendarDays, CheckSquare, UserCog, CircleDot, GanttChartSquare, UserCheck, ListChecks, BarChartHorizontal, Database
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -14,7 +14,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { usePermissions } from "@/hooks/use-permissions";
-import { PERMISSIONS, PermissionId } from "@/lib/constants";
+import { PERMISSIONS, PermissionId, USER_ROLES } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
 
 
@@ -23,6 +23,7 @@ export interface NavItemConfig {
   href: string;
   icon: React.ElementType;
   permission?: PermissionId;
+  adminOnly?: boolean;
   children?: NavItemConfig[];
   segment?: string; 
 }
@@ -49,11 +50,12 @@ const navItems: NavItemConfig[] = [
   { title: "Mi Disponibilidad", href: "/disponibilidad", icon: UserCog, permission: PERMISSIONS.MANAGE_OWN_AVAILABILITY, segment: "disponibilidad" },
   { title: "Programa de Grupo", href: "/mi-grupo/programa", icon: UserCheck, permission: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM, segment: "mi-grupo" },
   { title: "Configuración", href: "/settings", icon: Settings, permission: PERMISSIONS.MANAGE_PROGRAM_SETTINGS, segment: "settings" }, 
+  { title: "Importar Historial", href: "/admin/import-data", icon: Database, adminOnly: true, segment: "admin" },
 ];
 
 export function SidebarNav() {
   const pathname = usePathname() ?? "";
-  const { hasPermission, isLoadingPermissions } = usePermissions();
+  const { userProfile, hasPermission, isLoadingPermissions } = usePermissions();
 
   if (isLoadingPermissions) {
     return (
@@ -66,9 +68,9 @@ export function SidebarNav() {
   }
   
   const createNavItem = (item: NavItemConfig) => {
-    if (item.permission && !hasPermission(item.permission)) {
-      return null;
-    }
+    if (item.permission && !hasPermission(item.permission)) return null;
+    if (item.adminOnly && userProfile?.role !== USER_ROLES.ENCARGADO_TERRITORIO) return null;
+
     const Icon = item.icon;
     const isActive = pathname === item.href;
     
@@ -88,7 +90,12 @@ export function SidebarNav() {
   }
 
   const createNavGroup = (item: NavItemConfig) => {
-    const visibleChildren = item.children?.filter(child => !child.permission || hasPermission(child.permission)) || [];
+    const visibleChildren = item.children?.filter(child => {
+        if (child.adminOnly && userProfile?.role !== USER_ROLES.ENCARGADO_TERRITORIO) return false;
+        if (child.permission && !hasPermission(child.permission)) return false;
+        return true;
+    }) || [];
+
     if (visibleChildren.length === 0) return null;
     
     const Icon = item.icon;
@@ -131,9 +138,13 @@ export function SidebarNav() {
   }
 
   const visibleNavItems = navItems.filter(item => {
+    if (item.adminOnly && userProfile?.role !== USER_ROLES.ENCARGADO_TERRITORIO) return false;
     if (item.permission && !hasPermission(item.permission)) return false;
     if (item.children) {
-      return item.children.some(child => !child.permission || hasPermission(child.permission));
+      return item.children.some(child => {
+          if (child.adminOnly && userProfile?.role !== USER_ROLES.ENCARGADO_TERRITORIO) return false;
+          return !child.permission || hasPermission(child.permission)
+      });
     }
     return true;
   });
