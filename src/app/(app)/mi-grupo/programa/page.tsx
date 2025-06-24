@@ -9,11 +9,11 @@ import { Loader2, CalendarDays, PlusCircle, Users as UsersIcon, Home as HomeIcon
 import { useToast } from "@/hooks/use-toast";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse, isAfter, isBefore as isBeforeDateFns } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingGroup, DayOfWeek, CustomHoliday, TerritoryType, AdditionalTerritoryInfo, UserProfile, SettingsDoc } from "@/types";
+import type { GroupAssignment, ProgramScheduleSlot, PublisherDetail, Casa, PreachingType, PreachingAssignedType, PreachingGroup, DayOfWeek, CustomHoliday, TerritoryType, AdditionalTerritoryInfo, UserProfile, SettingsDoc } from "@/types";
 import { AddGroupAssignmentDialog, type GroupAssignmentSubmitDataType } from "@/components/mi-grupo/programa/add-group-assignment-dialog";
 import { SuggestTerritoryForGroupAssignmentDialog } from "@/components/mi-grupo/programa/suggest-territory-for-group-assignment-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
-import { Timestamp, collection, doc, onSnapshot, query, where, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import { Timestamp, collection, doc, onSnapshot, query, where, setDoc, deleteDoc, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { USER_ROLES } from "@/lib/constants";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -257,44 +257,70 @@ export default function MiGrupoProgramaPage() {
     selectedTerritory: AdditionalTerritoryInfo,
     groupAssignmentContext: GroupAssignment
   ) => {
-    if (!userProfile?.firebaseAuthUid) return;
-
-    const docRef = doc(db, "groupAssignments", groupAssignmentContext.id);
-    
-    try {
-        await updateDoc(docRef, {
-            assignedTerritoryId: selectedTerritory.id,
-            assignedTerritoryName: selectedTerritory.name,
-            updatedAt: Timestamp.now(),
-            updatedBy: userProfile.firebaseAuthUid
-        });
-
-        const newUserAssignment = {
-          id: crypto.randomUUID(),
-          date: groupAssignmentContext.date,
-          time: groupAssignmentContext.time,
-          type: selectedTerritory.type === 'urban' ? 'publica' : 'rural' as PreachingType,
-          locationName: selectedTerritory.name,
-          locationId: selectedTerritory.id,
-          status: 'accepted' as const,
-          assignedBy: `SG: ${userProfile?.name || 'Desconocido'}`,
-          userId: groupAssignmentContext.captainUserId,
-          userName: groupAssignmentContext.captainName,
-          notes: `Territorio asignado por SG para la salida de grupo. ${groupAssignmentContext.notes || ''}`.trim(),
-        };
-
-        console.log("Simulando creación de UserAssignment:", newUserAssignment);
-        toast({
-          title: "Territorio Asignado al Grupo",
-          description: `El territorio "${selectedTerritory.name}" ha sido asignado a ${groupAssignmentContext.captainName}.`,
-          duration: 7000,
-        });
-
-    } catch (error) {
-        console.error("Error updating group assignment with territory:", error);
-        toast({ title: "Error al Asignar", description: "No se pudo guardar el territorio en la asignación.", variant: "destructive" });
+    if (!userProfile?.firebaseAuthUid || !currentGroupId) return;
+  
+    const batch = writeBatch(db);
+  
+    // 1. Update the group assignment document
+    const groupAssignmentRef = doc(db, "groupAssignments", groupAssignmentContext.id);
+    batch.update(groupAssignmentRef, {
+      assignedTerritoryId: selectedTerritory.id,
+      assignedTerritoryName: selectedTerritory.name,
+      updatedAt: Timestamp.now(),
+      updatedBy: userProfile.firebaseAuthUid,
+    });
+  
+    // 2. Create a new personal assignment for the captain
+    const captainProfile = allPublishers.find(
+      (p) => p.id === groupAssignmentContext.captainUserId || p.firebaseAuthUid === groupAssignmentContext.captainUserId
+    );
+  
+    if (!captainProfile || !captainProfile.firebaseAuthUid) {
+      toast({
+        title: "Error: Capitán sin ID de Auth",
+        description: "No se pudo encontrar el perfil del capitán o le falta un UID de autenticación.",
+        variant: "destructive",
+      });
+      return;
     }
-
+  
+    const newPersonalAssignmentRef = doc(collection(db, "assignments"));
+    const newAssignmentData = {
+      id: newPersonalAssignmentRef.id,
+      date: groupAssignmentContext.date,
+      time: groupAssignmentContext.time,
+      type: selectedTerritory.type === "urban" ? "publica" : "rural" as PreachingAssignedType,
+      locationName: selectedTerritory.name,
+      locationId: selectedTerritory.id,
+      status: "accepted" as const,
+      assignedBy: `SG: ${userProfile?.name || "Desconocido"}`,
+      userId: captainProfile.firebaseAuthUid,
+      userName: captainProfile.name,
+      userEmail: captainProfile.email,
+      userPhoneNumber: captainProfile.phoneNumber || null,
+      assignedGroupId: currentGroupId,
+      notes: `Territorio asignado por SG para la salida de grupo. ${groupAssignmentContext.notes || ""}`.trim(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
+    batch.set(newPersonalAssignmentRef, newAssignmentData);
+  
+    try {
+      await batch.commit();
+      toast({
+        title: "Territorio Asignado y Notificado",
+        description: `El territorio "${selectedTerritory.name}" ha sido asignado a ${groupAssignmentContext.captainName} para la salida del grupo.`,
+        duration: 7000,
+      });
+    } catch (error) {
+      console.error("Error committing batch assignment:", error);
+      toast({
+        title: "Error al Asignar",
+        description: "No se pudo guardar la asignación y notificar al publicador.",
+        variant: "destructive",
+      });
+    }
+  
     setIsSuggestTerritoryDialogOpen(false);
     setAssignmentForTerritorySuggestion(null);
   };
@@ -601,5 +627,7 @@ export default function MiGrupoProgramaPage() {
     </TooltipProvider>
   );
 }
+
+    
 
     

@@ -11,59 +11,23 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import type { GroupAssignment, AdditionalTerritoryInfo, TerritoryType } from "@/types"; // Removed Territory
+import type { GroupAssignment, AdditionalTerritoryInfo, Territory, TerritoryType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, MapPin as MapPinIcon, Users, MountainSnow, CheckCircle, Compass, ListChecks, Home as HomeIcon, ExternalLink } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCardDescription } from "@/components/ui/card"; // Aliased CardDescription
+import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCardDescription } from "@/components/ui/card";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-
-// MOCK SUGGESTIONS - Replace with actual AI flow call and data fetching logic later
-// This should ideally come from a shared mock data source or be fetched/filtered based on currentGroupId
-const MOCK_TERRITORY_SUGGESTIONS_FOR_GROUP: AdditionalTerritoryInfo[] = [
-  {
-    id: "T-GRP-ADD1",
-    name: "Residencial El Bosque (Grupo A)",
-    number: "GA-01",
-    type: "urban",
-    mapImageUrl: "https://placehold.co/600x400.png?text=Bosque+Parcial",
-    dataAiHint: "forest map",
-    isPartial: true,
-    pendingBlockNumbers: [2, 4],
-    approxPendingHousesCount: 18,
-    blockHouseCounts: [10,5,12,7] 
-  },
-  {
-    id: "T-GRP-ADD2",
-    name: "Camino La Pradera (Grupo A)",
-    type: "rural",
-    mapImageUrl: "https://placehold.co/600x400.png?text=Pradera+Rural",
-    totalBlocks: 4,
-    dataAiHint: "meadow rural",
-    isPartial: false,
-    approxHouseCount: 30
-  },
-  {
-    id: "T-GRP-ADD3",
-    name: "Distrito Comercial Sur (Grupo B)",
-    number: "GB-05",
-    type: "urban",
-    mapImageUrl: "https://placehold.co/600x400.png?text=Comercial+Sur",
-    totalBlocks: 3,
-    dataAiHint: "urban market",
-    isPartial: false,
-    approxHouseCount: 40
-  },
-];
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 
 interface SuggestTerritoryForGroupAssignmentDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   groupAssignment: GroupAssignment | null;
-  currentGroupId: string; // To filter/prioritize territories for this group
+  currentGroupId: string; 
   onTerritorySelected: (selectedTerritory: AdditionalTerritoryInfo, groupAssignmentContext: GroupAssignment) => void;
 }
 
@@ -81,30 +45,55 @@ export function SuggestTerritoryForGroupAssignmentDialog({
 
   useEffect(() => {
     if (isOpen && groupAssignment && currentGroupId) {
-      setIsLoadingSuggestions(true);
-      // TODO: Implement actual suggestion logic here:
-      // 1. Fetch all territories (`Territory[]`)
-      // 2. Fetch all reports (`ReportEntry[]`)
-      // 3. Filter territories belonging to `currentGroupId`.
-      // 4. For each group territory, check its status using `reports`:
-      //    - Is it partially worked? (completedCurrentCycle === "En curso" AND some blocks worked)
-      //    - When was it last completed?
-      // 5. Prioritize suggestions:
-      //    a. Partially worked territories of the group.
-      //    b. Oldest completed territories of the group.
-      // 6. Format them as `AdditionalTerritoryInfo`.
-      // For now, using a filtered mock:
-      setTimeout(() => {
-        // Simple mock filter: if groupId is 'G1', show first two, else show last one.
-        // In a real scenario, MOCK_TERRITORY_SUGGESTIONS_FOR_GROUP would ideally already be group-specific or fetched.
-        const groupSpecificSuggestions = MOCK_TERRITORY_SUGGESTIONS_FOR_GROUP; // Assume this list is already relevant or would be fetched
-        setSuggestedTerritories(groupSpecificSuggestions.slice(0, 5)); // Show up to 5
-        setIsLoadingSuggestions(false);
-      }, 1200);
+      const fetchSuggestions = async () => {
+        setIsLoadingSuggestions(true);
+        try {
+          if (!db) throw new Error("Firestore not initialized");
+
+          const territoriesRef = collection(db, "territories");
+          const preachingTypeForQuery = groupAssignment.preachingType === 'rural' ? 'rural' : 'urban';
+          
+          const q = query(
+            territoriesRef,
+            where("isBlocked", "==", false),
+            where("type", "==", preachingTypeForQuery)
+          );
+          
+          const querySnapshot = await getDocs(q);
+          const allTerritories: Territory[] = querySnapshot.docs.map(doc => ({id: doc.id, ...doc.data()} as Territory));
+
+          const groupTerritories = allTerritories.filter(t => t.groupIds?.includes(currentGroupId));
+          const otherTerritories = allTerritories.filter(t => !t.groupIds?.includes(currentGroupId));
+          
+          const suggestions = [...groupTerritories, ...otherTerritories]
+            .filter(t => t.id !== groupAssignment.assignedTerritoryId)
+            .slice(0, 5)
+            .map(t => ({
+              id: t.id,
+              name: t.name,
+              number: t.number,
+              type: t.type,
+              mapImageUrl: t.mapImageUrl,
+              dataAiHint: t.dataAiHint,
+              totalBlocks: t.totalBlocks,
+              isPartial: false,
+              approxHouseCount: t.approxHouseCount,
+              blockHouseCounts: t.blockHouseCounts,
+            }));
+
+          setSuggestedTerritories(suggestions);
+        } catch (error) {
+          console.error("Error fetching territory suggestions:", error);
+          toast({ title: "Error", description: "No se pudieron cargar las sugerencias de territorios.", variant: "destructive" });
+        } finally {
+          setIsLoadingSuggestions(false);
+        }
+      };
+      fetchSuggestions();
     } else if (!isOpen) {
-        setSuggestedTerritories([]);
+      setSuggestedTerritories([]);
     }
-  }, [isOpen, groupAssignment, currentGroupId]);
+  }, [isOpen, groupAssignment, currentGroupId, toast]);
 
   const handleSelectTerritory = async (territory: AdditionalTerritoryInfo) => {
     if (!groupAssignment) return;
@@ -112,7 +101,6 @@ export function SuggestTerritoryForGroupAssignmentDialog({
     await new Promise(resolve => setTimeout(resolve, 400));
     onTerritorySelected(territory, groupAssignment);
     setIsSubmitting(false);
-    // onOpenChange(false); // Dialog will be closed by the parent page after successful toast
   };
 
 
@@ -126,7 +114,7 @@ export function SuggestTerritoryForGroupAssignmentDialog({
             <Compass className="mr-2 h-6 w-6 text-primary" />
             Sugerir Territorio para Asignación de Grupo
           </DialogTitle>
-          <ShadCardDescription> {/* Using aliased CardDescription */}
+          <ShadCardDescription> 
             Asignación para: <span className="font-semibold text-foreground">{groupAssignment.captainName}</span> el {groupAssignment.date} a las {groupAssignment.time}.
             <br/>
             Selecciona un territorio para esta salida de predicación del grupo.
@@ -202,7 +190,6 @@ export function SuggestTerritoryForGroupAssignmentDialog({
                            <p><span className="font-medium flex items-center"><HomeIcon size={12} className="mr-1.5 shrink-0"/> Casas Totales Aprox:</span> {terr.approxHouseCount || 'N/A'}</p>
                         </>
                     )}
-                    {/* TODO: Podríamos añadir "Última vez trabajado: DD/MM/YY" si esa info está disponible en AdditionalTerritoryInfo */}
                   </CardContent>
                   <DialogFooter className="p-3 border-t mt-auto">
                     <Button
@@ -232,3 +219,5 @@ export function SuggestTerritoryForGroupAssignmentDialog({
     </Dialog>
   );
 }
+
+    
