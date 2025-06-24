@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, ChangeEvent, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -127,7 +127,7 @@ export default function ImportarDatosPage() {
   const parseManzanas = (manzanasStr?: string): number[] => {
       if (!manzanasStr || manzanasStr.trim() === "") return [];
       
-      const cleanedStr = manzanasStr.replace(/ y /g, ',').replace(/\s*a\s*/g, '-');
+      const cleanedStr = manzanasStr.replace(/ y /g, ',').replace(/\s*a\s*|\s*-\s*/g, '-');
       const parts = cleanedStr.split(',').map(p => p.trim()).filter(p => p);
       const numbers = new Set<number>();
 

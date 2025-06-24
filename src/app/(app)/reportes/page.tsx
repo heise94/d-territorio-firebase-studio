@@ -102,78 +102,86 @@ export default function ReportesPage() {
                 return (b.time || "").localeCompare(a.time || "");
             });
         
-        const latestAssignment = assignmentsForTerritory[0];
+        const allBlockNumbers = Array.from({ length: territory.totalBlocks || 0 }, (_, i) => i + 1);
 
-        const lastCompletedAssignment = assignmentsForTerritory.find(a => {
-            if (!a.lastReportData || a.lastReportData.reports.some(r => r.territoryNotWorked === true)) {
-                return false;
+        const assignmentsWithReports = assignmentsForTerritory
+            .filter(a => a.lastReportData?.reportedAt)
+            .sort((a, b) => (a.lastReportData!.reportedAt as Timestamp).toMillis() - (b.lastReportData!.reportedAt as Timestamp).toMillis()); // Oldest to newest
+        
+        let lastCompletionDate: Timestamp | null = null;
+        let cumulativeWorkedBlocksForCycle = new Set<number>();
+
+        for (const assignment of assignmentsWithReports) {
+            const report = assignment.lastReportData!.reports.find(r => r.territoryId === territory.id);
+            if (report && !report.territoryNotWorked) {
+                const workedInThisAssignment = (report.workedBlocksIds || []).map(id => parseInt(id.split('-').pop()!));
+                workedInThisAssignment.forEach(blockNum => cumulativeWorkedBlocksForCycle.add(blockNum));
+
+                if (cumulativeWorkedBlocksForCycle.size >= (territory.totalBlocks || 0) && (territory.totalBlocks || 0) > 0) {
+                    lastCompletionDate = assignment.lastReportData!.reportedAt as Timestamp;
+                    cumulativeWorkedBlocksForCycle.clear(); // Reset for next cycle
+                }
             }
-            const report = a.lastReportData.reports.find(r => r.territoryId === territory.id);
-            if (!report) return false;
-            
-            const totalBlocks = territory.totalBlocks || 0;
-            if (totalBlocks === 0) return true; // If no blocks, it's considered complete
-            
-            const workedBlocksCount = report.workedBlocksIds?.length || 0;
-            return workedBlocksCount >= totalBlocks;
+        }
+        
+        const ultimaFechaCompletado = lastCompletionDate ? format(lastCompletionDate.toDate(), "dd/MM/yyyy") : "Nunca";
+
+        const currentCycleAssignments = assignmentsForTerritory.filter(a => {
+            const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
+            if (isAfter(assignmentDateTime, new Date())) {
+                return true; 
+            }
+            if (!a.lastReportData?.reportedAt) {
+                return true; 
+            }
+            return lastCompletionDate ? (a.lastReportData.reportedAt as Timestamp).toMillis() > lastCompletionDate.toMillis() : true;
         });
 
-        const ultimaFechaCompletado = lastCompletedAssignment?.lastReportData?.reportedAt
-            ? format((lastCompletedAssignment.lastReportData.reportedAt as Timestamp).toDate(), "dd/MM/yyyy")
-            : "Nunca";
+        const workedBlocksInCurrentCycleFinal = new Set<number>();
+        currentCycleAssignments.forEach(assignment => {
+            const report = assignment.lastReportData?.reports.find(r => r.territoryId === territory.id);
+             if (report && !report.territoryNotWorked) {
+                (report.workedBlocksIds || []).forEach(blockId => {
+                    workedBlocksInCurrentCycleFinal.add(parseInt(blockId.split('-').pop()!));
+                });
+            }
+        });
 
+        const workedBlockNumbers = Array.from(workedBlocksInCurrentCycleFinal).sort((a, b) => a - b);
+        const pendingBlockNumbers = allBlockNumbers.filter(n => !workedBlockNumbers.includes(n));
+
+        const latestAssignmentOverall = assignmentsForTerritory[0];
+        
         let estado: ReporteActividadData['estado'] = 'Disponible';
         let asignadoA = "N/A";
         let fechaAsignacion = "N/A";
-        let manzanasTrabajadas = "N/A";
-        let manzanasPendientes = "N/A";
 
         if (territory.isBlocked) {
             estado = 'Bloqueado';
-        } else if (latestAssignment) {
-            const assignmentDateTime = parse(`${latestAssignment.date} ${latestAssignment.time}`, "yyyy-MM-dd HH:mm", new Date());
-            const isFuture = isAfter(assignmentDateTime, new Date());
+        } else if (latestAssignmentOverall) {
+            const assignmentDateTime = parse(`${latestAssignmentOverall.date} ${latestAssignmentOverall.time}`, "yyyy-MM-dd HH:mm", new Date());
             
-            if (isFuture) {
+            if (isAfter(assignmentDateTime, startOfDay(new Date()))) {
                 estado = 'En Curso';
-                asignadoA = latestAssignment.userName || 'N/A';
-                fechaAsignacion = format(parseISO(latestAssignment.date), 'dd/MM/yyyy');
-            } else { // Past or today assignment
-                if (latestAssignment.lastReportData) {
-                    const report = latestAssignment.lastReportData.reports.find(r => r.territoryId === territory.id);
-                    if (report) {
-                        const workedBlockNumbers = (report.workedBlocksIds || []).map(id => parseInt(id.split('-').pop()!));
-                        const allBlockNumbers = Array.from({ length: territory.totalBlocks || 0 }, (_, i) => i + 1);
-                        const pendingBlockNumbers = allBlockNumbers.filter(n => !workedBlockNumbers.includes(n));
-                        
-                        manzanasTrabajadas = workedBlockNumbers.length > 0 ? workedBlockNumbers.sort((a, b) => a - b).join(', ') : 'Ninguna';
-                        manzanasPendientes = pendingBlockNumbers.length > 0 ? pendingBlockNumbers.sort((a, b) => a - b).join(', ') : 'Ninguna';
-                        
-                        if (pendingBlockNumbers.length > 0 && !report.territoryNotWorked) {
-                            estado = 'Parcial';
-                            asignadoA = latestAssignment.userName || 'N/A';
-                            fechaAsignacion = format(parseISO(latestAssignment.date), 'dd/MM/yyyy');
-                        } else {
-                            estado = 'Disponible';
-                        }
-                    } else { // Past assignment with report, but not for this specific territory (e.g. additional)
-                         estado = 'En Curso'; // Assume pending report for this part
-                         asignadoA = latestAssignment.userName || 'N/A';
-                         fechaAsignacion = format(parseISO(latestAssignment.date), 'dd/MM/yyyy');
-                    }
-                } else { // Past assignment with no report data at all
-                     estado = 'En Curso';
-                     asignadoA = latestAssignment.userName || 'N/A';
-                     fechaAsignacion = format(parseISO(latestAssignment.date), 'dd/MM/yyyy');
-                }
+                asignadoA = latestAssignmentOverall.userName || 'N/A';
+                fechaAsignacion = format(parseISO(latestAssignmentOverall.date), 'dd/MM/yyyy');
+            } else if (workedBlockNumbers.length > 0 && pendingBlockNumbers.length > 0) {
+                 estado = 'Parcial';
+                 const latestAssigneeInCycle = currentCycleAssignments[0];
+                 asignadoA = latestAssigneeInCycle?.userName || 'N/A';
+                 fechaAsignacion = latestAssigneeInCycle ? format(parseISO(latestAssigneeInCycle.date), 'dd/MM/yyyy') : 'N/A';
+            } else if (workedBlockNumbers.length > 0 && pendingBlockNumbers.length === 0 && allBlockNumbers.length > 0) {
+                 estado = 'Disponible'; 
+            } else if (currentCycleAssignments.length > 0 && !currentCycleAssignments[0].lastReportData) {
+                 estado = 'En Curso'; 
+                 asignadoA = currentCycleAssignments[0].userName || 'N/A';
+                 fechaAsignacion = format(parseISO(currentCycleAssignments[0].date), 'dd/MM/yyyy');
             }
         }
         
         if (estado === 'Disponible' || estado === 'Bloqueado') {
             asignadoA = "N/A";
             fechaAsignacion = "N/A";
-            manzanasTrabajadas = "N/A";
-            manzanasPendientes = "N/A";
         }
 
         const passesPublisherFilter = !filters.assignedTo || (asignadoA !== "N/A" && asignadoA.toLowerCase().includes(filters.assignedTo.toLowerCase()));
@@ -185,8 +193,8 @@ export default function ReportesPage() {
             ultimaFechaCompletado,
             asignadoA,
             fechaAsignacion,
-            manzanasTrabajadas,
-            manzanasPendientes,
+            manzanasTrabajadas: workedBlockNumbers.length > 0 ? workedBlockNumbers.join(', ') : 'N/A',
+            manzanasPendientes: pendingBlockNumbers.length > 0 ? pendingBlockNumbers.join(', ') : 'Ninguna',
             estado,
             blockReason: territory.blockReason,
             campaignHistory: assignmentsForTerritory.filter(a => a.lastReportData).map(a => ({
@@ -201,69 +209,85 @@ export default function ReportesPage() {
 
 
   const processedS13Data: ConsolidatedS13Data[] = useMemo(() => {
-    const reportsByTerritory = new Map<string, Assignment[]>();
+    const s13Data: ConsolidatedS13Data[] = [];
 
-    allAssignments.forEach(a => {
-        if (a.lastReportData && a.locationId && !a.lastReportData.reports.some(r => r.territoryId === a.locationId && r.territoryNotWorked)) {
-            if(!reportsByTerritory.has(a.locationId)) {
-                reportsByTerritory.set(a.locationId, []);
-            }
-            reportsByTerritory.get(a.locationId)!.push(a);
+    for (const territory of filteredTerritories) {
+      if (!territory.totalBlocks || territory.totalBlocks === 0) continue;
+
+      const assignmentsWithReports = allAssignments
+        .filter(a => a.locationId === territory.id && a.lastReportData?.reportedAt)
+        .sort((a, b) => (a.lastReportData!.reportedAt as Timestamp).toMillis() - (b.lastReportData!.reportedAt as Timestamp).toMillis());
+
+      if (assignmentsWithReports.length === 0) continue;
+
+      const completedCycles: any[] = [];
+      let currentCycleWorkedBlocks = new Set<number>();
+      let currentCycleStartAssignment: Assignment | null = null;
+
+      for (const assignment of assignmentsWithReports) {
+        if (!currentCycleStartAssignment) {
+          currentCycleStartAssignment = assignment;
         }
-    });
-    
-    const consolidatedData: ConsolidatedS13Data[] = [];
+        const report = assignment.lastReportData!.reports.find(r => r.territoryId === territory.id);
+        if (report && !report.territoryNotWorked) {
+          const workedInThisAssignment = (report.workedBlocksIds || []).map(id => parseInt(id.split('-').pop()!));
+          workedInThisAssignment.forEach(blockNum => currentCycleWorkedBlocks.add(blockNum));
 
-    for(const [territoryId, assignments] of reportsByTerritory.entries()) {
-        const territory = allTerritories.find(t => t.id === territoryId);
-        if (!territory) continue;
+          if (currentCycleWorkedBlocks.size >= territory.totalBlocks) {
+            completedCycles.push({
+              ...assignment,
+              _cycleStartAssignment: currentCycleStartAssignment,
+            });
+            currentCycleWorkedBlocks.clear();
+            currentCycleStartAssignment = null;
+          }
+        }
+      }
+      
+      if (completedCycles.length === 0) continue;
 
-        const sortedAssignments = assignments.sort((a,b) => {
-            const dateA = a.lastReportData!.reportedAt as Timestamp;
-            const dateB = b.lastReportData!.reportedAt as Timestamp;
-            return dateB.toMillis() - dateA.toMillis();
-        });
+      const transformToS13 = (endAssignment: any): ReporteS13Data => ({
+        id: endAssignment.id,
+        territoryNumber: territory.number || territory.name,
+        lastCompletedHistoric: territory.lastWorked || 'N/A',
+        firstAssignedTo: endAssignment._cycleStartAssignment.userName || 'N/A',
+        firstAssignedDate: format(parseISO(endAssignment._cycleStartAssignment.date), 'dd/MM/yyyy'),
+        completedCurrentCycle: format((endAssignment.lastReportData!.reportedAt as Timestamp).toDate(), "dd/MM/yyyy"),
+        fullCampaignHistory: [],
+      });
+      
+      const lastTwoCycles = completedCycles.slice(-2).reverse();
 
-        const transformAssignmentToS13 = (assignment: Assignment): ReporteS13Data => ({
-            id: assignment.id,
-            territoryNumber: territory.number || territory.name,
-            lastCompletedHistoric: territory.lastWorked || 'N/A',
-            firstAssignedTo: assignment.userName || 'N/A',
-            firstAssignedDate: assignment.date,
-            completedCurrentCycle: format((assignment.lastReportData!.reportedAt as Timestamp).toDate(), "dd/MM/yyyy"),
-            fullCampaignHistory: [{
-                assignedTo: assignment.userName,
-                assignedDate: assignment.date,
-            }]
-        });
+      const dataToAdd: ConsolidatedS13Data = {
+          territoryId: territory.id,
+          territoryNumber: territory.number || territory.name,
+          lastCycle: lastTwoCycles[0] ? transformToS13(lastTwoCycles[0]) : undefined,
+          penultimateCycle: lastTwoCycles[1] ? transformToS13(lastTwoCycles[1]) : undefined,
+      };
 
-        consolidatedData.push({
-            territoryId: territory.id,
-            territoryNumber: territory.number || territory.name,
-            lastCycle: sortedAssignments[0] ? transformAssignmentToS13(sortedAssignments[0]) : undefined,
-            penultimateCycle: sortedAssignments[1] ? transformAssignmentToS13(sortedAssignments[1]) : undefined,
-        });
+      const passesPublisherFilter = !filters.assignedTo || 
+          dataToAdd.lastCycle?.firstAssignedTo.toLowerCase().includes(filters.assignedTo.toLowerCase()) || 
+          dataToAdd.penultimateCycle?.firstAssignedTo.toLowerCase().includes(filters.assignedTo.toLowerCase());
+
+      if (!passesPublisherFilter) continue;
+      
+      const passesDateFilter = () => {
+          if (!filters.fromDate && !filters.toDate) return true;
+          const lastCycleDate = dataToAdd.lastCycle ? parse(dataToAdd.lastCycle.completedCurrentCycle, 'dd/MM/yyyy', new Date()) : null;
+          if (!lastCycleDate) return false;
+          if (filters.fromDate && lastCycleDate < filters.fromDate) return false;
+          if (filters.toDate && lastCycleDate > filters.toDate) return false;
+          return true;
+      };
+
+      if (!passesDateFilter()) continue;
+      
+      s13Data.push(dataToAdd);
     }
+    
+    return s13Data.sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, {numeric: true}));
 
-    return consolidatedData.filter(d => {
-        if (filters.territoryNumber && !d.territoryNumber.toLowerCase().includes(filters.territoryNumber.toLowerCase())) return false;
-        
-        if (filters.assignedTo) {
-            const name = filters.assignedTo.toLowerCase();
-            const match = d.lastCycle?.firstAssignedTo.toLowerCase().includes(name) || d.penultimateCycle?.firstAssignedTo.toLowerCase().includes(name);
-            if (!match) return false;
-        }
-
-        if(filters.fromDate || filters.toDate) {
-            const lastCycleDate = d.lastCycle ? new Date(d.lastCycle.completedCurrentCycle.split('/').reverse().join('-')) : null;
-            if (filters.fromDate && lastCycleDate && lastCycleDate < filters.fromDate) return false;
-            if (filters.toDate && lastCycleDate && lastCycleDate > filters.toDate) return false;
-        }
-        
-        return true;
-    }).sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, {numeric: true}));
-
-  }, [allAssignments, allTerritories, filters]);
+  }, [allAssignments, filteredTerritories, filters]);
 
 
   const handleExportS13 = () => {
