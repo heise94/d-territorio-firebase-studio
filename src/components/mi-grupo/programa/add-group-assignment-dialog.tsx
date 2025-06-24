@@ -27,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import type { GroupAssignment, PublisherDetail, Casa, PreachingType, DayOfWeek } from "@/types";
+import type { GroupAssignment, UserProfile, Casa, PreachingType, DayOfWeek } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CalendarIcon as CalendarIconLucide } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
@@ -72,7 +72,7 @@ interface AddGroupAssignmentDialogProps {
   onAssignmentSubmit: (data: GroupAssignmentSubmitDataType) => void;
   currentMonth: number; // 0-indexed
   currentYear: number;
-  groupPublishers: PublisherDetail[];
+  groupPublishers: UserProfile[];
   groupCasas: Casa[];
   groupOrganizedDays: DayOfWeek[]; 
   assignmentToEdit?: GroupAssignment | null;
@@ -400,3 +400,5 @@ export function AddGroupAssignmentDialog({
     </Dialog>
   );
 }
+
+    

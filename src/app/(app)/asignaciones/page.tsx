@@ -30,11 +30,13 @@ import {
   PlusCircle,
   Map as MapIconLucide,
   Loader2,
+  UserCheck2,
+  ShieldAlert,
 } from "lucide-react";
 import { format, parse, differenceInHours, isBefore, addHours, startOfDay, differenceInMinutes, subDays, subHours, addMinutes, getMonth, getYear, addDays, isSameDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Territory, ReportedAssignmentData, UserAssignment, SingleTerritoryReportDetails, AdditionalTerritoryInfo, TerritoryType } from "@/types";
+import type { Territory, ReportedAssignmentData, UserAssignment, SingleTerritoryReportDetails, AdditionalTerritoryInfo, TerritoryType, AssignmentStatus, PreachingAssignedType } from "@/types";
 import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
 import { SolicitarTerritorioDialog } from "@/components/asignaciones/solicitar-territorio-dialog";
 import { Timestamp, collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, orderBy, getDoc, writeBatch } from "firebase/firestore";
@@ -44,6 +46,37 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; 
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"; 
 import { Skeleton } from "@/components/ui/skeleton";
+
+const PreachingTypeIcon = ({ type, className }: { type: PreachingAssignedType; className?: string }) => {
+  const defaultClass = "h-4 w-4 shrink-0";
+  const combinedClass = className ? `${defaultClass} ${className}` : defaultClass;
+  if (type === "publica") return <Users className={combinedClass} />;
+  if (type === "rural") return <MountainSnow className={combinedClass} />;
+  if (type === "zoom") return <Video className={combinedClass} />;
+  return null;
+};
+
+const StatusBadge = ({ status }: { status: AssignmentStatus }) => {
+  switch (status) {
+    case "pending":
+      return <Badge variant="outline" className="border-amber-500 text-amber-600"><HelpCircle className="mr-1.5 h-3 w-3" />Pendiente</Badge>;
+    case "accepted":
+      return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-white"><CheckCircle2 className="mr-1.5 h-3 w-3" />Aceptada</Badge>;
+    case "rejected":
+      return <Badge variant="destructive"><XCircle className="mr-1.5 h-3 w-3" />Rechazada</Badge>;
+    case "replacement_requested":
+      return <Badge variant="outline" className="border-blue-500 text-blue-600"><UserMinus className="mr-1.5 h-3 w-3" />Reemplazo Solicitado</Badge>;
+    case "replacement_covered":
+      return <Badge variant="secondary"><UserCheck2 className="mr-1.5 h-3 w-3" />Cubierta</Badge>;
+    case "cancelled_by_admin":
+      return <Badge variant="outline" className="border-slate-500 text-slate-600"><ShieldAlert className="mr-1.5 h-3 w-3" />Cancelada (Admin)</Badge>;
+    case "needs_manual_replacement":
+      return <Badge variant="outline" className="border-red-500 text-red-600"><AlertTriangle className="mr-1.5 h-3 w-3" />Reemplazo Manual</Badge>;
+    default:
+      return <Badge variant="secondary">{status}</Badge>;
+  }
+};
+
 
 export default function MisAsignacionesPage() {
   const [assignments, setAssignments] = useState<UserAssignment[]>([]);
