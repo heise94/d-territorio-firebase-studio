@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
 import { collection, onSnapshot, query, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { format, parse, isBefore, startOfDay } from "date-fns";
+import { format, parse, isBefore, startOfDay, parseISO } from "date-fns";
 
 import { ReporteActividadView, type ReporteActividadData } from "@/components/reportes/reporte-actividad-view";
 import { ReporteS13View, type ConsolidatedS13Data, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
@@ -95,25 +95,7 @@ export default function ReportesPage() {
     return filteredTerritories.map(territory => {
         const assignmentsForTerritory = allAssignments
             .filter(a => a.locationId === territory.id)
-            .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        
-        const relevantAssignment = assignmentsForTerritory.find(a => {
-            try {
-                const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
-                const isPast = isBefore(assignmentDateTime, startOfDay(now));
-                
-                if (!isPast && (a.status === 'accepted' || a.status === 'pending' || a.status === 'replacement_requested')) {
-                    return true;
-                }
-                if (isPast && a.status === 'accepted' && !a.lastReportData) {
-                    return true;
-                }
-            } catch (e) {
-                console.warn(`Could not parse date for assignment ${a.id}: ${a.date}`);
-                return false;
-            }
-            return false;
-        });
+            .sort((a,b) => parse(b.date, 'yyyy-MM-dd', new Date()).getTime() - parse(a.date, 'yyyy-MM-dd', new Date()).getTime());
         
         let status: ReporteActividadData['status'] = 'Disponible';
         let assignedTo = "N/A";
@@ -121,38 +103,42 @@ export default function ReportesPage() {
         let blocksWorked: string | number = "N/A";
         let blocksPending: string | number = "N/A";
 
+        const latestAssignment = assignmentsForTerritory[0];
 
         if (territory.isBlocked) {
             status = 'Bloqueado';
-        } else if (relevantAssignment) {
-            status = 'En Curso';
-            assignedTo = relevantAssignment.userName || 'N/A';
-            assignedDate = relevantAssignment.date;
-
-            const totalTerritoryBlocks = territory.totalBlocks || 0;
+        } else if (latestAssignment) {
+            const assignmentDateTime = parse(`${latestAssignment.date} ${latestAssignment.time}`, "yyyy-MM-dd HH:mm", new Date());
+            const isPastAndUnreported = isBefore(assignmentDateTime, now) && latestAssignment.status === 'accepted' && !latestAssignment.lastReportData;
+            const isFuture = isBefore(now, assignmentDateTime);
             
-            const reportData = allAssignments.find(a => a.id === relevantAssignment.id)?.lastReportData;
-
-            if (reportData) {
-                const territoryReport = reportData.reports.find(r => r.territoryId === territory.id);
-                if (territoryReport) {
-                    if (territoryReport.territoryNotWorked) {
-                        blocksWorked = "No trabajado";
-                        blocksPending = totalTerritoryBlocks;
-                    } else {
-                        const workedCount = territoryReport.workedBlocksIds?.length || 0;
-                        blocksWorked = workedCount;
-                        blocksPending = totalTerritoryBlocks - workedCount;
-                    }
-                } else {
-                    blocksWorked = 0;
-                    blocksPending = totalTerritoryBlocks;
-                }
-            } else {
+            if (isFuture || isPastAndUnreported) {
+                status = 'En Curso';
+                assignedTo = latestAssignment.userName || 'N/A';
+                assignedDate = format(parseISO(latestAssignment.date), 'dd/MM/yyyy');
                 blocksWorked = 0;
-                blocksPending = totalTerritoryBlocks;
+                blocksPending = territory.totalBlocks || 0;
             }
         }
+        
+        const lastCompletedAssignment = assignmentsForTerritory
+            .filter(a => a.lastReportData && !a.lastReportData.reports.some(r => r.territoryNotWorked === true))
+            .sort((a,b) => (b.lastReportData!.reportedAt as Timestamp).toMillis() - (a.lastReportData!.reportedAt as Timestamp).toMillis())
+            [0];
+
+        const lastCompletedHistoric = lastCompletedAssignment?.lastReportData?.reportedAt
+            ? format((lastCompletedAssignment.lastReportData.reportedAt as Timestamp).toDate(), "dd/MM/yyyy")
+            : "Nunca";
+
+        if (status !== 'En Curso' && lastCompletedAssignment?.lastReportData) {
+            const report = lastCompletedAssignment.lastReportData.reports.find(r => r.territoryId === territory.id);
+            if (report) {
+                const workedCount = report.workedBlocksIds?.length || 0;
+                blocksWorked = workedCount;
+                blocksPending = (territory.totalBlocks || 0) - workedCount;
+            }
+        }
+
 
         const passesPublisherFilter = !filters.assignedTo || (status === 'En Curso' && assignedTo.toLowerCase().includes(filters.assignedTo.toLowerCase()));
         if (!passesPublisherFilter) return null;
@@ -160,7 +146,7 @@ export default function ReportesPage() {
         return {
             id: territory.id,
             territoryNumber: territory.number || territory.name,
-            lastCompletedHistoric: territory.lastWorked || "Nunca",
+            lastCompletedHistoric,
             assignedTo,
             assignedDate,
             blocksWorked: String(blocksWorked),
@@ -368,5 +354,3 @@ export default function ReportesPage() {
     </div>
   );
 }
-
-    
