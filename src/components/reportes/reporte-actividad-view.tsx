@@ -16,8 +16,8 @@ export interface ReporteActividadData {
   lastCompletedHistoric: string;
   assignedTo: string;
   assignedDate: string;
-  blocksWorked: string;
-  blocksPending: string;
+  blocksWorked: string; // Will be "N/A"
+  blocksPending: string; // Will be "N/A"
   status: 'Disponible' | 'En Curso' | 'Bloqueado';
   campaignHistory: CampaignAssignmentInReport[];
   blockReason?: string;
@@ -63,13 +63,11 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Territorio</TableHead>
-              <TableHead>Últ. Completó</TableHead>
+              <TableHead>Últ. Trabajo</TableHead>
               <TableHead>Asignado a</TableHead>
               <TableHead>Fecha Asig.</TableHead>
-              <TableHead>Trabajadas</TableHead>
-              <TableHead>Pendientes</TableHead>
-              <TableHead>Estado Ciclo</TableHead>
-              <TableHead className="text-center">Acciones</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead className="text-center">Historial</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -79,8 +77,6 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
                 <TableCell>{row.lastCompletedHistoric}</TableCell>
                 <TableCell>{row.assignedTo}</TableCell>
                 <TableCell>{row.assignedDate}</TableCell>
-                <TableCell>{row.blocksWorked}</TableCell>
-                <TableCell>{row.blocksPending}</TableCell>
                 <TableCell>
                    <Tooltip>
                     <TooltipTrigger asChild>
@@ -94,7 +90,7 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
                 </Tooltip>
                 </TableCell>
                 <TableCell className="text-center">
-                  <Button variant="ghost" size="icon" onClick={() => handleViewHistory(row.campaignHistory, row.territoryNumber)}>
+                  <Button variant="ghost" size="icon" onClick={() => handleViewHistory(row.campaignHistory, row.territoryNumber)} disabled={!row.campaignHistory || row.campaignHistory.length === 0}>
                     <Eye className="h-4 w-4" />
                   </Button>
                 </TableCell>
@@ -108,9 +104,9 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
       <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Historial de Campañas del Ciclo</DialogTitle>
+            <DialogTitle>Historial de Asignaciones</DialogTitle>
             <DialogDescription>
-              Mostrando todas las asignaciones para el ciclo actual del Territorio {selectedTerritory}.
+              Mostrando asignaciones pasadas para el Territorio {selectedTerritory}.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto">
@@ -119,21 +115,17 @@ export function ReporteActividadView({ data }: ReporteActividadViewProps) {
                 <TableRow>
                   <TableHead>Asignado a</TableHead>
                   <TableHead>Fecha</TableHead>
-                  <TableHead>Trabajadas</TableHead>
-                  <TableHead>Pendientes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {selectedHistory.length > 0 ? selectedHistory.map((campaign, index) => (
+                {selectedHistory.length > 0 ? selectedHistory.map((assignment, index) => (
                   <TableRow key={index}>
-                    <TableCell>{campaign.assignedTo || "N/A"}</TableCell>
-                    <TableCell>{campaign.assignedDate || "N/A"}</TableCell>
-                    <TableCell>{campaign.blocksWorked || "-"}</TableCell>
-                    <TableCell>{campaign.blocksPending || "-"}</TableCell>
+                    <TableCell>{assignment.assignedTo || "N/A"}</TableCell>
+                    <TableCell>{assignment.assignedDate || "N/A"}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center">No hay historial para este ciclo.</TableCell>
+                    <TableCell colSpan={2} className="text-center">No hay historial para este territorio.</TableCell>
                   </TableRow>
                 )}
               </TableBody>

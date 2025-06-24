@@ -6,9 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Eye, Sparkles, User } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import type { CampaignAssignmentInReport, Report } from "@/types";
+import type { CampaignAssignmentInReport, Assignment } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { format } from "date-fns";
 
 
 export interface ReporteS13Data {
@@ -29,27 +30,18 @@ export interface ConsolidatedS13Data {
 
 interface ReporteS13ViewProps {
     data: ConsolidatedS13Data[];
-    allReports: Report[]; // To find all cycles for a territory
+    allAssignments: Assignment[]; // Use all assignments for full history
 }
 
-export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
+export function ReporteS13View({ data, allAssignments }: ReporteS13ViewProps) {
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
-  const [selectedHistory, setSelectedHistory] = useState<ReporteS13Data[]>([]);
+  const [selectedHistory, setSelectedHistory] = useState<Assignment[]>([]);
   const [selectedTerritory, setSelectedTerritory] = useState<string>("");
 
   const handleViewFullHistory = (territoryNumber: string) => {
-    const territoryHistory = allReports
-      .filter(r => r.territoryNumber.toString() === territoryNumber && r.completedCurrentCycle !== 'En curso')
-      .map(report => ({
-        id: report.id,
-        territoryNumber: report.territoryNumber.toString(),
-        lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
-        firstAssignedTo: report.campaigns[0]?.assignedTo || "N/A",
-        firstAssignedDate: report.campaigns[0]?.assignedDate || "N/A",
-        completedCurrentCycle: report.completedCurrentCycle,
-        fullCampaignHistory: report.campaigns,
-      }))
-      .sort((a,b) => new Date(b.completedCurrentCycle.split('/').reverse().join('-')).getTime() - new Date(a.completedCurrentCycle.split('/').reverse().join('-')).getTime());
+    const territoryHistory = allAssignments
+      .filter(a => (a.locationId && allAssignments.find(t => t.id === a.locationId)?.number === territoryNumber) && a.lastReportData)
+      .sort((a,b) => b.lastReportData!.reportedAt.toMillis() - a.lastReportData!.reportedAt.toMillis());
 
     setSelectedHistory(territoryHistory);
     setSelectedTerritory(territoryNumber);
@@ -126,45 +118,30 @@ export function ReporteS13View({ data, allReports }: ReporteS13ViewProps) {
       <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Historial Completo de Ciclos</DialogTitle>
+            <DialogTitle>Historial Completo de Reportes</DialogTitle>
             <DialogDescription>
-              Mostrando todos los ciclos de trabajo completados para el Territorio {selectedTerritory}.
+              Mostrando todos los reportes enviados para el Territorio {selectedTerritory}.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Publicador (Inicio)</TableHead>
-                  <TableHead>Inicio Ciclo</TableHead>
-                  <TableHead>Fin Ciclo</TableHead>
-                   <TableHead>Campaña Esp.</TableHead>
+                  <TableHead>Publicador</TableHead>
+                  <TableHead>Fecha Asignación</TableHead>
+                  <TableHead>Fecha Reporte</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {selectedHistory.length > 0 ? selectedHistory.map((cycle) => (
-                  <TableRow key={cycle.id}>
-                    <TableCell>{cycle.firstAssignedTo}</TableCell>
-                    <TableCell>{cycle.firstAssignedDate}</TableCell>
-                    <TableCell className="font-semibold text-primary">{cycle.completedCurrentCycle}</TableCell>
-                    <TableCell>
-                        {cycle.fullCampaignHistory[0]?.isSpecialCampaign ? (
-                             <Tooltip>
-                                <TooltipTrigger asChild>
-                                     <Badge variant="outline" className="text-purple-600 border-purple-400">Sí</Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>{cycle.fullCampaignHistory[0]?.campaignName || "Campaña especial"}</p>
-                                </TooltipContent>
-                             </Tooltip>
-                        ) : (
-                            <span>No</span>
-                        )}
-                    </TableCell>
+                {selectedHistory.length > 0 ? selectedHistory.map((assignment) => (
+                  <TableRow key={assignment.id}>
+                    <TableCell>{assignment.userName}</TableCell>
+                    <TableCell>{assignment.date}</TableCell>
+                    <TableCell className="font-semibold text-primary">{format(assignment.lastReportData!.reportedAt.toDate(), "dd/MM/yyyy")}</TableCell>
                   </TableRow>
                 )) : (
                    <TableRow>
-                    <TableCell colSpan={4} className="text-center">No hay historial para este territorio.</TableCell>
+                    <TableCell colSpan={3} className="text-center">No hay historial para este territorio.</TableCell>
                   </TableRow>
                 )}
               </TableBody>

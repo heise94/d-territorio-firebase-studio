@@ -5,12 +5,13 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Filter, FileDown, PlusCircle, UploadCloud } from "lucide-react";
-import type { Report, Territory } from "@/types";
+import { Loader2, Filter, FileDown, PlusCircle } from "lucide-react";
+import type { Territory, Assignment } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import Papa from "papaparse";
-import { collection, onSnapshot, query, writeBatch, doc, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { format } from "date-fns";
 
 import { ReporteActividadView, type ReporteActividadData } from "@/components/reportes/reporte-actividad-view";
 import { ReporteS13View, type ConsolidatedS13Data, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
@@ -18,34 +19,32 @@ import { FiltrosReportesSheet, type ReportFilters } from "@/components/reportes/
 
 
 export default function ReportesPage() {
-  const [isLoadingReports, setIsLoadingReports] = useState(true);
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
   const [isLoadingTerritories, setIsLoadingTerritories] = useState(true);
-  const [isSeeding, setIsSeeding] = useState(false);
   const [isFiltersSheetOpen, setIsFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ReportFilters>({});
   const { toast } = useToast();
-  const [allReports, setAllReports] = useState<Report[]>([]);
+  const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
 
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
       toast({ title: "Error", description: "La base de datos no está disponible.", variant: "destructive" });
-      setIsLoadingReports(false);
+      setIsLoadingAssignments(false);
       setIsLoadingTerritories(false);
       return;
     }
     
-    setIsLoadingReports(true);
-    const reportsQuery = query(collection(db, "reports")); 
-    
-    const unsubscribeReports = onSnapshot(reportsQuery, (snapshot) => {
-      const fetchedReports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Report));
-      setAllReports(fetchedReports);
-      setIsLoadingReports(false);
+    setIsLoadingAssignments(true);
+    const assignmentsQuery = query(collection(db, "assignments")); 
+    const unsubscribeAssignments = onSnapshot(assignmentsQuery, (snapshot) => {
+      const fetchedAssignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment));
+      setAllAssignments(fetchedAssignments);
+      setIsLoadingAssignments(false);
     }, (error) => {
-      console.error("Error fetching reports:", error);
-      toast({ title: "Error al Cargar Reportes", description: "No se pudieron cargar los datos de los reportes desde Firestore.", variant: "destructive" });
-      setIsLoadingReports(false);
+      console.error("Error fetching assignments:", error);
+      toast({ title: "Error al Cargar Asignaciones", description: "No se pudieron cargar los datos de las asignaciones desde Firestore.", variant: "destructive" });
+      setIsLoadingAssignments(false);
     });
 
     setIsLoadingTerritories(true);
@@ -62,193 +61,165 @@ export default function ReportesPage() {
 
 
     return () => {
-        unsubscribeReports();
+        unsubscribeAssignments();
         unsubscribeTerritories();
     };
   }, [toast]);
 
 
-  const handleSeedDatabase = async () => {
-      if (!db) {
-          toast({ title: "Error", description: "La base de datos no está disponible.", variant: "destructive" });
-          return;
+  const filteredTerritories = useMemo(() => {
+    if (!filters) return allTerritories;
+    return allTerritories.filter(territory => {
+      if (filters.territoryNumber && !territory.number?.toLowerCase().includes(filters.territoryNumber.toLowerCase())) {
+        return false;
       }
-      setIsSeeding(true);
-      toast({ title: "Iniciando carga...", description: "Guardando datos de ejemplo en Firestore. Esto puede tardar un momento." });
-
-      const { getReportsForSeeding } = await import('@/data/reports-data-processor');
-      const reportsToSeed = getReportsForSeeding();
-      
-      const reportsCollection = collection(db, "reports");
-      const batch = writeBatch(db);
-      
-      reportsToSeed.forEach(report => {
-          const docRef = doc(reportsCollection, report.id); 
-          batch.set(docRef, report);
-      });
-
-      try {
-          await batch.commit();
-          toast({ title: "Éxito", description: `${reportsToSeed.length} reportes han sido cargados a Firestore.`, variant: "default" });
-      } catch (error) {
-          console.error("Error seeding database: ", error);
-          toast({ title: "Error en la Carga", description: "No se pudieron guardar los datos en la base de datos.", variant: "destructive" });
-      } finally {
-          setIsSeeding(false);
-      }
-  };
-
-
-  const filteredReports = useMemo(() => {
-    if (!Array.isArray(allReports)) return [];
-    return allReports.filter(report => {
-      if (filters.territoryNumber && !report.territoryNumber.toString().includes(filters.territoryNumber)) return false;
-      if (filters.assignedTo && !report.campaigns.some(c => c.assignedTo?.toLowerCase().includes(filters.assignedTo!.toLowerCase()))) return false;
-      
-      const lastCampaignDate = report.campaigns.length > 0 && report.campaigns[report.campaigns.length - 1].assignedDate
-        ? new Date(report.campaigns[report.campaigns.length - 1].assignedDate!.split('/').reverse().join('-'))
-        : null;
-
-      if (filters.fromDate && lastCampaignDate && lastCampaignDate < filters.fromDate) return false;
-      if (filters.toDate && lastCampaignDate && lastCampaignDate > filters.toDate) return false;
-      
+      // Note: assignedTo and date filters are applied in the specific data processors below
       return true;
     });
-  }, [allReports, filters]);
+  }, [allTerritories, filters]);
 
 
- const processedActividadData: ReporteActividadData[] = useMemo(() => {
-    const reportsByTerritory = new Map<string, Report[]>();
-    filteredReports.forEach(report => {
-      const key = report.territoryNumber.toString();
-      if (!reportsByTerritory.has(key)) {
-        reportsByTerritory.set(key, []);
-      }
-      reportsByTerritory.get(key)!.push(report);
-    });
+  const processedActividadData: ReporteActividadData[] = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day for comparisons
 
-    const activityData: ReporteActividadData[] = [];
-    
-    for (const [territoryNumber, reports] of reportsByTerritory.entries()) {
-      let latestReport = reports.find(r => r.completedCurrentCycle === 'En curso');
+    return filteredTerritories.map(territory => {
+        const assignmentsForTerritory = allAssignments
+            .filter(a => a.locationId === territory.id)
+            .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        
+        const futureAssignment = assignmentsForTerritory.find(a => new Date(a.date) >= today && a.status !== 'rejected' && a.status !== 'cancelled_by_admin');
+        
+        let status: ReporteActividadData['status'] = 'Disponible';
+        let assignedTo = "N/A";
+        let assignedDate = "N/A";
 
-      if (!latestReport) {
-        latestReport = [...reports].sort((a, b) => {
-          try {
-            const dateAValid = a.completedCurrentCycle && a.completedCurrentCycle.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/);
-            const dateBValid = b.completedCurrentCycle && b.completedCurrentCycle.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/);
+        if (territory.isBlocked) {
+            status = 'Bloqueado';
+        } else if (futureAssignment) {
+            status = 'En Curso';
+            assignedTo = futureAssignment.userName || 'N/A';
+            assignedDate = futureAssignment.date;
+        }
 
-            if (!dateAValid || a.completedCurrentCycle === 'Disponible') return 1;
-            if (!dateBValid || b.completedCurrentCycle === 'Disponible') return -1;
-            
-            const dateA = new Date(a.completedCurrentCycle.split('/').reverse().join('-'));
-            const dateB = new Date(b.completedCurrentCycle.split('/').reverse().join('-'));
-            return dateB.getTime() - dateA.getTime();
-          } catch(e) { return 0; }
-        })[0];
-      }
-      
-      if (latestReport) {
-          const territoryDetails = allTerritories.find(t => t.number === territoryNumber);
-          const isInProgress = latestReport.completedCurrentCycle === 'En curso';
-          const lastCampaign = latestReport.campaigns[latestReport.campaigns.length - 1];
+        const passesPublisherFilter = !filters.assignedTo || (status === 'En Curso' && assignedTo.toLowerCase().includes(filters.assignedTo.toLowerCase()));
+        if (!passesPublisherFilter) return null;
 
-          let finalStatus: ReporteActividadData['status'] = 'Disponible';
-          if (territoryDetails?.isBlocked) {
-            finalStatus = 'Bloqueado';
-          } else if (isInProgress) {
-            finalStatus = 'En Curso';
-          }
-          
-          let displayLastCompletedDate = "Nunca";
-          if (!isInProgress && latestReport.completedCurrentCycle !== 'Disponible') {
-            displayLastCompletedDate = latestReport.completedCurrentCycle;
-          } else if (latestReport.lastCompletedHistoric && latestReport.lastCompletedHistoric !== "Nunca") {
-            displayLastCompletedDate = latestReport.lastCompletedHistoric;
-          }
+        return {
+            id: territory.id,
+            territoryNumber: territory.number || territory.name,
+            lastCompletedHistoric: territory.lastWorked || "Nunca",
+            assignedTo,
+            assignedDate,
+            blocksWorked: "N/A", // This is not applicable for a "current status" view.
+            blocksPending: "N/A", // This is not applicable for a "current status" view.
+            status,
+            campaignHistory: assignmentsForTerritory.filter(a => a.lastReportData).map(a => ({
+                assignedTo: a.userName,
+                assignedDate: a.date,
+            })),
+            blockReason: territory.blockReason,
+        }
+    }).filter((item): item is ReporteActividadData => item !== null)
+      .sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, {numeric: true}));
 
-          activityData.push({
-            id: latestReport.id,
-            territoryNumber: latestReport.territoryNumber.toString(),
-            lastCompletedHistoric: displayLastCompletedDate,
-            assignedTo: finalStatus === 'En Curso' ? lastCampaign?.assignedTo || "N/A" : "N/A",
-            assignedDate: finalStatus === 'En Curso' ? lastCampaign?.assignedDate || "N/A" : "N/A",
-            blocksWorked: finalStatus === 'En Curso' ? lastCampaign?.blocksWorked || "-" : "-",
-            blocksPending: finalStatus === 'En Curso' ? lastCampaign?.blocksPending || "-" : "-",
-            status: finalStatus,
-            campaignHistory: latestReport.campaigns,
-            blockReason: territoryDetails?.blockReason
-          });
-      }
-    }
-    
-    return activityData.sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, {numeric: true}));
+  }, [filteredTerritories, allAssignments, filters.assignedTo]);
 
-  }, [filteredReports, allTerritories]);
 
   const processedS13Data: ConsolidatedS13Data[] = useMemo(() => {
-    if (!Array.isArray(filteredReports)) return [];
+    const assignmentsWithReports = allAssignments.filter(a => a.lastReportData && a.locationId);
+    const reportsByTerritory = new Map<string, Assignment[]>();
 
-    const groupedByTerritory = new Map<string, ReporteS13Data[]>();
-    
-    filteredReports
-      .filter(report => report.completedCurrentCycle && !['En curso', 'Disponible'].includes(report.completedCurrentCycle))
-      .forEach(report => {
-        const cycleData = {
-          id: report.id,
-          territoryNumber: report.territoryNumber.toString(),
-          lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
-          firstAssignedTo: report.campaigns[0]?.assignedTo || "N/A",
-          firstAssignedDate: report.campaigns[0]?.assignedDate || "N/A",
-          completedCurrentCycle: report.completedCurrentCycle,
-          fullCampaignHistory: report.campaigns,
-        };
-
-        if (!groupedByTerritory.has(cycleData.territoryNumber)) {
-            groupedByTerritory.set(cycleData.territoryNumber, []);
+    assignmentsWithReports.forEach(a => {
+        const terrId = a.locationId!;
+        if(!reportsByTerritory.has(terrId)) {
+            reportsByTerritory.set(terrId, []);
         }
-        groupedByTerritory.get(cycleData.territoryNumber)!.push(cycleData);
+        reportsByTerritory.get(terrId)!.push(a);
     });
+    
+    const consolidatedData: ConsolidatedS13Data[] = [];
 
-    const consolidatedData = Array.from(groupedByTerritory.entries()).map(([territoryNumber, cycles]) => {
-        const sortedCycles = [...cycles].sort((a, b) => new Date(b.completedCurrentCycle.split('/').reverse().join('-')).getTime() - new Date(a.completedCurrentCycle.split('/').reverse().join('-')).getTime());
-        return {
-            territoryNumber: territoryNumber,
-            lastCycle: sortedCycles[0] || undefined,
-            penultimateCycle: sortedCycles[1] || undefined,
-        };
-    });
+    for(const [territoryId, assignments] of reportsByTerritory.entries()) {
+        const territory = allTerritories.find(t => t.id === territoryId);
+        if (!territory) continue;
 
-    return consolidatedData.sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, {numeric: true}));
-  }, [filteredReports]);
+        const sortedAssignments = assignments.sort((a,b) => b.lastReportData!.reportedAt.toMillis() - a.lastReportData!.reportedAt.toMillis());
+
+        const transformAssignmentToS13 = (assignment: Assignment): ReporteS13Data => ({
+            id: assignment.id,
+            territoryNumber: territory.number || territory.name,
+            lastCompletedHistoric: territory.lastWorked || 'N/A', // This is the last time any work was reported, not necessarily the last full cycle. Best effort.
+            firstAssignedTo: assignment.userName || 'N/A',
+            firstAssignedDate: assignment.date,
+            completedCurrentCycle: format(assignment.lastReportData!.reportedAt.toDate(), "dd/MM/yyyy"),
+            fullCampaignHistory: [{
+                assignedTo: assignment.userName,
+                assignedDate: assignment.date,
+            }]
+        });
+
+        consolidatedData.push({
+            territoryNumber: territory.number || territory.name,
+            lastCycle: sortedAssignments[0] ? transformAssignmentToS13(sortedAssignments[0]) : undefined,
+            penultimateCycle: sortedAssignments[1] ? transformAssignmentToS13(sortedAssignments[1]) : undefined,
+        });
+    }
+
+    return consolidatedData.filter(d => {
+        if (filters.territoryNumber && !d.territoryNumber.toLowerCase().includes(filters.territoryNumber.toLowerCase())) return false;
+        
+        if (filters.assignedTo) {
+            const name = filters.assignedTo.toLowerCase();
+            const match = d.lastCycle?.firstAssignedTo.toLowerCase().includes(name) || d.penultimateCycle?.firstAssignedTo.toLowerCase().includes(name);
+            if (!match) return false;
+        }
+
+        if(filters.fromDate || filters.toDate) {
+            const lastCycleDate = d.lastCycle ? new Date(d.lastCycle.completedCurrentCycle.split('/').reverse().join('-')) : null;
+            if (filters.fromDate && lastCycleDate && lastCycleDate < filters.fromDate) return false;
+            if (filters.toDate && lastCycleDate && lastCycleDate > filters.toDate) return false;
+        }
+        
+        return true;
+    }).sort((a,b) => a.territoryNumber.localeCompare(b.territoryNumber, undefined, {numeric: true}));
+
+  }, [allAssignments, allTerritories, filters]);
 
 
   const handleExportS13 = () => {
-    const allCompletedCyclesForExport = filteredReports
-      .filter(report => report.completedCurrentCycle !== 'En curso' && report.completedCurrentCycle !== 'Disponible')
-      .map(report => ({
-        id: report.id,
-        territoryNumber: report.territoryNumber.toString(),
-        lastCompletedHistoric: report.lastCompletedHistoric || "N/A",
-        firstAssignedTo: report.campaigns[0]?.assignedTo || "N/A",
-        firstAssignedDate: report.campaigns[0]?.assignedDate || "N/A",
-        completedCurrentCycle: report.completedCurrentCycle,
-        fullCampaignHistory: report.campaigns,
-      }));
-
-    if (allCompletedCyclesForExport.length === 0) {
+    if (processedS13Data.length === 0) {
       toast({ title: "Sin datos", description: "No hay datos de ciclos completados para exportar con los filtros actuales.", variant: "default" });
       return;
     }
-    const csvData = allCompletedCyclesForExport.map(row => ({
-      "Territorio": row.territoryNumber,
-      "FechaCompletóHistórica": row.lastCompletedHistoric,
-      "PrimerAsignadoCiclo": row.firstAssignedTo,
-      "FechaPrimeraAsignaciónCiclo": row.firstAssignedDate,
-      "FechaCompletóCiclo": row.completedCurrentCycle,
-      "FueCampañaEspecial": row.fullCampaignHistory[0]?.isSpecialCampaign ? "Sí" : "No",
-      "NombreCampaña": row.fullCampaignHistory[0]?.campaignName || "",
-    }));
+
+    const csvData = processedS13Data.flatMap(row => {
+        const rows = [];
+        if (row.lastCycle) {
+            rows.push({
+                "Territorio": row.territoryNumber,
+                "Ciclo": "Último",
+                "FechaCompletóCiclo": row.lastCycle.completedCurrentCycle,
+                "PrimerAsignadoCiclo": row.lastCycle.firstAssignedTo,
+                "FechaPrimeraAsignaciónCiclo": row.lastCycle.firstAssignedDate,
+            });
+        }
+        if (row.penultimateCycle) {
+            rows.push({
+                "Territorio": row.territoryNumber,
+                "Ciclo": "Penúltimo",
+                "FechaCompletóCiclo": row.penultimateCycle.completedCurrentCycle,
+                "PrimerAsignadoCiclo": row.penultimateCycle.firstAssignedTo,
+                "FechaPrimeraAsignaciónCiclo": row.penultimateCycle.firstAssignedDate,
+            });
+        }
+        return rows;
+    });
+
+    if (csvData.length === 0) {
+      toast({ title: "Sin datos", description: "No hay ciclos válidos para exportar.", variant: "default" });
+      return;
+    }
     
     const csv = Papa.unparse(csvData);
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' }); // Add BOM for Excel
@@ -262,7 +233,7 @@ export default function ReportesPage() {
     toast({ title: "Exportación Iniciada", description: "El archivo CSV se está descargando." });
   };
 
-  const isLoading = isLoadingReports || isLoadingTerritories;
+  const isLoading = isLoadingAssignments || isLoadingTerritories;
 
   return (
     <div className="space-y-6">
@@ -277,12 +248,6 @@ export default function ReportesPage() {
           <Button onClick={() => setIsFiltersSheetOpen(true)}>
             <Filter className="mr-2 h-4 w-4" /> Mostrar Filtros
           </Button>
-           {allReports.length === 0 && !isLoading && (
-              <Button onClick={handleSeedDatabase} disabled={isSeeding} variant="outline">
-                {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
-                {isSeeding ? 'Cargando...' : 'Cargar Datos a Firestore'}
-              </Button>
-            )}
         </CardContent>
       </Card>
       
@@ -325,14 +290,14 @@ export default function ReportesPage() {
             <CardHeader>
               <CardTitle>Historial de Ciclos Completados (S-13)</CardTitle>
               <CardDescription>
-                Cada fila representa un territorio, mostrando sus últimos dos ciclos de trabajo completados.
+                Cada fila representa un territorio, mostrando sus últimos dos ciclos de trabajo completados (basado en la fecha del reporte).
               </CardDescription>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
               ) : (
-                <ReporteS13View data={processedS13Data} allReports={allReports || []} />
+                <ReporteS13View data={processedS13Data} allAssignments={allAssignments} />
               )}
             </CardContent>
           </Card>
