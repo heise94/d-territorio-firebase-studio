@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  Home, Users, MapIcon as Map, Building, Users2 as GroupIcon, LayoutDashboard, Settings, FileText, CalendarDays, CheckSquare, UserCog, CircleDot, GanttChartSquare, UserCheck, ListChecks, BarChartHorizontal, Database
+  Home, Users, MapIcon as Map, Building, Users2 as GroupIcon, LayoutDashboard, Settings, FileText, CalendarDays, CheckSquare, UserCog, CircleDot, GanttChartSquare, UserCheck, ListChecks, BarChartHorizontal, Database, Pencil
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -45,7 +45,16 @@ const navItems: NavItemConfig[] = [
     ]
   },
   { title: "Gestión Asignaciones", href: "/gestion-asignaciones", icon: ListChecks, permission: PERMISSIONS.VIEW_ALL_ASSIGNMENTS, segment: "gestion-asignaciones" },
-  { title: "Reportes", href: "/reportes", icon: BarChartHorizontal, permission: PERMISSIONS.VIEW_REPORTS, segment: "reportes" },
+  {
+    title: "Reportes",
+    href: "/reportes",
+    icon: BarChartHorizontal,
+    segment: "reportes",
+    children: [
+      { title: "Vista General", href: "/reportes", icon: CircleDot, permission: PERMISSIONS.VIEW_REPORTS, segment: "reportes" },
+      { title: "Editor de Historial", href: "/reportes/editor", icon: Pencil, permission: PERMISSIONS.EDIT_REPORTS, segment: "editor" },
+    ]
+  },
   { title: "Mis Asignaciones", href: "/asignaciones", icon: CheckSquare, permission: PERMISSIONS.VIEW_OWN_ASSIGNMENTS, segment: "asignaciones" },
   { title: "Mi Disponibilidad", href: "/disponibilidad", icon: UserCog, permission: PERMISSIONS.MANAGE_OWN_AVAILABILITY, segment: "disponibilidad" },
   { title: "Programa de Grupo", href: "/mi-grupo/programa", icon: UserCheck, permission: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM, segment: "mi-grupo" },
@@ -99,7 +108,7 @@ export function SidebarNav() {
     if (visibleChildren.length === 0) return null;
     
     const Icon = item.icon;
-    const isGroupActive = pathname.startsWith(item.href);
+    const isGroupActive = item.segment ? pathname.startsWith(`/${item.segment}`) : false;
 
     return (
         <Accordion type="single" collapsible key={item.title} defaultValue={isGroupActive ? item.title : ""}>

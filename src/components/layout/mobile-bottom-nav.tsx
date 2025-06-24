@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  LayoutDashboard, Users, MapIcon as Map, Building, Users2 as GroupIcon, CalendarDays, CheckSquare, ListChecks, UserCog, UserCheck, FileText, Settings, BarChartHorizontal, Database
+  LayoutDashboard, Users, MapIcon as Map, Building, Users2 as GroupIcon, CalendarDays, CheckSquare, ListChecks, UserCog, UserCheck, FileText, Settings, BarChartHorizontal, Database, Pencil
 } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS, PermissionId, USER_ROLES } from "@/lib/constants";
@@ -29,6 +29,7 @@ const bottomNavItems: BottomNavItemConfig[] = [
   { title: "Programa", href: "/programa", icon: CalendarDays, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM },
   { title: "Gestión Asig.", href: "/gestion-asignaciones", icon: ListChecks, permission: PERMISSIONS.VIEW_ALL_ASSIGNMENTS },
   { title: "Reportes", href: "/reportes", icon: BarChartHorizontal, permission: PERMISSIONS.VIEW_REPORTS },
+  { title: "Editor Hist.", href: "/reportes/editor", icon: Pencil, permission: PERMISSIONS.EDIT_REPORTS },
   { title: "Mi Dispo.", href: "/disponibilidad", icon: UserCog, permission: PERMISSIONS.MANAGE_OWN_AVAILABILITY },
   { title: "Mi Grupo", href: "/mi-grupo/programa", icon: UserCheck, permission: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM },
   { title: "Importar", href: "/admin/import-data", icon: Database, adminOnly: true },

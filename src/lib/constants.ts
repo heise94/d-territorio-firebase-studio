@@ -49,6 +49,7 @@ export const PERMISSIONS = {
   
   // Report Management
   VIEW_REPORTS: "view_reports",
+  EDIT_REPORTS: "edit_reports", // New permission
 
   // Settings
   MANAGE_PROGRAM_SETTINGS: "manage_program_settings", // Preaching schedules, group days, rural rotation
@@ -152,9 +153,10 @@ export const PERMISSIONS_BY_MODULE: ModulePermissions[] = [
   },
    {
     moduleName: PERMISSION_MODULES.REPORTS,
-    moduleDescription: "Visualización de reportes de territorios como el S-13.",
+    moduleDescription: "Visualización y gestión de reportes de territorios.",
     permissions: [
       { id: PERMISSIONS.VIEW_REPORTS, description: "Ver la página de Reportes" },
+      { id: PERMISSIONS.EDIT_REPORTS, description: "Editar el historial de reportes de territorios" },
     ],
   },
   {
@@ -162,6 +164,7 @@ export const PERMISSIONS_BY_MODULE: ModulePermissions[] = [
     moduleDescription: "Herramientas específicas para Superintendentes de Grupo (SG).",
     permissions: [
       { id: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM, description: "Gestionar el programa de predicación de mi grupo" },
+      { id: PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS, description: "Gestionar los publicadores de mi grupo" },
       { id: PERMISSIONS.ASSIGN_TERRITORIES_GROUP, description: "Asignar territorios específicos a las salidas de mi grupo"},
     ],
   },
@@ -192,6 +195,7 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.VIEW_ALL_ASSIGNMENTS, PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
     PERMISSIONS.VIEW_REPORTS,
+    PERMISSIONS.EDIT_REPORTS,
   ],
   [USER_ROLES.SS]: [ 
     PERMISSIONS.VIEW_DASHBOARD,
@@ -213,6 +217,7 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
     PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM,
+    PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS,
     PERMISSIONS.ASSIGN_TERRITORIES_GROUP,
     PERMISSIONS.VIEW_REPORTS,
   ],
