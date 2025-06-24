@@ -12,11 +12,32 @@ import { EditUserDialog } from "@/components/usuarios/edit-user-dialog";
 import { EditUserAvailabilityDialog } from "@/components/usuarios/edit-user-availability-dialog";
 import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc, Casa } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, updateDoc, writeBatch } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, updateDoc, writeBatch, deleteField } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { USER_ROLES, USER_ROLES_LIST, UserRole } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription as DialogDescriptionComponent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription as FormFieldDescription,
+} from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
 import {
   Table,
@@ -44,6 +65,18 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Skeleton } from "@/components/ui/skeleton";
 
 
+const blockUserFormSchema = z.object({
+  forSystem: z.boolean().default(false),
+  forGroup: z.boolean().default(false),
+  reason: z.string().max(200, "Máximo 200 caracteres.").optional(),
+}).refine(data => data.forSystem || data.forGroup, {
+  message: "Debes seleccionar al menos un tipo de bloqueo.",
+  path: ["forSystem"],
+});
+
+type BlockUserFormValues = z.infer<typeof blockUserFormSchema>;
+
+
 export default function UsuariosPage() {
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
@@ -56,9 +89,8 @@ export default function UsuariosPage() {
   const router = useRouter();
   const { userProfile: currentUserProfile, startImpersonation, actualUserRole } = usePermissions();
 
-  const [isBlockReasonUserDialogOpen, setIsBlockReasonUserDialogOpen] = useState(false);
+  const [isBlockUserDialogOpen, setIsBlockUserDialogOpen] = useState(false);
   const [userToBlock, setUserToBlock] = useState<UserProfile | null>(null);
-  const [blockReasonUser, setBlockReasonUser] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [availableGroups, setAvailableGroups] = useState<PreachingGroup[]>([]);
@@ -71,6 +103,11 @@ export default function UsuariosPage() {
   const [userToEditAvailability, setUserToEditAvailability] = useState<UserProfile | null>(null);
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+
+  const blockForm = useForm<BlockUserFormValues>({
+    resolver: zodResolver(blockUserFormSchema),
+    defaultValues: { forSystem: false, forGroup: false, reason: "" },
+  });
 
   // Fetch all necessary data from Firestore
   useEffect(() => {
@@ -131,6 +168,14 @@ export default function UsuariosPage() {
 
     return () => unsubscribers.forEach(unsub => unsub());
   }, [toast]);
+  
+  useEffect(() => {
+    if (isBlockUserDialogOpen && userToBlock) {
+      blockForm.reset(userToBlock.blockInfo || { forSystem: false, forGroup: false, reason: "" });
+    } else {
+      blockForm.reset({ forSystem: false, forGroup: false, reason: "" });
+    }
+  }, [isBlockUserDialogOpen, userToBlock, blockForm]);
 
 
   const handleOpenAddUserDialog = () => {
@@ -197,36 +242,47 @@ export default function UsuariosPage() {
   };
 
 
-  const handleOpenBlockReasonUserDialog = (user: UserProfile) => {
+  const handleOpenBlockUserDialog = (user: UserProfile) => {
     setUserToBlock(user);
-    setBlockReasonUser(user.blockReason || "");
-    setIsBlockReasonUserDialogOpen(true);
+    setIsBlockUserDialogOpen(true);
   };
-
-  const confirmToggleBlockUser = async () => {
+  
+  const handleUnblockUser = async (user: UserProfile) => {
+    if (!db) return;
+    setIsSubmitting(true);
+    try {
+      await updateDoc(doc(db, "users", user.id), {
+        status: 'Activo',
+        blockInfo: deleteField(),
+        updatedAt: Timestamp.now(),
+      });
+      toast({ title: "Usuario Desbloqueado", description: `${user.name} ha sido desbloqueado.` });
+    } catch (error) {
+      toast({ title: "Error", description: "No se pudo desbloquear al usuario.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const onBlockUserSubmit = async (values: BlockUserFormValues) => {
     if (!userToBlock) return;
     setIsSubmitting(true);
-    const newStatus = userToBlock.status === 'Activo' ? 'Bloqueado' : 'Activo';
-    const userDocRef = doc(db, "users", userToBlock.id);
-    
     try {
-        await updateDoc(userDocRef, {
-            status: newStatus,
-            blockReason: newStatus === 'Bloqueado' ? blockReasonUser : deleteField(),
-            updatedAt: Timestamp.now()
-        });
-        toast({
-          title: `Usuario ${newStatus === 'Bloqueado' ? 'Bloqueado' : 'Desbloqueado'}`,
-          description: `${userToBlock.name} ha sido ${newStatus === 'Bloqueado' ? 'bloqueado' : 'desbloqueado'}.`,
-        });
-    } catch(error) {
-        console.error("Error toggling user block status:", error);
-        toast({title: "Error", description: "No se pudo actualizar el estado del usuario.", variant: "destructive"});
+      await updateDoc(doc(db, "users", userToBlock.id), {
+        status: 'Bloqueado',
+        blockInfo: {
+          forSystem: values.forSystem,
+          forGroup: values.forGroup,
+          reason: values.reason || "",
+        },
+        updatedAt: Timestamp.now(),
+      });
+      toast({ title: "Usuario Bloqueado", description: `${userToBlock.name} ha sido bloqueado.` });
+    } catch (error) {
+      toast({ title: "Error", description: "No se pudo bloquear al usuario.", variant: "destructive" });
     } finally {
-        setIsBlockReasonUserDialogOpen(false);
-        setUserToBlock(null);
-        setBlockReasonUser("");
-        setIsSubmitting(false);
+      setIsSubmitting(false);
+      setIsBlockUserDialogOpen(false);
     }
   };
 
@@ -478,7 +534,7 @@ export default function UsuariosPage() {
                     {filteredUsers.map((user) => {
                       const isUserAdmin = user.role === USER_ROLES.ENCARGADO_TERRITORIO;
                       const displayStatus = (canViewSensitiveUserDetails || user.status !== 'Bloqueado') ? user.status : 'Activo';
-                      const showBlockReasonTooltip = canViewSensitiveUserDetails && user.status === 'Bloqueado' && user.blockReason;
+                      const showBlockReasonTooltip = canViewSensitiveUserDetails && user.status === 'Bloqueado' && (user.blockInfo?.reason || user.blockInfo?.forSystem || user.blockInfo?.forGroup);
                       const isPendingAdminApprovalFromGroup = user.addedByGroupId && user.adminApprovalStatus === 'pending';
                       const groupName = user.assignedGroupId ? availableGroups.find(g => g.id === user.assignedGroupId)?.name : null;
 
@@ -527,7 +583,12 @@ export default function UsuariosPage() {
                             {showBlockReasonTooltip && (
                                <TooltipContent side="bottom" className="max-w-xs bg-destructive text-destructive-foreground p-2 rounded-md shadow-lg">
                                   <p className="text-xs font-semibold flex items-center"><MessageSquareWarning size={13} className="mr-1.5"/>Razón del bloqueo:</p>
-                                  <p className="text-xs italic">{user.blockReason}</p>
+                                  {user.blockInfo?.reason && <p className="text-xs italic">{user.blockInfo.reason}</p>}
+                                  <p className='text-xs mt-1'>Alcance:</p>
+                                  <ul className='list-disc pl-4 text-xs'>
+                                      {user.blockInfo?.forSystem && <li>Sistema (IA)</li>}
+                                      {user.blockInfo?.forGroup && <li>Grupo (Manual)</li>}
+                                  </ul>
                                </TooltipContent>
                             )}
                              {isPendingAdminApprovalFromGroup && (
@@ -617,9 +678,7 @@ export default function UsuariosPage() {
                             {canManageUsers && !isUserAdmin && user.status === 'Activo' && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8"
-                                   onClick={() => handleOpenBlockReasonUserDialog(user)}
-                                  disabled={isSubmitting}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-amber-600 hover:text-amber-700" onClick={() => handleOpenBlockUserDialog(user)} disabled={isSubmitting}>
                                     <ShieldOff className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
@@ -630,9 +689,7 @@ export default function UsuariosPage() {
                             {canManageUsers && !isUserAdmin && user.status === 'Bloqueado' && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8"
-                                    onClick={() => {setUserToBlock(user); setBlockReasonUser(""); confirmToggleBlockUser();}}
-                                    disabled={isSubmitting}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleUnblockUser(user)} disabled={isSubmitting}>
                                         <ShieldCheck className="h-4 w-4 text-green-600"/>
                                     </Button>
                                     </TooltipTrigger>
@@ -716,40 +773,60 @@ export default function UsuariosPage() {
                 programScheduleSlots={programScheduleSlots}
             />
         )}
-
-        {userToBlock && (
-          <AlertDialog open={isBlockReasonUserDialogOpen} onOpenChange={setIsBlockReasonUserDialogOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle className="flex items-center"><ShieldAlert className="mr-2 h-5 w-5 text-amber-500"/>Bloquear Usuario: {userToBlock.name}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Estás a punto de bloquear a este usuario. Si lo deseas, puedes añadir una razón (opcional).
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="py-2">
-                <Label htmlFor="blockReasonUserInput" className="text-sm font-medium">Razón del Bloqueo (Opcional)</Label>
-                <Textarea
-                  id="blockReasonUserInput"
-                  placeholder="Ej: Inactividad, solicitud del usuario, etc."
-                  value={blockReasonUser}
-                  onChange={(e) => setBlockReasonUser(e.target.value)}
-                  className="mt-1"
-                  rows={3}
+        
+        <Dialog open={isBlockUserDialogOpen} onOpenChange={setIsBlockUserDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center"><ShieldAlert className="mr-2 h-5 w-5 text-amber-500"/>Bloquear Usuario: {userToBlock?.name}</DialogTitle>
+              <DialogDescriptionComponent>
+                Define el alcance y la razón del bloqueo.
+              </DialogDescriptionComponent>
+            </DialogHeader>
+            <Form {...blockForm}>
+            <form onSubmit={blockForm.handleSubmit(onBlockUserSubmit)} className="space-y-4 py-2">
+                <div className="space-y-3 rounded-md border p-4">
+                  <FormField
+                    control={blockForm.control}
+                    name="forSystem"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        <div className="space-y-1 leading-none"><Label htmlFor="forSystem" className="font-normal">Bloquear para Sistema (IA)</Label><FormFieldDescription className="text-xs">El usuario no será considerado por la IA para el programa mensual.</FormFieldDescription></div>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={blockForm.control}
+                    name="forGroup"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        <div className="space-y-1 leading-none"><Label htmlFor="forGroup" className="font-normal">Bloquear para Grupo (Manual)</Label><FormFieldDescription className="text-xs">El usuario no aparecerá como opción para los SG en la planificación de grupo.</FormFieldDescription></div>
+                      </FormItem>
+                    )}
+                  />
+                  {blockForm.formState.errors.forSystem && <p className="text-sm font-medium text-destructive">{blockForm.formState.errors.forSystem.message}</p>}
+                </div>
+                <FormField
+                  control={blockForm.control}
+                  name="reason"
+                  render={({ field }) => (
+                    <FormItem><Label>Razón del Bloqueo (Opcional)</Label><FormControl><Textarea placeholder="Ej: Inactividad, solicitud del usuario, etc." {...field} /></FormControl></FormItem>
+                  )}
                 />
-              </div>
-              <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => { setIsBlockReasonUserDialogOpen(false); setUserToBlock(null); setBlockReasonUser(""); }}>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmToggleBlockUser} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirmar Bloqueo
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+                <DialogFooter className="pt-4">
+                  <DialogClose asChild><Button type="button" variant="outline" onClick={() => setIsBlockUserDialogOpen(false)}>Cancelar</Button></DialogClose>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Confirmar Bloqueo
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </TooltipProvider>
   );
 }
-
-    

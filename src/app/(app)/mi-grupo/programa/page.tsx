@@ -160,6 +160,7 @@ export default function MiGrupoProgramaPage() {
   useEffect(() => {
     if (!currentGroupId) {
         setGroupAssignments([]);
+        setIsLoading(false);
         return;
     }
     setIsLoading(true);

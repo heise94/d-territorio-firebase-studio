@@ -99,7 +99,7 @@ export default function ProgramaMensualPage() {
         const convertTimestampToDate = (item: any, dateFields: string[]) => { /* ... */ return item; }; // Simplified for brevity
         setCampaigns((eventsConfig.campaignsList || []).map(c => ({...c, startDate: (c.startDate as Timestamp).toDate(), endDate: (c.endDate as Timestamp).toDate()})));
         setHolidays((eventsConfig.holidaysList || []).map(h => ({...h, date: (h.date as Timestamp).toDate()})));
-        setAssemblies((eventsConfig.assembliesList || []).map(a => ({...a, startDate: (a.startDate as Timestamp).toDate(), endDate: (a.endDate as Timestamp).toDate()})));
+        setAssemblies((eventsConfig.assembliesList || []).map(a => ({...a, startDate: (a.startDate as Date), endDate: (a.endDate as Date)})));
       }
 
       const collectionsToFetch = {
@@ -156,8 +156,6 @@ export default function ProgramaMensualPage() {
         processedAvailableDays[slot.dayOfWeek].push({startTime: slot.startTime, type: slot.type});
     });
     
-    // Filter publishers and casas based on their block status for the system
-    const availablePublishersForAI = publishers.filter(p => p.status !== 'Bloqueado' || !(p.blockInfo?.forSystem));
     const availableCasasForAI = casas.filter(c => !c.blockInfo || !c.blockInfo.forSystem);
 
     const input: GenerateMonthlyAssignmentsInput = {
@@ -168,7 +166,11 @@ export default function ProgramaMensualPage() {
       availableDaysWithTimeSlots: processedAvailableDays,
       groupPreachingDays: groupOrganizedDays,
 
-      publisherDetailedAvailabilities: availablePublishersForAI.map(p => ({ id: p.firebaseAuthUid || p.id, name: p.name })),
+      publisherDetailedAvailabilities: publishers.map(p => ({ 
+          id: p.firebaseAuthUid || p.id, 
+          name: p.name,
+          blockInfo: p.blockInfo 
+      })),
       availableCasas: availableCasasForAI.map(c => ({ 
           id: c.id, 
           name: c.ownerName, 

@@ -18,10 +18,18 @@ const AssemblyAISchema = z.object({
     description: z.string().optional().describe("Optional description of the assembly."),
 });
 
+const BlockInfoAISchema = z.object({
+  forSystem: z.boolean().describe("True if blocked for system-wide AI assignment."),
+  forGroup: z.boolean().describe("True if blocked for manual group assignment."),
+  reason: z.string().optional().describe("Reason for block.")
+});
+
 const PublisherDetailForAISchema = z.object({
     id: z.string().describe("Firebase Auth UID of the publisher."),
     name: z.string().describe("Full name of the publisher."),
-}).describe("Detailed information about an available publisher, including their ID and name for captain assignment.");
+    blockInfo: BlockInfoAISchema.optional().describe("Information about any blocks on this publisher. If blockInfo.forSystem is true, DO NOT assign them."),
+}).describe("Detailed information about an available publisher, including their ID, name, and block status for captain assignment.");
+
 
 const TimeSlotAISchema = z.object({
   startTime: z.string().describe("Start time of the slot (HH:MM)."),
@@ -89,7 +97,7 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
   assembliesInMonth: z.array(AssemblyAISchema).optional().describe('List of assemblies (Circuit, Regional, etc.) occurring in the scheduling month. No preaching should be scheduled on these dates.'),
   publisherDetailedAvailabilities: z
     .array(PublisherDetailForAISchema)
-    .describe('Detailed information for each available publisher, including their ID (for captainId) and name (for captainName). Crucial for assigning captains.'),
+    .describe("Detailed information for each available publisher. IMPORTANT: If a publisher has `blockInfo.forSystem` set to true, you MUST NOT assign them as a captain."),
   additionalInstructions: z.string().optional().describe('Additional instructions for the AI, including how to handle holiday scheduling if different from normal days.'),
   preachingGroups: z.array(PreachingGroupAISchema).describe('List of all preaching groups, their names, and their superintendent IDs (SG).'),
 });
@@ -183,10 +191,10 @@ const prompt = ai.definePrompt({
     {{#if this.isGroupDay}} - {{this.dayOfWeek}} is a group day. {{/if}}
   {{/each}}
 
-  Publisher Detailed Availabilities (use this to get captainId and captainName for assignments):
+  Publisher Detailed Availabilities (use this to get captainId, captainName, and check block status for assignments):
   {{#if publisherDetailedAvailabilities}}
     {{#each publisherDetailedAvailabilities}}
-    - Publisher ID (for captainId): {{this.id}}, Name (for captainName): {{this.name}}
+    - Publisher ID (for captainId): {{this.id}}, Name (for captainName): {{this.name}} {{#if this.blockInfo.forSystem}} **(BLOQUEADO PARA SISTEMA)** {{/if}}
     {{/each}}
   {{else}}
     No publisher availability data provided. You MUST still attempt to assign captains based on the general logic and output a placeholder like "PENDING_CAPTAIN_ID" and "Pending Captain Name" if specific publisher IDs cannot be determined, along with a note.
@@ -233,6 +241,7 @@ const prompt = ai.definePrompt({
   1. General Captain Assignment:
      - For each day of the week, use the corresponding time slots from 'availableDaysWithTimeSlots' to create assignments.
      - For each slot, assign ONE captain. Use 'publisherDetailedAvailabilities' to select a suitable publisher and set their 'id' as 'captainId' and 'name' as 'captainName'.
+     - **IMPORTANT:** Do NOT assign any publisher that has \`blockInfo.forSystem\` set to \`true\`.
      - If a day has multiple time slots, aim to assign a DIFFERENT captain to each slot.
      - When assigning a 'casaName' or 'casaAddress' (for 'publica' or 'rural' types ONLY), ensure the chosen house is NOT within one of its 'unavailabilityPeriods' for the assignment date.
      - IMPORTANT: If the 'preachingType' for a slot is 'zoom', then 'casaName', 'casaAddress', and 'territoryName' MUST be null or empty in the output.
@@ -272,4 +281,3 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
     return output!;
   }
 );
-
