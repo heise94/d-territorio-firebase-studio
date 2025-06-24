@@ -1,5 +1,3 @@
-
-
 import type { Timestamp } from 'firebase/firestore';
 import type { UserRole as RoleType, PermissionId } from '@/lib/constants';
 
@@ -34,6 +32,7 @@ export interface PublisherDetail {
   id: string; // Document ID from Firestore users collection
   name: string;
   email: string;
+  phoneNumber?: string;
   availability?: {
     availableSlotIds?: string[];
   };
