@@ -77,9 +77,8 @@ export default function DashboardPage() {
     const filterEndDate = endOfMonth(new Date(selectedYear, selectedMonth));
     const workedTerritoryIds = new Set<string>();
     allAssignments.forEach(a => {
-      const reportedAt = a.lastReportData?.reportedAt;
-      if (reportedAt) {
-        const reportedDate = reportedAt instanceof Timestamp ? reportedAt.toDate() : new Date(reportedAt);
+      if (a.lastReportData?.reportedAt) {
+        const reportedDate = a.lastReportData.reportedAt instanceof Timestamp ? a.lastReportData.reportedAt.toDate() : new Date(a.lastReportData.reportedAt);
         if (reportedDate >= filterStartDate && reportedDate <= filterEndDate) {
           if (a.locationId) workedTerritoryIds.add(a.locationId);
           if (a.additionalTerritorySelected?.id) workedTerritoryIds.add(a.additionalTerritorySelected.id);
@@ -89,8 +88,8 @@ export default function DashboardPage() {
 
     const pendingAssignments = allAssignments.filter(a => {
         try {
-            const assignmentDate = new Date(a.date);
-            return (a.status === 'pending' || a.status === 'replacement_requested') && isFuture(assignmentDate);
+            const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
+            return (a.status === 'pending' || a.status === 'replacement_requested') && isFuture(assignmentDateTime);
         } catch (e) {
             return false;
         }
