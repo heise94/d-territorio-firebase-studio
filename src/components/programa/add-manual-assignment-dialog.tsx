@@ -23,9 +23,7 @@ import {
   FormMessage,
   FormDescription as FormFieldDescription,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, PlusCircle } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
@@ -37,7 +35,8 @@ import type { PublisherDetail, Casa, Territory, PreachingType } from "@/types";
 type AssignmentItem = GenerateMonthlyAssignmentsOutput['captainAssignments'][string][0];
 
 const addManualAssignmentSchema = z.object({
-  time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Debe ser formato HH:mm." }),
+  hour: z.string().min(1, "La hora es obligatoria."),
+  minute: z.string().min(1, "El minuto es obligatorio."),
   captainId: z.string().min(1, "Debes seleccionar un capitán."),
   preachingType: z.enum(['publica', 'rural', 'zoom']),
   locationId: z.string().optional(),
@@ -70,7 +69,8 @@ export function AddManualAssignmentDialog({
   const form = useForm<AddManualAssignmentFormValues>({
     resolver: zodResolver(addManualAssignmentSchema),
     defaultValues: {
-      time: "10:00",
+      hour: "10",
+      minute: "00",
       captainId: undefined,
       preachingType: 'publica',
       locationId: undefined,
@@ -83,7 +83,8 @@ export function AddManualAssignmentDialog({
   useEffect(() => {
     if (!isOpen) {
       form.reset({
-        time: "10:00",
+        hour: "10",
+        minute: "00",
         captainId: undefined,
         preachingType: 'publica',
         locationId: undefined,
@@ -124,7 +125,7 @@ export function AddManualAssignmentDialog({
       date: day,
       captainId: selectedPublisher.firebaseAuthUid || selectedPublisher.id,
       captainName: selectedPublisher.name,
-      time: values.time,
+      time: `${values.hour}:${values.minute}`,
       status: 'pending',
       preachingType: values.preachingType,
       casaName: casa?.ownerName,
@@ -153,19 +154,47 @@ export function AddManualAssignmentDialog({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            <FormField
-              control={form.control}
-              name="time"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Hora (Formato 24h)</FormLabel>
-                  <FormControl>
-                    <Input type="time" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div>
+                <FormLabel>Hora (Formato 24h)</FormLabel>
+                 <div className="grid grid-cols-2 gap-4 mt-2">
+                     <FormField
+                        control={form.control}
+                        name="hour"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs text-muted-foreground">Hora</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="HH" /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        {Array.from({ length: 16 }, (_, i) => (i + 7).toString().padStart(2, '0')).map(hour => (
+                                            <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                     <FormField
+                        control={form.control}
+                        name="minute"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-xs text-muted-foreground">Minuto</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="MM" /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        {['00', '15', '30', '45'].map(minute => (
+                                            <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                 </div>
+            </div>
             <FormField
               control={form.control}
               name="captainId"

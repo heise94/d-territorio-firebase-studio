@@ -75,7 +75,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 
 const scheduleSlotFormSchema = z.object({
-  startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Debe ser formato HH:mm."),
+  hour: z.string().min(1, "La hora es obligatoria."),
+  minute: z.string().min(1, "El minuto es obligatorio."),
   type: z.enum(['general', 'rural', 'zoom'], { required_error: "Debes seleccionar un tipo." }),
   status: z.enum(['fixed', 'tentative'], { required_error: "Debes seleccionar un estado." }),
 });
@@ -166,7 +167,8 @@ export default function SettingsPage() {
   const slotForm = useForm<ScheduleSlotFormValues>({
     resolver: zodResolver(scheduleSlotFormSchema),
     defaultValues: {
-      startTime: "",
+      hour: "",
+      minute: "",
       type: undefined,
       status: "fixed",
     },
@@ -303,13 +305,15 @@ export default function SettingsPage() {
   useEffect(() => {
     if (isAddSlotDialogOpen) {
       if (slotToEdit) {
+        const [hour = "", minute = ""] = slotToEdit.startTime.split(":");
         slotForm.reset({
-          startTime: slotToEdit.startTime,
+          hour,
+          minute,
           type: slotToEdit.type,
           status: slotToEdit.status,
         });
       } else {
-        slotForm.reset({ startTime: "", type: undefined, status: "fixed" });
+        slotForm.reset({ hour: "", minute: "", type: undefined, status: "fixed" });
       }
     }
   }, [isAddSlotDialogOpen, slotToEdit, slotForm]);
@@ -486,16 +490,20 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         setIsSubmittingSlotDialog(false);
         return;
     }
+    
+    const startTime = `${data.hour}:${data.minute}`;
 
     if (isEditMode && slotToEdit) {
       updatedSlots = scheduleSlots.map(s => 
-        s.id === slotToEdit.id ? { ...s, ...data } : s
+        s.id === slotToEdit.id ? { ...s, startTime, type: data.type, status: data.status } : s
       );
     } else {
       const newSlot: ProgramScheduleSlot = {
         id: crypto.randomUUID(),
         dayOfWeek: dayForAction,
-        ...data,
+        startTime,
+        type: data.type,
+        status: data.status,
       };
       updatedSlots = [...scheduleSlots, newSlot];
     }
@@ -1217,7 +1225,55 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
           <DialogHeader><DialogTitle>{isEditMode ? "Editar Horario" : `Añadir Horario para ${dayForNewSlot ? dayOfWeekLabels[dayForNewSlot] : ''}`}</DialogTitle><DialogDescriptionComponent>Completa los detalles.</DialogDescriptionComponent></DialogHeader>
           <Form {...slotForm}>
             <form onSubmit={slotForm.handleSubmit(onSubmitSlotDialog)} className="space-y-4 py-2">
-              <FormField control={slotForm.control} name="startTime" render={({ field }) => (<FormItem><FormLabel>Hora (Formato 24h)</FormLabel><FormControl><Input type="text" placeholder="HH:mm" {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <div>
+                <FormLabel>Hora (Formato 24h)</FormLabel>
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                    <FormField
+                    control={slotForm.control}
+                    name="hour"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-xs text-muted-foreground">Hora</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="HH" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            {Array.from({ length: 16 }, (_, i) => (i + 7).toString().padStart(2, '0')).map(hour => (
+                                <SelectItem key={hour} value={hour}>{hour}</SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={slotForm.control}
+                    name="minute"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-xs text-muted-foreground">Minuto</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="MM" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            {['00', '15', '30', '45'].map(minute => (
+                                <SelectItem key={minute} value={minute}>{minute}</SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
+              </div>
               <FormField control={slotForm.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="general">General</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
               <FormField control={slotForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona estado" /></SelectTrigger></FormControl><SelectContent><SelectItem value="fixed">Fijo</SelectItem><SelectItem value="tentative">Tentativo</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
               <DialogFooter className="pt-4"><DialogClose asChild><Button type="button" variant="outline" disabled={isSubmittingSlotDialog}>Cancelar</Button></DialogClose><Button type="submit" disabled={isSubmittingSlotDialog}>{isSubmittingSlotDialog && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isEditMode ? "Guardar Cambios" : "Añadir Horario"}</Button></DialogFooter>

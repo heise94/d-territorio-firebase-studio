@@ -254,7 +254,7 @@ export function AddGroupAssignmentDialog({
                             </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                            {Array.from({ length: 15 }, (_, i) => (i + 8).toString().padStart(2, '0')).map(hour => (
+                            {Array.from({ length: 16 }, (_, i) => (i + 7).toString().padStart(2, '0')).map(hour => (
                                 <SelectItem key={hour} value={hour}>{hour}</SelectItem>
                             ))}
                             </SelectContent>

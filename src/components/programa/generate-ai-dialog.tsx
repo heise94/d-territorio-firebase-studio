@@ -39,14 +39,15 @@ const holidayOverrideSchema = z.object({
   date: z.string(),
   name: z.string(),
   enabled: z.boolean().default(false),
-  time: z.string().optional(),
+  hour: z.string().optional(),
+  minute: z.string().optional(),
   type: z.enum(['general', 'rural', 'zoom']).optional(),
 }).refine(data => {
     if (!data.enabled) return true;
-    return !!data.time && !!data.type;
+    return !!data.hour && !!data.minute && !!data.type;
 }, {
-    message: "Si se habilita, la hora y el tipo son obligatorios.",
-    path: ["time"], // You can point to a general path or a specific one
+    message: "Si se habilita, la hora, minuto y tipo son obligatorios.",
+    path: ["hour"],
 });
 
 
@@ -122,7 +123,8 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
             date: format(h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date), "yyyy-MM-dd"),
             name: h.name,
             enabled: false,
-            time: '10:00',
+            hour: '10',
+            minute: '00',
             type: 'general' as PreachingType,
         }));
         replace(overrides);
@@ -141,10 +143,10 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
     setIsSubmitting(true);
     try {
       const activeHolidayOverrides = (values.holidayOverrides || [])
-        .filter(override => override.enabled && override.time && override.type)
+        .filter(override => override.enabled && override.hour && override.minute && override.type)
         .map(override => ({
             date: override.date,
-            time: override.time!,
+            time: `${override.hour!}:${override.minute!}`,
             type: override.type!,
         }));
 
@@ -215,11 +217,30 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
                             )}
                           />
                           {isEnabled && (
-                            <div className="grid grid-cols-2 gap-3 pl-8 pt-2">
-                              <FormField
+                            <div className="grid grid-cols-3 gap-3 pl-8 pt-2">
+                               <FormField
                                 control={form.control}
-                                name={`holidayOverrides.${index}.time`}
-                                render={({ field: timeField }) => (<FormItem><FormLabel className="text-xs">Hora</FormLabel><FormControl><Input {...timeField} placeholder="11:00" className="h-8 text-xs" /></FormControl><FormMessage /></FormItem>)}
+                                name={`holidayOverrides.${index}.hour`}
+                                render={({ field: hourField }) => (<FormItem><FormLabel className="text-xs">Hora</FormLabel>
+                                  <Select onValueChange={hourField.onChange} value={hourField.value}>
+                                    <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="HH" /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                      {Array.from({ length: 16 }, (_, i) => (i + 7).toString().padStart(2, '0')).map(hour => (<SelectItem key={hour} value={hour}>{hour}</SelectItem>))}
+                                    </SelectContent>
+                                  </Select>
+                                <FormMessage /></FormItem>)}
+                              />
+                               <FormField
+                                control={form.control}
+                                name={`holidayOverrides.${index}.minute`}
+                                render={({ field: minuteField }) => (<FormItem><FormLabel className="text-xs">Minuto</FormLabel>
+                                  <Select onValueChange={minuteField.onChange} value={minuteField.value}>
+                                    <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="MM" /></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                      {['00', '15', '30', '45'].map(minute => (<SelectItem key={minute} value={minute}>{minute}</SelectItem>))}
+                                    </SelectContent>
+                                  </Select>
+                                <FormMessage /></FormItem>)}
                               />
                               <FormField
                                 control={form.control}
