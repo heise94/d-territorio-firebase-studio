@@ -4,12 +4,12 @@
 import { useEffect, useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileCheck, Map as MapIcon, Users, Loader2, ShieldOff, Hourglass, AlertCircle } from "lucide-react";
+import { FileCheck, Map as MapIcon, Users, Loader2, ShieldOff, Hourglass, AlertCircle, Building, FileWarning } from "lucide-react";
 import { collection, onSnapshot, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { startOfMonth, endOfMonth, isFuture, format } from "date-fns";
+import { startOfMonth, endOfMonth, isFuture, format, isBefore, parse } from "date-fns";
 import { es } from "date-fns/locale";
-import type { Territory, UserProfile, Assignment } from "@/types";
+import type { Territory, UserProfile, Assignment, Casa } from "@/types";
 import Link from 'next/link';
 
 const currentFilterYear = new Date().getFullYear();
@@ -20,7 +20,8 @@ export default function DashboardPage() {
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
-  
+  const [allCasas, setAllCasas] = useState<Casa[]>([]);
+
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(currentFilterYear);
 
@@ -46,12 +47,18 @@ export default function DashboardPage() {
       onSnapshot(collection(db, "assignments"), (snapshot) => {
         setAllAssignments(snapshot.docs.map(doc => ({...doc.data(), id: doc.id} as Assignment)));
       }, (error) => console.error("Error fetching assignments:", error)),
+
+      onSnapshot(collection(db, "casas"), (snapshot) => {
+        setAllCasas(snapshot.docs.map(doc => doc.data() as Casa));
+      }, (error) => console.error("Error fetching casas:", error)),
     ];
 
-    const timer = setTimeout(() => setLoading(false), 2000);
-    unsubscribers.push(() => clearTimeout(timer));
+    const timer = setTimeout(() => setLoading(false), 1500); 
     
-    return () => unsubscribers.forEach(unsub => unsub());
+    return () => {
+      clearTimeout(timer);
+      unsubscribers.forEach(unsub => unsub());
+    };
   }, []);
 
   const stats = useMemo(() => {
@@ -61,6 +68,10 @@ export default function DashboardPage() {
     const activePublishers = allUsers.filter(u => u.status === 'Activo').length;
     const blockedForSystem = allUsers.filter(u => u.blockInfo?.forSystem).length;
     const blockedForGroup = allUsers.filter(u => u.blockInfo?.forGroup).length;
+    
+    const totalCasas = allCasas.length;
+    const blockedCasasSystem = allCasas.filter(c => c.blockInfo?.forSystem).length;
+    const blockedCasasGroup = allCasas.filter(c => c.blockInfo?.forGroup).length;
     
     const filterStartDate = startOfMonth(new Date(selectedYear, selectedMonth));
     const filterEndDate = endOfMonth(new Date(selectedYear, selectedMonth));
@@ -85,6 +96,17 @@ export default function DashboardPage() {
         }
     }).length;
 
+    const pendingReports = allAssignments.filter(a => {
+        try {
+            const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
+            const isPastAssignment = isBefore(assignmentDateTime, new Date());
+            const isReportableType = a.type === 'publica' || a.type === 'rural';
+            return isPastAssignment && isReportableType && a.status === 'accepted' && !a.lastReportData;
+        } catch (e) {
+            return false;
+        }
+    }).length;
+
     return {
         activeTerritories,
         blockedTerritories,
@@ -92,9 +114,13 @@ export default function DashboardPage() {
         blockedForSystem,
         blockedForGroup,
         workedTerritoriesThisMonth: workedTerritoryIds.size,
-        pendingAssignments
+        pendingAssignments,
+        totalCasas,
+        blockedCasasSystem,
+        blockedCasasGroup,
+        pendingReports
     };
-  }, [allTerritories, allUsers, allAssignments, selectedMonth, selectedYear]);
+  }, [allTerritories, allUsers, allAssignments, allCasas, selectedMonth, selectedYear]);
 
   const renderStat = (value: number, subValues?: {label: string, value: number}[]) => {
     if (loading) {
@@ -106,9 +132,11 @@ export default function DashboardPage() {
             {subValues && subValues.length > 0 && (
                 <div className="pt-1">
                     {subValues.map((sub, index) => (
-                        <p key={index} className="text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-1">
-                           <AlertCircle className="h-3 w-3"/> {sub.value} {sub.label}
-                        </p>
+                         sub.value > 0 && (
+                            <p key={index} className="text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-1">
+                               <AlertCircle className="h-3 w-3"/> {sub.value} {sub.label}
+                            </p>
+                         )
                     ))}
                 </div>
             )}
@@ -125,7 +153,7 @@ export default function DashboardPage() {
         </p>
       </div>
       
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card className="hover:shadow-lg transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Territorios Activos</CardTitle>
@@ -136,6 +164,21 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground pt-1">Total de territorios no bloqueados.</p>
           </CardContent>
         </Card>
+
+        <Card className="hover:shadow-lg transition-shadow duration-300">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Casas Disponibles</CardTitle>
+            <Building className="h-5 w-5 text-primary" />
+          </CardHeader>
+          <CardContent>
+             {renderStat(stats.totalCasas, [
+                {label: 'bloq. p/ sistema', value: stats.blockedCasasSystem},
+                {label: 'bloq. p/ grupo', value: stats.blockedCasasGroup}
+             ])}
+            <p className="text-xs text-muted-foreground pt-1">Total de casas de reunión registradas.</p>
+          </CardContent>
+        </Card>
+
         <Card className="hover:shadow-lg transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Publicadores Activos</CardTitle>
@@ -149,7 +192,8 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground pt-1">Total de usuarios con estado "Activo".</p>
           </CardContent>
         </Card>
-        <Card className="hover:shadow-lg transition-shadow duration-300 col-span-1 md:col-span-2 lg:col-span-1">
+
+        <Card className="hover:shadow-lg transition-shadow duration-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Territorios Trabajados</CardTitle>
             <FileCheck className="h-5 w-5 text-primary" />
@@ -168,6 +212,7 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+        
         <Card className="hover:shadow-lg transition-shadow duration-300 bg-amber-50 border-amber-300 dark:bg-amber-900/20 dark:border-amber-700/40">
            <Link href="/gestion-asignaciones" className="h-full w-full block">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -180,6 +225,20 @@ export default function DashboardPage() {
               </CardContent>
             </Link>
         </Card>
+        
+        <Card className="hover:shadow-lg transition-shadow duration-300 bg-orange-50 border-orange-300 dark:bg-orange-900/20 dark:border-orange-700/40">
+           <Link href="/asignaciones" className="h-full w-full block">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-orange-800 dark:text-orange-300">Reportes Pendientes</CardTitle>
+                <FileWarning className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              </CardHeader>
+              <CardContent>
+                 <div className="text-4xl font-bold text-orange-900 dark:text-orange-200">{loading ? <Loader2 className="h-8 w-8 animate-spin"/> : stats.pendingReports}</div>
+                <p className="text-xs text-orange-700 dark:text-orange-400/80 pt-1">Asignaciones pasadas que no han sido reportadas.</p>
+              </CardContent>
+            </Link>
+        </Card>
+
       </div>
     </div>
   );
