@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -5,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, UserX, AlertTriangle, CalendarCheck2, CalendarX2, Phone, Mail, Loader2, PlusCircle, UserPlus2 } from "lucide-react";
+import { Users, UserX, AlertTriangle, CalendarCheck2, CalendarX2, Phone, Mail, Loader2, UserPlus2 } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import type { UserProfile, PreachingGroup } from "@/types";
 import { USER_ROLES, PERMISSIONS } from "@/lib/constants";
@@ -13,19 +14,8 @@ import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/comp
 import { Button } from "@/components/ui/button";
 import { AddPublishersToGroupDialog } from "@/components/mi-grupo/publicadores/add-publishers-to-group-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp } from "firebase/firestore";
-
-// MOCK DATA - En una aplicación real, estos datos vendrían de Firestore
-const MOCK_ALL_PUBLISHERS_COPY: UserProfile[] = [
-    { id: "uidUser1", name: "Ana Pérez", email: "ana@example.com", phoneNumber: "+56911111111", availability: { availableSlotIds: ["mon-0900-gen", "wed-0930-gen"] }, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser1", adminApprovalStatus: "approved" },
-    { id: "uidUser2", name: "Luis Gómez", email: "luis@example.com", phoneNumber: "+56922222222", availability: { availableSlotIds: [] }, assignedGroupId: "G1", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser2", adminApprovalStatus: "approved" },
-    { id: "uidUser3", name: "Carlos Díaz", email: "carlos@example.com", phoneNumber: "+56933333333", availability: { availableSlotIds: ["tue-1000-rur"] }, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser3", adminApprovalStatus: "approved" },
-    { id: "uidUser4", name: "Elena Jara", email: "elena@example.com", phoneNumber: "+56944444444", availability: {}, assignedGroupId: "G2", role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser4", adminApprovalStatus: "approved" },
-    { id: "uidUser5", name: "Pedro Velez (Admin)", email: "pedro@example.com", phoneNumber: "+56955555555", availability: { availableSlotIds: ["sat-1000-gen"] }, role: USER_ROLES.ENCARGADO_TERRITORIO, status: "Activo", firebaseAuthUid: "uidUser5", adminApprovalStatus: "approved" },
-    { id: "uidUser6", name: "Sofía Castro (SG G1)", email: "sofia.castro.sg@example.com", phoneNumber: "+56966666666", availability: { availableSlotIds: ["fri-1000-gen", "sun-1500-zoom"] }, assignedGroupId: "G1", role: USER_ROLES.SG, status: "Activo", firebaseAuthUid: "uidUser6", adminApprovalStatus: "approved" },
-    { id: "uidUser7", name: "Marcos Solis (Sin Grupo)", email: "marcos@example.com", phoneNumber: "+56977777777", availability: { availableSlotIds: ["mon-0900-gen"] }, role: USER_ROLES.PUBLICADOR, status: "Activo", firebaseAuthUid: "uidUser7", adminApprovalStatus: "approved" },
-    { id: "uidUser8", name: "Laura Nuñez (Auxiliar G2)", email: "laura.nunez.aux@example.com", phoneNumber: "+56988888888", availability: { availableSlotIds: ["wed-0930-gen"] }, assignedGroupId: "G2", role: USER_ROLES.AUXILIAR_TERRITORIO, status: "Activo", firebaseAuthUid: "uidUser8", adminApprovalStatus: "approved" },
-];
+import { Timestamp, collection, doc, query, where, getDocs, setDoc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 
 const getInitials = (name?: string) => {
@@ -38,13 +28,58 @@ const getInitials = (name?: string) => {
   };
 
 export default function MiGrupoPublicadoresPage() {
-  const { userProfile, isLoadingPermissions, hasPermission, isImpersonating } = usePermissions(); // Correctly destructure isImpersonating
+  const { userProfile, isLoadingPermissions, hasPermission, isImpersonating } = usePermissions();
   const { toast } = useToast();
 
-  const [allPublishersData, setAllPublishersData] = useState<UserProfile[]>(() =>
-    JSON.parse(JSON.stringify(MOCK_ALL_PUBLISHERS_COPY)) 
-  );
+  const [allPublishers, setAllPublishers] = useState<UserProfile[]>([]);
+  const [allGroups, setAllGroups] = useState<PreachingGroup[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isInviteUserFromGroupDialogOpen, setIsInviteUserFromGroupDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!db) {
+        toast({ title: "Error", description: "Base de datos no disponible.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+    }
+    setIsLoading(true);
+
+    let usersLoaded = false;
+    let groupsLoaded = false;
+    const checkLoadingDone = () => {
+        if (usersLoaded && groupsLoaded) {
+            setIsLoading(false);
+        }
+    };
+
+    const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+        setAllPublishers(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as UserProfile));
+        usersLoaded = true;
+        checkLoadingDone();
+    }, (error) => {
+        console.error("Error fetching publishers:", error);
+        toast({title: "Error", description: "No se pudieron cargar los publicadores.", variant: "destructive"});
+        usersLoaded = true;
+        checkLoadingDone();
+    });
+
+    const unsubGroups = onSnapshot(collection(db, "preachingGroups"), (snapshot) => {
+        setAllGroups(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as PreachingGroup));
+        groupsLoaded = true;
+        checkLoadingDone();
+    }, (error) => {
+        console.error("Error fetching groups:", error);
+        toast({title: "Error", description: "No se pudieron cargar los grupos.", variant: "destructive"});
+        groupsLoaded = true;
+        checkLoadingDone();
+    });
+
+    return () => {
+        unsubUsers();
+        unsubGroups();
+    };
+  }, [toast]);
+
 
   if (isLoadingPermissions) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -74,15 +109,12 @@ export default function MiGrupoPublicadoresPage() {
   const currentGroupIdForManagement = userProfile?.assignedGroupId;
   
   const currentGroupName = useMemo(() => {
-      if (currentGroupIdForManagement) {
-          const sgOfGroup = MOCK_ALL_PUBLISHERS_COPY.find(p => p.assignedGroupId === currentGroupIdForManagement && p.role === USER_ROLES.SG);
-          if (sgOfGroup) return `Grupo de ${sgOfGroup.name.split(' ')[0]}`; 
-          const groupInfo = MOCK_ALL_PUBLISHERS_COPY.find(p => p.assignedGroupId === currentGroupIdForManagement);
-          if (groupInfo) return `Grupo ${currentGroupIdForManagement}`; 
-          return `Grupo ${currentGroupIdForManagement}`;
-      }
-      return "Tu Grupo";
-  }, [currentGroupIdForManagement]);
+    if (currentGroupIdForManagement) {
+      const group = allGroups.find(g => g.id === currentGroupIdForManagement);
+      return group ? group.name : `Grupo ${currentGroupIdForManagement}`;
+    }
+    return "Tu Grupo";
+  }, [currentGroupIdForManagement, allGroups]);
 
 
   if (userProfile?.role === USER_ROLES.SG && !currentGroupIdForManagement) {
@@ -105,37 +137,50 @@ export default function MiGrupoPublicadoresPage() {
   }
 
   const groupPublishers = useMemo(() => {
-    if (currentGroupIdForManagement) {
-      return allPublishersData.filter(p => p.assignedGroupId === currentGroupIdForManagement);
-    }
-    return [];
-  }, [allPublishersData, currentGroupIdForManagement]);
+    if (!currentGroupIdForManagement) return [];
+    
+    return allPublishers
+      .filter(p => p.assignedGroupId === currentGroupIdForManagement)
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
-  const handleUserInvitedFromGroup = (newUserData: { name: string, email: string, phoneNumber: string }) => {
+  }, [allPublishers, currentGroupIdForManagement]);
+
+  const handleUserInvitedFromGroup = async (newUserData: { name: string, email: string, phoneNumber: string }) => {
     if (!currentGroupIdForManagement) {
         toast({ title: "Error", description: "No se pudo identificar el grupo actual para añadir al publicador.", variant: "destructive"});
         return;
     }
+    
+    // Check if email already exists
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", newUserData.email.toLowerCase()));
+    const existingUserSnapshot = await getDocs(q);
+    
+    if (!existingUserSnapshot.empty) {
+        toast({ title: "Email ya existe", description: "Ya hay un usuario registrado con este email.", variant: "destructive"});
+        return;
+    }
 
+    const newUserDocRef = doc(collection(db, "users"));
     const newUserProfile: UserProfile = {
-        id: crypto.randomUUID(),
+        id: newUserDocRef.id,
         name: newUserData.name,
-        email: newUserData.email,
+        email: newUserData.email.toLowerCase(),
         phoneNumber: newUserData.phoneNumber,
-        role: USER_ROLES.PUBLICADOR, 
+        role: USER_ROLES.PUBLICADOR,
         assignedGroupId: currentGroupIdForManagement,
-        status: 'Pendiente Aprobación Admin', 
+        status: 'Pendiente Aprobación Admin',
         adminApprovalStatus: 'pending',
         addedByGroupId: currentGroupIdForManagement,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
-        
     };
 
-    setAllPublishersData(prevAllUsers => [newUserProfile, ...prevAllUsers]);
+    await setDoc(newUserDocRef, newUserProfile);
+    
     toast({
       title: "Invitación de Publicador Enviada",
-      description: `${newUserData.name} ha sido invitado al ${currentGroupName}. Quedará pendiente de aprobación por el administrador. (Simulación)`
+      description: `${newUserData.name} ha sido registrado. Quedará pendiente de aprobación por el administrador.`
     });
     setIsInviteUserFromGroupDialogOpen(false);
   };
@@ -147,7 +192,7 @@ export default function MiGrupoPublicadoresPage() {
         <div>
           <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
             <Users className="mr-3 h-8 w-8 text-primary" />
-            Publicadores {userProfile?.role === USER_ROLES.SG ? `del ${currentGroupName}` : '(Gestión de Grupo)'}
+            Publicadores {userProfile?.role === USER_ROLES.SG ? `de ${currentGroupName}` : '(Gestión de Grupo)'}
           </h1>
           <p className="text-muted-foreground mt-1">
             Consulta y gestiona la información de los publicadores asignados e invita nuevos miembros a tu grupo.
@@ -172,7 +217,9 @@ export default function MiGrupoPublicadoresPage() {
             )}
           </CardHeader>
           <CardContent>
-            {!currentGroupIdForManagement && userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !isImpersonating ? (
+            {isLoading ? (
+                <div className="flex h-64 items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>
+            ) : !currentGroupIdForManagement && userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO && !isImpersonating ? (
                 <div className="flex flex-col items-center justify-center h-64 bg-muted/30 rounded-md border border-dashed">
                     <Users className="h-20 w-20 text-muted-foreground/70 mb-6" />
                     <p className="text-xl font-medium text-muted-foreground mb-2">Página "Mi Grupo"</p>
@@ -281,3 +328,4 @@ export default function MiGrupoPublicadoresPage() {
     </TooltipProvider>
   );
 }
+
