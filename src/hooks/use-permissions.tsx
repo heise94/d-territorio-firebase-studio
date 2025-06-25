@@ -91,7 +91,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
               setIsLoadingPermissions(false);
           });
           return;
-        } else if (authUser.uid === 'uidElena') {
+        } else if (authUser.email === 'elena.campos.dev@example.com') {
           const devSgProfile: UserProfile = {
             id: 'dev-sg-elena', name: 'Elena Campos (SG Dev)', email: 'elena.campos.dev@example.com',
             phoneNumber: '+10000000001', role: USER_ROLES.SG, status: 'Activo' as const, firebaseAuthUid: authUser.uid, assignedGroupId: 'G1', adminApprovalStatus: 'approved',

@@ -215,9 +215,8 @@ export function AddTerritoryDialog({
     const approxHouseCount = processedBlockHouseCounts.reduce((sum, count) => sum + count, 0);
     const idForSubmit = territoryToEdit?.id && isEditMode ? territoryToEdit.id : crypto.randomUUID();
     
-    // Key change: Name for urban territories is their number.
     const territoryNameForSubmit = values.type === 'urban' 
-        ? (values.number || '') 
+        ? `Territorio Urbano ${values.number || ''}`.trim() 
         : (values.name || 'Territorio Rural sin nombre');
 
     const territoryDataToSubmit: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'> = {
@@ -329,7 +328,7 @@ export function AddTerritoryDialog({
                     <FormControl>
                       <Input placeholder="Ej: 101, A23" {...field} />
                     </FormControl>
-                    <FormFieldDescription>El nombre del territorio urbano será su número.</FormFieldDescription>
+                    <FormFieldDescription>Identificador único para el territorio urbano.</FormFieldDescription>
                     <FormMessage />
                   </FormItem>
                 )}
