@@ -15,7 +15,7 @@ import type { UserAssignment, AdditionalTerritoryInfo, Territory, TerritoryType 
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, MapPin, Users, MountainSnow, CheckCircle, PlusCircle, Compass, ListChecks, Home as HomeIcon, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCardDescription } from "@/components/ui/card";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -48,7 +48,7 @@ export function SolicitarTerritorioDialog({
             const territoriesRef = collection(db, "territories");
             const q = query(territoriesRef, where("isBlocked", "==", false));
             const querySnapshot = await getDocs(q);
-            const allTerritories = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Territory));
+            const allTerritories = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Territory));
             
             // Basic filtering: suggest 3 random available territories that are not the current one
             const suggestions = allTerritories
@@ -128,16 +128,16 @@ export function SolicitarTerritorioDialog({
                 <Card key={terr.id} className="hover:shadow-lg transition-shadow flex flex-col">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base font-semibold flex items-center justify-between">
-                        {terr.name}
+                        <span>{terr.type === 'urban' && terr.number ? `U-${terr.number}` : terr.name}</span>
                         <Badge variant={terr.type === 'urban' ? 'secondary' : 'outline'} className="capitalize text-xs">
                             {terr.type === 'urban' ? <Users className="mr-1 h-3 w-3"/> : <MountainSnow className="mr-1 h-3 w-3"/>}
-                            {terr.type} {terr.number ? ` #${terr.number}`: ''}
+                            {terr.type}
                         </Badge>
                     </CardTitle>
                      {terr.isPartial && (
-                        <CardDescription className="text-xs text-amber-600 pt-0.5 font-semibold">
+                        <ShadCardDescription className="text-xs text-amber-600 pt-0.5 font-semibold">
                             Territorio parcialmente trabajado
-                        </CardDescription>
+                        </ShadCardDescription>
                     )}
                   </CardHeader>
                   <CardContent className="flex-grow space-y-2 text-xs">
@@ -205,4 +205,3 @@ export function SolicitarTerritorioDialog({
     </Dialog>
   );
 }
-
