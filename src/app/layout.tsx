@@ -8,6 +8,11 @@ import { ThemeProvider } from '@/hooks/use-theme';
 export const metadata: Metadata = {
   title: 'D-TERRITORIO',
   description: 'Gestión integral de territorios de predicación.',
+  manifest: '/manifest.json',
+  themeColor: '#34D399',
+  icons: {
+    apple: '/icon-192x192.png',
+  },
 };
 
 export default function RootLayout({
