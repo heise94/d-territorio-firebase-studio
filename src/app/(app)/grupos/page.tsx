@@ -14,6 +14,8 @@ import { db } from "@/lib/firebase";
 import { GroupCard } from "@/components/grupos/group-card";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePermissions } from "@/hooks/use-permissions";
+import { PERMISSIONS } from "@/lib/constants";
 
 
 export default function GruposPage() {
@@ -26,6 +28,9 @@ export default function GruposPage() {
   
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  
+  const { hasPermission } = usePermissions();
+  const canManageGroups = hasPermission(PERMISSIONS.MANAGE_GROUPS);
 
   useEffect(() => {
     if (!db || Object.keys(db).length === 0) {
@@ -158,10 +163,12 @@ export default function GruposPage() {
             Administra los grupos, sus miembros, y territorios asignados.
           </p>
         </div>
-        <Button onClick={handleOpenAddDialog} size="lg">
-          <PlusCircle className="mr-2 h-5 w-5" />
-          Añadir Nuevo Grupo
-        </Button>
+        {canManageGroups && (
+          <Button onClick={handleOpenAddDialog} size="lg">
+            <PlusCircle className="mr-2 h-5 w-5" />
+            Añadir Nuevo Grupo
+          </Button>
+        )}
       </div>
 
       <Card className="shadow-lg">
@@ -225,6 +232,7 @@ export default function GruposPage() {
                   onEdit={() => handleOpenEditDialog(group)}
                   onDelete={() => handleDeleteGroup(group.id)}
                   availableUsers={allUsers}
+                  canManage={canManageGroups}
                 />
               ))}
             </div>
@@ -232,13 +240,15 @@ export default function GruposPage() {
         </CardContent>
       </Card>
       
-      <AddGroupDialog
-        isOpen={isGroupDialogOpen}
-        onOpenChange={setIsGroupDialogOpen}
-        onGroupSubmit={handleGroupSubmit}
-        groupToEdit={groupToEdit}
-        availableUsers={allUsers}
-      />
+      {canManageGroups && (
+        <AddGroupDialog
+          isOpen={isGroupDialogOpen}
+          onOpenChange={setIsGroupDialogOpen}
+          onGroupSubmit={handleGroupSubmit}
+          groupToEdit={groupToEdit}
+          availableUsers={allUsers}
+        />
+      )}
     </div>
     </TooltipProvider>
   );

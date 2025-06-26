@@ -11,11 +11,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 interface GroupCardProps {
   group: PreachingGroup;
   onEdit: () => void;
-  onDelete: () => void; // This will be called after confirmation
+  onDelete: () => void;
   availableUsers: UserProfile[];
+  canManage: boolean;
 }
 
-export function GroupCard({ group, onEdit, onDelete, availableUsers }: GroupCardProps) {
+export function GroupCard({ group, onEdit, onDelete, availableUsers, canManage }: GroupCardProps) {
   const superintendentName = availableUsers.find(u => u.firebaseAuthUid === group.superintendentId)?.name || group.superintendentId;
   const auxiliaryName = availableUsers.find(u => u.firebaseAuthUid === group.auxiliaryId)?.name || group.auxiliaryId;
   
@@ -27,7 +28,6 @@ export function GroupCard({ group, onEdit, onDelete, availableUsers }: GroupCard
             <GroupIcon size={22} className="mr-2 text-primary shrink-0" />
             {group.name}
           </CardTitle>
-          {/* Optional: Badge for status or type if groups have them */}
         </div>
         {group.description && (
             <CardDescription className="text-sm pt-1 italic text-muted-foreground line-clamp-2">
@@ -54,44 +54,46 @@ export function GroupCard({ group, onEdit, onDelete, availableUsers }: GroupCard
             <p className="text-xs text-muted-foreground italic text-center py-2">Sin detalles adicionales.</p>
         )}
       </CardContent>
-      <CardFooter className="border-t pt-3 pb-3 flex justify-center gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Editar grupo" className="h-8 w-8">
-              <Pencil className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent><p>Editar Grupo</p></TooltipContent>
-        </Tooltip>
-
-        <AlertDialog>
+      {canManage && (
+        <CardFooter className="border-t pt-3 pb-3 flex justify-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Eliminar grupo" className="h-8 w-8 text-destructive hover:bg-destructive/10">
-                      <Trash2 className="h-4 w-4" />
-                  </Button>
-              </AlertDialogTrigger>
+              <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Editar grupo" className="h-8 w-8">
+                <Pencil className="h-4 w-4" />
+              </Button>
             </TooltipTrigger>
-            <TooltipContent><p>Eliminar Grupo</p></TooltipContent>
+            <TooltipContent><p>Editar Grupo</p></TooltipContent>
           </Tooltip>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Esta acción no se puede deshacer. Esto eliminará permanentemente el grupo "{group.name}"
-                de los registros.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                Sí, eliminar
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </CardFooter>
+
+          <AlertDialog>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label="Eliminar grupo" className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </AlertDialogTrigger>
+              </TooltipTrigger>
+              <TooltipContent><p>Eliminar Grupo</p></TooltipContent>
+            </Tooltip>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta acción no se puede deshacer. Esto eliminará permanentemente el grupo "{group.name}"
+                  de los registros.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                  Sí, eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardFooter>
+      )}
     </Card>
   );
 }
