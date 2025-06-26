@@ -12,7 +12,7 @@ interface AppLogoProps {
 
 export function AppLogo({ className, iconSize = 24, textSize = "text-xl", href = "/" }: AppLogoProps) {
   return (
-    <Link href={href} className={cn("flex items-center gap-2 font-headline font-semibold text-foreground hover:text-primary transition-colors", className)}>
+    <Link href={href} className={cn("flex items-center gap-2 font-headline font-semibold text-primary hover:text-primary/90 transition-colors", className)}>
       <Image 
         src="/logo.png" 
         alt="D-TERRITORIO Logo" 
