@@ -51,13 +51,16 @@ export const PERMISSIONS = {
   
   // Report Management
   VIEW_REPORTS: "view_reports",
-  EDIT_REPORTS: "edit_reports", // New permission
+  EDIT_REPORTS: "edit_reports",
 
   // Settings
   MANAGE_PROGRAM_SETTINGS: "manage_program_settings", // Preaching schedules, group days, rural rotation
   MANAGE_CAMPAIGNS: "manage_campaigns",
   MANAGE_CUSTOM_HOLIDAYS: "manage_custom_holidays",
-  MANAGE_ASSEMBLIES: "manage_assemblies", // New permission for assemblies
+  MANAGE_ASSEMBLIES: "manage_assemblies",
+  
+  // Admin Tools
+  MANAGE_DATA_IMPORT: "manage_data_import",
   
 } as const;
 
@@ -75,6 +78,7 @@ export const PERMISSION_MODULES = {
   MY_GROUP: "Mi Grupo",
   REPORTS: "Reportes",
   SETTINGS: "Configuración General",
+  ADMIN_TOOLS: "Herramientas de Administrador",
 } as const;
 
 export type PermissionModule = typeof PERMISSION_MODULES[keyof typeof PERMISSION_MODULES];
@@ -178,9 +182,15 @@ export const PERMISSIONS_BY_MODULE: ModulePermissions[] = [
       { id: PERMISSIONS.MANAGE_CAMPAIGNS, description: "Gestionar campañas especiales de predicación" },
       { id: PERMISSIONS.MANAGE_CUSTOM_HOLIDAYS, description: "Gestionar días festivos personalizados" },
       { id: PERMISSIONS.MANAGE_ASSEMBLIES, description: "Gestionar fechas de asambleas (Circuito, Regional, etc.)" },
-      // Nota: MANAGE_ROLE_PERMISSIONS está aquí porque es una config global, pero afecta "Usuarios".
     ],
   },
+  {
+    moduleName: PERMISSION_MODULES.ADMIN_TOOLS,
+    moduleDescription: "Herramientas avanzadas solo para administradores.",
+    permissions: [
+      { id: PERMISSIONS.MANAGE_DATA_IMPORT, description: "Acceder a la página de importación de datos históricos y de usuarios" },
+    ]
+  }
 ];
 
 
