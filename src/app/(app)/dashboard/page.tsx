@@ -173,62 +173,70 @@ export default function DashboardPage() {
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card className="hover:shadow-lg transition-shadow duration-300">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Territorios Activos</CardTitle>
-            <MapIcon className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            {renderStat(stats.activeTerritories, stats.totalTerritories, [{label: 'bloqueado(s)', value: stats.blockedTerritories}])}
-            <p className="text-xs text-muted-foreground pt-1">Total de territorios no bloqueados.</p>
-          </CardContent>
+          <Link href="/territorios" className="h-full w-full block">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Territorios Activos</CardTitle>
+              <MapIcon className="h-5 w-5 text-primary" />
+            </CardHeader>
+            <CardContent>
+              {renderStat(stats.activeTerritories, stats.totalTerritories, [{label: 'bloqueado(s)', value: stats.blockedTerritories}])}
+              <p className="text-xs text-muted-foreground pt-1">Total de territorios no bloqueados.</p>
+            </CardContent>
+          </Link>
         </Card>
 
         <Card className="hover:shadow-lg transition-shadow duration-300">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Casas Disponibles</CardTitle>
-            <Building className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-             {renderStat(stats.availableCasasForSystem, stats.totalCasas, [
-                {label: 'bloq. p/ sistema', value: stats.blockedCasasSystem},
-                {label: 'bloq. p/ grupo', value: stats.blockedCasasGroup}
-             ])}
-            <p className="text-xs text-muted-foreground pt-1">Casas no bloqueadas para el sistema (IA).</p>
-          </CardContent>
+          <Link href="/casas" className="h-full w-full block">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Casas Disponibles</CardTitle>
+              <Building className="h-5 w-5 text-primary" />
+            </CardHeader>
+            <CardContent>
+               {renderStat(stats.availableCasasForSystem, stats.totalCasas, [
+                  {label: 'bloq. p/ sistema', value: stats.blockedCasasSystem},
+                  {label: 'bloq. p/ grupo', value: stats.blockedCasasGroup}
+               ])}
+              <p className="text-xs text-muted-foreground pt-1">Casas no bloqueadas para el sistema (IA).</p>
+            </CardContent>
+          </Link>
         </Card>
 
         <Card className="hover:shadow-lg transition-shadow duration-300">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Publicadores Activos</CardTitle>
-            <Users className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-             {renderStat(stats.activePublishers, stats.totalPublishers, [
-                {label: 'bloq. p/ sistema', value: stats.blockedForSystem},
-                {label: 'bloq. p/ grupo', value: stats.blockedForGroup}
-             ])}
-            <p className="text-xs text-muted-foreground pt-1">Total de usuarios con estado "Activo".</p>
-          </CardContent>
+          <Link href="/usuarios" className="h-full w-full block">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Publicadores Activos</CardTitle>
+              <Users className="h-5 w-5 text-primary" />
+            </CardHeader>
+            <CardContent>
+               {renderStat(stats.activePublishers, stats.totalPublishers, [
+                  {label: 'bloq. p/ sistema', value: stats.blockedForSystem},
+                  {label: 'bloq. p/ grupo', value: stats.blockedForGroup}
+               ])}
+              <p className="text-xs text-muted-foreground pt-1">Total de usuarios con estado "Activo".</p>
+            </CardContent>
+          </Link>
         </Card>
 
         <Card className="hover:shadow-lg transition-shadow duration-300">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Territorios Trabajados</CardTitle>
-            <FileCheck className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            {renderStat(stats.workedTerritoriesThisMonth)}
-            <div className="flex gap-2 items-center mt-2">
-                <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
-                    <SelectTrigger className="h-8 text-xs w-full"><SelectValue /></SelectTrigger>
-                    <SelectContent>{monthsForFilter.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent>
-                </Select>
-                <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-                     <SelectTrigger className="h-8 text-xs w-[100px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>{yearsForFilter.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
-                </Select>
-            </div>
-          </CardContent>
+          <Link href="/reportes" className="h-full w-full block">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Territorios Trabajados</CardTitle>
+              <FileCheck className="h-5 w-5 text-primary" />
+            </CardHeader>
+            <CardContent>
+              {renderStat(stats.workedTerritoriesThisMonth)}
+              <div className="flex gap-2 items-center mt-2" onClick={(e) => e.stopPropagation()}>
+                  <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                      <SelectTrigger className="h-8 text-xs w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>{monthsForFilter.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+                       <SelectTrigger className="h-8 text-xs w-[100px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>{yearsForFilter.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+                  </Select>
+              </div>
+            </CardContent>
+          </Link>
         </Card>
         
         <Card className="hover:shadow-lg transition-shadow duration-300 bg-amber-50 border-amber-300 dark:bg-amber-900/20 dark:border-amber-700/40">
