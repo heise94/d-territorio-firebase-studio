@@ -14,7 +14,7 @@ import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc, Cas
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, updateDoc, writeBatch, deleteField } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { USER_ROLES, USER_ROLES_LIST, UserRole } from "@/lib/constants";
+import { USER_ROLES, USER_ROLES_LIST, UserRole, PERMISSIONS } from "@/lib/constants";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
@@ -88,7 +88,7 @@ export default function UsuariosPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const router = useRouter();
-  const { userProfile: currentUserProfile, startImpersonation, actualUserRole } = usePermissions();
+  const { userProfile: currentUserProfile, startImpersonation, actualUserRole, hasPermission } = usePermissions();
 
   const [isBlockUserDialogOpen, setIsBlockUserDialogOpen] = useState(false);
   const [userToBlock, setUserToBlock] = useState<UserProfile | null>(null);
@@ -422,8 +422,10 @@ export default function UsuariosPage() {
     return name.substring(0, 2).toUpperCase();
   };
 
-  const canManageUsers = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
-  const canViewSensitiveUserDetails = currentUserProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || currentUserProfile?.role === USER_ROLES.SS;
+  const canManageUsers = hasPermission(PERMISSIONS.MANAGE_USERS);
+  const canViewSensitiveUserDetails = hasPermission(PERMISSIONS.VIEW_USERS);
+  const canManagePermissions = hasPermission(PERMISSIONS.MANAGE_ROLE_PERMISSIONS);
+
 
   const filteredUsers = useMemo(() => {
     let clientSortedUsers = [...users].sort((a, b) => {
@@ -465,14 +467,18 @@ export default function UsuariosPage() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
-              <Button onClick={handleManagePermissions} variant="outline" size="lg">
-                  <Settings2 className="mr-2 h-5 w-5" />
-                  Permisos de Roles
-              </Button>
-              <Button onClick={handleOpenAddUserDialog} size="lg">
-                  <PlusCircle className="mr-2 h-5 w-5" />
-                  Añadir Nuevo Usuario
-              </Button>
+              {canManagePermissions && (
+                  <Button onClick={handleManagePermissions} variant="outline" size="lg">
+                    <Settings2 className="mr-2 h-5 w-5" />
+                    Permisos de Roles
+                  </Button>
+              )}
+              {canManageUsers && (
+                  <Button onClick={handleOpenAddUserDialog} size="lg">
+                    <PlusCircle className="mr-2 h-5 w-5" />
+                    Añadir Nuevo Usuario
+                  </Button>
+              )}
           </div>
         </div>
 
@@ -752,23 +758,27 @@ export default function UsuariosPage() {
           </CardContent>
         </Card>
 
-        <InviteUserDialog
-          isOpen={isAddUserDialogOpen}
-          onOpenChange={setIsAddUserDialogOpen}
-          onUserAdded={handleUserAdded}
-          availableGroups={availableGroups}
-        />
-
-        <EditUserDialog
-            isOpen={isEditUserDialogOpen}
-            onOpenChange={setIsEditUserDialogOpen}
-            onUserUpdate={handleUserUpdate}
-            userToEdit={userToEdit}
+        {canManageUsers && (
+            <InviteUserDialog
+            isOpen={isAddUserDialogOpen}
+            onOpenChange={setIsAddUserDialogOpen}
+            onUserAdded={handleUserAdded}
             availableGroups={availableGroups}
-            availableCasas={availableCasas}
-        />
+            />
+        )}
+        
+        {canManageUsers && (
+            <EditUserDialog
+                isOpen={isEditUserDialogOpen}
+                onOpenChange={setIsEditUserDialogOpen}
+                onUserUpdate={handleUserUpdate}
+                userToEdit={userToEdit}
+                availableGroups={availableGroups}
+                availableCasas={availableCasas}
+            />
+        )}
 
-        {userToEditAvailability && (
+        {userToEditAvailability && canManageUsers && (
             <EditUserAvailabilityDialog
                 isOpen={isEditAvailabilityDialogOpen}
                 onOpenChange={setIsEditAvailabilityDialogOpen}
@@ -812,7 +822,7 @@ export default function UsuariosPage() {
                   {blockForm.formState.errors.forSystem && <p className="text-sm font-medium text-destructive">{blockForm.formState.errors.forSystem.message}</p>}
                 </div>
                 <FormField
-                  control={blockForm.control}
+                  control={form.control}
                   name="reason"
                   render={({ field }) => (
                     <FormItem><Label>Razón del Bloqueo (Opcional)</Label><FormControl><Textarea placeholder="Ej: Inactividad, solicitud del usuario, etc." {...field} /></FormControl></FormItem>
@@ -834,4 +844,3 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
-

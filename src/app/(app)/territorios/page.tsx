@@ -20,7 +20,7 @@ import Link from "next/link";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/hooks/use-permissions";
-import { USER_ROLES } from "@/lib/constants";
+import { USER_ROLES, PERMISSIONS } from "@/lib/constants";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +35,7 @@ export default function TerritoriosPage() {
   
   const [activeTab, setActiveTab] = useState<TerritoryType>("urban");
   const { toast } = useToast();
-  const { userProfile, isLoadingPermissions } = usePermissions();
+  const { userProfile, isLoadingPermissions, hasPermission } = usePermissions();
 
   // Dialog states
   const [isBlockReasonDialogOpen, setIsBlockReasonDialogOpen] = useState(false);
@@ -319,8 +319,8 @@ export default function TerritoriosPage() {
   }, [territories, searchTerm, activeTab, filterGroupId, filterCasaId, filterStatus, sortOrder]);
 
 
-  const canManageBlocking = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
-  const canViewBlockStatusDetails = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || userProfile?.role === USER_ROLES.SS;
+  const canManageTerritories = hasPermission(PERMISSIONS.MANAGE_TERRITORIES);
+  const canViewBlockDetails = hasPermission(PERMISSIONS.VIEW_TERRITORIES);
   
   const totalApproximateHousesAllTerritories = useMemo(() => {
     return territories.reduce((sum, terr) => {
@@ -345,7 +345,7 @@ export default function TerritoriosPage() {
 
   const renderTerritoryActions = (territory: Territory) => (
     <div className="flex items-center justify-center gap-0.5">
-      {canManageBlocking && (
+      {canManageTerritories && (
         <>
           <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(territory)} aria-label="Editar" className="h-8 w-8"><Pencil className="h-4 w-4" /></Button>
           <Button variant="ghost" size="icon" onClick={() => handleOpenDuplicateDialog(territory)} aria-label="Duplicar" className="h-8 w-8"><Copy className="h-4 w-4" /></Button>
@@ -376,11 +376,13 @@ export default function TerritoriosPage() {
                     <a><Upload className="mr-2 h-5 w-5" /> Importar CSV</a>
                 </Button>
             </Link>
-            <Button onClick={handleOpenAddDialog} size="lg" className="w-full sm:w-auto" disabled={isLoadingCasas || isLoadingGroups}>
-              {(isLoadingCasas || isLoadingGroups) && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-              <PlusCircle className="mr-2 h-5 w-5" />
-              Añadir Nuevo Territorio
-            </Button>
+            {canManageTerritories && (
+                <Button onClick={handleOpenAddDialog} size="lg" className="w-full sm:w-auto" disabled={isLoadingCasas || isLoadingGroups}>
+                {(isLoadingCasas || isLoadingGroups) && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                <PlusCircle className="mr-2 h-5 w-5" />
+                Añadir Nuevo Territorio
+                </Button>
+            )}
           </div>
         </div>
 
@@ -435,7 +437,7 @@ export default function TerritoriosPage() {
                   ) : viewMode === 'grid' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {filteredAndSortedTerritories.filter(t => t.type === tabType).map((territory) => (
-                        <TerritoryCard key={territory.id} territory={territory} onEdit={() => handleOpenEditDialog(territory)} onDelete={() => handleDeleteTerritory(territory.id)} onDuplicate={() => handleOpenDuplicateDialog(territory)} onBlockToggle={() => territory.isBlocked ? confirmToggleBlockTerritory() : handleOpenBlockReasonDialog(territory)} canManage={canManageBlocking} canViewBlockDetails={canViewBlockStatusDetails} availableCasas={availableCasas} availableGroups={availableGroups} />
+                        <TerritoryCard key={territory.id} territory={territory} onEdit={() => handleOpenEditDialog(territory)} onDelete={() => handleDeleteTerritory(territory.id)} onDuplicate={() => handleOpenDuplicateDialog(territory)} onBlockToggle={() => territory.isBlocked ? confirmToggleBlockTerritory() : handleOpenBlockReasonDialog(territory)} canManage={canManageTerritories} canViewBlockDetails={canViewBlockDetails} availableCasas={availableCasas} availableGroups={availableGroups} />
                       ))}
                     </div>
                   ) : ( // List view
@@ -458,14 +460,16 @@ export default function TerritoriosPage() {
           </CardContent>
         </Card>
 
-        <AddTerritoryDialog
-          isOpen={isTerritoryDialogOpen}
-          onOpenChange={setIsTerritoryDialogOpen}
-          onTerritorySubmit={handleTerritorySubmit}
-          territoryToEdit={territoryToEdit}
-          availableCasas={availableCasas}
-          availableGroups={availableGroups}
-        />
+        {canManageTerritories && (
+            <AddTerritoryDialog
+            isOpen={isTerritoryDialogOpen}
+            onOpenChange={setIsTerritoryDialogOpen}
+            onTerritorySubmit={handleTerritorySubmit}
+            territoryToEdit={territoryToEdit}
+            availableCasas={availableCasas}
+            availableGroups={availableGroups}
+            />
+        )}
         
         {imageUrlToView && <ViewImageDialog isOpen={isImageDialogOpen} onOpenChange={setIsImageDialogOpen} imageUrl={imageUrlToView} imageAlt={imageAltToView} />}
 

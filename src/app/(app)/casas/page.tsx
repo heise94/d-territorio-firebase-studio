@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -18,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { usePermissions } from "@/hooks/use-permissions";
-import { USER_ROLES } from "@/lib/constants";
+import { USER_ROLES, PERMISSIONS } from "@/lib/constants";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -510,12 +511,12 @@ export default function CasasPage() {
 
   const isLoadingAny = isLoadingCasas || isLoadingGroups || isLoadingProgramSlots || isLoadingUserProfile || isLoadingTerritories;
   
-  const canManageBlocking = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO;
-  const canViewBlockDetails = userProfile?.role === USER_ROLES.ENCARGADO_TERRITORIO || userProfile?.role === USER_ROLES.SS;
+  const canManageCasas = hasPermission(PERMISSIONS.MANAGE_CASAS);
+  const canViewBlockDetails = hasPermission(PERMISSIONS.VIEW_CASAS);
 
   const renderCasaActions = (casa: Casa) => (
     <div className="flex items-center justify-center gap-0.5">
-      {canManageBlocking && (
+      {canManageCasas && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
@@ -526,7 +527,7 @@ export default function CasasPage() {
         </Tooltip>
       )}
 
-      {canManageBlocking && (
+      {canManageCasas && (
           <Tooltip>
           <TooltipTrigger asChild>
               <Button
@@ -543,7 +544,7 @@ export default function CasasPage() {
           </Tooltip>
       )}
 
-      {canManageBlocking && (
+      {canManageCasas && (
           <AlertDialog>
           <Tooltip>
               <TooltipTrigger asChild>
@@ -586,10 +587,12 @@ export default function CasasPage() {
             Administra las casas disponibles para las reuniones de grupos de predicación.
           </p>
         </div>
-        <Button onClick={handleOpenAddDialog} size="lg" disabled={isLoadingAny}>
-          {isLoadingAny ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
-          Añadir Nueva Casa
-        </Button>
+        {canManageCasas && (
+            <Button onClick={handleOpenAddDialog} size="lg" disabled={isLoadingAny}>
+            {isLoadingAny ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <PlusCircle className="mr-2 h-5 w-5" />}
+            Añadir Nueva Casa
+            </Button>
+        )}
       </div>
 
       <Card className="shadow-lg">
@@ -724,7 +727,7 @@ export default function CasasPage() {
                     if (showBlockedBadge) {
                         cardBaseClass += ' bg-muted/50'; 
                     }
-                     if (showBlockedBadge && !canManageBlocking) { 
+                     if (showBlockedBadge && !canManageCasas) { 
                         cardContentClass += " opacity-70";
                     }
 
@@ -757,7 +760,7 @@ export default function CasasPage() {
                             </div>
                         )}
                       </CardContent>
-                       <CardFooter className={`border-t pt-4 pb-4 ${showBlockedBadge && !canManageBlocking ? 'opacity-60 pointer-events-none' : ''}`}>
+                       <CardFooter className={`border-t pt-4 pb-4 ${showBlockedBadge && !canManageCasas ? 'opacity-60 pointer-events-none' : ''}`}>
                           {renderCasaActions(casa)}
                        </CardFooter>
                     </Card>
@@ -806,15 +809,17 @@ export default function CasasPage() {
         </CardContent>
       </Card>
 
-      <AddCasaDialog
-        isOpen={isCasaDialogOpen}
-        onOpenChange={setIsCasaDialogOpen}
-        onCasaSubmit={handleCasaSubmit}
-        casaToEdit={casaToEdit}
-        availableGroups={availableGroups}
-        programScheduleSlots={programScheduleSlots}
-        availableTerritories={availableTerritories}
-      />
+      {canManageCasas && (
+          <AddCasaDialog
+            isOpen={isCasaDialogOpen}
+            onOpenChange={setIsCasaDialogOpen}
+            onCasaSubmit={handleCasaSubmit}
+            casaToEdit={casaToEdit}
+            availableGroups={availableGroups}
+            programScheduleSlots={programScheduleSlots}
+            availableTerritories={availableTerritories}
+        />
+      )}
 
        <Dialog open={isBlockCasaDialogOpen} onOpenChange={setIsBlockCasaDialogOpen}>
           <DialogContent>
