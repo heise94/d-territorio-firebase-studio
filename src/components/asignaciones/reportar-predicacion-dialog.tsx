@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import type { UserAssignment, Territory, ReportedAssignmentData, SingleTerritoryReportDetails, AdditionalTerritoryInfo } from "@/types";
+import type { UserAssignment, Territory, ReportedAssignmentData, SingleTerritoryReportDetails, AdditionalTerritoryInfo, PreachingAssignedType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, MapPin, CalendarDays, Clock, Edit3, CloudOff, Map as MapIcon, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
@@ -195,6 +195,13 @@ export function ReportarPredicacionDialog({
     setVisibleMaps(prev => ({ ...prev, [territoryId]: !prev[territoryId] }));
   };
 
+  const formatLocationName = (name: string, type: PreachingAssignedType) => {
+    if (type === 'publica' && name.toLowerCase().startsWith('territorio urbano ')) {
+        return `U-${name.split(' ').pop()}`;
+    }
+    return name;
+  };
+
 
   async function handleSubmit(values: ReportFormValues) {
     if (!assignment) return;
@@ -223,6 +230,12 @@ export function ReportarPredicacionDialog({
   const assignmentDateTime = parse(`${assignment.date} ${assignment.time}`, "yyyy-MM-dd HH:mm", new Date());
   const dialogTitleText = isEditMode ? "Modificar Reporte de Predicación" : "Reportar Predicación";
   const submitButtonText = isEditMode ? "Guardar Cambios" : "Enviar Reporte";
+  
+  const additionalTerritoryName = assignment.additionalTerritorySelected
+    ? (assignment.additionalTerritorySelected.type === 'urban' && assignment.additionalTerritorySelected.number
+        ? `U-${assignment.additionalTerritorySelected.number}`
+        : assignment.additionalTerritorySelected.name)
+    : '';
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -237,9 +250,9 @@ export function ReportarPredicacionDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="py-2 space-y-3 text-sm border-b pb-4 mb-4">
-            <p className="flex items-center"><MapIcon className="mr-2 h-4 w-4 text-muted-foreground"/> Lugar Principal: <span className="font-semibold ml-1">{assignment.locationName}</span></p>
+            <p className="flex items-center"><MapIcon className="mr-2 h-4 w-4 text-muted-foreground"/> Lugar Principal: <span className="font-semibold ml-1">{formatLocationName(assignment.locationName, assignment.type)}</span></p>
             {assignment.additionalTerritorySelected && (
-                 <p className="flex items-center"><MapIcon className="mr-2 h-4 w-4 text-muted-foreground"/> Lugar Adicional: <span className="font-semibold ml-1">{assignment.additionalTerritorySelected.name}</span></p>
+                 <p className="flex items-center"><MapIcon className="mr-2 h-4 w-4 text-muted-foreground"/> Lugar Adicional: <span className="font-semibold ml-1">{additionalTerritoryName}</span></p>
             )}
             <p className="flex items-center"><CalendarDays className="mr-2 h-4 w-4 text-muted-foreground"/> Fecha: <span className="font-semibold ml-1">{format(assignmentDateTime, "EEEE, dd 'de' MMMM", { locale: es })}</span></p>
             <p className="flex items-center"><Clock className="mr-2 h-4 w-4 text-muted-foreground"/> Hora: <span className="font-semibold ml-1">{assignment.time} hrs.</span></p>
@@ -256,6 +269,10 @@ export function ReportarPredicacionDialog({
               const territoryNotWorked = form.watch(`reports.${index}.territoryNotWorked`);
               const isMapVisible = visibleMaps[currentTerritoryInfo.id] ?? false;
               const displayableBlockNumbersForThisTerritory = currentTerritoryInfo.displayableBlockNumbers;
+              
+              const territoryDisplayName = currentTerritoryInfo.type === 'urban' && currentTerritoryInfo.number 
+                ? `U-${currentTerritoryInfo.number}` 
+                : currentTerritoryInfo.name;
 
 
               return (
@@ -266,8 +283,7 @@ export function ReportarPredicacionDialog({
                     className="flex items-center justify-between w-full p-3 bg-muted/50 hover:bg-muted/70 rounded-t-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <h3 className="text-base font-semibold text-primary">
-                      Reporte para: {currentTerritoryInfo.name}
-                      {currentTerritoryInfo.type === 'urban' && currentTerritoryInfo.number && ` (U-${currentTerritoryInfo.number})`}
+                      Reporte para: {territoryDisplayName}
                       {currentTerritoryInfo.isMain ? " (Principal)" : " (Adicional)"}
                     </h3>
                     {isSectionOpen ? <ChevronUp className="h-5 w-5 text-primary" /> : <ChevronDown className="h-5 w-5 text-primary" />}
@@ -430,4 +446,3 @@ export function ReportarPredicacionDialog({
     </Dialog>
   );
 }
-

@@ -106,6 +106,13 @@ export default function GestionAsignacionesPage() {
   const { toast } = useToast();
   const [isFindingReplacement, setIsFindingReplacement] = useState<string | null>(null);
 
+  const formatLocationName = (name: string, type: PreachingAssignedType) => {
+    if (type === 'publica' && name.toLowerCase().startsWith('territorio urbano ')) {
+        return `U-${name.split(' ').pop()}`;
+    }
+    return name;
+  };
+
   useEffect(() => {
     setIsLoading(true);
     // The query is simplified to avoid needing a composite index. Sorting is handled client-side.
@@ -383,7 +390,7 @@ export default function GestionAsignacionesPage() {
                             <span className="capitalize">{assign.type}</span>
                           </div>
                         </TableCell>
-                        <TableCell>{assign.locationName}</TableCell>
+                        <TableCell>{formatLocationName(assign.locationName, assign.type)}</TableCell>
                         <TableCell><StatusBadge status={assign.status} /></TableCell>
                         <TableCell>
                           <div className="flex items-center justify-center gap-0.5">
@@ -488,6 +495,4 @@ export default function GestionAsignacionesPage() {
     </TooltipProvider>
   );
 }
-    
-
     

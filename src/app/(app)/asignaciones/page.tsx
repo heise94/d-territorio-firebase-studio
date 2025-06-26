@@ -100,6 +100,13 @@ export default function MisAsignacionesPage() {
   const monthsForFilter = useMemo(() => Array.from({ length: 12 }, (_, i) => ({ value: i, label: format(new Date(2000, i), "MMMM", { locale: es }) })), []);
   const yearsForFilter = useMemo(() => Array.from({ length: 5 }, (_, i) => currentFilterYear - 2 + i), [currentFilterYear]);
 
+  const formatLocationName = (name: string, type: PreachingAssignedType) => {
+    if (type === 'publica' && name.toLowerCase().startsWith('territorio urbano ')) {
+        return `U-${name.split(' ').pop()}`;
+    }
+    return name;
+  };
+
   useEffect(() => {
     if (isLoadingPermissions || !userProfile?.firebaseAuthUid) {
       if (!isLoadingPermissions && !userProfile?.firebaseAuthUid) {
@@ -503,7 +510,7 @@ export default function MisAsignacionesPage() {
                         <div className="flex justify-between items-start">
                           <CardTitle className="text-lg font-semibold flex items-center">
                             <PreachingTypeIcon type={assign.type} className="mr-2 text-primary" />
-                            {assign.locationName}
+                            {formatLocationName(assign.locationName, assign.type)}
                             {assign.additionalTerritorySelected && <span className="ml-1 text-sm font-normal text-muted-foreground">(+1 Adicional)</span>}
                           </CardTitle>
                           <StatusBadge status={assign.status} />
@@ -675,7 +682,7 @@ export default function MisAsignacionesPage() {
                                 <div className="flex justify-between items-start">
                                 <CardTitle className="text-base font-semibold flex items-center">
                                     <PreachingTypeIcon type={assign.type} className="mr-2 text-muted-foreground" />
-                                    {assign.locationName}
+                                    {formatLocationName(assign.locationName, assign.type)}
                                     {assign.additionalTerritorySelected && <span className="ml-1 text-xs font-normal text-muted-foreground">(+1 Adicional)</span>}
                                 </CardTitle>
                                 <StatusBadge status={assign.status} />

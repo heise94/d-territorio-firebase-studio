@@ -181,7 +181,12 @@ export default function ProgramaMensualPage() {
               reason: up.reason
           }))
       })),
-      availableTerritories: territories.map(t => ({id: t.id, name: t.name, type: t.type, number: t.number})),
+      availableTerritories: territories.map(t => ({
+          id: t.id, 
+          name: t.type === 'urban' && t.number ? `U-${t.number}` : t.name, 
+          type: t.type, 
+          number: t.number
+      })),
       preachingGroups: preachingGroups.map(g => ({id: g.id, name: g.name, superintendentId: g.superintendentId})),
       
       configuredCampaigns: campaigns
@@ -269,7 +274,10 @@ export default function ProgramaMensualPage() {
             
             const captainUser = publishers.find(p => p.id === assign.captainId || p.firebaseAuthUid === assign.captainId);
             const locationType = assign.territoryName ? 'territory' : (assign.casaName ? 'casa' : 'zoom');
-            const locationId = locationType === 'territory' ? territories.find(t => t.name === assign.territoryName)?.id : (locationType === 'casa' ? casas.find(c => c.ownerName === assign.casaName)?.id : undefined);
+            const locationId = locationType === 'territory' 
+                ? territories.find(t => t.name === assign.territoryName || (t.type === 'urban' && `U-${t.number}` === assign.territoryName))?.id 
+                : (locationType === 'casa' ? casas.find(c => c.ownerName === assign.casaName)?.id : undefined);
+
 
             batch.set(newAssignmentRef, {
                 userId: assign.captainId,

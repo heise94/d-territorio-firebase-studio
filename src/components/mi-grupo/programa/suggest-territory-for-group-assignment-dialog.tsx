@@ -138,14 +138,16 @@ export function SuggestTerritoryForGroupAssignmentDialog({
           <div className="py-4 space-y-6">
             <h3 className="text-lg font-medium text-center text-muted-foreground">Sugerencias de Territorios para el Grupo:</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {suggestedTerritories.map((terr) => (
+              {suggestedTerritories.map((terr) => {
+                const displayName = terr.type === 'urban' && terr.number ? `U-${terr.number}` : terr.name;
+                return (
                 <Card key={terr.id} className="hover:shadow-lg transition-shadow flex flex-col">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base font-semibold flex items-center justify-between">
-                        {terr.name}
+                        <span>{displayName}</span>
                         <Badge variant={terr.type === 'urban' ? 'secondary' : 'outline'} className="capitalize text-xs">
                             {terr.type === 'urban' ? <Users className="mr-1 h-3 w-3"/> : <MountainSnow className="mr-1 h-3 w-3"/>}
-                            {terr.type} {terr.number ? ` #${terr.number}`: ''}
+                            {terr.type}
                         </Badge>
                     </CardTitle>
                      {terr.isPartial && (
@@ -203,7 +205,7 @@ export function SuggestTerritoryForGroupAssignmentDialog({
                     </Button>
                   </DialogFooter>
                 </Card>
-              ))}
+              )})}
             </div>
           </div>
         )}
@@ -219,5 +221,3 @@ export function SuggestTerritoryForGroupAssignmentDialog({
     </Dialog>
   );
 }
-
-    

@@ -270,12 +270,13 @@ export default function MiGrupoProgramaPage() {
     if (!userProfile?.firebaseAuthUid || !currentGroupId) return;
   
     const batch = writeBatch(db);
+    const territoryDisplayName = selectedTerritory.type === 'urban' && selectedTerritory.number ? `U-${selectedTerritory.number}` : selectedTerritory.name;
   
     // 1. Update the group assignment document
     const groupAssignmentRef = doc(db, "groupAssignments", groupAssignmentContext.id);
     batch.update(groupAssignmentRef, {
       assignedTerritoryId: selectedTerritory.id,
-      assignedTerritoryName: selectedTerritory.name,
+      assignedTerritoryName: territoryDisplayName,
       updatedAt: Timestamp.now(),
       updatedBy: userProfile.firebaseAuthUid,
     });
@@ -300,7 +301,7 @@ export default function MiGrupoProgramaPage() {
       date: groupAssignmentContext.date,
       time: groupAssignmentContext.time,
       type: selectedTerritory.type === "urban" ? "publica" : "rural" as PreachingAssignedType,
-      locationName: selectedTerritory.name,
+      locationName: territoryDisplayName,
       locationId: selectedTerritory.id,
       status: "accepted" as const,
       assignedBy: `SG: ${userProfile?.name || "Desconocido"}`,
@@ -319,7 +320,7 @@ export default function MiGrupoProgramaPage() {
       await batch.commit();
       toast({
         title: "Territorio Asignado y Notificado",
-        description: `El territorio "${selectedTerritory.name}" ha sido asignado a ${groupAssignmentContext.captainName} para la salida del grupo.`,
+        description: `El territorio "${territoryDisplayName}" ha sido asignado a ${groupAssignmentContext.captainName} para la salida del grupo.`,
         duration: 7000,
       });
     } catch (error) {
