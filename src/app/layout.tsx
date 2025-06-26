@@ -1,5 +1,5 @@
 
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/hooks/use-auth';
 import { Toaster } from "@/components/ui/toaster";
@@ -9,10 +9,13 @@ export const metadata: Metadata = {
   title: 'D-TERRITORIO',
   description: 'Gestión integral de territorios de predicación.',
   manifest: '/manifest.json',
-  themeColor: '#34D399',
   icons: {
     apple: '/icon-192x192.png',
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#34D399',
 };
 
 export default function RootLayout({

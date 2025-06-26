@@ -1,30 +1,20 @@
 {
   "name": "D-TERRITORIO",
-  "short_name": "D-Territorio",
-  "description": "Gestión integral de territorios de predicación.",
+  "short_name": "D-TERRITORIO",
+  "description": "Gestión de territorios de predicación",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7fafc",
   "icons": [
     {
       "src": "/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
       "src": "/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "type": "image/png"
     }
-  ],
-  "theme_color": "#40c991",
-  "background_color": "#f2f4f8",
-  "start_url": "/",
-  "display": "standalone",
-  "orientation": "portrait"
+  ]
 }
