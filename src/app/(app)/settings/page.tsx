@@ -6,10 +6,10 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Briefcase, CalendarCog, Users as UsersIconLucide, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck, KeyRound, Settings as SettingsIcon } from "lucide-react";
+import { Briefcase, CalendarCog, Users as UsersIconLucide, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck, KeyRound, Settings as SettingsIcon, Sun, Moon } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, SettingsDoc } from "@/types";
+import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, SettingsDoc, ScheduleSeason } from "@/types";
 import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS, UserRole } from "@/lib/constants";
 import {
   Dialog,
@@ -79,6 +79,7 @@ const scheduleSlotFormSchema = z.object({
   minute: z.string().min(1, "El minuto es obligatorio."),
   type: z.enum(['general', 'rural', 'zoom'], { required_error: "Debes seleccionar un tipo." }),
   status: z.enum(['fixed', 'tentative'], { required_error: "Debes seleccionar un estado." }),
+  season: z.enum(['all_year', 'summer', 'winter'], { required_error: "Debes seleccionar una estación." }),
 });
 
 type ScheduleSlotFormValues = z.infer<typeof scheduleSlotFormSchema>;
@@ -139,6 +140,9 @@ export default function SettingsPage() {
   const [groupOrganizedDays, setGroupOrganizedDays] = useState<DayOfWeek[]>([]);
   const [isSavingProgramSettings, setIsSavingProgramSettings] = useState(false);
   const [isLoadingProgramSettings, setIsLoadingProgramSettings] = useState(false);
+  const [summerStartDate, setSummerStartDate] = useState("");
+  const [winterStartDate, setWinterStartDate] = useState("");
+
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isCampaignDialogOpen, setIsCampaignDialogOpen] = useState(false);
@@ -171,6 +175,7 @@ export default function SettingsPage() {
       minute: "",
       type: undefined,
       status: "fixed",
+      season: "all_year",
     },
   });
 
@@ -221,9 +226,13 @@ export default function SettingsPage() {
             const data = docSnap.data() as Partial<SettingsDoc>;
             setScheduleSlots(data.programScheduleSlots || []);
             setGroupOrganizedDays(data.groupOrganizedDays || []);
+            setSummerStartDate(data.summerScheduleStartDate || "");
+            setWinterStartDate(data.winterScheduleStartDate || "");
         } else {
             setScheduleSlots([]);
             setGroupOrganizedDays([]);
+            setSummerStartDate("");
+            setWinterStartDate("");
             console.log("Program config document (settings/programConfig) does not exist. Initializing with empty/default values.");
         }
     } catch (error) {
@@ -311,9 +320,10 @@ export default function SettingsPage() {
           minute,
           type: slotToEdit.type,
           status: slotToEdit.status,
+          season: slotToEdit.season || 'all_year',
         });
       } else {
-        slotForm.reset({ hour: "", minute: "", type: undefined, status: "fixed" });
+        slotForm.reset({ hour: "", minute: "", type: undefined, status: "fixed", season: "all_year" });
       }
     }
   }, [isAddSlotDialogOpen, slotToEdit, slotForm]);
@@ -364,7 +374,7 @@ export default function SettingsPage() {
   };
 
   const saveProgramConfigToFirestore = async (
-    configToSave: Partial<Pick<SettingsDoc, 'programScheduleSlots' | 'groupOrganizedDays'>>
+    configToSave: Partial<Pick<SettingsDoc, 'programScheduleSlots' | 'groupOrganizedDays' | 'summerScheduleStartDate' | 'winterScheduleStartDate'>>
   ) => {
     if (!db || Object.keys(db).length === 0) {
         toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
@@ -378,6 +388,12 @@ export default function SettingsPage() {
     }
     if (configToSave.hasOwnProperty('groupOrganizedDays')) {
         dataToSave.groupOrganizedDays = configToSave.groupOrganizedDays;
+    }
+    if (configToSave.hasOwnProperty('summerScheduleStartDate')) {
+        dataToSave.summerScheduleStartDate = configToSave.summerScheduleStartDate;
+    }
+    if (configToSave.hasOwnProperty('winterScheduleStartDate')) {
+        dataToSave.winterScheduleStartDate = configToSave.winterScheduleStartDate;
     }
     
     const sanitizedData = Object.entries(dataToSave).reduce((acc, [key, value]) => {
@@ -495,7 +511,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
 
     if (isEditMode && slotToEdit) {
       updatedSlots = scheduleSlots.map(s => 
-        s.id === slotToEdit.id ? { ...s, startTime, type: data.type, status: data.status } : s
+        s.id === slotToEdit.id ? { ...s, startTime, type: data.type, status: data.status, season: data.season } : s
       );
     } else {
       const newSlot: ProgramScheduleSlot = {
@@ -504,6 +520,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         startTime,
         type: data.type,
         status: data.status,
+        season: data.season,
       };
       updatedSlots = [...scheduleSlots, newSlot];
     }
@@ -545,13 +562,17 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
       checked ? [...new Set([...prev, day])] : prev.filter(d => d !== day)
     );
   };
-
-  const handleSaveGroupOrganizedDays = async () => {
+  
+  const handleSaveProgramSettings = async () => {
     setIsSavingProgramSettings(true);
-    const success = await saveProgramConfigToFirestore({ groupOrganizedDays });
+    const success = await saveProgramConfigToFirestore({ 
+        groupOrganizedDays: groupOrganizedDays,
+        summerScheduleStartDate: summerStartDate,
+        winterScheduleStartDate: winterStartDate,
+    });
     setIsSavingProgramSettings(false);
     if (success) {
-        toast({ title: "Días Grupales Guardados", description: "La configuración de días organizados por grupos ha sido guardada." });
+        toast({ title: "Configuración Guardada", description: "La configuración del programa ha sido guardada." });
     }
   };
 
@@ -938,7 +959,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                   Ajustes del Programa Semanal
                 </CardTitle>
                 <CardDescription>
-                  Define los horarios fijos y tentativos para la predicación durante la semana, y qué días son organizados por los grupos.
+                  Define los horarios de predicación, los días de grupo y las fechas de cambio de temporada (verano/invierno).
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -953,6 +974,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                     </div>
                 ) : (
                 <>
+                    <h3 className="text-lg font-medium mb-2 flex items-center"><GanttChartSquare className="mr-2 h-5 w-5 text-primary" />Horarios de Predicación</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {dayOrder.map(dayKey => {
                         const slotsForDay = scheduleSlots.filter(slot => slot.dayOfWeek === dayKey).sort((a,b) => a.startTime.localeCompare(b.startTime));
@@ -975,6 +997,11 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                                         <span className="capitalize text-muted-foreground/80">{slot.type}</span>
                                     </div>
                                     <div className="flex items-center justify-center gap-0.5">
+                                        {slot.season && <Badge variant="outline" className={cn('capitalize text-[0.7rem] px-1 py-0', slot.season === 'summer' ? 'border-amber-400 text-amber-600' : slot.season === 'winter' ? 'border-sky-400 text-sky-600' : '')}>
+                                            {slot.season === 'summer' && <Sun size={10} className="mr-1"/>}
+                                            {slot.season === 'winter' && <Moon size={10} className="mr-1"/>}
+                                            {slot.season === 'all_year' ? 'Todo Año' : slot.season === 'summer' ? 'Verano' : 'Invierno'}
+                                        </Badge>}
                                         <Badge variant={slot.status === 'tentative' ? 'outline' : 'default'} className={cn('capitalize text-[0.7rem] px-1.5 py-0.5', slot.status === 'tentative' ? 'border-amber-500 text-amber-600' : '')}>
                                             {slot.status === 'fixed' ? 'Fijo' : 'Tentativo'}
                                             {slot.status === 'tentative' && <AlertTriangle className="ml-1 h-3 w-3" />}
@@ -1003,31 +1030,51 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                         );
                     })}
                     </div>
-                    <div className="mt-8">
-                    <h3 className="text-lg font-medium mb-1 flex items-center">
-                        <GanttChartSquare className="mr-2 h-5 w-5 text-primary" />
-                        Días Organizados por Grupos
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                        Marca los días en que la organización recae en los grupos. La IA no asignará horarios centralizados para estos días.
-                    </p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 p-4 border rounded-md shadow-sm bg-muted/20">
-                      {dayOrder.map((dayKey) => (
-                        <div key={`group-day-${dayKey}`} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
-                            <Checkbox id={`group-organized-${dayKey}`} checked={groupOrganizedDays.includes(dayKey)} onCheckedChange={(checked) => handleGroupOrganizedDayChange(dayKey, !!checked)} />
-                            <label htmlFor={`group-organized-${dayKey}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">{dayOfWeekLabels[dayKey]}</label>
+                    
+                    <div className="mt-8 space-y-4 border-t pt-6">
+                        <div className="space-y-2">
+                             <h3 className="text-lg font-medium flex items-center">
+                                <GanttChartSquare className="mr-2 h-5 w-5 text-primary" />
+                                Opciones Generales del Programa
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                               Define las fechas de inicio de temporada y qué días son organizados por grupos. El sistema usará esta configuración.
+                            </p>
                         </div>
-                      ))}
-                    </div>
-                    <div className="mt-6 flex justify-end">
-                        <Button onClick={handleSaveGroupOrganizedDays} disabled={isSavingProgramSettings}>
-                        {isSavingProgramSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} <Save className="mr-2 h-4 w-4" /> Guardar Días Grupales
-                        </Button>
-                    </div>
+                       
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                            <div className="space-y-1">
+                                <Label htmlFor="summerDate">Inicio Horario Verano (MM-DD)</Label>
+                                <Input id="summerDate" value={summerStartDate} onChange={(e) => setSummerStartDate(e.target.value)} placeholder="Ej: 09-01 (1 de Sept.)" />
+                                <p className="text-xs text-muted-foreground">Define el inicio de la temporada de verano (ej: primer sábado de septiembre).</p>
+                            </div>
+                             <div className="space-y-1">
+                                <Label htmlFor="winterDate">Inicio Horario Invierno (MM-DD)</Label>
+                                <Input id="winterDate" value={winterStartDate} onChange={(e) => setWinterStartDate(e.target.value)} placeholder="Ej: 04-01 (1 de Abril)" />
+                                 <p className="text-xs text-muted-foreground">Define el inicio de la temporada de invierno (ej: primer sábado de abril).</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 pt-2">
+                             <Label>Días Organizados por Grupos</Label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 p-4 border rounded-md shadow-sm bg-muted/20">
+                            {dayOrder.map((dayKey) => (
+                                <div key={`group-day-${dayKey}`} className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/30 transition-colors">
+                                    <Checkbox id={`group-organized-${dayKey}`} checked={groupOrganizedDays.includes(dayKey)} onCheckedChange={(checked) => handleGroupOrganizedDayChange(dayKey, !!checked)} />
+                                    <label htmlFor={`group-organized-${dayKey}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">{dayOfWeekLabels[dayKey]}</label>
+                                </div>
+                            ))}
+                            </div>
+                        </div>
                     </div>
                 </>
                 )}
               </CardContent>
+               <CardFooter className="border-t pt-4">
+                 <Button onClick={handleSaveProgramSettings} disabled={isSavingProgramSettings}>
+                    {isSavingProgramSettings && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} <Save className="mr-2 h-4 w-4" /> Guardar Configuración de Programa
+                 </Button>
+              </CardFooter>
             </Card>
         </TabsContent>
         <TabsContent value="specialEvents">
@@ -1204,14 +1251,12 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
               setSlotToEdit(null);
           }
       }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>{isEditMode ? "Editar Horario" : `Añadir Horario para ${dayForNewSlot ? dayOfWeekLabels[dayForNewSlot] : ''}`}</DialogTitle><DialogDescriptionComponent>Completa los detalles.</DialogDescriptionComponent></DialogHeader>
           <Form {...slotForm}>
             <form onSubmit={slotForm.handleSubmit(onSubmitSlotDialog)} className="space-y-4 py-2">
-              <div>
-                <FormLabel>Hora (Formato 24h)</FormLabel>
-                <div className="grid grid-cols-2 gap-4 mt-2">
-                    <FormField
+              <div className="grid grid-cols-2 gap-4">
+                  <FormField
                     control={slotForm.control}
                     name="hour"
                     render={({ field }) => (
@@ -1232,8 +1277,8 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                         <FormMessage />
                         </FormItem>
                     )}
-                    />
-                    <FormField
+                  />
+                  <FormField
                     control={slotForm.control}
                     name="minute"
                     render={({ field }) => (
@@ -1254,10 +1299,10 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                         <FormMessage />
                         </FormItem>
                     )}
-                    />
-                </div>
+                  />
               </div>
               <FormField control={slotForm.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="general">General</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+              <FormField control={slotForm.control} name="season" render={({ field }) => (<FormItem><FormLabel>Estación</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona estación" /></SelectTrigger></FormControl><SelectContent><SelectItem value="all_year">Todo el Año</SelectItem><SelectItem value="summer">Verano</SelectItem><SelectItem value="winter">Invierno</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
               <FormField control={slotForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona estado" /></SelectTrigger></FormControl><SelectContent><SelectItem value="fixed">Fijo</SelectItem><SelectItem value="tentative">Tentativo</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
               <DialogFooter className="pt-4"><DialogClose asChild><Button type="button" variant="outline" disabled={isSubmittingSlotDialog}>Cancelar</Button></DialogClose><Button type="submit" disabled={isSubmittingSlotDialog}>{isSubmittingSlotDialog && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isEditMode ? "Guardar Cambios" : "Añadir Horario"}</Button></DialogFooter>
             </form>
@@ -1272,5 +1317,3 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     </TooltipProvider>
   );
 }
-
-  

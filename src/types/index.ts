@@ -51,6 +51,7 @@ export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'frida
 
 export type PreachingType = 'general' | 'rural' | 'zoom';
 export type ScheduleSlotStatus = 'fixed' | 'tentative';
+export type ScheduleSeason = 'all_year' | 'summer' | 'winter';
 
 export interface ProgramScheduleSlot {
   id: string;
@@ -58,6 +59,7 @@ export interface ProgramScheduleSlot {
   startTime: string; // HH:mm
   type: PreachingType;
   status: ScheduleSlotStatus;
+  season?: ScheduleSeason;
 }
 
 export type CampaignType = 'invitation' | 'superintendent_visit' | 'special';
@@ -98,6 +100,8 @@ export interface SettingsDoc {
   rolePermissions?: RoleConfiguration;
   programScheduleSlots?: ProgramScheduleSlot[];
   groupOrganizedDays?: DayOfWeek[];
+  summerScheduleStartDate?: string; // "MM-DD" format
+  winterScheduleStartDate?: string; // "MM-DD" format
   campaignsList?: Campaign[];
   holidaysList?: CustomHoliday[];
   assembliesList?: Assembly[];
