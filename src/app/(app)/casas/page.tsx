@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, Filter, X as XIcon, LayoutGrid, List } from "lucide-react";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, Filter, X as XIcon, LayoutGrid, List, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType, Territory } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -146,6 +146,9 @@ export default function CasasPage() {
   
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(9);
+
   const blockForm = useForm<BlockCasaFormValues>({
     resolver: zodResolver(blockCasaFormSchema),
     defaultValues: { forSystem: false, forGroup: false, reason: "" },
@@ -279,6 +282,21 @@ export default function CasasPage() {
       blockForm.reset({ forSystem: false, forGroup: false, reason: "" });
     }
   }, [isBlockCasaDialogOpen, casaToBlock, blockForm]);
+  
+  // Reset page when filters or view mode change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterGroupId, filterStatus, filterAvailabilityDay, filterAvailabilitySlotId, filterSuitableForRural, viewMode]);
+
+  // Adjust items per page based on view mode
+  useEffect(() => {
+    if (viewMode === 'list') {
+      setItemsPerPage(10);
+    } else {
+      setItemsPerPage(9);
+    }
+    setCurrentPage(1);
+  }, [viewMode]);
 
   const handleOpenAddDialog = () => {
     setCasaToEdit(null);
@@ -491,6 +509,16 @@ export default function CasasPage() {
         return true;
     });
   }, [casas, searchTerm, availableGroups, filterGroupId, filterStatus, filterAvailabilityDay, filterAvailabilitySlotId, filterSuitableForRural, programScheduleSlots]);
+  
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredCasas.length / itemsPerPage);
+  }, [filteredCasas.length, itemsPerPage]);
+
+  const paginatedCasas = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredCasas.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredCasas, currentPage, itemsPerPage]);
+
 
   const getGroupNameById = useCallback((groupId?: string) => {
     if (!groupId) return 'N/A';
@@ -672,7 +700,7 @@ export default function CasasPage() {
               <CardDescription>
                 {isLoadingAny ? "Cargando información..." :
                   (filteredCasas.length > 0
-                    ? `Mostrando ${filteredCasas.length} de ${casas.length} casa(s) según filtros.`
+                    ? `Mostrando ${paginatedCasas.length} de ${filteredCasas.length} casa(s) según filtros.`
                     : casas.length > 0 ? "Ninguna casa coincide con los filtros."
                     : "Actualmente no hay casas registradas."
                   )
@@ -706,7 +734,7 @@ export default function CasasPage() {
               ))}
             </div>
           ) : viewMode === 'grid' ? (
-              filteredCasas.length === 0 ? (
+              paginatedCasas.length === 0 ? (
                  <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
                     <Filter className="h-20 w-20 text-muted-foreground/70 mb-6" />
                     <p className="text-xl font-medium text-muted-foreground mb-2">Sin resultados para los filtros</p>
@@ -716,7 +744,7 @@ export default function CasasPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredCasas.map((casa) => {
+                  {paginatedCasas.map((casa) => {
                     const formattedUnavailability = formatUnavailabilityPeriods(casa.unavailabilityPeriods);
                     const formattedAvailability = formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots);
                     const showBlockedBadge = !!casa.blockInfo && canViewBlockDetails;
@@ -770,43 +798,80 @@ export default function CasasPage() {
               )
           ) : ( // viewMode === 'list'
             <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Propietario</TableHead>
-                    <TableHead>Dirección</TableHead>
-                    <TableHead>Grupo</TableHead>
-                    <TableHead>Disponibilidad</TableHead>
-                    <TableHead>Apta p/ Rural</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-center">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCasas.map((casa) => {
-                    const isCasaBlocked = !!casa.blockInfo;
-                    const showBlockedBadge = isCasaBlocked && canViewBlockDetails;
-                    return (
-                      <TableRow key={casa.id} className={showBlockedBadge ? "bg-muted/50" : ""}>
-                        <TableCell className="font-medium">{casa.ownerName}</TableCell>
-                        <TableCell className="text-xs">{casa.address}</TableCell>
-                        <TableCell className="text-xs">{getGroupNameById(casa.addedByGroupId)}</TableCell>
-                        <TableCell className="text-xs">{formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots)}</TableCell>
-                        <TableCell className="text-center">
-                          {casa.isSuitableForRural ? <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" /> : <XIcon className="h-5 w-5 text-destructive mx-auto" />}
-                        </TableCell>
-                        <TableCell>
-                           {showBlockedBadge ? <Badge variant="destructive">Bloqueada</Badge> : <Badge variant="default">Disponible</Badge>}
-                        </TableCell>
-                        <TableCell>{renderCasaActions(casa)}</TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+              {paginatedCasas.length === 0 ? (
+                 <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
+                    <Filter className="h-20 w-20 text-muted-foreground/70 mb-6" />
+                    <p className="text-xl font-medium text-muted-foreground mb-2">Sin resultados para los filtros</p>
+                    <p className="text-sm text-muted-foreground">
+                        Intenta ajustar o limpiar los filtros para encontrar casas.
+                    </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Propietario</TableHead>
+                      <TableHead>Dirección</TableHead>
+                      <TableHead>Grupo</TableHead>
+                      <TableHead>Disponibilidad</TableHead>
+                      <TableHead>Apta p/ Rural</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-center">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedCasas.map((casa) => {
+                      const isCasaBlocked = !!casa.blockInfo;
+                      const showBlockedBadge = isCasaBlocked && canViewBlockDetails;
+                      return (
+                        <TableRow key={casa.id} className={showBlockedBadge ? "bg-muted/50" : ""}>
+                          <TableCell className="font-medium">{casa.ownerName}</TableCell>
+                          <TableCell className="text-xs">{casa.address}</TableCell>
+                          <TableCell className="text-xs">{getGroupNameById(casa.addedByGroupId)}</TableCell>
+                          <TableCell className="text-xs">{formatAvailability(casa.availableDays?.availableProgramSlotIds, programScheduleSlots)}</TableCell>
+                          <TableCell className="text-center">
+                            {casa.isSuitableForRural ? <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" /> : <XIcon className="h-5 w-5 text-destructive mx-auto" />}
+                          </TableCell>
+                          <TableCell>
+                            {showBlockedBadge ? <Badge variant="destructive">Bloqueada</Badge> : <Badge variant="default">Disponible</Badge>}
+                          </TableCell>
+                          <TableCell>{renderCasaActions(casa)}</TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              )}
             </div>
           )}
         </CardContent>
+         {totalPages > 1 && (
+            <CardFooter className="border-t pt-4 pb-4 flex-col sm:flex-row gap-4 justify-between items-center">
+                <div className="text-sm text-muted-foreground">
+                    Página {currentPage} de {totalPages}
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                    >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Anterior
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                    >
+                        Siguiente
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                </div>
+            </CardFooter>
+           )}
       </Card>
 
       {canManageCasas && (
@@ -873,3 +938,5 @@ export default function CasasPage() {
     </TooltipProvider>
   );
 }
+
+    

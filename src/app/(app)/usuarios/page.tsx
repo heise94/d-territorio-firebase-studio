@@ -2,11 +2,11 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2, Send, CalendarCog, KeyRound, UserCheck, UserX, CalendarOff } from "lucide-react";
+import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2, Send, CalendarCog, KeyRound, UserCheck, UserX, CalendarOff, ChevronLeft, ChevronRight } from "lucide-react";
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import { EditUserDialog } from "@/components/usuarios/edit-user-dialog";
 import { EditUserAvailabilityDialog } from "@/components/usuarios/edit-user-availability-dialog";
@@ -109,6 +109,9 @@ export default function UsuariosPage() {
   const [isEditUnavailabilityDialogOpen, setIsEditUnavailabilityDialogOpen] = useState(false);
   const [userToEditUnavailability, setUserToEditUnavailability] = useState<UserProfile | null>(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   const blockForm = useForm<BlockUserFormValues>({
     resolver: zodResolver(blockUserFormSchema),
     defaultValues: { forSystem: false, forGroup: false, reason: "" },
@@ -181,6 +184,10 @@ export default function UsuariosPage() {
       blockForm.reset({ forSystem: false, forGroup: false, reason: "" });
     }
   }, [isBlockUserDialogOpen, userToBlock, blockForm]);
+  
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
 
   const handleOpenAddUserDialog = () => {
@@ -505,6 +512,15 @@ export default function UsuariosPage() {
     return clientSortedUsers;
   }, [users, searchTerm]);
 
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredUsers.length / itemsPerPage);
+  }, [filteredUsers.length, itemsPerPage]);
+
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredUsers.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredUsers, currentPage, itemsPerPage]);
+
   const canImpersonate = actualUserRole === USER_ROLES.ENCARGADO_TERRITORIO;
   const isLoadingAnyData = isLoadingUsers || isLoadingGroups || isLoadingSlots || isLoadingCasas;
 
@@ -540,11 +556,10 @@ export default function UsuariosPage() {
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
               <CardDescription>
                 {isLoadingAnyData ? "Cargando usuarios..." :
-                  (filteredUsers.length > 0
-                    ? `Mostrando ${filteredUsers.length} de ${users.length} usuario(s) registrados.`
+                  filteredUsers.length > 0
+                    ? `Mostrando ${paginatedUsers.length} de ${filteredUsers.length} usuario(s) registrados.`
                     : users.length > 0 ? "Ningún usuario coincide con la búsqueda."
                     : "Actualmente no hay usuarios registrados."
-                  )
                 }
               </CardDescription>
               <div className="relative w-full sm:w-64 md:w-72">
@@ -593,7 +608,7 @@ export default function UsuariosPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredUsers.map((user) => {
+                    {paginatedUsers.map((user) => {
                       const isUserAdmin = user.role === USER_ROLES.ENCARGADO_TERRITORIO;
                       const isPendingAdminApprovalFromGroup = user.addedByGroupId && user.adminApprovalStatus === 'pending';
                       
@@ -840,6 +855,33 @@ export default function UsuariosPage() {
               </div>
             )}
           </CardContent>
+          {totalPages > 1 && (
+            <CardFooter className="border-t pt-4 justify-between items-center">
+              <div className="text-sm text-muted-foreground">
+                Página {currentPage} de {totalPages}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Anterior</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                >
+                  <span className="hidden sm:inline mr-1">Siguiente</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardFooter>
+          )}
         </Card>
 
         {canManageUsers && (
@@ -937,3 +979,5 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
+
+    
