@@ -155,40 +155,55 @@ export function AddManualAssignmentDialog({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-             <div className="grid grid-cols-2 gap-4">
-                 <FormField
-                  control={form.control}
-                  name="time"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Hora</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="HH:MM" /></SelectTrigger></FormControl>
-                        <SelectContent>{Array.from({length: 15}, (_, i) => `${(i+7).toString().padStart(2,'0')}:00`).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={form.control}
-                  name="type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger></FormControl>
-                        <SelectContent>
-                            <SelectItem value="publica">Pública</SelectItem>
-                            <SelectItem value="rural">Rural</SelectItem>
-                            <SelectItem value="zoom">Zoom</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-             </div>
+             {(assignmentToEdit || slot) && (
+                <div className="grid grid-cols-2 gap-4 rounded-md border bg-muted/50 p-3">
+                    <div>
+                        <p className="text-xs font-medium text-muted-foreground">Hora</p>
+                        <p className="font-semibold">{assignmentToEdit?.time || slot?.startTime}</p>
+                    </div>
+                    <div>
+                        <p className="text-xs font-medium text-muted-foreground">Tipo</p>
+                        <p className="font-semibold capitalize">{assignmentToEdit?.type || (slot?.type === 'general' ? 'publica' : slot?.type)}</p>
+                    </div>
+                </div>
+             )}
+
+             {(!assignmentToEdit && !slot) && (
+                 <div className="grid grid-cols-2 gap-4">
+                     <FormField
+                      control={form.control}
+                      name="time"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Hora</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="HH:MM" /></SelectTrigger></FormControl>
+                            <SelectContent>{Array.from({length: 15}, (_, i) => `${(i+7).toString().padStart(2,'0')}:00`).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                     <FormField
+                      control={form.control}
+                      name="type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tipo</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger></FormControl>
+                            <SelectContent>
+                                <SelectItem value="publica">Pública</SelectItem>
+                                <SelectItem value="rural">Rural</SelectItem>
+                                <SelectItem value="zoom">Zoom</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                 </div>
+             )}
              
              {selectedType !== 'zoom' && (
                 <div className="grid grid-cols-2 gap-4">
