@@ -204,7 +204,7 @@ export default function ProgramaMensualPage() {
         ? 'Predicación por Zoom' 
         : (location!.type === 'urban' && (location as Territory).number ? `U-${(location as Territory).number}` : (location as Casa).ownerName || location!.name);
 
-    const newAssignment: Assignment = {
+    const newAssignment: Omit<Assignment, 'id'> & { id: string } = {
       id: docRef.id,
       date: format(data.date, "yyyy-MM-dd"),
       time: data.time,
@@ -248,10 +248,10 @@ export default function ProgramaMensualPage() {
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => new Date(selectedYear, selectedMonth, i + 1));
 
   const AssignmentItem = ({ assignment, onEdit, onDelete }: { assignment: Assignment, onEdit: () => void, onDelete: () => void }) => (
-    <div>
+    <div className="text-sm md:text-xs">
         <div className="flex items-center font-semibold text-primary"><PreachingTypeIcon type={assignment.type} /><span>{assignment.time}</span></div>
-        <p className="truncate text-foreground/90" title={assignment.userName}>{assignment.userName}</p>
-        <p className="truncate text-muted-foreground text-[0.7rem]" title={assignment.locationName}>{assignment.locationName}</p>
+        <p className="truncate font-medium text-foreground/90" title={assignment.userName}>{assignment.userName}</p>
+        <p className="truncate text-muted-foreground" title={assignment.locationName}>{assignment.locationName}</p>
         {canManageProgram && (
             <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEdit}><Edit className="h-3 w-3 text-blue-600" /></Button>
@@ -280,11 +280,11 @@ export default function ProgramaMensualPage() {
               <CardTitle>Calendario de Asignaciones</CardTitle>
               <div className="flex gap-3 items-center pt-2">
                 <Select value={String(selectedMonth)} onValueChange={(value) => setSelectedMonth(Number(value))}>
-                  <SelectTrigger className="w-[180px]"><SelectValue placeholder="Mes" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Mes" /></SelectTrigger>
                   <SelectContent>{months.map(m => (<SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>))}</SelectContent>
                 </Select>
                 <Select value={String(selectedYear)} onValueChange={(value) => setSelectedYear(Number(value))}>
-                  <SelectTrigger className="w-[120px]"><SelectValue placeholder="Año" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[120px]"><SelectValue placeholder="Año" /></SelectTrigger>
                   <SelectContent>{years.map(y => (<SelectItem key={y} value={String(y)}>{y}</SelectItem>))}</SelectContent>
                 </Select>
               </div>
@@ -299,11 +299,11 @@ export default function ProgramaMensualPage() {
             </div>
           ) : (
             <div className="mt-6">
-              <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground pb-2 border-b">
-                {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map(day => <div key={day}>{day}</div>)}
+              <div className="hidden md:grid md:grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground pb-2 border-b">
+                {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(day => <div key={day}>{day}</div>)}
               </div>
-              <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: dayOffset }).map((_, i) => <div key={`empty-${i}`} className="border rounded-md min-h-[120px] bg-muted/30"></div>)}
+              <div className="grid grid-cols-1 md:grid-cols-7 gap-4 md:gap-1">
+                {Array.from({ length: dayOffset }).map((_, i) => <div key={`empty-${i}`} className="hidden md:block rounded-md min-h-[120px] bg-muted/20"></div>)}
                 {calendarDays.map(day => {
                   const dayString = format(day, "yyyy-MM-dd");
                   const assignmentsForDay = (assignmentsToDisplay[dayString] || []).sort((a: any, b: any) => a.time.localeCompare(b.time));
@@ -313,15 +313,22 @@ export default function ProgramaMensualPage() {
                   const slotsForDay = seasonalScheduleSlots.filter(slot => slot.dayOfWeek === dayOfWeekKey).sort((a,b) => a.startTime.localeCompare(b.startTime));
 
                   return (
-                    <Card key={dayString} className={`min-h-[120px] flex flex-col rounded-md shadow-sm ${isToday ? 'border-2 border-primary' : 'border bg-card'}`}>
-                      <CardHeader className="p-2 pb-1 flex flex-row justify-between items-start">
-                        <CardTitle className={`text-xs font-medium ${isToday ? 'text-primary font-bold' : 'text-muted-foreground'}`}>{format(day, "d")}</CardTitle>
+                    <Card key={dayString} className={`flex flex-col rounded-lg shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'}`}>
+                      <CardHeader className="p-3 md:p-2 pb-1 flex flex-row justify-between items-center">
+                        {/* Mobile Title */}
+                        <CardTitle className="text-base font-semibold md:hidden capitalize">
+                          {format(day, "EEEE d", { locale: es })}
+                        </CardTitle>
+                        {/* Desktop Title */}
+                        <CardTitle className={`hidden md:block text-xs font-medium ${isToday ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+                          {format(day, "d")}
+                        </CardTitle>
                       </CardHeader>
-                      <CardContent className="p-1.5 space-y-1.5 overflow-y-auto flex-grow">
+                      <CardContent className="p-2 space-y-2 md:p-1.5 md:space-y-1.5 overflow-y-auto flex-grow min-h-[100px]">
                         {slotsForDay.map(slot => {
-                            const assignmentForSlot = assignmentsForDay.find(a => a.time === slot.startTime && a.type === (slot.type === 'general' ? 'publica' : slot.type));
+                            const assignmentForSlot = assignmentsForDay.find(a => a.time === slot.startTime && (a.type === (slot.type === 'general' ? 'publica' : slot.type) || a.type === slot.type));
                             return (
-                                <div key={slot.id} className="p-1.5 rounded-md bg-muted/30 text-xs shadow-sm group relative min-h-[50px] flex flex-col justify-center">
+                                <div key={slot.id} className="p-2 md:p-1.5 rounded-md bg-muted/30 text-sm md:text-xs shadow-sm group relative min-h-[60px] flex flex-col justify-center">
                                     {assignmentForSlot ? (
                                         <AssignmentItem assignment={assignmentForSlot} onEdit={() => handleOpenEditDialog(assignmentForSlot)} onDelete={() => handleDeleteAssignment(assignmentForSlot)} />
                                     ) : (
@@ -329,7 +336,7 @@ export default function ProgramaMensualPage() {
                                             <div className="flex items-center text-muted-foreground">
                                                 <PreachingTypeIcon type={slot.type} />
                                                 <span>{slot.startTime}</span>
-                                                <span className="ml-2 capitalize">{slot.type}</span>
+                                                <span className="ml-2 capitalize">{slot.type === 'general' ? 'Pública' : slot.type}</span>
                                                 {slot.status === 'tentative' && <Badge variant="outline" className="ml-2 text-amber-600 border-amber-500 px-1 py-0 text-[0.6rem]">Tentativo</Badge>}
                                             </div>
                                             {canManageProgram && (
@@ -343,15 +350,14 @@ export default function ProgramaMensualPage() {
                             );
                         })}
 
-                        {assignmentsForDay.filter(a => !slotsForDay.some(s => s.startTime === a.time)).map(unmatchedAssignment => (
-                            <div key={unmatchedAssignment.id} className="p-1.5 rounded-md bg-rose-500/10 border border-dashed border-rose-500/30 text-xs shadow-sm group relative min-h-[50px] flex flex-col justify-center">
+                        {assignmentsForDay.filter(a => !slotsForDay.some(s => s.startTime === a.time && (s.type === a.type || (s.type === 'general' && a.type === 'publica')))).map(unmatchedAssignment => (
+                            <div key={unmatchedAssignment.id} className="p-2 md:p-1.5 rounded-md bg-rose-500/10 border border-dashed border-rose-500/30 text-sm md:text-xs shadow-sm group relative min-h-[60px] flex flex-col justify-center">
                                 <AssignmentItem assignment={unmatchedAssignment} onEdit={() => handleOpenEditDialog(unmatchedAssignment)} onDelete={() => handleDeleteAssignment(unmatchedAssignment)} />
                             </div>
                         ))}
-
                       </CardContent>
                       {slotsForDay.length === 0 && canManageProgram && (
-                          <CardFooter className="p-1 mt-auto border-t border-dashed">
+                          <CardFooter className="p-2 md:p-1 mt-auto border-t border-dashed">
                             <Button variant="ghost" size="sm" className="w-full h-7 text-xs" onClick={() => handleOpenAddDialog(day)}>
                                 <PlusCircle className="mr-1.5 h-3.5 w-3.5"/> Añadir Manual
                             </Button>
@@ -398,3 +404,4 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
+
