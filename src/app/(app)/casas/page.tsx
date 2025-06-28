@@ -474,6 +474,11 @@ export default function CasasPage() {
     }
   };
 
+  const getGroupNameById = useCallback((groupId?: string) => {
+    if (!groupId) return 'N/A';
+    const group = availableGroups.find(g => g.id === groupId);
+    return group ? group.name : groupId;
+  }, [availableGroups]);
 
   const filteredCasas = useMemo(() => {
     return casas.filter(casa => {
@@ -508,7 +513,7 @@ export default function CasasPage() {
         }
         return true;
     });
-  }, [casas, searchTerm, availableGroups, filterGroupId, filterStatus, filterAvailabilityDay, filterAvailabilitySlotId, filterSuitableForRural, programScheduleSlots]);
+  }, [casas, searchTerm, availableGroups, filterGroupId, filterStatus, filterAvailabilityDay, filterAvailabilitySlotId, filterSuitableForRural, programScheduleSlots, getGroupNameById]);
   
   const totalPages = useMemo(() => {
     return Math.ceil(filteredCasas.length / itemsPerPage);
@@ -518,13 +523,6 @@ export default function CasasPage() {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredCasas.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredCasas, currentPage, itemsPerPage]);
-
-
-  const getGroupNameById = useCallback((groupId?: string) => {
-    if (!groupId) return 'N/A';
-    const group = availableGroups.find(g => g.id === groupId);
-    return group ? group.name : groupId;
-  }, [availableGroups]);
 
   const handleClearFilters = () => {
     setSearchTerm("");
@@ -903,7 +901,7 @@ export default function CasasPage() {
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                         <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                        <div className="space-y-1 leading-none"><Label htmlFor="forSystem" className="font-normal">Bloquear para Sistema (IA)</Label><FormFieldDescription className="text-xs">La casa no será considerada por la IA para el programa mensual.</FormFieldDescription></div>
+                        <div className="space-y-1 leading-none"><Label htmlFor="forSystem" className="font-normal">Bloquear para Sistema</Label><FormFieldDescription className="text-xs">La casa no será considerada por el sistema para la generación automática del programa.</FormFieldDescription></div>
                       </FormItem>
                     )}
                   />
@@ -938,5 +936,3 @@ export default function CasasPage() {
     </TooltipProvider>
   );
 }
-
-    
