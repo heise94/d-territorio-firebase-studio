@@ -80,8 +80,6 @@ const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType | 'general' }
   return null;
 };
 
-const NO_CASA_SELECTED_VALUE = "__NO_CASA_SELECTED__";
-
 export function AddManualAssignmentDialog({
   isOpen,
   onOpenChange,
@@ -184,7 +182,9 @@ export function AddManualAssignmentDialog({
     const assignmentDate = startOfDay(date || new Date());
 
     return allPublishers.filter(p => {
-        if (p.status !== 'Activo') return false;
+        const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable);
+        if (!isAllowedStatus) return false;
+
         if (p.blockInfo?.forSystem) return false;
 
       const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
@@ -278,44 +278,7 @@ export function AddManualAssignmentDialog({
                     </div>
                 </div>
              )}
-
-             {(!slot && !isEditMode) && (
-                 <div className="grid grid-cols-2 gap-4">
-                     <FormField
-                      control={form.control}
-                      name="time"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Hora</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger><SelectValue placeholder="HH:MM" /></SelectTrigger></FormControl>
-                            <SelectContent>{Array.from({length: 15}, (_, i) => `${(i+7).toString().padStart(2,'0')}:00`).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                     <FormField
-                      control={form.control}
-                      name="type"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Tipo</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger></FormControl>
-                            <SelectContent>
-                                <SelectItem value="publica">Pública</SelectItem>
-                                <SelectItem value="rural">Rural</SelectItem>
-                                <SelectItem value="zoom">Zoom</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                 </div>
-             )}
-             
+            
             <FormField
               control={form.control}
               name="territoryId"
