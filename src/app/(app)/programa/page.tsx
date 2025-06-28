@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle } from "lucide-react";
@@ -11,7 +11,7 @@ import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, getDay, isSameDay, parse, parseISO } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, PreachingType, PreachingGroup } from "@/types";
+import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, PreachingType, PreachingGroup, UserAssignment } from "@/types";
 import { AlertDialog, AlertDialogTrigger, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
@@ -72,14 +72,21 @@ export default function ProgramaMensualPage() {
   }, []);
 
   useEffect(() => {
+    setIsLoading(true);
     const startDate = format(startOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
     const endDate = format(endOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
+
     const assignmentsQuery = query(collection(db, "assignments"), where("date", ">=", startDate), where("date", "<=", endDate));
     const unsubscribe = onSnapshot(assignmentsQuery, (snapshot) => {
       setSavedAssignments(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Assignment)));
+      setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching assignments:", error);
+        toast({title: "Error de Carga", description: "No se pudieron obtener las asignaciones para este mes.", variant: "destructive"});
+        setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, toast]);
 
   const canManageProgram = hasPermission(PERMISSIONS.MANAGE_MONTHLY_PROGRAM);
 
@@ -127,8 +134,12 @@ export default function ProgramaMensualPage() {
         location = allCasas.find(c => c.id === data.locationId);
     }
 
-    if (!publisher || !location) {
-        toast({ title: "Error", description: "Publicador o lugar no válido.", variant: "destructive"});
+    if (!publisher) {
+        toast({ title: "Error", description: "Publicador no válido.", variant: "destructive"});
+        return;
+    }
+    if (data.type !== 'zoom' && !location) {
+        toast({ title: "Error", description: "Debe seleccionar un lugar (territorio o casa).", variant: "destructive"});
         return;
     }
 
@@ -137,8 +148,8 @@ export default function ProgramaMensualPage() {
       date: format(data.date, "yyyy-MM-dd"),
       time: data.time,
       type: data.type,
-      locationName: location.name,
-      locationId: location.id,
+      locationName: data.type === 'zoom' ? 'Predicación por Zoom' : (location!.name || `U-${(location as Territory).number}`),
+      locationId: data.type === 'zoom' ? 'zoom' : location!.id,
       status: data.status || 'pending',
       assignedBy: userProfile?.name || 'Manual',
       userId: publisher.firebaseAuthUid || publisher.id,
