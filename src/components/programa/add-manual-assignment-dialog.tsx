@@ -177,7 +177,7 @@ export function AddManualAssignmentDialog({
       return dateA - dateB;
     };
 
-    if (selectedCasaId && selectedCasaId !== 'NO_CASA') {
+    if (selectedCasaId) {
       const associatedTerritories = baseFiltered
         .filter(t => t.associatedCasaIds?.includes(selectedCasaId))
         .sort(sortByLastWorked);
@@ -345,7 +345,7 @@ export function AddManualAssignmentDialog({
                 <FormItem>
                   <FormLabel>
                     Territorio
-                    {selectedCasaId && selectedCasaId !== 'NO_CASA' && (
+                    {selectedCasaId && (
                         <span className="ml-2 text-xs font-normal text-primary">(filtrado por casa)</span>
                     )}
                   </FormLabel>
@@ -355,26 +355,37 @@ export function AddManualAssignmentDialog({
                     </FormControl>
                     <SelectContent>
                       {availableTerritoriesForSelection.map(loc => {
-                        const name = loc.type === 'urban' && loc.number ? `U-${loc.number}: ${loc.name}` : loc.name;
+                        const territoryDisplayName = loc.type === 'urban' && loc.number 
+                            ? `U-${loc.number}: ${loc.name}` 
+                            : loc.name;
+                        const lastWorkedDisplay = loc.lastWorked 
+                            ? format(new Date(loc.lastWorked), 'dd/MM/yy') 
+                            : 'Nunca';
+                        const fullDisplayName = `${territoryDisplayName} (${lastWorkedDisplay})`;
                         const isAlreadyAssigned = assignedTerritoryIdsInMonth.has(loc.id);
+                        
                         return (
-                          <SelectItem key={loc.id} value={loc.id}>
-                            <div className="flex items-center justify-between w-full">
-                              <span>{name}</span>
-                              {isAlreadyAssigned && (
-                                <TooltipProvider><Tooltip>
-                                  <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
-                                  <TooltipContent><p>Ya asignado este mes</p></TooltipContent>
-                                </Tooltip></TooltipProvider>
-                              )}
-                            </div>
-                          </SelectItem>
+                            <SelectItem key={loc.id} value={loc.id}>
+                                <div className="flex items-center justify-between w-full">
+                                    <span title={fullDisplayName}>{fullDisplayName}</span>
+                                    {isAlreadyAssigned && (
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span className="h-2 w-2 rounded-full bg-amber-500 ml-2" />
+                                                </TooltipTrigger>
+                                                <TooltipContent><p>Ya asignado este mes</p></TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    )}
+                                </div>
+                            </SelectItem>
                         );
                       })}
                     </SelectContent>
                   </Select>
                   <FormFieldDescription className="text-xs">
-                    {selectedCasaId && selectedCasaId !== 'NO_CASA'
+                    {selectedCasaId
                         ? "La lista muestra primero los territorios asociados a la casa seleccionada."
                         : "La lista muestra los 20 territorios disponibles con más tiempo sin trabajar."}
                   </FormFieldDescription>
