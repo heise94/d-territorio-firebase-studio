@@ -915,7 +915,7 @@ export default function UsuariosPage() {
                   {blockForm.formState.errors.forSystem && <p className="text-sm font-medium text-destructive">{blockForm.formState.errors.forSystem.message}</p>}
                 </div>
                 <FormField
-                  control={form.control}
+                  control={blockForm.control}
                   name="reason"
                   render={({ field }) => (
                     <FormItem><Label>Razón del Bloqueo (Opcional)</Label><FormControl><Textarea placeholder="Ej: Inactividad, solicitud del usuario, etc." {...field} /></FormControl></FormItem>
