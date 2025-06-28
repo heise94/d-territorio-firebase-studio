@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Users as UsersTypeIcon, MountainSnow, Video, AlertTriangle, CalendarOff, Home, Trash2, PlusCircle, CalendarIcon, User, Building } from "lucide-react";
+import { Loader2, Save, Users as UsersTypeIcon, MountainSnow, Video, AlertTriangle, CalendarOff, Home, Trash2, PlusCircle, CalendarIcon, User, Building, UserX } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import type { UserAvailability, ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, SettingsDoc, Casa, UnavailabilityPeriod } from "@/types";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -61,14 +61,8 @@ const PreachingTypeIcon = ({ type, className }: { type: PreachingType, className
   return null;
 };
 
-const availabilityFormSchema = z.object({
-  availableSlotIds: z.array(z.string()).optional().default([]),
-});
-
-type AvailabilityFormValues = z.infer<typeof availabilityFormSchema>;
-
 const unavailabilityPeriodSchema = z.object({
-  id: z.string().optional(), 
+  id: z.string().optional(),
   startDate: z.date({ required_error: "Fecha de inicio es obligatoria." }),
   endDate: z.date({ required_error: "Fecha de fin es obligatoria." }),
   reason: z.string().max(100, "Máximo 100 caracteres.").optional().or(z.literal('')),
@@ -76,6 +70,14 @@ const unavailabilityPeriodSchema = z.object({
   message: "Fecha de fin debe ser igual o posterior a la de inicio.",
   path: ["endDate"],
 });
+
+
+const personalAvailabilityFormSchema = z.object({
+  availableSlotIds: z.array(z.string()).optional().default([]),
+  unavailabilityPeriods: z.array(unavailabilityPeriodSchema).optional().default([]),
+});
+
+type PersonalAvailabilityFormValues = z.infer<typeof personalAvailabilityFormSchema>;
 
 const casaManagementFormSchema = z.object({
   address: z.string().min(5, { message: "La dirección debe tener al menos 5 caracteres." }).max(200),
@@ -89,7 +91,8 @@ const WEEK_DAYS_ORDERED: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thurs
 
 export default function DisponibilidadPage() {
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingPersonal, setIsSubmittingPersonal] = useState(false);
+  const [isSubmittingCasa, setIsSubmittingCasa] = useState(false);
   const { userProfile, isLoadingPermissions: isLoadingUserProfile } = usePermissions();
 
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
@@ -98,11 +101,17 @@ export default function DisponibilidadPage() {
   const [managedCasa, setManagedCasa] = useState<Casa | null>(null);
   const [isLoadingCasa, setIsLoadingCasa] = useState(false);
 
-  const userAvailabilityForm = useForm<AvailabilityFormValues>({
-    resolver: zodResolver(availabilityFormSchema),
+  const personalAvailabilityForm = useForm<PersonalAvailabilityFormValues>({
+    resolver: zodResolver(personalAvailabilityFormSchema),
     defaultValues: {
       availableSlotIds: [],
+      unavailabilityPeriods: [],
     },
+  });
+
+  const { fields: unavailabilityUserFields, append: appendUserUnavailability, remove: removeUserUnavailability } = useFieldArray({
+    control: personalAvailabilityForm.control,
+    name: "unavailabilityPeriods",
   });
 
   const casaManagementForm = useForm<CasaManagementFormValues>({
@@ -114,7 +123,7 @@ export default function DisponibilidadPage() {
     }
   });
 
-  const { fields: unavailabilityFields, append: appendUnavailability, remove: removeUnavailability } = useFieldArray({
+  const { fields: unavailabilityCasaFields, append: appendCasaUnavailability, remove: removeCasaUnavailability } = useFieldArray({
     control: casaManagementForm.control,
     name: "unavailabilityPeriods",
   });
@@ -176,12 +185,18 @@ export default function DisponibilidadPage() {
 
   // Populate Forms
   useEffect(() => {
-    if (userProfile?.availability?.availableSlotIds && !isLoadingUserProfile) {
-      userAvailabilityForm.reset({
-        availableSlotIds: userProfile.availability.availableSlotIds || [],
+    if (userProfile && !isLoadingUserProfile) {
+      personalAvailabilityForm.reset({
+        availableSlotIds: userProfile.availability?.availableSlotIds || [],
+        unavailabilityPeriods: (userProfile.availability?.unavailabilityPeriods || []).map(p => ({
+          id: p.id,
+          startDate: p.startDate instanceof Timestamp ? p.startDate.toDate() : new Date(p.startDate),
+          endDate: p.endDate instanceof Timestamp ? p.endDate.toDate() : new Date(p.endDate),
+          reason: p.reason || "",
+        })),
       });
     }
-  }, [userProfile, userAvailabilityForm, isLoadingUserProfile]);
+  }, [userProfile, personalAvailabilityForm, isLoadingUserProfile]);
 
   useEffect(() => {
     if (managedCasa) {
@@ -198,15 +213,20 @@ export default function DisponibilidadPage() {
     }
   }, [managedCasa, casaManagementForm]);
 
-  async function onUserAvailabilitySubmit(values: AvailabilityFormValues) {
+  async function onPersonalAvailabilitySubmit(values: PersonalAvailabilityFormValues) {
     if (!userProfile || !userProfile.id) {
       toast({ title: "Error de Usuario", description: "No se pudo identificar al usuario.", variant: "destructive" });
       return;
     }
-    setIsSubmitting(true);
+    setIsSubmittingPersonal(true);
     const userDocRef = doc(db, "users", userProfile.id);
     await updateDoc(userDocRef, {
       "availability.availableSlotIds": values.availableSlotIds || [],
+      "availability.unavailabilityPeriods": (values.unavailabilityPeriods || []).map(p => ({
+        ...p,
+        startDate: Timestamp.fromDate(p.startDate),
+        endDate: Timestamp.fromDate(p.endDate),
+      })),
       updatedAt: serverTimestamp()
     }).then(() => {
         toast({ title: "Disponibilidad Actualizada", description: "Tus horarios disponibles han sido guardados." });
@@ -214,7 +234,7 @@ export default function DisponibilidadPage() {
         console.error("Error saving user availability:", error);
         toast({ title: "Error al Guardar", description: "No se pudo guardar tu disponibilidad.", variant: "destructive" });
     }).finally(() => {
-        setIsSubmitting(false);
+        setIsSubmittingPersonal(false);
     });
   }
 
@@ -223,7 +243,7 @@ export default function DisponibilidadPage() {
       toast({ title: "Error", description: "No hay una casa que gestionar.", variant: "destructive" });
       return;
     }
-    setIsSubmitting(true);
+    setIsSubmittingCasa(true);
     const casaDocRef = doc(db, "casas", managedCasa.id);
     await updateDoc(casaDocRef, {
       address: values.address,
@@ -240,7 +260,7 @@ export default function DisponibilidadPage() {
         console.error("Error saving casa details:", error);
         toast({ title: "Error al Guardar", description: "No se pudieron guardar los detalles de la casa.", variant: "destructive" });
     }).finally(() => {
-        setIsSubmitting(false);
+        setIsSubmittingCasa(false);
     });
   }
 
@@ -285,9 +305,13 @@ export default function DisponibilidadPage() {
                 )}
             </TabsList>
             <TabsContent value="personal" className="mt-6">
-                <Card className="shadow-lg max-w-3xl mx-auto">
-                    <Form {...userAvailabilityForm}>
-                    <form onSubmit={userAvailabilityForm.handleSubmit(onUserAvailabilitySubmit)}>
+                <Form {...personalAvailabilityForm}>
+                <form onSubmit={personalAvailabilityForm.handleSubmit(onPersonalAvailabilitySubmit)}>
+                    <Card className="shadow-lg max-w-3xl mx-auto mb-6">
+                        <CardHeader>
+                            <CardTitle className="flex items-center text-xl"><CalendarIcon className="mr-3 h-6 w-6 text-primary" />Horarios Semanales</CardTitle>
+                            <CardDescription>Selecciona los horarios fijos en los que puedes participar en la predicación.</CardDescription>
+                        </CardHeader>
                         <CardContent className="space-y-6 py-6">
                         {programScheduleSlots.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-10 text-center bg-muted/30 rounded-lg border border-dashed">
@@ -315,7 +339,7 @@ export default function DisponibilidadPage() {
                                     {slotsForDay.map(slot => (
                                     <FormField
                                         key={slot.id}
-                                        control={userAvailabilityForm.control}
+                                        control={personalAvailabilityForm.control}
                                         name="availableSlotIds"
                                         render={({ field }) => (
                                         <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 bg-muted/20 hover:bg-muted/30 transition-colors shadow-sm">
@@ -355,19 +379,43 @@ export default function DisponibilidadPage() {
                             })
                         )}
                         </CardContent>
-                        <CardFooter className="border-t pt-6">
-                        <Button type="submit" disabled={isSubmitting || programScheduleSlots.length === 0} size="lg" className="w-full sm:w-auto">
-                            {isSubmitting ? (
-                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                            ) : (
-                            <Save className="mr-2 h-5 w-5" />
-                            )}
-                            Guardar Mi Disponibilidad
-                        </Button>
+                    </Card>
+
+                    <Card className="shadow-lg max-w-3xl mx-auto">
+                        <CardHeader>
+                            <CardTitle className="flex items-center text-xl"><UserX className="mr-3 h-6 w-6 text-primary" />Mis Períodos de Indisponibilidad</CardTitle>
+                            <CardDescription>Añade fechas en las que no estarás disponible (vacaciones, etc.). La IA no te asignará en estos períodos.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <div className="space-y-3">
+                                {unavailabilityUserFields.map((item, index) => (
+                                    <div key={item.id} className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end p-3 border rounded-md relative bg-muted/20">
+                                        <FormField control={personalAvailabilityForm.control} name={`unavailabilityPeriods.${index}.startDate`} render={({ field }) => (
+                                            <FormItem className="flex flex-col"><FormLabel className="text-xs">Inicio</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("text-left font-normal bg-card", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP", {locale: es}) : "Seleccionar"}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent></Popover><FormMessage /></FormItem>
+                                        )}/>
+                                        <FormField control={personalAvailabilityForm.control} name={`unavailabilityPeriods.${index}.endDate`} render={({ field }) => (
+                                            <FormItem className="flex flex-col"><FormLabel className="text-xs">Fin</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("text-left font-normal bg-card", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP", {locale: es}) : "Seleccionar"}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => personalAvailabilityForm.getValues(`unavailabilityPeriods.${index}.startDate`) ? date < personalAvailabilityForm.getValues(`unavailabilityPeriods.${index}.startDate`) : false} /></PopoverContent></Popover><FormMessage /></FormItem>
+                                        )}/>
+                                        <div className="sm:col-span-2">
+                                            <FormField control={personalAvailabilityForm.control} name={`unavailabilityPeriods.${index}.reason`} render={({ field }) => (
+                                                <FormItem><FormLabel className="text-xs">Razón (Opcional)</FormLabel><FormControl><Input placeholder="Ej: Vacaciones" {...field} className="bg-card"/></FormControl><FormMessage /></FormItem>
+                                            )}/>
+                                        </div>
+                                        <Button type="button" variant="ghost" size="icon" onClick={() => removeUserUnavailability(index)} className="absolute top-1 right-1 h-7 w-7 text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                                    </div>
+                                ))}
+                                <Button type="button" variant="outline" size="sm" onClick={() => appendUserUnavailability({ startDate: new Date(), endDate: new Date(), reason: ""})}><PlusCircle className="mr-2 h-4 w-4" />Añadir Período</Button>
+                            </div>
+                        </CardContent>
+                         <CardFooter className="border-t pt-6">
+                            <Button type="submit" disabled={isSubmittingPersonal || programScheduleSlots.length === 0} size="lg" className="w-full sm:w-auto">
+                                {isSubmittingPersonal ? (<Loader2 className="mr-2 h-5 w-5 animate-spin" />) : (<Save className="mr-2 h-5 w-5" />)}
+                                Guardar mi Disponibilidad
+                            </Button>
                         </CardFooter>
-                    </form>
-                    </Form>
-                </Card>
+                    </Card>
+                </form>
+                </Form>
             </TabsContent>
             
             <TabsContent value="casa" className="mt-6">
@@ -426,7 +474,7 @@ export default function DisponibilidadPage() {
 
                             <div className="space-y-3">
                                 <FormLabel className="font-medium">Períodos de Indisponibilidad (Vacaciones, etc.)</FormLabel>
-                                {unavailabilityFields.map((item, index) => (
+                                {unavailabilityCasaFields.map((item, index) => (
                                     <div key={item.id} className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end p-3 border rounded-md relative">
                                         <FormField control={casaManagementForm.control} name={`unavailabilityPeriods.${index}.startDate`} render={({ field }) => (
                                             <FormItem className="flex flex-col"><FormLabel className="text-xs">Inicio</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn("text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP", {locale: es}) : "Seleccionar"}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent></Popover><FormMessage /></FormItem>
@@ -439,15 +487,15 @@ export default function DisponibilidadPage() {
                                                 <FormItem><FormLabel className="text-xs">Razón (Opcional)</FormLabel><FormControl><Input placeholder="Ej: Vacaciones" {...field} /></FormControl><FormMessage /></FormItem>
                                             )}/>
                                         </div>
-                                        <Button type="button" variant="ghost" size="icon" onClick={() => removeUnavailability(index)} className="absolute top-1 right-1 h-7 w-7 text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                                        <Button type="button" variant="ghost" size="icon" onClick={() => removeCasaUnavailability(index)} className="absolute top-1 right-1 h-7 w-7 text-destructive"><Trash2 className="h-4 w-4" /></Button>
                                     </div>
                                 ))}
-                                <Button type="button" variant="outline" size="sm" onClick={() => appendUnavailability({ startDate: new Date(), endDate: new Date(), reason: ""})}><PlusCircle className="mr-2 h-4 w-4" />Añadir Período</Button>
+                                <Button type="button" variant="outline" size="sm" onClick={() => appendCasaUnavailability({ startDate: new Date(), endDate: new Date(), reason: ""})}><PlusCircle className="mr-2 h-4 w-4" />Añadir Período</Button>
                             </div>
                         </CardContent>
                         <CardFooter className="border-t pt-6">
-                            <Button type="submit" disabled={isSubmitting} size="lg" className="w-full sm:w-auto">
-                                {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                            <Button type="submit" disabled={isSubmittingCasa} size="lg" className="w-full sm:w-auto">
+                                {isSubmittingCasa && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
                                 Guardar Cambios de la Casa
                             </Button>
                         </CardFooter>

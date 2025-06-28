@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 import type { UserRole as RoleType, PermissionId } from '@/lib/constants';
 
@@ -34,9 +35,7 @@ export interface PublisherDetail {
   name: string;
   email: string;
   phoneNumber?: string;
-  availability?: {
-    availableSlotIds?: string[];
-  };
+  availability?: UserAvailability;
   assignedGroupId?: string;
   firebaseAuthUid?: string; // UID from Firebase Authentication
   status?: 'Activo' | 'Bloqueado'; // Add status to PublisherDetail
@@ -113,7 +112,7 @@ export interface CasaAvailability {
 
 export interface UserAvailability {
   availableSlotIds?: string[];
-  general?: CasaAvailability;
+  unavailabilityPeriods?: UnavailabilityPeriod[];
 }
 
 export interface UnavailabilityPeriod {

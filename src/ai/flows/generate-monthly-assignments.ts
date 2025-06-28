@@ -24,11 +24,18 @@ const BlockInfoAISchema = z.object({
   reason: z.string().optional().describe("Reason for block.")
 });
 
+const UnavailabilityPeriodAISchema = z.object({
+    startDate: z.string().describe("Start date of unavailability (YYYY-MM-DD)."),
+    endDate: z.string().describe("End date of unavailability (YYYY-MM-DD)."),
+    reason: z.string().optional().describe("Reason for unavailability."),
+});
+
 const PublisherDetailForAISchema = z.object({
     id: z.string().describe("Firebase Auth UID of the publisher."),
     name: z.string().describe("Full name of the publisher."),
     blockInfo: BlockInfoAISchema.optional().describe("Information about any blocks on this publisher. If blockInfo.forSystem is true, DO NOT assign them."),
-}).describe("Detailed information about an available publisher, including their ID, name, and block status for captain assignment.");
+    unavailabilityPeriods: z.array(UnavailabilityPeriodAISchema).optional().describe("Periods when the publisher is unavailable. Do not assign them as a captain if the assignment date falls within any of these periods.")
+}).describe("Detailed information about an available publisher, including their ID, name, block status, and unavailability periods for captain assignment.");
 
 
 const TimeSlotAISchema = z.object({
@@ -46,11 +53,6 @@ const GroupPreachingDaysAISchema = z.record(
   z.boolean()
 ).describe("Object where keys are days of the week (lowercase English) and value is true if preaching is organized by groups on that day, false or omitted otherwise. No centralized assignments should be made for true days.");
 
-const UnavailabilityPeriodAISchema = z.object({
-    startDate: z.string().describe("Start date of unavailability (YYYY-MM-DD)."),
-    endDate: z.string().describe("End date of unavailability (YYYY-MM-DD)."),
-    reason: z.string().optional().describe("Reason for unavailability."),
-});
 
 const CasaForAISchema = z.object({
     id: z.string(),
@@ -195,6 +197,12 @@ const prompt = ai.definePrompt({
   {{#if publisherDetailedAvailabilities}}
     {{#each publisherDetailedAvailabilities}}
     - Publisher ID (for captainId): {{this.id}}, Name (for captainName): {{this.name}} {{#if this.blockInfo.forSystem}} **(BLOQUEADO PARA SISTEMA)** {{/if}}
+      {{#if this.unavailabilityPeriods}}
+      Not Available (Personal):
+        {{#each this.unavailabilityPeriods}}
+        - From: {{this.startDate}} to {{this.endDate}}
+        {{/each}}
+      {{/if}}
     {{/each}}
   {{else}}
     No publisher availability data provided. You MUST still attempt to assign captains based on the general logic and output a placeholder like "PENDING_CAPTAIN_ID" and "Pending Captain Name" if specific publisher IDs cannot be determined, along with a note.
@@ -242,6 +250,7 @@ const prompt = ai.definePrompt({
      - For each day of the week, use the corresponding time slots from 'availableDaysWithTimeSlots' to create assignments.
      - For each slot, assign ONE captain. Use 'publisherDetailedAvailabilities' to select a suitable publisher and set their 'id' as 'captainId' and 'name' as 'captainName'.
      - **IMPORTANT:** Do NOT assign any publisher that has \`blockInfo.forSystem\` set to \`true\`.
+     - **CRITICAL:** Do NOT assign any publisher if the assignment date falls within any of their 'unavailabilityPeriods'.
      - If a day has multiple time slots, aim to assign a DIFFERENT captain to each slot.
      - When assigning a 'casaName' or 'casaAddress' (for 'publica' or 'rural' types ONLY), ensure the chosen house is NOT within one of its 'unavailabilityPeriods' for the assignment date.
      - IMPORTANT: If the 'preachingType' for a slot is 'zoom', then 'casaName', 'casaAddress', and 'territoryName' MUST be null or empty in the output.

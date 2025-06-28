@@ -172,7 +172,12 @@ export default function ProgramaMensualPage() {
       publisherDetailedAvailabilities: publishers.map(p => ({ 
           id: p.firebaseAuthUid || p.id, 
           name: p.name,
-          blockInfo: p.blockInfo 
+          blockInfo: p.blockInfo,
+          unavailabilityPeriods: (p.availability?.unavailabilityPeriods || []).map(up => ({
+            startDate: format(up.startDate instanceof Timestamp ? up.startDate.toDate() : new Date(up.startDate), "yyyy-MM-dd"),
+            endDate: format(up.endDate instanceof Timestamp ? up.endDate.toDate() : new Date(up.endDate), "yyyy-MM-dd"),
+            reason: up.reason
+          }))
       })),
       availableCasas: availableCasasForAI.map(c => ({ 
           id: c.id, 
