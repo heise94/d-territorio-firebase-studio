@@ -12,7 +12,7 @@ import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, pa
 import { collection, doc, onSnapshot, query, where, deleteDoc, getDocs, writeBatch, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, GenerateMonthlyAssignmentsOutput, PreachingType, PreachingGroup } from "@/types";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { generateMonthlyAssignments } from "@/ai/flows/generate-monthly-assignments";
 import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
 import { EditAssignmentDialog } from "@/components/programa/edit-assignment-dialog";
@@ -497,3 +497,5 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
+
+    
