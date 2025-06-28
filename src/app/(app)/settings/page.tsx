@@ -1023,11 +1023,12 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                 ) : (
                 <>
                     <h3 className="text-lg font-medium mb-2 flex items-center"><GanttChartSquare className="mr-2 h-5 w-5 text-primary" />Horarios de Predicación</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {dayOrder.map(dayKey => {
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {dayOrder.map((dayKey, index) => {
                         const slotsForDay = scheduleSlots.filter(slot => slot.dayOfWeek === dayKey).sort((a,b) => a.startTime.localeCompare(b.startTime));
+                        const isLastDay = index === dayOrder.length - 1;
                         return (
-                        <Card key={dayKey} className="flex flex-col">
+                        <Card key={dayKey} className={cn("flex flex-col", isLastDay && "lg:col-start-2")}>
                             <CardHeader className="pb-3">
                             <CardTitle className="text-lg">{dayOfWeekLabels[dayKey]}</CardTitle>
                             </CardHeader>
