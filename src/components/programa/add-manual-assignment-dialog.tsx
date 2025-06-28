@@ -80,6 +80,8 @@ const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType | 'general' }
   return null;
 };
 
+const NO_CASA_SELECTED_VALUE = "__NO_CASA_SELECTED__";
+
 export function AddManualAssignmentDialog({
   isOpen,
   onOpenChange,
