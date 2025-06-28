@@ -28,10 +28,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { Campaign, CampaignType } from "@/types";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import type { Campaign, CampaignType, Territory } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CalendarIcon } from "lucide-react";
+import { Loader2, CalendarIcon, ChevronDown } from "lucide-react";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -45,6 +46,7 @@ const campaignFormSchema = z.object({
   description: z.string().max(500).optional().or(z.literal('')),
   superintendentName: z.string().max(100).optional().or(z.literal('')),
   specialCampaignTerritoriesPerDay: z.coerce.number().int().min(0, "Debe ser 0 o más.").optional().default(0),
+  specificTerritoryIds: z.array(z.string()).optional().default([]),
 }).superRefine((data, ctx) => {
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
     ctx.addIssue({
@@ -71,6 +73,7 @@ interface AddCampaignDialogProps {
   onOpenChange: (isOpen: boolean) => void;
   onCampaignSubmit: (campaign: Omit<Campaign, 'id' | 'isActive' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<void>;
   campaignToEdit?: Campaign | null;
+  availableTerritories: Territory[];
 }
 
 const CampaignTypeLabels: Record<CampaignType, string> = {
@@ -79,7 +82,7 @@ const CampaignTypeLabels: Record<CampaignType, string> = {
   special: "Campaña Especial"
 };
 
-export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, campaignToEdit }: AddCampaignDialogProps) {
+export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, campaignToEdit, availableTerritories }: AddCampaignDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = !!campaignToEdit;
@@ -94,6 +97,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       description: "",
       superintendentName: "",
       specialCampaignTerritoriesPerDay: 0,
+      specificTerritoryIds: [],
     },
   });
 
@@ -109,6 +113,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
         description: campaignToEdit.description || "",
         superintendentName: campaignToEdit.superintendentName || "",
         specialCampaignTerritoriesPerDay: campaignToEdit.specialCampaignTerritoriesPerDay === undefined || campaignToEdit.specialCampaignTerritoriesPerDay === null ? 0 : campaignToEdit.specialCampaignTerritoriesPerDay,
+        specificTerritoryIds: campaignToEdit.specificTerritoryIds || [],
       });
     } else if (!isOpen) {
       form.reset({ 
@@ -119,6 +124,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
         description: "",
         superintendentName: "",
         specialCampaignTerritoriesPerDay: 0,
+        specificTerritoryIds: [],
       });
     }
   }, [campaignToEdit, isOpen, form]);
@@ -133,6 +139,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
       startDate: values.startDate,
       endDate: values.endDate,
       specialCampaignTerritoriesPerDay: values.specialCampaignTerritoriesPerDay,
+      specificTerritoryIds: values.specificTerritoryIds,
       description: values.description || null,
       superintendentName: values.type === 'superintendent_visit' ? (values.superintendentName || null) : null,
     };
@@ -156,9 +163,19 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
         description: "",
         superintendentName: "",
         specialCampaignTerritoriesPerDay: 0,
+        specificTerritoryIds: [],
       });
     }
     onOpenChange(open);
+  };
+  
+  const getSelectedTerritoriesText = (selectedIds: string[] | undefined) => {
+    if (!selectedIds || selectedIds.length === 0) return "Seleccionar territorios...";
+    if (selectedIds.length === 1) {
+      const terr = availableTerritories.find(t => t.id === selectedIds[0]);
+      return terr ? (terr.number ? `U-${terr.number}` : terr.name) : "Seleccionar territorios...";
+    }
+    return `${selectedIds.length} territorios seleccionados`;
   };
 
   return (
@@ -241,7 +258,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                           mode="single"
                           selected={field.value}
                           onSelect={field.onChange}
-                          disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) && !isEditMode } 
+                           disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) && !isEditMode } 
                           initialFocus
                           locale={es}
                           weekStartsOn={1}
@@ -320,7 +337,7 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
               name="specialCampaignTerritoriesPerDay"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Territorios Específicos por Día (Campaña)</FormLabel>
+                  <FormLabel>Territorios por Día (Numérico)</FormLabel>
                   <FormControl>
                     <Input type="number" min="0" placeholder="Ej: 2" {...field} 
                      onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} />
@@ -328,6 +345,47 @@ export function AddCampaignDialog({ isOpen, onOpenChange, onCampaignSubmit, camp
                   <FormFieldDescription>
                     Número de territorios a asignar para esta campaña cada día que esté activa. Usar 0 para lógica estándar.
                   </FormFieldDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="specificTerritoryIds"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Territorios Específicos (Opcional)</FormLabel>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <FormControl>
+                        <Button variant="outline" className="w-full justify-between" disabled={availableTerritories.length === 0}>
+                          {getSelectedTerritoriesText(field.value)}
+                          <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]" align="start">
+                      <DropdownMenuLabel>Territorios Disponibles</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {availableTerritories.map((territory) => (
+                        <DropdownMenuCheckboxItem
+                          key={territory.id}
+                          checked={field.value?.includes(territory.id)}
+                          onCheckedChange={(checked) => {
+                            const currentSelection = field.value || [];
+                            return checked
+                              ? field.onChange([...currentSelection, territory.id])
+                              : field.onChange(currentSelection.filter(id => id !== territory.id));
+                          }}
+                          onSelect={(e) => e.preventDefault()} 
+                        >
+                          {territory.number ? `U-${territory.number}` : territory.name}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <FormFieldDescription>Selecciona territorios específicos a usar durante esta campaña.</FormFieldDescription>
                   <FormMessage />
                 </FormItem>
               )}

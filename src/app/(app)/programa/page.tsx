@@ -248,6 +248,7 @@ export default function ProgramaMensualPage() {
             endDate: format(c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate), "yyyy-MM-dd"),
             superintendentName: c.superintendentName || undefined,
             specialCampaignTerritoriesPerDay: c.specialCampaignTerritoriesPerDay || undefined,
+            specificTerritoryIds: c.specificTerritoryIds || undefined,
             description: c.description || undefined,
         })),
       

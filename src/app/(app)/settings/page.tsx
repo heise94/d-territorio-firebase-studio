@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Briefcase, CalendarCog, Users as UsersIconLucide, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck, KeyRound, Settings as SettingsIcon, Sun, Moon, CalendarIcon } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, SettingsDoc, ScheduleSeason } from "@/types";
+import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, SettingsDoc, ScheduleSeason, Territory } from "@/types";
 import { USER_ROLES, USER_ROLES_LIST, PERMISSIONS_BY_MODULE, PermissionId, DEFAULT_ROLE_PERMISSIONS, UserRole } from "@/lib/constants";
 import {
   Dialog,
@@ -147,6 +147,8 @@ export default function SettingsPage() {
   const [winterStartDate, setWinterStartDate] = useState("");
   const [showSeasonUpdateReminder, setShowSeasonUpdateReminder] = useState(false);
 
+  const [availableTerritories, setAvailableTerritories] = useState<Territory[]>([]);
+  const [isLoadingTerritories, setIsLoadingTerritories] = useState(true);
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isCampaignDialogOpen, setIsCampaignDialogOpen] = useState(false);
@@ -303,6 +305,23 @@ export default function SettingsPage() {
       setIsLoadingSpecialEvents(false);
     }
   }, [toast]);
+
+  useEffect(() => {
+    // Fetch territories only once, as they are needed for campaigns
+    const territoriesCollectionRef = collection(db, "territories");
+    const qTerritories = query(territoriesCollectionRef, orderBy("name", "asc"));
+    const unsubscribeTerritories = onSnapshot(qTerritories, (snapshot) => {
+        setAvailableTerritories(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Territory)));
+        setIsLoadingTerritories(false);
+    }, (error) => {
+        console.error("Error fetching territories:", error);
+        toast({ title: "Error al Cargar Territorios", description: "No se pudieron cargar los territorios para las campañas.", variant: "destructive" });
+        setIsLoadingTerritories(false);
+    });
+
+    return () => unsubscribeTerritories();
+  }, [toast]);
+
 
   useEffect(() => {
     const today = new Date();
@@ -464,6 +483,11 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
             }
         });
         
+        // Remove specificTerritoryIds if it's an empty array
+        if (Array.isArray(sanitizedEvent.specificTerritoryIds) && sanitizedEvent.specificTerritoryIds.length === 0) {
+            sanitizedEvent.specificTerritoryIds = null;
+        }
+
         return Object.fromEntries(Object.entries(sanitizedEvent).filter(([_, v]) => v !== undefined));
     };
     
@@ -471,7 +495,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
 
     if (eventsData.campaignsList !== undefined) {
         payloadToSave.campaignsList = (eventsData.campaignsList || []).map(c => 
-            sanitizeEvent(c, ['startDate', 'endDate'], ['superintendentName', 'description', 'specialCampaignTerritoriesPerDay'])
+            sanitizeEvent(c, ['startDate', 'endDate'], ['superintendentName', 'description', 'specialCampaignTerritoriesPerDay', 'specificTerritoryIds'])
         );
     }
     if (eventsData.holidaysList !== undefined) {
@@ -1366,7 +1390,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         </DialogContent>
       </Dialog>
 
-      {isCampaignDialogOpen && (<AddCampaignDialog isOpen={isCampaignDialogOpen} onOpenChange={setIsCampaignDialogOpen} onCampaignSubmit={handleCampaignSubmit} campaignToEdit={campaignToEdit}/>)}
+      {isCampaignDialogOpen && (<AddCampaignDialog isOpen={isCampaignDialogOpen} onOpenChange={setIsCampaignDialogOpen} onCampaignSubmit={handleCampaignSubmit} campaignToEdit={campaignToEdit} availableTerritories={availableTerritories} />)}
       {isAssemblyDialogOpen && (<AddAssemblyDialog isOpen={isAssemblyDialogOpen} onOpenChange={setIsAssemblyDialogOpen} onAssemblySubmit={handleAssemblySubmit} assemblyToEdit={assemblyToEdit} />)}
       {isHolidayDialogOpen && (<AddHolidayDialog isOpen={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen} onHolidaySubmit={handleHolidaySubmit} holidayToEdit={holidayToEdit} />)}
     </div>

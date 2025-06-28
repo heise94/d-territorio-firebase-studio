@@ -84,6 +84,7 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
     endDate: z.string().describe("Campaign end date, YYYY-MM-DD"),
     superintendentName: z.string().optional(),
     specialCampaignTerritoriesPerDay: z.number().optional().describe("Number of specific territories for this campaign per day. If 0 or undefined, use standard logic or global default."),
+    specificTerritoryIds: z.array(z.string()).optional().describe("An optional list of specific territory IDs to prioritize for this campaign."),
     description: z.string().optional(),
   })).describe('Configured campaigns for the month. The system should determine if a campaign is active based on its start/end dates relative to the current month being scheduled.'),
   specialCampaignTerritoriesPerDay: z
@@ -230,7 +231,9 @@ const prompt = ai.definePrompt({
   Configured Campaigns:
   {{#if configuredCampaigns}}
     {{#each configuredCampaigns}}
-    - Campaign Name: {{this.name}} (Details omitted for brevity, but available to system)
+    - Campaign Name: {{this.name}}
+      {{#if this.specificTerritoryIds}} **Territorios Específicos:** {{join this.specificTerritoryIds ", "}} {{/if}}
+      (Other details omitted for brevity, but available to system)
     {{/each}}
   {{else}}
     No specific campaigns configured for this month.
@@ -263,6 +266,7 @@ const prompt = ai.definePrompt({
   3. Campaigns:
      - Determine active campaigns based on their start/end dates.
      - Adjust territory assignment logic for 'invitation' and 'special' campaigns as needed (e.g., more territories).
+     - For campaigns with `specificTerritoryIds`, prioritize or exclusively use those territories.
      - For 'superintendent_visit', assign the superintendent to one of the slots on the campaign days.
 
   4. Group Preaching Days:

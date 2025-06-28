@@ -72,6 +72,7 @@ export interface Campaign {
   endDate: Date | Timestamp;
   superintendentName?: string | null;
   specialCampaignTerritoriesPerDay?: number | null;
+  specificTerritoryIds?: string[] | null; // Added this field
   description?: string | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
