@@ -13,7 +13,7 @@ import { EditUserAvailabilityDialog } from "@/components/usuarios/edit-user-avai
 import { EditUserUnavailabilityDialog } from "@/components/usuarios/edit-user-unavailability-dialog";
 import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc, Casa, UnavailabilityPeriod } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, updateDoc, writeBatch, deleteField } from "firebase/firestore";
+import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, updateDoc, writeBatch, deleteField, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { USER_ROLES, USER_ROLES_LIST, UserRole, PERMISSIONS } from "@/lib/constants";
 import { useRouter } from "next/navigation";
@@ -424,7 +424,7 @@ export default function UsuariosPage() {
     try {
         await updateDoc(userDocRef, {
             "availability.availableSlotIds": availability.availableSlotIds,
-            updatedAt: Timestamp.now()
+            updatedAt: serverTimestamp()
         });
         toast({
           title: "Disponibilidad Actualizada",
@@ -915,7 +915,7 @@ export default function UsuariosPage() {
                   {blockForm.formState.errors.forSystem && <p className="text-sm font-medium text-destructive">{blockForm.formState.errors.forSystem.message}</p>}
                 </div>
                 <FormField
-                  control={blockForm.control}
+                  control={form.control}
                   name="reason"
                   render={({ field }) => (
                     <FormItem><Label>Razón del Bloqueo (Opcional)</Label><FormControl><Textarea placeholder="Ej: Inactividad, solicitud del usuario, etc." {...field} /></FormControl></FormItem>
