@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,7 +34,7 @@ import { useState, useEffect } from "react";
 import type { GenerateMonthlyAssignmentsOutput } from "@/ai/flows/generate-monthly-assignments";
 import type { PublisherDetail } from "@/types";
 
-type AssignmentItem = GenerateMonthlyAssignmentsOutput['captainAssignments'][string][0];
+type DraftAssignmentItem = GenerateMonthlyAssignmentsOutput['schedule'][0]['assignments'][0];
 
 const editAssignmentSchema = z.object({
   captainId: z.string().min(1, "Debes seleccionar un capitán."),
@@ -46,8 +45,8 @@ type EditAssignmentFormValues = z.infer<typeof editAssignmentSchema>;
 interface EditAssignmentDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onUpdateAssignment: (updatedAssignment: AssignmentItem) => void;
-  assignmentToEdit: AssignmentItem | null;
+  onUpdateAssignment: (updatedAssignment: DraftAssignmentItem) => void;
+  assignmentToEdit: DraftAssignmentItem | null;
   availablePublishers: PublisherDetail[];
 }
 
@@ -71,7 +70,7 @@ export function EditAssignmentDialog({
   useEffect(() => {
     if (assignmentToEdit && isOpen) {
       form.reset({
-        captainId: assignmentToEdit.captainId,
+        captainId: assignmentToEdit.captainId || undefined,
       });
     }
   }, [isOpen, assignmentToEdit, form]);
@@ -88,7 +87,7 @@ export function EditAssignmentDialog({
         return;
     }
 
-    const updatedAssignment: AssignmentItem = {
+    const updatedAssignment: DraftAssignmentItem = {
         ...assignmentToEdit,
         captainId: selectedPublisher.firebaseAuthUid || selectedPublisher.id,
         captainName: selectedPublisher.name,

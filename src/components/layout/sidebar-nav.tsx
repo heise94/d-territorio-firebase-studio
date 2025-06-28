@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -39,6 +38,7 @@ const navItems: NavItemConfig[] = [
     href: "/programa", 
     icon: CalendarDays,
     segment: "programa",
+    permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM,
     children: [
       { title: "Ver Programa", href: "/programa", icon: CircleDot, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM, segment: "programa" },
       { title: "Crear Programa (IA)", href: "/programa/crear", icon: Bot, permission: PERMISSIONS.GENERATE_MONTHLY_PROGRAM, segment: "crear" },
@@ -51,6 +51,7 @@ const navItems: NavItemConfig[] = [
     href: "/reportes",
     icon: BarChartHorizontal,
     segment: "reportes",
+    permission: PERMISSIONS.VIEW_REPORTS,
     children: [
       { title: "Vista General", href: "/reportes", icon: CircleDot, permission: PERMISSIONS.VIEW_REPORTS, segment: "reportes" },
       { title: "Editor de Historial", href: "/reportes/editor", icon: Pencil, permission: PERMISSIONS.EDIT_REPORTS, segment: "editor" },
@@ -58,7 +59,18 @@ const navItems: NavItemConfig[] = [
   },
   { title: "Mis Asignaciones", href: "/asignaciones", icon: CheckSquare, permission: PERMISSIONS.VIEW_OWN_ASSIGNMENTS, segment: "asignaciones" },
   { title: "Mi Disponibilidad", href: "/disponibilidad", icon: UserCog, permission: PERMISSIONS.MANAGE_OWN_AVAILABILITY, segment: "disponibilidad" },
-  { title: "Programa de Grupo", href: "/mi-grupo/programa", icon: UserCheck, permission: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM, segment: "mi-grupo" },
+  {
+    title: "Mi Grupo",
+    href: "/mi-grupo",
+    icon: UserCheck,
+    segment: "mi-grupo",
+    permission: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM,
+    children: [
+        { title: "Programa de Grupo", href: "/mi-grupo/programa", icon: CircleDot, permission: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM, segment: "programa"},
+        { title: "Publicadores", href: "/mi-grupo/publicadores", icon: Users, permission: PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS, segment: "publicadores" },
+        { title: "Casas del Grupo", href: "/mi-grupo/casas", icon: Building, permission: PERMISSIONS.MANAGE_OWN_GROUP_PROGRAM, segment: "casas" },
+    ]
+  },
   { title: "Configuración", href: "/settings", icon: Settings, permission: PERMISSIONS.MANAGE_PROGRAM_SETTINGS, segment: "settings" }, 
   { title: "Importar Historial", href: "/admin/import-data", icon: Database, adminOnly: true, segment: "admin" },
 ];

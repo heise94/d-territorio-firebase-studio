@@ -42,7 +42,6 @@ export default function CrearProgramaPage() {
   const { toast } = useToast();
   
   // Data states
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [allPublishers, setAllPublishers] = useState<PublisherDetail[]>([]);
   const [allCasas, setAllCasas] = useState<Casa[]>([]);
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
@@ -301,8 +300,8 @@ export default function CrearProgramaPage() {
                       <XCircle className="mr-2 h-5 w-5"/> Descartar
                   </Button>
               )}
-               <Button onClick={() => setIsGenerateDialogOpen(true)} size="lg" className="w-full sm:w-auto">
-                  <Bot className="mr-2 h-5 w-5" /> Generar con IA
+               <Button onClick={() => setIsGenerateDialogOpen(true)} size="lg" className="w-full sm:w-auto rounded-xl py-6 text-lg shadow-lg hover:scale-105 transition-transform duration-300">
+                  <Bot className="mr-3 h-6 w-6" /> Abrir Generador de Programa de Predicación
                </Button>
             </div>
           </div>
@@ -321,7 +320,7 @@ export default function CrearProgramaPage() {
           ) : !hasDraft ? (
             <div className="flex flex-col items-center justify-center h-96 bg-muted/30 rounded-lg border border-dashed">
                 <p className="text-xl font-medium text-muted-foreground mb-2">Aún no hay borrador</p>
-                <p className="text-sm text-muted-foreground">Haz clic en "Generar con IA" para comenzar.</p>
+                <p className="text-sm text-muted-foreground">Haz clic en "Abrir Generador de Programa de Predicación" para comenzar.</p>
             </div>
           ) : (
               <div className="mt-6">

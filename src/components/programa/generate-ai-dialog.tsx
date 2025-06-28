@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -159,9 +158,8 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
           return !!(override.enabled && override.hour && override.minute && override.type);
         })
         .map(override => {
-          // This is the corrected, safer way to create the object.
-          const time = `${override.hour}:${override.minute}`;
-          const type = override.type as PreachingType;
+          const time = `${override.hour!}:${override.minute!}`;
+          const type = override.type!;
           return {
             date: override.date,
             time: time,

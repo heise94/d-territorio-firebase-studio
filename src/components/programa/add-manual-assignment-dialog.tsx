@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,9 +29,9 @@ import { useState, useEffect, useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import type { GenerateMonthlyAssignmentsOutput } from "@/ai/flows/generate-monthly-assignments";
-import type { PublisherDetail, Casa, Territory, PreachingType } from "@/types";
+import type { PublisherDetail, Casa, Territory, PreachingAssignedType } from "@/types";
 
-type AssignmentItem = GenerateMonthlyAssignmentsOutput['captainAssignments'][string][0];
+type DraftAssignmentItem = GenerateMonthlyAssignmentsOutput['schedule'][0]['assignments'][0];
 
 const addManualAssignmentSchema = z.object({
   hour: z.string().min(1, "La hora es obligatoria."),
@@ -47,7 +46,7 @@ type AddManualAssignmentFormValues = z.infer<typeof addManualAssignmentSchema>;
 interface AddManualAssignmentDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onAddAssignment: (newAssignment: AssignmentItem) => void;
+  onAddAssignment: (newAssignment: DraftAssignmentItem) => void;
   day: string | null;
   availablePublishers: PublisherDetail[];
   availableCasas: Casa[];
@@ -120,7 +119,7 @@ export function AddManualAssignmentDialog({
         }
     }
 
-    const newAssignment: AssignmentItem = {
+    const newAssignment: DraftAssignmentItem = {
       id: crypto.randomUUID(),
       date: day,
       captainId: selectedPublisher.firebaseAuthUid || selectedPublisher.id,

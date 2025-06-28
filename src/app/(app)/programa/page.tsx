@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -8,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, CalendarDays, Users, MountainSnow, Video, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
-import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parse } from 'date-fns';
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Assignment, PreachingAssignedType } from "@/types";
@@ -41,10 +40,15 @@ export default function ProgramaMensualPage() {
 
   useEffect(() => {
     setIsLoading(true);
-    const startDate = format(startOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
-    const endDate = format(endOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
+    const startDate = startOfMonth(new Date(selectedYear, selectedMonth));
+    const endDate = endOfMonth(new Date(selectedYear, selectedMonth));
 
-    const assignmentsQuery = query(collection(db, "assignments"), where("date", ">=", startDate), where("date", "<=", endDate));
+    const assignmentsQuery = query(
+        collection(db, "assignments"), 
+        where("date", ">=", format(startDate, 'yyyy-MM-dd')), 
+        where("date", "<=", format(endDate, 'yyyy-MM-dd'))
+    );
+
     const unsubscribe = onSnapshot(assignmentsQuery, (snapshot) => {
       setAssignments(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Assignment)));
       setIsLoading(false);
@@ -114,7 +118,7 @@ export default function ProgramaMensualPage() {
                       {Array.from({ length: dayOffset }).map((_, i) => <div key={`empty-${i}`} className="border rounded-md min-h-[120px] bg-muted/30"></div>)}
                       {calendarDays.map(day => {
                           const dayString = format(day, "yyyy-MM-dd");
-                          const assignmentsForDay = assignments.filter(a => a.date === dayString);
+                          const assignmentsForDay = assignments.filter(a => a.date === dayString).sort((a,b) => a.time.localeCompare(b.time));
                           const isToday = isSameDay(day, new Date());
                           
                           return (
