@@ -49,6 +49,8 @@ export default function ProgramaMensualPage() {
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
   const [savedAssignments, setSavedAssignments] = useState<Assignment[]>([]);
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
+  const [summerStartDate, setSummerStartDate] = useState("");
+  const [winterStartDate, setWinterStartDate] = useState("");
   
   // Loading States
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
@@ -81,8 +83,12 @@ export default function ProgramaMensualPage() {
       if (docSnap.exists()) {
         const settingsData = docSnap.data() as SettingsDoc;
         setProgramScheduleSlots(settingsData.programScheduleSlots || []);
+        setSummerStartDate(settingsData.summerScheduleStartDate || "");
+        setWinterStartDate(settingsData.winterScheduleStartDate || "");
       } else {
         setProgramScheduleSlots([]);
+        setSummerStartDate("");
+        setWinterStartDate("");
       }
       setIsLoadingSettings(false);
     }, (error) => {
@@ -117,6 +123,39 @@ export default function ProgramaMensualPage() {
   }, [selectedMonth, selectedYear, toast]);
 
   const canManageProgram = hasPermission(PERMISSIONS.MANAGE_MONTHLY_PROGRAM);
+  
+  const seasonalScheduleSlots = useMemo(() => {
+    if (!summerStartDate || !winterStartDate) {
+      return programScheduleSlots.filter(s => !s.season || s.season === 'all_year');
+    }
+
+    const currentDate = new Date(selectedYear, selectedMonth, 15); 
+    const [sMonth, sDay] = summerStartDate.split('-').map(Number);
+    const [wMonth, wDay] = winterStartDate.split('-').map(Number);
+    
+    const summerStartCurrentYear = new Date(selectedYear, sMonth - 1, sDay);
+    const winterStartCurrentYear = new Date(selectedYear, wMonth - 1, wDay);
+
+    let currentSeason: 'summer' | 'winter';
+
+    if (winterStartCurrentYear < summerStartCurrentYear) { // Southern Hemisphere case
+      if (currentDate >= winterStartCurrentYear && currentDate < summerStartCurrentYear) {
+        currentSeason = 'winter';
+      } else {
+        currentSeason = 'summer';
+      }
+    } else { // Northern Hemisphere case
+      if (currentDate >= summerStartCurrentYear && currentDate < winterStartCurrentYear) {
+        currentSeason = 'summer';
+      } else {
+        currentSeason = 'winter';
+      }
+    }
+
+    return programScheduleSlots.filter(slot => {
+        return !slot.season || slot.season === 'all_year' || slot.season === currentSeason;
+    });
+  }, [programScheduleSlots, selectedMonth, selectedYear, summerStartDate, winterStartDate]);
 
   const handleOpenAddDialog = (date: Date, slot?: ProgramScheduleSlot) => {
     setAssignmentToEdit(null);
@@ -149,7 +188,6 @@ export default function ProgramaMensualPage() {
         setAssignmentToDelete(null);
     }
   };
-
 
   const handleManualAssignmentSubmit = async (data: ManualAssignmentSubmitData) => {
     const batch = writeBatch(db);
@@ -283,7 +321,7 @@ export default function ProgramaMensualPage() {
                   const isToday = isSameDay(day, new Date());
                   
                   const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(day)];
-                  const slotsForDay = programScheduleSlots.filter(slot => slot.dayOfWeek === dayOfWeekKey).sort((a,b) => a.startTime.localeCompare(b.startTime));
+                  const slotsForDay = seasonalScheduleSlots.filter(slot => slot.dayOfWeek === dayOfWeekKey).sort((a,b) => a.startTime.localeCompare(b.startTime));
 
                   return (
                     <Card key={dayString} className={`min-h-[120px] flex flex-col rounded-md shadow-sm ${isToday ? 'border-2 border-primary' : 'border bg-card'}`}>
@@ -370,3 +408,5 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
+
+    
