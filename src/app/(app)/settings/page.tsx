@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Briefcase, CalendarCog, Users as UsersIconLucide, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck, KeyRound, Settings as SettingsIcon, Sun, Moon } from "lucide-react";
+import { Briefcase, CalendarCog, Users as UsersIconLucide, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck, KeyRound, Settings as SettingsIcon, Sun, Moon, CalendarIcon } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, SettingsDoc, ScheduleSeason } from "@/types";
@@ -66,12 +66,15 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { format as formatDate, getYear as getYearFromDateFn, getMonth as getMonthFromDateFn, parseISO } from 'date-fns';
+import { format as formatDate, getYear as getYearFromDateFn, getMonth as getMonthFromDateFn, parseISO, parse } from 'date-fns';
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useForm } from "react-hook-form";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
 const scheduleSlotFormSchema = z.object({
@@ -142,6 +145,7 @@ export default function SettingsPage() {
   const [isLoadingProgramSettings, setIsLoadingProgramSettings] = useState(false);
   const [summerStartDate, setSummerStartDate] = useState("");
   const [winterStartDate, setWinterStartDate] = useState("");
+  const [showSeasonUpdateReminder, setShowSeasonUpdateReminder] = useState(false);
 
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -300,6 +304,17 @@ export default function SettingsPage() {
     }
   }, [toast]);
 
+  useEffect(() => {
+    const today = new Date();
+    const month = today.getMonth(); // 0 is January
+    const day = today.getDate();
+
+    if (month === 0 && day <= 14) {
+      setShowSeasonUpdateReminder(true);
+    } else {
+      setShowSeasonUpdateReminder(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (activeSectionId === "permissions") {
@@ -963,6 +978,15 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {showSeasonUpdateReminder && (
+                  <Alert variant="default" className="mb-6 bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-900/20 dark:border-amber-700/40 dark:text-amber-300">
+                    <AlertTriangle className="h-5 w-5" />
+                    <AlertTitle className="font-semibold">¡Inicio de Año!</AlertTitle>
+                    <AlertDescription>
+                      Recuerda revisar y actualizar las fechas de inicio de temporada de Verano e Invierno para el año en curso.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 {isLoadingProgramSettings ? (
                     <div className="space-y-4 py-10">
                         <Skeleton className="h-12 w-1/3 mb-4" />
@@ -1044,14 +1068,46 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                        
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                             <div className="space-y-1">
-                                <Label htmlFor="summerDate">Inicio Horario Verano (MM-DD)</Label>
-                                <Input id="summerDate" value={summerStartDate} onChange={(e) => setSummerStartDate(e.target.value)} placeholder="Ej: 09-01 (1 de Sept.)" />
-                                <p className="text-xs text-muted-foreground">Define el inicio de la temporada de verano (ej: primer sábado de septiembre).</p>
+                                <Label>Inicio Horario Verano</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal h-9", !summerStartDate && "text-muted-foreground")}>
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {summerStartDate ? formatDate(parse(summerStartDate, "MM-dd", new Date()), "d 'de' MMMM", { locale: es }) : <span>Seleccionar fecha</span>}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar
+                                            mode="single"
+                                            selected={summerStartDate ? parse(summerStartDate, "MM-dd", new Date()) : undefined}
+                                            onSelect={(date) => setSummerStartDate(date ? formatDate(date, "MM-dd") : "")}
+                                            initialFocus
+                                            locale={es}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                                <p className="text-xs text-muted-foreground">Define el inicio de la temporada de verano.</p>
                             </div>
-                             <div className="space-y-1">
-                                <Label htmlFor="winterDate">Inicio Horario Invierno (MM-DD)</Label>
-                                <Input id="winterDate" value={winterStartDate} onChange={(e) => setWinterStartDate(e.target.value)} placeholder="Ej: 04-01 (1 de Abril)" />
-                                 <p className="text-xs text-muted-foreground">Define el inicio de la temporada de invierno (ej: primer sábado de abril).</p>
+                            <div className="space-y-1">
+                                <Label>Inicio Horario Invierno</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal h-9", !winterStartDate && "text-muted-foreground")}>
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {winterStartDate ? formatDate(parse(winterStartDate, "MM-dd", new Date()), "d 'de' MMMM", { locale: es }) : <span>Seleccionar fecha</span>}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar
+                                            mode="single"
+                                            selected={winterStartDate ? parse(winterStartDate, "MM-dd", new Date()) : undefined}
+                                            onSelect={(date) => setWinterStartDate(date ? formatDate(date, "MM-dd") : "")}
+                                            initialFocus
+                                            locale={es}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                                <p className="text-xs text-muted-foreground">Define el inicio de la temporada de invierno.</p>
                             </div>
                         </div>
 
@@ -1302,8 +1358,8 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                   />
               </div>
               <FormField control={slotForm.control} name="type" render={({ field }) => (<FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="general">General</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-              <FormField control={slotForm.control} name="season" render={({ field }) => (<FormItem><FormLabel>Estación</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona estación" /></SelectTrigger></FormControl><SelectContent><SelectItem value="all_year">Todo el Año</SelectItem><SelectItem value="summer">Verano</SelectItem><SelectItem value="winter">Invierno</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-              <FormField control={slotForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona estado" /></SelectTrigger></FormControl><SelectContent><SelectItem value="fixed">Fijo</SelectItem><SelectItem value="tentative">Tentativo</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="season" render={({ field }) => (<FormItem><FormLabel>Estación</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona estación" /></SelectTrigger></FormControl><SelectContent><SelectItem value="all_year">Todo el Año</SelectItem><SelectItem value="summer">Verano</SelectItem><SelectItem value="winter">Invierno</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona estado" /></SelectTrigger></FormControl><SelectContent><SelectItem value="fixed">Fijo</SelectItem><SelectItem value="tentative">Tentativo</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
               <DialogFooter className="pt-4"><DialogClose asChild><Button type="button" variant="outline" disabled={isSubmittingSlotDialog}>Cancelar</Button></DialogClose><Button type="submit" disabled={isSubmittingSlotDialog}>{isSubmittingSlotDialog && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isEditMode ? "Guardar Cambios" : "Añadir Horario"}</Button></DialogFooter>
             </form>
           </Form>
