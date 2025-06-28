@@ -1192,6 +1192,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                 </Card>
               </>
               )}
+            </div>
         </TabsContent>
       </Tabs>
 
