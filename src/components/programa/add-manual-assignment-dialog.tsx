@@ -29,7 +29,7 @@ import type { UserAssignment, PublisherDetail, Territory, Casa, PreachingAssigne
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Users, MountainSnow, Video, Home } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { format, parse, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Timestamp } from "firebase/firestore";
 import { cn } from "@/lib/utils";
@@ -172,8 +172,8 @@ export function AddManualAssignmentDialog({
     });
 
     const sortByLastWorked = (a: Territory, b: Territory) => {
-      const dateA = a.lastWorked ? new Date(a.lastWorked).getTime() : 0;
-      const dateB = b.lastWorked ? new Date(b.lastWorked).getTime() : 0;
+      const dateA = a.lastWorked ? parse(a.lastWorked, 'yyyy-MM-dd', new Date()).getTime() : 0;
+      const dateB = b.lastWorked ? parse(b.lastWorked, 'yyyy-MM-dd', new Date()).getTime() : 0;
       return dateA - dateB;
     };
 
@@ -359,7 +359,7 @@ export function AddManualAssignmentDialog({
                             ? `U-${loc.number}: ${loc.name}` 
                             : loc.name;
                         const lastWorkedDisplay = loc.lastWorked 
-                            ? format(new Date(loc.lastWorked), 'dd/MM/yy') 
+                            ? format(parse(loc.lastWorked, "yyyy-MM-dd", new Date()), 'dd/MM/yy')
                             : 'Nunca';
                         const fullDisplayName = `${territoryDisplayName} (${lastWorkedDisplay})`;
                         const isAlreadyAssigned = assignedTerritoryIdsInMonth.has(loc.id);
