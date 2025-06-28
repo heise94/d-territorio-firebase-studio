@@ -100,7 +100,7 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
   assembliesInMonth: z.array(AssemblyAISchema).optional().describe('List of assemblies (Circuit, Regional, etc.) occurring in the scheduling month. No preaching should be scheduled on these dates.'),
   publisherDetailedAvailabilities: z
     .array(PublisherDetailForAISchema)
-    .describe("Detailed information for each available publisher. IMPORTANT: If a publisher has `blockInfo.forSystem` set to true, you MUST NOT assign them as a captain."),
+    .describe("Detailed information for each available publisher. IMPORTANT: If a publisher has `blockInfo.forSystem` set to 'true', you MUST NOT assign them as a captain."),
   additionalInstructions: z.string().optional().describe('Additional instructions for the system, including how to handle holiday scheduling if different from normal days.'),
   preachingGroups: z.array(PreachingGroupAISchema).describe('List of all preaching groups, their names, and their superintendent IDs (SG).'),
 });
@@ -221,7 +221,7 @@ const prompt = ai.definePrompt({
   
   Designated Rural Weekends:
   {{#if designatedRuralWeekendDays}}
-    The following dates are designated for special rural preaching: {{join designatedRuralWeekendDays ", "}}. Please handle them according to any special instructions provided.
+    The following dates are designated for special rural preaching: {{designatedRuralWeekendDays}}. Please handle them according to any special instructions provided.
   {{else}}
     No special rural weekends have been designated.
   {{/if}}
@@ -232,7 +232,7 @@ const prompt = ai.definePrompt({
   {{#if configuredCampaigns}}
     {{#each configuredCampaigns}}
     - Campaign Name: {{this.name}}
-      {{#if this.specificTerritoryIds}} **Territorios Específicos:** {{join this.specificTerritoryIds ", "}} {{/if}}
+      {{#if this.specificTerritoryIds}} **Territorios Específicos:** {{this.specificTerritoryIds}} {{/if}}
       (Other details omitted for brevity, but available to system)
     {{/each}}
   {{else}}

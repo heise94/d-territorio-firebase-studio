@@ -77,7 +77,7 @@ const prompt = ai.definePrompt({
   {{#if availablePublishers}}
     {{#each availablePublishers}}
     - Publisher ID: {{this.id}}, Name: {{this.name}}, Email: {{this.email}}
-      Availability (Slot IDs): {{#if this.availability.availableSlotIds}} {{join this.availability.availableSlotIds ", "}} {{else}} Not specified {{/if}}
+      Availability (Slot IDs): {{#if this.availability.availableSlotIds}} {{this.availability.availableSlotIds}} {{else}} Not specified {{/if}}
     {{/each}}
   {{else}}
     No publisher availability data provided.
