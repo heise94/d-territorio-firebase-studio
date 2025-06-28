@@ -65,10 +65,10 @@ export default function ProgramaMensualPage() {
   
   useEffect(() => {
     setIsLoading(true);
-    const publishersQuery = query(collection(db, "users"), where("status", "==", "Activo"));
+    const publishersQuery = query(collection(db, "users"), where("isAssignable", "==", true));
     const unsubPublishers = onSnapshot(publishersQuery, (snap) => setAllPublishers(snap.docs.map(d => ({id: d.id, ...d.data()} as PublisherDetail))));
     
-    const casasQuery = query(collection(db, "casas"));
+    const casasQuery = query(collection(db, "casas"), orderBy("ownerName"));
     const unsubCasas = onSnapshot(casasQuery, (snap) => setAllCasas(snap.docs.map(d => ({id: d.id, ...d.data()} as Casa))));
 
     const territoriesQuery = query(collection(db, "territories"), orderBy("name"));
@@ -389,7 +389,7 @@ export default function ProgramaMensualPage() {
             date={dateForManualAdd}
             assignmentToEdit={assignmentToEdit}
             slot={slotForManualAdd}
-            allPublishers={allPublishers.filter(p => !p.blockInfo?.forSystem && p.status === 'Activo')}
+            allPublishers={allPublishers}
             allTerritories={allTerritories}
             allCasas={allCasas}
             allAssignmentsForMonth={savedAssignments}
@@ -398,5 +398,3 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
-
-    

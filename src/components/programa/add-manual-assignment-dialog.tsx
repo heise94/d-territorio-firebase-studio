@@ -32,6 +32,8 @@ import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-f
 import { es } from "date-fns/locale";
 import { Timestamp } from "firebase/firestore";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 const manualAssignmentSchema = z.object({
   time: z.string().min(1, "La hora es obligatoria."),
@@ -94,9 +96,10 @@ export function AddManualAssignmentDialog({
     defaultValues: {},
   });
   
-  const locationType = form.watch("locationType");
-  const selectedType = form.watch("type");
-  const selectedUserId = form.watch("userId");
+  const { watch, setValue } = form;
+  const locationType = watch("locationType");
+  const selectedType = watch("type");
+  const selectedUserId = watch("userId");
 
   useEffect(() => {
     if (isOpen) {
@@ -133,25 +136,43 @@ export function AddManualAssignmentDialog({
   }, [isOpen, assignmentToEdit, slot, allTerritories, form]);
   
   useEffect(() => {
-    form.setValue("locationId", "");
-  }, [locationType, form]);
+    setValue("locationId", "");
+  }, [locationType, setValue]);
 
-  const assignedTerritoryIdsInMonth = useMemo(() => {
-    return new Set(allAssignmentsForMonth.map(a => a.locationId));
-  }, [allAssignmentsForMonth]);
+  const { assignedCaptainIdsInMonth, assignedCasaIdsInMonth, assignedTerritoryIdsInMonth } = useMemo(() => {
+    const captainIds = new Set<string>();
+    const casaIds = new Set<string>();
+    const territoryIds = new Set<string>();
+
+    allAssignmentsForMonth.forEach(a => {
+        if (a.userId) captainIds.add(a.userId);
+        if (a.type !== 'zoom' && a.locationId) {
+            if (allCasas.some(c => c.id === a.locationId)) {
+                casaIds.add(a.locationId);
+            } else if (allTerritories.some(t => t.id === a.locationId)) {
+                territoryIds.add(a.locationId);
+            }
+        }
+    });
+
+    return { 
+        assignedCaptainIdsInMonth: captainIds, 
+        assignedCasaIdsInMonth: casaIds,
+        assignedTerritoryIdsInMonth: territoryIds
+    };
+  }, [allAssignmentsForMonth, allCasas, allTerritories]);
 
   const availableTerritoriesForSelection = useMemo(() => {
     return allTerritories
       .filter(t => {
+        if (t.isBlocked) return false;
         const isCorrectType = t.type === (selectedType === 'rural' ? 'rural' : 'urban');
-        const isNotBlocked = !t.isBlocked;
-        const isNotAlreadyAssigned = !assignedTerritoryIdsInMonth.has(t.id);
-        
-        if (isEditMode && assignmentToEdit?.locationId === t.id) {
-            return isCorrectType && isNotBlocked;
-        }
+        if (!isCorrectType) return false;
 
-        return isCorrectType && isNotBlocked && isNotAlreadyAssigned;
+        if (isEditMode && assignmentToEdit?.locationId === t.id) {
+            return true;
+        }
+        return !assignedTerritoryIdsInMonth.has(t.id);
       })
       .sort((a, b) => {
         const dateA = a.lastWorked ? new Date(a.lastWorked).getTime() : 0;
@@ -162,18 +183,19 @@ export function AddManualAssignmentDialog({
   }, [allTerritories, selectedType, assignedTerritoryIdsInMonth, isEditMode, assignmentToEdit]);
 
   const availablePublishersForSlot = useMemo(() => {
-    if (!date || !slot) return allPublishers;
-
-    const assignmentDate = startOfDay(date);
+    const assignmentDate = startOfDay(date || new Date());
 
     return allPublishers.filter(p => {
+      if (p.blockInfo?.forSystem) return false;
+
       const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
         const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
         const end = endOfDay(period.endDate instanceof Timestamp ? period.endDate.toDate() : new Date(period.endDate));
         return isWithinInterval(assignmentDate, { start, end });
       });
-
       if (isUnavailable) return false;
+
+      if (!slot) return true; // If no specific slot, all available publishers are candidates
 
       const hasSlot = p.availability?.availableSlotIds?.includes(slot.id);
       return hasSlot;
@@ -181,10 +203,8 @@ export function AddManualAssignmentDialog({
   }, [allPublishers, date, slot]);
   
   const availableCasasForSlot = useMemo(() => {
-      if (!date || !slot) return [];
-
-      const assignmentDate = startOfDay(date);
-
+      const assignmentDate = startOfDay(date || new Date());
+      
       return allCasas.filter(c => {
           if (c.blockInfo?.forSystem) return false;
 
@@ -194,6 +214,8 @@ export function AddManualAssignmentDialog({
               return isWithinInterval(assignmentDate, { start, end });
           });
           if (isUnavailable) return false;
+
+          if (!slot) return true; // If no specific slot, all available casas are candidates
 
           const hasSlot = c.availableDays?.availableProgramSlotIds?.includes(slot.id);
           return hasSlot;
@@ -223,13 +245,19 @@ export function AddManualAssignmentDialog({
     ? availableTerritoriesForSelection 
     : availableCasasForSlot;
 
+  const dialogDescription = isEditMode 
+    ? `Editando asignación para ${assignmentToEdit?.userName}`
+    : date 
+        ? `Añadiendo asignación para el ${format(date, 'PPP', {locale: es})}.`
+        : 'Añadiendo asignación manual.';
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Editar Asignación" : "Añadir Asignación Manual"}</DialogTitle>
           <DialogDescription>
-             {isEditMode ? `Editando asignación para ${assignmentToEdit?.userName}` : (date ? (slot ? `Añadiendo asignación para el ${format(date, 'PPP', {locale: es})}` : 'Añadiendo asignación manual.') : 'Añadiendo asignación manual.')}
+             {dialogDescription}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -297,15 +325,33 @@ export function AddManualAssignmentDialog({
                     control={form.control}
                     name="locationId"
                     render={({ field }) => (
-                        <FormItem><FormLabel>&nbsp;</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder={`Seleccionar ${locationType === 'territory' ? 'territorio' : 'casa'}`} /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          {availableLocations.map(loc => {
-                            const name = loc.type === 'urban' && (loc as Territory).number ? `U-${(loc as Territory).number}: ${loc.name}` : (loc as Casa).ownerName || loc.name;
-                            const isCaptainsHouse = locationType === 'casa' && selectedCaptain && loc.id === selectedCaptain.managedCasaId;
-                            return <SelectItem key={loc.id} value={loc.id} className={cn(isCaptainsHouse && "bg-green-100 text-green-900 font-semibold")}>{name}</SelectItem>
-                          })}
-                        </SelectContent>
-                        </Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel>&nbsp;</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl><SelectTrigger><SelectValue placeholder={`Seleccionar ${locationType === 'territory' ? 'territorio' : 'casa'}`} /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              {availableLocations.map(loc => {
+                                const name = loc.type === 'urban' && (loc as Territory).number ? `U-${(loc as Territory).number}: ${loc.name}` : (loc as Casa).ownerName || loc.name;
+                                const isCaptainsHouse = locationType === 'casa' && selectedCaptain && loc.id === selectedCaptain.managedCasaId;
+                                const isAlreadyAssigned = locationType === 'casa' ? assignedCasaIdsInMonth.has(loc.id) : assignedTerritoryIdsInMonth.has(loc.id);
+                                return (
+                                  <SelectItem key={loc.id} value={loc.id} className={cn(isCaptainsHouse && "bg-green-100 dark:bg-green-800/50 text-green-900 dark:text-green-200 font-semibold")}>
+                                     <div className="flex items-center justify-between w-full">
+                                      <span>{name}</span>
+                                      {isAlreadyAssigned && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
+                                            <TooltipContent><p>Ya asignado/a este mes</p></TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage /></FormItem>
                     )}
                     />
                 </div>
@@ -319,7 +365,23 @@ export function AddManualAssignmentDialog({
                   <FormLabel>Publicador Encargado</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar publicador" /></SelectTrigger></FormControl>
-                    <SelectContent>{availablePublishersForSlot.map(p => <SelectItem key={p.id} value={p.firebaseAuthUid || p.id}>{p.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>
+                      {availablePublishersForSlot.map(p => (
+                          <SelectItem key={p.id} value={p.firebaseAuthUid || p.id}>
+                              <div className="flex items-center justify-between w-full">
+                                <span>{p.name}</span>
+                                {(assignedCaptainIdsInMonth.has(p.id) || (p.firebaseAuthUid && assignedCaptainIdsInMonth.has(p.firebaseAuthUid))) && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
+                                      <TooltipContent><p>Ya asignado este mes</p></TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </div>
+                          </SelectItem>
+                      ))}
+                    </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
