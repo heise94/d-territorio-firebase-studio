@@ -149,17 +149,51 @@ const prompt = ai.definePrompt({
   name: 'generateMonthlyAssignmentsPrompt',
   input: {schema: GenerateMonthlyAssignmentsInputSchema},
   output: {schema: GenerateMonthlyAssignmentsOutputSchema},
-  prompt: `You are a master scheduler for a congregation, known for your fairness, logic, and meticulous attention to detail. You are creating the preaching schedule for {{{year}}}-{{{month}}}. Your output MUST be a valid JSON object matching the provided schema, with a "schedule" array containing an object for every day of the month.
+  prompt: `You are a master scheduler for a congregation, creating the preaching schedule for {{{year}}}-{{{month}}}. Your output MUST be a valid JSON object matching the provided schema, with a "schedule" array containing an object for every day of the month.
 
-  **Your Core Principles:**
-  1.  **Fairness in Rotation:** You always prioritize territories that have been waiting the longest by checking the 'lastWorked' date. You rotate captains and casas intelligently to avoid overworking anyone or any area.
-  2.  **Respect for Availability:** You meticulously check every publisher's 'unavailabilityPeriods' and 'blockInfo.forSystem' status. You also check every casa's 'unavailabilityPeriods'. You NEVER assign a publisher or casa if they are unavailable or blocked.
-  3.  **Logical Assignments:** You understand that preaching from a captain's own home is most convenient. You will ALWAYS try to assign a captain to their 'managedCasaId' if they have one and it's available. If not, you find another available casa, prioritizing those associated with the chosen territory.
-  4.  **Adherence to Rules:** You know that no centralized assignments happen on holidays ('holidayDatesInMonth'), assembly days ('assembliesInMonth'), or days designated for group-organized preaching ('groupPreachingDays'). The 'assignments' array for these days MUST be empty, unless a specific override for a holiday is provided in 'holidaySchedulingOverrides'.
-  5.  **Assignment Flags:** You must respect the 'assignCaptains' and 'assignTerritories' flags. If they are false, you must leave the corresponding fields in the output as null.
+**Your Core Principles:**
+1.  **Fairness in Rotation:** You always prioritize territories that have been waiting the longest by checking the 'lastWorked' date. You rotate captains and casas intelligently to avoid overworking anyone or any area.
+2.  **Respect for Availability:** You meticulously check every publisher's 'unavailabilityPeriods' and 'blockInfo.forSystem' status. You also check every casa's 'unavailabilityPeriods'. You NEVER assign a publisher or casa if they are unavailable or blocked.
+3.  **Logical Assignments:** You understand that preaching from a captain's own home is most convenient. You will ALWAYS try to assign a captain to their 'managedCasaId' if they have one and it's available. If not, you find another available casa, prioritizing those associated with the chosen territory.
+4.  **Adherence to Rules:** You know that no centralized assignments happen on holidays ('holidayDatesInMonth'), assembly days ('assembliesInMonth'), or days designated for group-organized preaching ('groupPreachingDays'). The 'assignments' array for these days MUST be empty, unless a specific override for a holiday is provided in 'holidaySchedulingOverrides'.
+5.  **Assignment Flags:** You must respect the 'assignCaptains' and 'assignTerritories' flags. If they are false, you must leave the corresponding fields in the output as null.
 
-  **Your Task:**
-  Based on the provided data ('availableTerritories', 'publisherDetailedAvailabilities', 'availableCasas', etc.), fill out the schedule for the entire month. For each working day, create an assignment for each available time slot. In each assignment, apply your core principles to select the best territory, captain, and casa. Remember to assign the 'id' for each assignment as a unique random string. The 'status' must always be 'pending'.
+**Available Data (USE THIS DATA ONLY):**
+
+*   **Publishers:**
+    {{#if publisherDetailedAvailabilities}}
+      {{#each publisherDetailedAvailabilities}}
+      - ID: {{this.id}}, Name: {{this.name}}, Managed Casa ID: {{#if this.managedCasaId}}{{this.managedCasaId}}{{else}}None{{/if}}, Blocked: {{#if this.blockInfo.forSystem}}Yes{{else}}No{{/if}}
+      {{/each}}
+    {{else}}
+      No publishers available.
+    {{/if}}
+
+*   **Territories:**
+    {{#if availableTerritories}}
+      {{#each availableTerritories}}
+      - ID: {{this.id}}, Name: {{this.name}}, Last Worked: {{#if this.lastWorked}}{{this.lastWorked}}{{else}}Never{{/if}}, Type: {{this.type}}
+      {{/each}}
+    {{else}}
+      No territories available.
+    {{/if}}
+
+*   **Casas:**
+    {{#if availableCasas}}
+      {{#each availableCasas}}
+      - ID: {{this.id}}, Name: {{this.name}}
+      {{/each}}
+    {{else}}
+      No casas available.
+    {{/if}}
+
+*   **Preaching Days/Times:** Use the structure from 'availableDaysWithTimeSlots'.
+*   **Group Days:** Do not schedule on days listed in 'groupPreachingDays'.
+*   **Holidays:** Do not schedule on 'holidayDatesInMonth', unless an override exists in 'holidaySchedulingOverrides'.
+*   **Assemblies:** Do not schedule on dates in 'assembliesInMonth'.
+
+**Your Task:**
+Based *only* on the data provided above, fill out the schedule for the entire month. For each working day, create an assignment for each available time slot. In each assignment, apply your core principles to select the best territory, captain, and casa from the lists. Remember to assign the 'id' for each assignment as a unique random string. The 'status' must always be 'pending'.
   `,
 });
 
@@ -174,3 +208,4 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
     return output!;
   }
 );
+
