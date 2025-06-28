@@ -9,7 +9,7 @@ import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, 
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parse, parseISO } from 'date-fns';
-import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType, UserAssignment } from "@/types";
 import { AlertDialog, AlertDialogTrigger, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -202,7 +202,7 @@ export default function ProgramaMensualPage() {
     
     const locationName = data.type === 'zoom' 
         ? 'Predicación por Zoom' 
-        : (location!.type === 'urban' && (location as Territory).number ? `U-${(location as Territory).number}` : location!.name);
+        : (location!.type === 'urban' && (location as Territory).number ? `U-${(location as Territory).number}` : (location as Casa).ownerName || location!.name);
 
     const newAssignment: Assignment = {
       id: docRef.id,
@@ -389,7 +389,7 @@ export default function ProgramaMensualPage() {
             date={dateForManualAdd}
             assignmentToEdit={assignmentToEdit}
             slot={slotForManualAdd}
-            allPublishers={allPublishers.filter(p => !p.blockInfo?.forSystem)}
+            allPublishers={allPublishers.filter(p => !p.blockInfo?.forSystem && p.status === 'Activo')}
             allTerritories={allTerritories}
             allCasas={allCasas}
             allAssignmentsForMonth={savedAssignments}
@@ -398,3 +398,5 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
+
+    
