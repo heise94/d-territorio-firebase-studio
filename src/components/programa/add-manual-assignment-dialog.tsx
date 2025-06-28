@@ -39,7 +39,7 @@ const manualAssignmentSchema = z.object({
   time: z.string().min(1, "La hora es obligatoria."),
   type: z.enum(["publica", "rural", "zoom"], { required_error: "Debe seleccionar un tipo." }),
   territoryId: z.string().min(1, "Debe seleccionar un territorio."),
-  casaId: z.string().optional(),
+  casaId: z.string().min(1, "Debe seleccionar una casa de reunión."),
   userId: z.string().min(1, "Debe seleccionar un publicador."),
   notes: z.string().max(500).optional(),
 });
@@ -79,8 +79,6 @@ const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType | 'general' }
   if (type === "zoom") return <Video className={iconClass} />;
   return null;
 };
-
-const NO_CASA_SELECTED = "__NO_CASA__";
 
 export function AddManualAssignmentDialog({
   isOpen,
@@ -356,14 +354,13 @@ export function AddManualAssignmentDialog({
               name="casaId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Casa de Reunión (Opcional)</FormLabel>
+                  <FormLabel>Casa de Reunión</FormLabel>
                   <Select
-                    onValueChange={(value) => field.onChange(value === NO_CASA_SELECTED ? "" : value)}
-                    value={field.value || NO_CASA_SELECTED}
+                    onValueChange={field.onChange}
+                    value={field.value}
                   >
-                    <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar casa (opcional)" /></SelectTrigger></FormControl>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar casa de reunión" /></SelectTrigger></FormControl>
                     <SelectContent>
-                      <SelectItem value={NO_CASA_SELECTED}>Ninguna</SelectItem>
                       {availableCasasForSlot.map(loc => {
                         const name = loc.ownerName || loc.address;
                         const isCaptainsHouse = selectedCaptain && loc.id === selectedCaptain.managedCasaId;
