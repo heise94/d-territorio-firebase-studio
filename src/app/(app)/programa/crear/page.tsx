@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -389,6 +390,7 @@ export default function CrearProgramaPage() {
         month={selectedMonth}
         holidays={allHolidays}
         programScheduleSlots={programSlots}
+        allTerritories={allTerritories}
       />
       
       {isEditDialogOpen && (<EditAssignmentDialog isOpen={isEditDialogOpen} onOpenChange={setIsEditDialogOpen} onUpdateAssignment={handleUpdateDraftAssignment} assignmentToEdit={assignmentToEdit} availablePublishers={allPublishers} />)}
