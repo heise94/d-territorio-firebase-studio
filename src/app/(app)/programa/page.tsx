@@ -67,7 +67,7 @@ export default function ProgramaMensualPage() {
   
   useEffect(() => {
     setIsLoading(true);
-    const publishersQuery = query(collection(db, "users"), where("status", "==", "Activo"));
+    const publishersQuery = query(collection(db, "users"), where("status", "in", ["Activo", "Pendiente Invitación"]));
     const unsubPublishers = onSnapshot(publishersQuery, (snap) => setAllPublishers(snap.docs.map(d => ({id: d.id, ...d.data()} as PublisherDetail))));
     
     const casasQuery = query(collection(db, "casas"), orderBy("ownerName", "asc"));
@@ -186,7 +186,7 @@ export default function ProgramaMensualPage() {
     
     const publisher = allPublishers.find(p => p.id === data.userId || p.firebaseAuthUid === data.userId);
     const territory = allTerritories.find(t => t.id === data.territoryId);
-    const casa = data.casaId ? allCasas.find(c => c.id === data.casaId) : undefined;
+    const casa = allCasas.find(c => c.id === data.casaId);
     
     if (!publisher || !territory || !casa) {
         toast({ title: "Error", description: "Publicador, Territorio o Casa no válido.", variant: "destructive"});
