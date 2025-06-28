@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import type { UserAssignment, PublisherDetail, Territory, Casa, PreachingAssignedType, ProgramScheduleSlot, Assignment } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Users, MountainSnow, Video } from "lucide-react";
+import { Loader2, Save, Users, MountainSnow, Video, Home } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { es } from "date-fns/locale";
@@ -38,17 +38,23 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 const manualAssignmentSchema = z.object({
   time: z.string().min(1, "La hora es obligatoria."),
   type: z.enum(["publica", "rural", "zoom"], { required_error: "Debe seleccionar un tipo." }),
-  locationType: z.enum(["territory", "casa"]),
-  locationId: z.string().min(1, "Debe seleccionar un lugar."),
+  territoryId: z.string().min(1, "Debe seleccionar un territorio."),
+  casaId: z.string().optional(),
   userId: z.string().min(1, "Debe seleccionar un publicador."),
   notes: z.string().max(500).optional(),
 });
 
 type ManualAssignmentFormValues = z.infer<typeof manualAssignmentSchema>;
 
-export interface ManualAssignmentSubmitData extends ManualAssignmentFormValues {
+export interface ManualAssignmentSubmitData {
     id?: string;
     date: Date;
+    time: string;
+    type: PreachingAssignedType;
+    territoryId: string;
+    casaId?: string;
+    userId: string;
+    notes?: string;
     status?: UserAssignment['status'];
 }
 
@@ -97,19 +103,17 @@ export function AddManualAssignmentDialog({
   });
   
   const { watch, setValue } = form;
-  const locationType = watch("locationType");
   const selectedType = watch("type");
   const selectedUserId = watch("userId");
 
   useEffect(() => {
     if (isOpen) {
         if (assignmentToEdit) {
-            const locationIsTerritory = allTerritories.some(t => t.id === assignmentToEdit.locationId);
             form.reset({
                 time: assignmentToEdit.time,
                 type: assignmentToEdit.type,
-                locationType: locationIsTerritory ? 'territory' : 'casa',
-                locationId: assignmentToEdit.locationId,
+                territoryId: assignmentToEdit.locationId,
+                casaId: (assignmentToEdit as Assignment).casaId,
                 userId: (assignmentToEdit as any).userId,
                 notes: assignmentToEdit.notes,
             });
@@ -117,8 +121,8 @@ export function AddManualAssignmentDialog({
             form.reset({
                 time: slot.startTime,
                 type: slot.type === 'general' ? 'publica' : slot.type,
-                locationType: "territory",
-                locationId: "",
+                territoryId: "",
+                casaId: "",
                 userId: "",
                 notes: "",
             });
@@ -126,18 +130,14 @@ export function AddManualAssignmentDialog({
             form.reset({
                 time: "10:00",
                 type: "publica",
-                locationType: "territory",
-                locationId: "",
+                territoryId: "",
+                casaId: "",
                 userId: "",
                 notes: "",
             });
         }
     }
-  }, [isOpen, assignmentToEdit, slot, allTerritories, form]);
-  
-  useEffect(() => {
-    setValue("locationId", "");
-  }, [locationType, setValue]);
+  }, [isOpen, assignmentToEdit, slot, form]);
 
   const { assignedCaptainIdsInMonth, assignedCasaIdsInMonth, assignedTerritoryIdsInMonth } = useMemo(() => {
     const captainIds = new Set<string>();
@@ -146,12 +146,9 @@ export function AddManualAssignmentDialog({
 
     allAssignmentsForMonth.forEach(a => {
         if (a.userId) captainIds.add(a.userId);
-        if (a.type !== 'zoom' && a.locationId) {
-            if (allCasas.some(c => c.id === a.locationId)) {
-                casaIds.add(a.locationId);
-            } else if (allTerritories.some(t => t.id === a.locationId)) {
-                territoryIds.add(a.locationId);
-            }
+        if(a.casaId) casaIds.add(a.casaId);
+        if (a.locationId && allTerritories.some(t => t.id === a.locationId)) {
+            territoryIds.add(a.locationId);
         }
     });
 
@@ -160,7 +157,7 @@ export function AddManualAssignmentDialog({
         assignedCasaIdsInMonth: casaIds,
         assignedTerritoryIdsInMonth: territoryIds
     };
-  }, [allAssignmentsForMonth, allCasas, allTerritories]);
+  }, [allAssignmentsForMonth, allTerritories]);
 
   const availableTerritoriesForSelection = useMemo(() => {
     return allTerritories
@@ -186,7 +183,8 @@ export function AddManualAssignmentDialog({
     const assignmentDate = startOfDay(date || new Date());
 
     return allPublishers.filter(p => {
-      if (p.blockInfo?.forSystem) return false;
+        if (p.status !== 'Activo') return false;
+        if (p.blockInfo?.forSystem) return false;
 
       const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
         const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
@@ -195,7 +193,7 @@ export function AddManualAssignmentDialog({
       });
       if (isUnavailable) return false;
 
-      if (!slot) return true; // If no specific slot, all available publishers are candidates
+      if (!slot) return true;
 
       const hasSlot = p.availability?.availableSlotIds?.includes(slot.id);
       return hasSlot;
@@ -215,7 +213,7 @@ export function AddManualAssignmentDialog({
           });
           if (isUnavailable) return false;
 
-          if (!slot) return true; // If no specific slot, all available casas are candidates
+          if (!slot) return true;
 
           const hasSlot = c.availableDays?.availableProgramSlotIds?.includes(slot.id);
           return hasSlot;
@@ -233,22 +231,23 @@ export function AddManualAssignmentDialog({
     const dateToSubmit = date || parseISO(assignmentToEdit!.date);
     
     await onAssignmentSubmit({ 
-        ...values, 
         id: assignmentToEdit?.id, 
         date: dateToSubmit,
+        time: values.time,
+        type: values.type,
+        territoryId: values.territoryId,
+        casaId: values.casaId,
+        userId: values.userId,
+        notes: values.notes,
         status: assignmentToEdit?.status,
     });
     setIsSubmitting(false);
   }
 
-  const availableLocations = locationType === 'territory' 
-    ? availableTerritoriesForSelection 
-    : availableCasasForSlot;
-
   const dialogDescription = isEditMode 
     ? `Editando asignación para ${assignmentToEdit?.userName}`
-    : date 
-        ? `Añadiendo asignación para el ${format(date, 'PPP', {locale: es})}.`
+    : date && slot
+        ? `Añadiendo asignación para el ${format(date, 'PPP', {locale: es})}`
         : 'Añadiendo asignación manual.';
 
   return (
@@ -262,15 +261,18 @@ export function AddManualAssignmentDialog({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-             {(slot) && (
+             {(slot || isEditMode) && (
                 <div className="grid grid-cols-2 gap-4 rounded-md border bg-muted/50 p-3">
                     <div>
                         <p className="text-xs font-medium text-muted-foreground">Hora</p>
-                        <p className="font-semibold">{slot.startTime}</p>
+                        <p className="font-semibold">{form.getValues('time')}</p>
                     </div>
                     <div>
                         <p className="text-xs font-medium text-muted-foreground">Tipo</p>
-                        <p className="font-semibold capitalize flex items-center"><PreachingTypeIcon type={slot.type} />{slot.type === 'general' ? 'publica' : slot.type}</p>
+                        <p className="font-semibold capitalize flex items-center">
+                            <PreachingTypeIcon type={form.getValues('type')} />
+                            {form.getValues('type')}
+                        </p>
                     </div>
                 </div>
              )}
@@ -312,50 +314,82 @@ export function AddManualAssignmentDialog({
                  </div>
              )}
              
-             {selectedType !== 'zoom' && (
-                <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                    control={form.control}
-                    name="locationType"
-                    render={({ field }) => (
-                        <FormItem><FormLabel>Lugar</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="territory">Territorio</SelectItem><SelectItem value="casa">Casa</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                    )}
-                    />
-                    <FormField
-                    control={form.control}
-                    name="locationId"
-                    render={({ field }) => (
-                        <FormItem><FormLabel>&nbsp;</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger><SelectValue placeholder={`Seleccionar ${locationType === 'territory' ? 'territorio' : 'casa'}`} /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              {availableLocations.map(loc => {
-                                const name = loc.type === 'urban' && (loc as Territory).number ? `U-${(loc as Territory).number}: ${loc.name}` : (loc as Casa).ownerName || loc.name;
-                                const isCaptainsHouse = locationType === 'casa' && selectedCaptain && loc.id === selectedCaptain.managedCasaId;
-                                const isAlreadyAssigned = locationType === 'casa' ? assignedCasaIdsInMonth.has(loc.id) : assignedTerritoryIdsInMonth.has(loc.id);
-                                return (
-                                  <SelectItem key={loc.id} value={loc.id} className={cn(isCaptainsHouse && "bg-green-100 dark:bg-green-800/50 text-green-900 dark:text-green-200 font-semibold")}>
-                                     <div className="flex items-center justify-between w-full">
-                                      <span>{name}</span>
-                                      {isAlreadyAssigned && (
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
-                                            <TooltipContent><p>Ya asignado/a este mes</p></TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      )}
-                                    </div>
-                                  </SelectItem>
-                                );
-                              })}
-                            </SelectContent>
-                        </Select>
-                        <FormMessage /></FormItem>
-                    )}
-                    />
-                </div>
-             )}
+            <FormField
+              control={form.control}
+              name="territoryId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Territorio</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar territorio" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {availableTerritoriesForSelection.map(loc => {
+                        const name = loc.type === 'urban' && loc.number ? `U-${loc.number}: ${loc.name}` : loc.name;
+                        const isAlreadyAssigned = assignedTerritoryIdsInMonth.has(loc.id);
+                        return (
+                          <SelectItem key={loc.id} value={loc.id}>
+                            <div className="flex items-center justify-between w-full">
+                              <span>{name}</span>
+                              {isAlreadyAssigned && (
+                                <TooltipProvider><Tooltip>
+                                  <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
+                                  <TooltipContent><p>Ya asignado este mes</p></TooltipContent>
+                                </Tooltip></TooltipProvider>
+                              )}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="casaId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Casa de Reunión (Opcional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar casa (opcional)" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="">Ninguna</SelectItem>
+                      {availableCasasForSlot.map(loc => {
+                        const name = loc.ownerName || loc.address;
+                        const isCaptainsHouse = selectedCaptain && loc.id === selectedCaptain.managedCasaId;
+                        const isAlreadyAssigned = assignedCasaIdsInMonth.has(loc.id);
+                        return (
+                          <SelectItem
+                            key={loc.id}
+                            value={loc.id}
+                            className={cn(isCaptainsHouse && "bg-green-100 dark:bg-green-800/50 text-green-900 dark:text-green-200 font-semibold")}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                                <span className="flex items-center">
+                                    {isCaptainsHouse && <Home className="h-4 w-4 mr-2 text-green-700" />}
+                                    {name}
+                                </span>
+                              {isAlreadyAssigned && !isCaptainsHouse && (
+                                 <TooltipProvider><Tooltip>
+                                    <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
+                                    <TooltipContent><p>Ya asignada este mes</p></TooltipContent>
+                                </Tooltip></TooltipProvider>
+                              )}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
@@ -371,12 +405,10 @@ export function AddManualAssignmentDialog({
                               <div className="flex items-center justify-between w-full">
                                 <span>{p.name}</span>
                                 {(assignedCaptainIdsInMonth.has(p.id) || (p.firebaseAuthUid && assignedCaptainIdsInMonth.has(p.firebaseAuthUid))) && (
-                                  <TooltipProvider>
-                                    <Tooltip>
+                                  <TooltipProvider><Tooltip>
                                       <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
                                       <TooltipContent><p>Ya asignado este mes</p></TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
+                                  </Tooltip></TooltipProvider>
                                 )}
                               </div>
                           </SelectItem>

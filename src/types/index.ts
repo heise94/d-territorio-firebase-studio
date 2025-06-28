@@ -40,6 +40,7 @@ export interface PublisherDetail {
   firebaseAuthUid?: string; // UID from Firebase Authentication
   status?: 'Activo' | 'Bloqueado'; // Add status to PublisherDetail
   blockInfo?: { forSystem: boolean; forGroup: boolean; reason?: string }; // Add blockInfo
+  managedCasaId?: string;
 }
 
 
@@ -245,6 +246,8 @@ export interface Assignment extends UserAssignment {
   userPhoneNumber?: string;
   captainId?: string;
   assignedGroupId?: string;
+  casaId?: string;
+  casaName?: string;
   casaAddress?: string;
   territoryName?: string;
   createdAt?: Timestamp;

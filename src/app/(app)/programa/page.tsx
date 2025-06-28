@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
-import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parse, parseISO } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, isBefore, getDay, isSameDay, parse, parseISO, endOfMonth } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType, UserAssignment } from "@/types";
@@ -17,6 +17,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
 import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/components/programa/add-manual-assignment-dialog";
 import { Badge } from "@/components/ui/badge";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 6 }, (_, i) => currentYear - 2 + i);
@@ -42,6 +43,7 @@ export default function ProgramaMensualPage() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const { toast } = useToast();
   const { userProfile, hasPermission } = usePermissions();
+  const isMobile = useIsMobile();
 
   // Data States
   const [allPublishers, setAllPublishers] = useState<PublisherDetail[]>([]);
@@ -68,7 +70,7 @@ export default function ProgramaMensualPage() {
     const publishersQuery = query(collection(db, "users"), where("isAssignable", "==", true));
     const unsubPublishers = onSnapshot(publishersQuery, (snap) => setAllPublishers(snap.docs.map(d => ({id: d.id, ...d.data()} as PublisherDetail))));
     
-    const casasQuery = query(collection(db, "casas"), orderBy("ownerName"));
+    const casasQuery = query(collection(db, "casas"));
     const unsubCasas = onSnapshot(casasQuery, (snap) => setAllCasas(snap.docs.map(d => ({id: d.id, ...d.data()} as Casa))));
 
     const territoriesQuery = query(collection(db, "territories"), orderBy("name"));
@@ -183,34 +185,27 @@ export default function ProgramaMensualPage() {
     const docRef = data.id ? doc(db, "assignments", data.id) : doc(collection(db, "assignments"));
     
     const publisher = allPublishers.find(p => p.id === data.userId || p.firebaseAuthUid === data.userId);
-    let location: Territory | Casa | undefined;
-
-    if (data.locationType === 'territory') {
-        location = allTerritories.find(t => t.id === data.locationId);
-    } else {
-        location = allCasas.find(c => c.id === data.locationId);
-    }
-
-    if (!publisher) {
-        toast({ title: "Error", description: "Publicador no válido.", variant: "destructive"});
-        return;
-    }
-    if (data.type !== 'zoom' && !location) {
-        toast({ title: "Error", description: "Debe seleccionar un lugar (territorio o casa).", variant: "destructive"});
+    const territory = allTerritories.find(t => t.id === data.territoryId);
+    const casa = data.casaId ? allCasas.find(c => c.id === data.casaId) : undefined;
+    
+    if (!publisher || !territory) {
+        toast({ title: "Error", description: "Publicador o Territorio no válido.", variant: "destructive"});
         return;
     }
     
-    const locationName = data.type === 'zoom' 
-        ? 'Predicación por Zoom' 
-        : (location!.type === 'urban' && (location as Territory).number ? `U-${(location as Territory).number}` : (location as Casa).ownerName || location!.name);
+    const territoryDisplayName = territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name;
 
     const newAssignment: Omit<Assignment, 'id'> & { id: string } = {
       id: docRef.id,
       date: format(data.date, "yyyy-MM-dd"),
       time: data.time,
       type: data.type,
-      locationName: locationName,
-      locationId: data.type === 'zoom' ? 'zoom' : location!.id,
+      locationName: territoryDisplayName,
+      locationId: territory.id,
+      territoryName: territoryDisplayName,
+      casaId: casa?.id,
+      casaName: casa?.ownerName,
+      casaAddress: casa?.address,
       status: data.status || 'pending',
       assignedBy: userProfile?.name || 'Manual',
       userId: publisher.firebaseAuthUid || publisher.id,
@@ -299,11 +294,13 @@ export default function ProgramaMensualPage() {
             </div>
           ) : (
             <div className="mt-6">
-              <div className="hidden md:grid md:grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground pb-2 border-b">
-                {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(day => <div key={day}>{day}</div>)}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-7 gap-4 md:gap-1">
-                {Array.from({ length: dayOffset }).map((_, i) => <div key={`empty-${i}`} className="hidden md:block rounded-md min-h-[120px] bg-muted/20"></div>)}
+              {!isMobile && (
+                 <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground pb-2 border-b">
+                  {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(day => <div key={day}>{day}</div>)}
+                </div>
+              )}
+              <div className={isMobile ? "space-y-4" : "grid grid-cols-7 gap-1"}>
+                {!isMobile && Array.from({ length: dayOffset }).map((_, i) => <div key={`empty-${i}`} className="rounded-md min-h-[120px] bg-muted/20"></div>)}
                 {calendarDays.map(day => {
                   const dayString = format(day, "yyyy-MM-dd");
                   const assignmentsForDay = (assignmentsToDisplay[dayString] || []).sort((a: any, b: any) => a.time.localeCompare(b.time));
@@ -315,13 +312,8 @@ export default function ProgramaMensualPage() {
                   return (
                     <Card key={dayString} className={`flex flex-col rounded-lg shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'}`}>
                       <CardHeader className="p-3 md:p-2 pb-1 flex flex-row justify-between items-center">
-                        {/* Mobile Title */}
-                        <CardTitle className="text-base font-semibold md:hidden capitalize">
-                          {format(day, "EEEE d", { locale: es })}
-                        </CardTitle>
-                        {/* Desktop Title */}
-                        <CardTitle className={`hidden md:block text-xs font-medium ${isToday ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-                          {format(day, "d")}
+                        <CardTitle className="text-base md:text-xs font-semibold md:font-medium">
+                          {isMobile ? format(day, "EEEE d", { locale: es }) : format(day, "d")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-2 space-y-2 md:p-1.5 md:space-y-1.5 overflow-y-auto flex-grow min-h-[100px]">
@@ -339,7 +331,7 @@ export default function ProgramaMensualPage() {
                                                 <span className="ml-2 capitalize">{slot.type === 'general' ? 'Pública' : slot.type}</span>
                                                 {slot.status === 'tentative' && <Badge variant="outline" className="ml-2 text-amber-600 border-amber-500 px-1 py-0 text-[0.6rem]">Tentativo</Badge>}
                                             </div>
-                                            {canManageProgram && (
+                                            {canManageProgram && !isBefore(day, startOfDay(new Date())) && (
                                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenAddDialog(day, slot)}>
                                                     <PlusCircle className="h-4 w-4 text-primary" />
                                                 </Button>
@@ -356,7 +348,7 @@ export default function ProgramaMensualPage() {
                             </div>
                         ))}
                       </CardContent>
-                      {slotsForDay.length === 0 && canManageProgram && (
+                      {canManageProgram && !isBefore(day, startOfDay(new Date())) && (
                           <CardFooter className="p-2 md:p-1 mt-auto border-t border-dashed">
                             <Button variant="ghost" size="sm" className="w-full h-7 text-xs" onClick={() => handleOpenAddDialog(day)}>
                                 <PlusCircle className="mr-1.5 h-3.5 w-3.5"/> Añadir Manual
@@ -404,4 +396,3 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
-
