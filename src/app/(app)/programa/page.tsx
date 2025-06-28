@@ -52,7 +52,7 @@ export default function ProgramaMensualPage() {
   // Dialog States
   const [isGenerationDialogOpen, setIsGenerationDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [assignmentToEdit, setAssignmentToEdit] = useState<GenerateMonthlyAssignmentsOutput['captainAssignments'][string][0] | null>(null);
+  const [assignmentToEdit, setAssignmentToEdit] = useState<GenerateMonthlyAssignmentsOutput['schedule'][0]['assignments'][0] | null>(null);
   const [isAddManualDialogOpen, setIsAddManualDialogOpen] = useState(false);
   const [dayToAddManualAssignment, setDayToAddManualAssignment] = useState<string | null>(null);
   
@@ -200,16 +200,17 @@ export default function ProgramaMensualPage() {
     const availableCasasForAI = casas.filter(c => !c.blockInfo || !c.blockInfo.forSystem);
 
     const plainTerritoriesForAI = territories.map(t => {
-        const plainTerritory = { ...t } as any; // Create a mutable copy
-        // Convert any Timestamp fields to serializable strings
-        if (plainTerritory.createdAt && typeof plainTerritory.createdAt.toDate === 'function') {
-          plainTerritory.createdAt = (plainTerritory.createdAt as Timestamp).toDate().toISOString();
-        }
-        if (plainTerritory.updatedAt && typeof plainTerritory.updatedAt.toDate === 'function') {
-          plainTerritory.updatedAt = (plainTerritory.updatedAt as Timestamp).toDate().toISOString();
-        }
-        if (plainTerritory.unblockDate && typeof plainTerritory.unblockDate.toDate === 'function') {
-          plainTerritory.unblockDate = (plainTerritory.unblockDate as Timestamp).toDate().toISOString();
+        const plainTerritory: any = {};
+        for (const key in t) {
+            const typedKey = key as keyof Territory;
+            if (Object.prototype.hasOwnProperty.call(t, typedKey)) {
+                const value = t[typedKey];
+                if (value instanceof Timestamp) {
+                    plainTerritory[typedKey] = value.toDate().toISOString();
+                } else {
+                    plainTerritory[typedKey] = value;
+                }
+            }
         }
         return plainTerritory;
     });
@@ -312,7 +313,7 @@ export default function ProgramaMensualPage() {
   };
 
   const handleSaveProgramToFirestore = async () => {
-    if (!generatedAssignments || !generatedAssignments.captainAssignments) {
+    if (!generatedAssignments || !generatedAssignments.schedule) {
         toast({ title: "Sin Datos", description: "No hay asignaciones generadas para guardar.", variant: "default" });
         return;
     }
@@ -327,7 +328,7 @@ export default function ProgramaMensualPage() {
     let assignmentCount = 0;
 
     try {
-        Object.values(generatedAssignments.captainAssignments).flat().forEach(assign => {
+        generatedAssignments.schedule.flatMap(day => day.assignments).forEach(assign => {
             if (!assign.captainId || assign.captainId === "PENDING_CAPTAIN_ID") {
                 console.warn(`Saltando asignación para ${assign.date} a las ${assign.time} porque no tiene capitán asignado.`);
                 return; 
@@ -373,27 +374,40 @@ export default function ProgramaMensualPage() {
 
   const handleDeleteAssignment = (assignmentId: string, dayKey: string) => {
     setGeneratedAssignments(prev => {
-        if (!prev || !prev.captainAssignments) return prev;
-        const updatedDayAssignments = (prev.captainAssignments[dayKey] || []).filter(a => a.id !== assignmentId);
-        const newCaptainAssignments = { ...prev.captainAssignments, [dayKey]: updatedDayAssignments };
-        return { ...prev, captainAssignments: newCaptainAssignments };
+        if (!prev || !prev.schedule) return prev;
+        const newSchedule = prev.schedule.map(daySchedule => {
+            if (daySchedule.date === dayKey) {
+                return {
+                    ...daySchedule,
+                    assignments: daySchedule.assignments.filter(a => a.id !== assignmentId),
+                };
+            }
+            return daySchedule;
+        });
+        return { ...prev, schedule: newSchedule };
     });
     toast({ title: "Asignación eliminada del borrador", description: "La asignación ha sido quitada y no se guardará." });
   };
 
-  const handleOpenEditDialog = (assignment: GenerateMonthlyAssignmentsOutput['captainAssignments'][string][0]) => {
+  const handleOpenEditDialog = (assignment: GenerateMonthlyAssignmentsOutput['schedule'][0]['assignments'][0]) => {
     setAssignmentToEdit(assignment);
     setIsEditDialogOpen(true);
   };
   
-  const handleUpdateAssignment = (updatedAssignment: GenerateMonthlyAssignmentsOutput['captainAssignments'][string][0]) => {
+  const handleUpdateAssignment = (updatedAssignment: GenerateMonthlyAssignmentsOutput['schedule'][0]['assignments'][0]) => {
     setGeneratedAssignments(prev => {
-      if (!prev || !prev.captainAssignments) return prev;
+      if (!prev || !prev.schedule) return prev;
       const dayKey = updatedAssignment.date;
-      const dayAssignments = prev.captainAssignments[dayKey] || [];
-      const updatedDayAssignments = dayAssignments.map(a => a.id === updatedAssignment.id ? updatedAssignment : a);
-      const newCaptainAssignments = { ...prev.captainAssignments, [dayKey]: updatedDayAssignments };
-      return { ...prev, captainAssignments: newCaptainAssignments };
+      const newSchedule = prev.schedule.map(daySchedule => {
+        if (daySchedule.date === dayKey) {
+          const updatedAssignments = daySchedule.assignments.map(a =>
+            a.id === updatedAssignment.id ? updatedAssignment : a
+          );
+          return { ...daySchedule, assignments: updatedAssignments };
+        }
+        return daySchedule;
+      });
+      return { ...prev, schedule: newSchedule };
     });
     toast({ title: "Asignación actualizada en el borrador", description: `Se ha cambiado el capitán para el ${updatedAssignment.date}.` });
   };
@@ -403,18 +417,27 @@ export default function ProgramaMensualPage() {
     setIsAddManualDialogOpen(true);
   };
   
-  const handleAddManualAssignment = (newAssignment: GenerateMonthlyAssignmentsOutput['captainAssignments'][string][0]) => {
+  const handleAddManualAssignment = (newAssignment: GenerateMonthlyAssignmentsOutput['schedule'][0]['assignments'][0]) => {
     setGeneratedAssignments(prev => {
       if (!prev) return null; // Should not happen if button is visible
       const dayKey = newAssignment.date;
-      const dayAssignments = prev.captainAssignments[dayKey] || [];
-      const updatedDayAssignments = [...dayAssignments, newAssignment].sort((a,b) => a.time.localeCompare(b.time));
+      const scheduleForDayExists = prev.schedule.some(s => s.date === dayKey);
+      let newSchedule;
 
-      const newCaptainAssignments = {
-        ...prev.captainAssignments,
-        [dayKey]: updatedDayAssignments,
-      };
-      return { ...prev, captainAssignments: newCaptainAssignments };
+      if (scheduleForDayExists) {
+          newSchedule = prev.schedule.map(daySchedule => {
+              if (daySchedule.date === dayKey) {
+                  const updatedAssignments = [...daySchedule.assignments, newAssignment].sort((a,b) => a.time.localeCompare(b.time));
+                  return { ...daySchedule, assignments: updatedAssignments };
+              }
+              return daySchedule;
+          });
+      } else {
+          newSchedule = [...prev.schedule, { date: dayKey, assignments: [newAssignment] }];
+          newSchedule.sort((a, b) => a.date.localeCompare(b.date));
+      }
+
+      return { ...prev, schedule: newSchedule };
     });
     toast({ title: "Asignación Añadida", description: `Se añadió una nueva asignación para el ${newAssignment.date}.`, });
   };
@@ -464,14 +487,15 @@ export default function ProgramaMensualPage() {
               <p className="text-lg font-medium text-muted-foreground">Generando programa...</p>
               <p className="text-sm text-muted-foreground">Esto puede tardar unos momentos.</p>
             </div>
-          ) : generatedAssignments && generatedAssignments.captainAssignments ? (
+          ) : generatedAssignments && generatedAssignments.schedule ? (
             <div className="space-y-6">
               <h2 className="text-2xl font-semibold font-headline text-center">
                 Borrador de Asignaciones para {months.find(m => m.value === selectedMonth)?.label} de {selectedYear}
               </h2>
               {monthDays.map(dayString => {
-                const assignmentsForDay = generatedAssignments.captainAssignments[dayString] || [];
-                const isEventDay = (generatedAssignments.captainAssignments[dayString]?.length === 0) && Object.keys(generatedAssignments.captainAssignments).includes(dayString);
+                const daySchedule = generatedAssignments.schedule.find(s => s.date === dayString);
+                const assignmentsForDay = daySchedule?.assignments || [];
+                const isEventDay = daySchedule && daySchedule.assignments.length === 0;
 
                 return (
                   <Card key={dayString} className="shadow-md">
@@ -577,3 +601,4 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
+

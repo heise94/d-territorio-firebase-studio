@@ -122,11 +122,15 @@ const ExtendedMonthlyCaptainAssignmentItemSchema = z.object({
   territoryName: z.string().optional().nullable().describe('Optional territory name if preachingType is related to a territory. MUST be null/empty if preachingType is "zoom".'),
 });
 
+const DailyAssignmentSchema = z.object({
+  date: z.string().describe("The date for these assignments in YYYY-MM-DD format."),
+  assignments: z.array(ExtendedMonthlyCaptainAssignmentItemSchema)
+    .describe("An array of assignments for this specific date. Should be an empty array if it is a holiday or assembly day with no scheduled preaching."),
+});
+
 const GenerateMonthlyAssignmentsOutputSchema = z.object({
-  captainAssignments: z.record(
-    z.string(), // Key will be YYYY-MM-DD
-    z.array(ExtendedMonthlyCaptainAssignmentItemSchema)
-  ).describe('Object, key \"YYYY-MM-DD\", value array of ExtendedMonthlyCaptainAssignmentItem. For days with assemblies or un-scheduled holidays, this array should be empty.'),
+  schedule: z.array(DailyAssignmentSchema)
+    .describe("An array of daily schedules for the entire month. Every day of the month should have an entry, even if it has no assignments."),
 });
 
 
@@ -221,7 +225,7 @@ const prompt = ai.definePrompt({
   
   Designated Rural Weekends:
   {{#if designatedRuralWeekendDays}}
-    The following dates are designated for special rural preaching: {{designatedRuralWeekendDays}}. Please handle them according to any special instructions provided.
+    The following dates are designated for special rural preaching: {{{designatedRuralWeekendDays}}}. Please handle them according to any special instructions provided.
   {{else}}
     No special rural weekends have been designated.
   {{/if}}
@@ -232,7 +236,7 @@ const prompt = ai.definePrompt({
   {{#if configuredCampaigns}}
     {{#each configuredCampaigns}}
     - Campaign Name: {{this.name}}
-      {{#if this.specificTerritoryIds}} **Territorios Específicos:** {{this.specificTerritoryIds}} {{/if}}
+      {{#if this.specificTerritoryIds}} **Territorios Específicos:** {{{this.specificTerritoryIds}}} {{/if}}
       (Other details omitted for brevity, but available to system)
     {{/each}}
   {{else}}
@@ -259,7 +263,7 @@ const prompt = ai.definePrompt({
      - IMPORTANT: If the 'preachingType' for a slot is 'zoom', then 'casaName', 'casaAddress', and 'territoryName' MUST be null or empty in the output.
 
   2. Assembly Days & Holidays:
-     - For any date that falls within the range of an assembly listed in 'assembliesInMonth', NO preaching assignments should be made. The 'captainAssignments' for such dates should be an empty array.
+     - For any date that falls within the range of an assembly listed in 'assembliesInMonth', NO preaching assignments should be made. The 'assignments' for such dates should be an empty array.
      - For any date listed in 'holidayDatesInMonth', NO preaching assignments should be made, UNLESS that date is also present in 'holidaySchedulingOverrides'.
      - If a holiday date is in 'holidaySchedulingOverrides', you MUST create exactly one assignment for that date using the specified time and type from the override object. The general captain assignment logic (picking a suitable publisher) still applies.
 
@@ -275,11 +279,14 @@ const prompt = ai.definePrompt({
   5. Designated Rural Weekends:
      - For any date listed in 'designatedRuralWeekendDays', apply any relevant special logic from the 'additionalInstructions' when creating assignments for the rural slots on that day. For example, if instructed to assign an SG, attempt to do so.
 
-  Return the schedule in the following JSON format. Ensure 'status' is 'pending' for all new assignments. For assembly days and un-scheduled holidays, the array for that date must be empty.
+  Return the schedule in the following JSON format. Ensure 'status' is 'pending' for all new assignments. Generate an entry for every single day of the month. For assembly days and un-scheduled holidays, the 'assignments' array for that date must be empty.
   {
-    "captainAssignments": {
-      "YYYY-MM-DD": [ /* Assignments for the day, or empty array */ ]
-    }
+    "schedule": [
+      {
+        "date": "YYYY-MM-DD",
+        "assignments": [ /* Array of assignment objects for this day, or empty array */ ]
+      }
+    ]
   }`,
 });
 
@@ -294,3 +301,4 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
     return output!;
   }
 );
+
