@@ -1,4 +1,3 @@
-
 'use server';
 
 import {ai} from '@/ai/genkit';
@@ -49,6 +48,7 @@ const AvailableDaysWithTimeSlotsAISchema = z.record(
   z.array(TimeSlotAISchema)
 ).describe("Object where keys are days of the week (lowercase English) and values are arrays of time slots available for that day. Example: {'monday': [{startTime: '09:00', type: 'general'}, {startTime: '15:00', type: 'zoom'}]}");
 
+
 const GroupPreachingDaysAISchema = z.record(
   z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
   z.boolean()
@@ -59,6 +59,7 @@ const CasaForAISchema = z.object({
     id: z.string(),
     name: z.string(),
     address: z.string().optional(),
+    associatedTerritoryIds: z.array(z.string()).optional().describe("IDs of territories located near this house."),
     unavailabilityPeriods: z.array(UnavailabilityPeriodAISchema).optional().describe("Periods when the house is unavailable. Do not assign this house if the assignment date falls within any of these periods.")
 });
 
@@ -70,13 +71,10 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
   assignCasas: z.boolean().describe('Whether to assign houses to the schedule.'),
   assignTerritories: z.boolean().describe('Whether to assign territories to the schedule.'),
   assignCaptains: z.boolean().describe('Whether to assign captains to the schedule.'),
-  availableCasas: z.array(CasaForAISchema).describe('Available houses for assignment, including their unavailability periods.'),
+  availableCasas: z.array(CasaForAISchema).describe('Available houses for assignment, including their unavailability periods and nearby territories.'),
   availableTerritories: z
-    .array(z.object({id: z.string(), name: z.string(), type: z.enum(["urban", "rural"]), number: z.string().optional(), lastWorked: z.string().optional() }))
-    .describe('Available territories for assignment (urban/rural), including their last worked date.'),
-  detailedTerritoryReports: z
-    .array(z.any())
-    .describe('Detailed reports for territories. Use this to prioritize territories less worked or needing attention. If empty, this factor cannot be heavily weighted.'),
+    .array(z.object({id: z.string(), name: z.string(), type: z.enum(["urban", "rural"]), number: z.string().optional(), lastWorked: z.string().optional(), associatedCasaIds: z.array(z.string()).optional() }))
+    .describe('Available territories for assignment (urban/rural), including their last worked date and associated house IDs.'),
   groupPreachingDays: GroupPreachingDaysAISchema.describe('Days when preaching is organized by groups. No centralized assignments for these days.'),
   configuredCampaigns: z.array(z.object({
     id: z.string(),
@@ -150,70 +148,39 @@ const prompt = ai.definePrompt({
   name: 'generateMonthlyAssignmentsPrompt',
   input: {schema: GenerateMonthlyAssignmentsInputSchema},
   output: {schema: GenerateMonthlyAssignmentsOutputSchema},
-  prompt: `You are an expert in creating monthly preaching schedules for religious congregations.
+  prompt: `You are a meticulous and logical scheduler for a religious congregation. Your task is to generate a complete monthly preaching schedule.
 
-Your goal is to generate a complete schedule for the specified month, following the rules and using the data provided.
+  Your goal is to create a schedule array containing an entry for EVERY SINGLE DAY of the specified month (year: {{{year}}}, month: {{{month}}}).
 
-Year: {{{year}}}
-Month: {{{month}}} (0-indexed)
-  
-General Configuration:
-- Available Days with Time Slots (standard schedule): Provided in 'availableDaysWithTimeSlots'.
-- Assign Houses: {{{assignCasas}}}
-- Assign Territories: {{{assignTerritories}}}
-- Assign Captains: {{{assignCaptains}}}
-- Days Organized by Groups (no centralized assignments for these): Provided in 'groupPreachingDays'.
-- Holiday Dates in Month (YYYY-MM-DD format): {{{holidayDatesInMonth}}}
-- Assemblies in Month (no preaching on these dates): Provided in 'assembliesInMonth'.
-- Additional Instructions: {{{additionalInstructions}}}
+  First, determine which days are NON-WORKING days. A day is non-working if it's a holiday, an assembly day, or a day designated for group-organized preaching. For these days, the 'assignments' array MUST be empty.
 
-Available Resources:
-- Publishers for captain roles: Provided in 'publisherDetailedAvailabilities' (includes name, ID, block status, unavailability, and managed house ID).
-- Houses for meeting points: Provided in 'availableCasas' (includes name, ID, and unavailability).
-- Territories to be worked: Provided in 'availableTerritories' (includes name, ID, type, and importantly, 'lastWorked' date).
+  For all other days (WORKING days), you must iterate through EACH time slot defined in 'availableDaysWithTimeSlots' for that day of the week. For EACH time slot, you will create exactly ONE assignment object by following these steps IN ORDER:
 
-KEY SCHEDULING LOGIC:
+  **STEP 1: CHOOSE THE TERRITORY** (if 'assignTerritories' is true and the slot type is not 'zoom')
+  - First, check for active campaigns. If a campaign is active and has 'specificTerritoryIds', you MUST choose one of those territories.
+  - If no campaign dictates the territory, you MUST search the 'availableTerritories' list and select the one with the oldest 'lastWorked' date.
+  - This is now the [CHOSEN_TERRITORY]. If no suitable territory is found, this part of the assignment will be blank.
 
-1.  **Iterate Through Every Day of the Month**: Your primary task is to create a schedule for every single day of the month specified by 'year' and 'month'.
+  **STEP 2: CHOOSE THE CAPTAIN** (if 'assignCaptains' is true)
+  - Filter the 'publisherDetailedAvailabilities' list to find all publishers who are available for this specific date and time slot.
+  - IMPORTANT: You MUST EXCLUDE any publisher where 'blockInfo.forSystem' is true.
+  - IMPORTANT: You MUST EXCLUDE any publisher if the assignment date falls within one of their 'unavailabilityPeriods'.
+  - From the final list of available publishers, select one. Try to rotate captains to ensure variety.
+  - This is now the [CHOSEN_CAPTAIN]. If no captain can be chosen, this part of the assignment will be blank.
 
-2.  **Determine Working vs. Non-Working Days**:
-    -   A day is a **Non-Working Day** if it's listed in 'holidayDatesInMonth' (UNLESS there is a specific override in 'holidaySchedulingOverrides') OR if it falls within an assembly period from 'assembliesInMonth'.
-    -   For **Non-Working Days**, you MUST return an empty 'assignments' array for that date's schedule object.
-    -   A day is also a **Non-Working Day for centralized assignments** if 'groupPreachingDays' for that day of the week is true. You MUST also return an empty 'assignments' array for these days.
-    -   All other days are **Working Days**.
+  **STEP 3: CHOOSE THE CASA (MEETING PLACE)** (if 'assignCasas' is true and the slot type is not 'zoom')
+  - **Priority A: Captain's Managed Casa.** If a [CHOSEN_CAPTAIN] was selected and they have a 'managedCasaId', find that casa in the 'availableCasas' list. If that casa is available (not within an unavailability period), you MUST assign it.
+  - **Priority B: Territory's Associated Casa.** If Priority A is not met, check if the [CHOSEN_TERRITORY] has 'associatedCasaIds'. If it does, pick one of those casas from the 'availableCasas' list, ensuring it's available.
+  - **Priority C: Any Other Available Casa.** If neither Priority A nor B is met, select any other available casa from the 'availableCasas' list. Ensure it's not unavailable. Try to rotate casas.
+  - This is now the [CHOSEN_CASA].
 
-3.  **Generate Assignments for Working Days**:
-    -   For each **Working Day**, identify its day of the week (e.g., 'monday').
-    -   Find the corresponding time slots for that day from 'availableDaysWithTimeSlots'.
-    -   For **EACH** time slot, you must create one assignment object following these sub-steps:
+  **STEP 4: ASSEMBLE THE ASSIGNMENT OBJECT**
+  - Create the final JSON object for this time slot.
+  - Use the details from the [CHOSEN_TERRITORY], [CHOSEN_CAPTAIN], and [CHOSEN_CASA].
+  - Set 'status' to 'pending'.
+  - If 'preachingType' is 'zoom', then 'casaName', 'casaAddress', and 'territoryName' MUST be null.
 
-    3a. **Captain Selection (if 'assignCaptains' is true)**:
-        -   Select a captain from the 'publisherDetailedAvailabilities' list.
-        -   **CRITICAL**: You MUST NOT assign a publisher if their 'blockInfo.forSystem' is true.
-        -   **CRITICAL**: You MUST NOT assign a publisher if the assignment date falls within one of their personal 'unavailabilityPeriods'.
-        -   Try to rotate captains. Avoid assigning the same person multiple times on the same day if possible.
-        -   If 'assignCaptains' is false, leave 'captainId' and 'captainName' as null.
-
-    3b. **Territory Assignment (if 'assignTerritories' is true and slot type is not 'zoom')**:
-        -   **PRIORITY 1: CAMPAIGNS**: Check if any campaign from 'configuredCampaigns' is active on this date. If a campaign has 'specificTerritoryIds', you MUST select one of those territories.
-        -   **PRIORITY 2: OLDEST TERRITORY**: If no specific campaign territory is required, you MUST select a territory from 'availableTerritories' with the oldest 'lastWorked' date. This is the most important rule for regular assignments.
-        -   If 'assignTerritories' is false, leave 'territoryName' as null.
-
-    3c. **Casa (House) Assignment (if 'assignCasas' is true and slot type is not 'zoom')**:
-        -   **PRIORITY 1: CAPTAIN'S MANAGED HOUSE**: If you have selected a captain and they have a 'managedCasaId', you MUST assign their managed house. Look up the house details in 'availableCasas' using the 'managedCasaId'.
-        -   **PRIORITY 2: GENERAL SELECTION**: If the captain has no managed house (or if captains are not being assigned), select another available house from 'availableCasas'. Try to rotate them.
-        -   **CRITICAL**: DO NOT assign a house if the assignment date falls within its 'unavailabilityPeriods'.
-        -   If 'assignCasas' is false, leave 'casaName' and 'casaAddress' as null.
-
-4.  **Special Day Handling**:
-    -   **Holiday Overrides**: If a date from 'holidayDatesInMonth' is also in 'holidaySchedulingOverrides', you MUST create exactly one assignment for that date as specified, following the logic in step 3.
-    -   **Designated Rural Weekends**: Treat these dates as normal working days, but ensure the assigned territories are of type 'rural'.
-
-5.  **Final Output Rules**:
-    -   Return the schedule in the specified JSON format. Every single day of the month MUST have an entry in the 'schedule' array.
-    -   For non-working days, the 'assignments' array for that date MUST be empty.
-    -   The 'status' for all newly generated assignments must be 'pending'.
-    -   If 'preachingType' is 'zoom', then 'casaName', 'casaAddress', and 'territoryName' MUST be null or empty.
+  Follow this logic meticulously for every assignment on every working day.
   `,
 });
 

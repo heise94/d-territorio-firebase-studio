@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -205,21 +204,6 @@ export default function ProgramaMensualPage() {
     
     const availableCasasForAI = casas.filter(c => !c.blockInfo || !c.blockInfo.forSystem);
 
-    const plainTerritoriesForAI = territories.map(t => {
-        const plainTerritory: {[key: string]: any} = {};
-        for (const key in t) {
-            if (Object.prototype.hasOwnProperty.call(t, key)) {
-                const value = (t as any)[key];
-                if (value instanceof Timestamp) {
-                    plainTerritory[key] = value.toDate().toISOString();
-                } else {
-                    plainTerritory[key] = value;
-                }
-            }
-        }
-        return plainTerritory;
-    });
-
     const input: GenerateMonthlyAssignmentsInput = {
       year: selectedYear,
       month: selectedMonth, 
@@ -243,6 +227,7 @@ export default function ProgramaMensualPage() {
           id: c.id, 
           name: c.ownerName, 
           address: c.address,
+          associatedTerritoryIds: c.associatedTerritoryIds || [],
           unavailabilityPeriods: (c.unavailabilityPeriods || []).map(up => ({
               id: up.id || crypto.randomUUID(), 
               startDate: format(up.startDate instanceof Timestamp ? up.startDate.toDate() : new Date(up.startDate), "yyyy-MM-dd"),
@@ -256,6 +241,7 @@ export default function ProgramaMensualPage() {
           type: t.type, 
           number: t.number,
           lastWorked: t.lastWorked,
+          associatedCasaIds: t.associatedCasaIds || [],
       })),
       preachingGroups: preachingGroups.map(g => ({id: g.id, name: g.name, superintendentId: g.superintendentId})),
       
@@ -304,7 +290,6 @@ export default function ProgramaMensualPage() {
       assignCasas: dialogData.assignLocations,
       assignTerritories: dialogData.assignLocations,
       assignCaptains: dialogData.assignCaptains,
-      detailedTerritoryReports: plainTerritoriesForAI,
       specialCampaignTerritoriesPerDay: 1,
     };
 
