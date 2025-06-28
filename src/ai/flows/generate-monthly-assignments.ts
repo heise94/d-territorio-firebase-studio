@@ -252,7 +252,7 @@ const prompt = ai.definePrompt({
   1. General Captain Assignment:
      - For each day of the week, use the corresponding time slots from 'availableDaysWithTimeSlots' to create assignments.
      - For each slot, assign ONE captain. Use 'publisherDetailedAvailabilities' to select a suitable publisher and set their 'id' as 'captainId' and 'name' as 'captainName'.
-     - **IMPORTANT:** Do NOT assign any publisher that has \`blockInfo.forSystem\` set to \`true\`.
+     - **IMPORTANT:** Do NOT assign any publisher that has 'blockInfo.forSystem' set to 'true'.
      - **CRITICAL:** Do NOT assign any publisher if the assignment date falls within any of their 'unavailabilityPeriods'.
      - If a day has multiple time slots, aim to assign a DIFFERENT captain to each slot.
      - When assigning a 'casaName' or 'casaAddress' (for 'publica' or 'rural' types ONLY), ensure the chosen house is NOT within one of its 'unavailabilityPeriods' for the assignment date.
@@ -266,7 +266,7 @@ const prompt = ai.definePrompt({
   3. Campaigns:
      - Determine active campaigns based on their start/end dates.
      - Adjust territory assignment logic for 'invitation' and 'special' campaigns as needed (e.g., more territories).
-     - For campaigns with `specificTerritoryIds`, prioritize or exclusively use those territories.
+     - For campaigns with 'specificTerritoryIds', prioritize or exclusively use those territories.
      - For 'superintendent_visit', assign the superintendent to one of the slots on the campaign days.
 
   4. Group Preaching Days:
