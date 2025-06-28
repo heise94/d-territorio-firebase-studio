@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,7 +27,8 @@ import type { UserAssignment, PublisherDetail, Territory, Casa, PreachingAssigne
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save } from "lucide-react";
 import { useState, useEffect } from "react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
 
 const manualAssignmentSchema = z.object({
   time: z.string().min(1, "La hora es obligatoria."),
