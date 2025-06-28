@@ -12,7 +12,7 @@ import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, pa
 import { collection, doc, onSnapshot, query, where, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Assignment, PreachingAssignedType } from "@/types";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
   
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 6 }, (_, i) => currentYear - 2 + i);
@@ -156,9 +156,7 @@ export default function ProgramaMensualPage() {
                                         <p className="truncate text-muted-foreground text-[0.7rem]" title={assign.locationName}>{assign.locationName}</p>
                                         <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
                                             <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleEditAssignment(assign.id!)} aria-label="Editar asignación"><Edit className="h-3 w-3 text-blue-600" /></Button>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setAssignmentToDelete(assign)} aria-label="Eliminar asignación"><Trash2 className="h-3 w-3 text-destructive" /></Button>
-                                            </AlertDialogTrigger>
+                                            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setAssignmentToDelete(assign)} aria-label="Eliminar asignación"><Trash2 className="h-3 w-3 text-destructive" /></Button>
                                         </div>
                                       </div>
                                   ))
