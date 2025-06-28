@@ -384,7 +384,7 @@ export default function DisponibilidadPage() {
                     <Card className="shadow-lg max-w-3xl mx-auto">
                         <CardHeader>
                             <CardTitle className="flex items-center text-xl"><UserX className="mr-3 h-6 w-6 text-primary" />Mis Períodos de Indisponibilidad</CardTitle>
-                            <CardDescription>Añade fechas en las que no estarás disponible (vacaciones, etc.). La IA no te asignará en estos períodos.</CardDescription>
+                            <CardDescription>Añade fechas en las que no estarás disponible (vacaciones, etc.). El sistema no te asignará en estos períodos.</CardDescription>
                         </CardHeader>
                         <CardContent>
                              <div className="space-y-3">
