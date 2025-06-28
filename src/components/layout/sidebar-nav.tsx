@@ -62,7 +62,7 @@ const navItems: NavItemConfig[] = [
   { title: "Importar Historial", href: "/admin/import-data", icon: Database, adminOnly: true, segment: "admin" },
 ];
 
-export function SidebarNav({ isCollapsed = false }: { isCollapsed?: boolean }) {
+export function SidebarNav() {
   const pathname = usePathname() ?? "";
   const { userProfile, hasPermission, isLoadingPermissions } = usePermissions();
 
@@ -76,99 +76,30 @@ export function SidebarNav({ isCollapsed = false }: { isCollapsed?: boolean }) {
     );
   }
   
-  const createNavItem = (item: NavItemConfig, isChild = false) => {
+  const createNavItem = (item: NavItemConfig) => {
     const Icon = item.icon;
     const isActive = (pathname === item.href && !item.children) || 
                    (item.children && pathname.startsWith(item.href) && !item.children.some(c => pathname === c.href && c.href !== item.href)) ||
-                   (item.href === "/programa" && pathname.startsWith("/programa") && pathname !== "/programa/semanal") || // special case for monthly program
-                   (item.href === "/reportes" && pathname.startsWith("/reportes") && pathname !== "/reportes/editor"); // special case for reports general
-    
-    if (isCollapsed) {
-      return (
-        <Tooltip key={item.href} delayDuration={0}>
-          <TooltipTrigger asChild>
-            <Link
-              href={item.href}
-              className={cn(
-                "flex h-12 w-12 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-primary",
-                isActive && "bg-muted text-primary"
-              )}
-            >
-              <Icon className="h-6 w-6" />
-              <span className="sr-only">{item.title}</span>
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="right">{item.title}</TooltipContent>
-        </Tooltip>
-      );
-    }
+                   (item.href === "/programa" && pathname.startsWith("/programa") && pathname !== "/programa/semanal") ||
+                   (item.href === "/reportes" && pathname.startsWith("/reportes") && pathname !== "/reportes/editor");
     
     return (
-        <Link
-            key={item.href}
+      <Tooltip key={item.href} delayDuration={0}>
+        <TooltipTrigger asChild>
+          <Link
             href={item.href}
             className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                isActive && "bg-muted text-primary",
-                isChild && "text-sm"
+              "flex h-12 w-12 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-primary",
+              isActive && "bg-muted text-primary"
             )}
-            >
-            {!isChild && <Icon className="h-4 w-4" />}
-            {item.title}
-        </Link>
-    )
-  }
-
-  const createNavGroup = (item: NavItemConfig) => {
-    const visibleChildren = item.children?.filter(child => {
-        if (child.adminOnly && userProfile?.role !== USER_ROLES.ENCARGADO_TERRITORIO) return false;
-        if (child.permission && !hasPermission(child.permission)) return false;
-        return true;
-    }) || [];
-
-    if (visibleChildren.length === 0) return null;
-    
-    if (isCollapsed) {
-      return createNavItem(item);
-    }
-    
-    const Icon = item.icon;
-    const isGroupActive = item.segment ? pathname.startsWith(`/${item.segment}`) : false;
-
-    return (
-        <Accordion type="single" collapsible key={item.title} defaultValue={isGroupActive ? item.title : ""}>
-            <AccordionItem value={item.title} className="border-b-0">
-                <AccordionTrigger className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary hover:no-underline",
-                    isGroupActive && !item.children?.some(c => pathname === c.href) && "text-primary"
-                )}>
-                    <div className="flex items-center gap-3">
-                      <Icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </div>
-                </AccordionTrigger>
-                <AccordionContent className="pl-8 pt-1 pb-0">
-                    <nav className="grid items-start gap-1">
-                        {visibleChildren.map(child => {
-                            const isChildActive = pathname === child.href;
-                            return (
-                                <Link
-                                    key={child.title}
-                                    href={child.href}
-                                    className={cn(
-                                        "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary text-sm",
-                                        isChildActive && "bg-muted text-primary"
-                                    )}
-                                >
-                                    {child.title}
-                                </Link>
-                            )
-                        })}
-                    </nav>
-                </AccordionContent>
-            </AccordionItem>
-        </Accordion>
-    )
+          >
+            <Icon className="h-6 w-6" />
+            <span className="sr-only">{item.title}</span>
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side="right">{item.title}</TooltipContent>
+      </Tooltip>
+    );
   }
 
   const visibleNavItems = navItems.filter(item => {
@@ -185,11 +116,9 @@ export function SidebarNav({ isCollapsed = false }: { isCollapsed?: boolean }) {
 
   return (
     <TooltipProvider>
-      <nav className={cn("grid items-start gap-y-1 px-2 text-sm font-medium lg:px-4", isCollapsed && "justify-center px-1")}>
-        {visibleNavItems.map(item => 
-            item.children ? createNavGroup(item) : createNavItem(item)
-        )}
-    </nav>
+      <nav className={cn("grid items-start gap-y-1 px-2 text-sm font-medium lg:px-4 justify-center")}>
+        {visibleNavItems.map(item => createNavItem(item))}
+      </nav>
     </TooltipProvider>
   );
 }

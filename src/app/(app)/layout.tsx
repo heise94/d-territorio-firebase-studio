@@ -4,7 +4,7 @@
 import { useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Menu, XCircle, SidebarClose, SidebarOpen } from 'lucide-react'; 
+import { Loader2, Menu, XCircle } from 'lucide-react'; 
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { UserNav } from '@/components/layout/user-nav';
 import { AppLogo } from '@/components/layout/app-logo';
@@ -26,7 +26,6 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
     stopImpersonation 
   } = usePermissions(); 
   const router = useRouter();
-  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -48,18 +47,16 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className={cn("grid min-h-screen w-full", isCollapsed ? "md:grid-cols-[80px_1fr]" : "md:grid-cols-[280px_1fr]")}>
+    <div className="grid min-h-screen w-full md:grid-cols-[80px_1fr]">
       <div className="hidden border-r bg-muted/40 md:flex md:flex-col">
-        <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-          <AppLogo isCollapsed={isCollapsed} />
+        <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6 justify-center">
+          {/* Logo is now in the main header */}
         </div>
         <div className="flex-1 overflow-y-auto">
-          <SidebarNav isCollapsed={isCollapsed} />
+          <SidebarNav />
         </div>
-        <div className="mt-auto border-t p-4">
-          <Button variant="outline" size={isCollapsed ? "icon" : "default"} onClick={() => setIsCollapsed(!isCollapsed)} className="w-full">
-            {isCollapsed ? <SidebarOpen className="h-5 w-5" /> : <><SidebarClose className="mr-2 h-5 w-5" /> Contraer Menú</>}
-          </Button>
+        <div className="mt-auto p-4">
+          {/* Sidebar toggle button removed */}
         </div>
       </div>
       <div className="flex flex-col">
@@ -84,7 +81,7 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
                 </div>
             </Alert>
         )}
-        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
+        <header className="relative flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
           <Sheet>
             <SheetTrigger asChild>
               <Button
@@ -107,6 +104,10 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
             </SheetContent>
           </Sheet>
 
+           <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+             <AppLogo />
+           </div>
+           
            <div className="w-full flex-1" />
            <Notifications />
            <ThemeToggle />
