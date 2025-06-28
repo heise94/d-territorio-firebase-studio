@@ -80,6 +80,7 @@ const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType | 'general' }
   return null;
 };
 
+const NO_CASA_SELECTED = "__NO_CASA__";
 
 export function AddManualAssignmentDialog({
   isOpen,
@@ -246,9 +247,10 @@ export function AddManualAssignmentDialog({
 
   const dialogDescription = isEditMode 
     ? `Editando asignación para ${assignmentToEdit?.userName}`
-    : date && slot
+    : date 
         ? `Añadiendo asignación para el ${format(date, 'PPP', {locale: es})}`
         : 'Añadiendo asignación manual.';
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -355,10 +357,13 @@ export function AddManualAssignmentDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Casa de Reunión (Opcional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select
+                    onValueChange={(value) => field.onChange(value === NO_CASA_SELECTED ? "" : value)}
+                    value={field.value || NO_CASA_SELECTED}
+                  >
                     <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar casa (opcional)" /></SelectTrigger></FormControl>
                     <SelectContent>
-                      <SelectItem value="">Ninguna</SelectItem>
+                      <SelectItem value={NO_CASA_SELECTED}>Ninguna</SelectItem>
                       {availableCasasForSlot.map(loc => {
                         const name = loc.ownerName || loc.address;
                         const isCaptainsHouse = selectedCaptain && loc.id === selectedCaptain.managedCasaId;
