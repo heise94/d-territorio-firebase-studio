@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { UserAssignment, PublisherDetail, Territory, Casa, PreachingAssignedType } from "@/types";
+import type { UserAssignment, PublisherDetail, Territory, Casa, PreachingAssignedType, ProgramScheduleSlot } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -55,6 +55,7 @@ interface AddManualAssignmentDialogProps {
   onAssignmentSubmit: (data: ManualAssignmentSubmitData) => void;
   date: Date | null;
   assignmentToEdit?: UserAssignment | null;
+  slot?: ProgramScheduleSlot | null;
   allPublishers: PublisherDetail[];
   allTerritories: Territory[];
   allCasas: Casa[];
@@ -66,6 +67,7 @@ export function AddManualAssignmentDialog({
   onAssignmentSubmit,
   date,
   assignmentToEdit,
+  slot,
   allPublishers,
   allTerritories,
   allCasas,
@@ -98,6 +100,15 @@ export function AddManualAssignmentDialog({
                 userId: (assignmentToEdit as any).userId,
                 notes: assignmentToEdit.notes,
             });
+        } else if (slot) {
+            form.reset({
+                time: slot.startTime,
+                type: slot.type === 'general' ? 'publica' : slot.type,
+                locationType: "territory",
+                locationId: "",
+                userId: "",
+                notes: "",
+            });
         } else {
             form.reset({
                 time: "10:00",
@@ -109,7 +120,7 @@ export function AddManualAssignmentDialog({
             });
         }
     }
-  }, [isOpen, assignmentToEdit, allTerritories, form]);
+  }, [isOpen, assignmentToEdit, slot, allTerritories, form]);
   
   useEffect(() => {
     form.setValue("locationId", "");
@@ -139,7 +150,7 @@ export function AddManualAssignmentDialog({
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Editar Asignación" : "Añadir Asignación Manual"}</DialogTitle>
           <DialogDescription>
-            {isEditMode ? `Editando asignación para ${assignmentToEdit?.userName}` : (date ? `Añadiendo asignación para el ${format(date, 'PPP', {locale: es})}.` : "Añadiendo asignación manual.")}
+             {isEditMode ? `Editando asignación para ${assignmentToEdit?.userName}` : (date ? `Añadiendo asignación para el ${format(date, 'PPP', {locale: es})}.` : "Añadiendo asignación manual.")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -192,7 +203,10 @@ export function AddManualAssignmentDialog({
                     control={form.control}
                     name="locationId"
                     render={({ field }) => (
-                        <FormItem><FormLabel>&nbsp;</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder={`Seleccionar ${locationType === 'territory' ? 'territorio' : 'casa'}`} /></SelectTrigger></FormControl><SelectContent>{availableLocations.map(loc => <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                        <FormItem><FormLabel>&nbsp;</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder={`Seleccionar ${locationType === 'territory' ? 'territorio' : 'casa'}`} /></SelectTrigger></FormControl><SelectContent>{availableLocations.map(loc => {
+                          const name = loc.type === 'urban' && (loc as Territory).number ? `U-${(loc as Territory).number}` : loc.name;
+                          return <SelectItem key={loc.id} value={loc.id}>{name}</SelectItem>
+                        })}</SelectContent></Select><FormMessage /></FormItem>
                     )}
                     />
                 </div>

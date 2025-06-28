@@ -11,12 +11,12 @@ import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, getDay, isSameDay, parse, parseISO, endOfMonth } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, PreachingType, PreachingGroup, UserAssignment } from "@/types";
+import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType, UserAssignment } from "@/types";
 import { AlertDialog, AlertDialogTrigger, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
 import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/components/programa/add-manual-assignment-dialog";
-
+import { Badge } from "@/components/ui/badge";
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 6 }, (_, i) => currentYear - 2 + i);
@@ -25,9 +25,13 @@ const months = Array.from({ length: 12 }, (_, i) => ({
   label: format(new Date(currentYear, i), "MMMM", { locale: es }),
 }));
 
-const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType }) => {
+const DAY_OF_WEEK_MAP: Record<number, DayOfWeek> = {
+  0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday',
+};
+
+const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType | PreachingType }) => {
   const iconClass = "mr-1.5 h-4 w-4 shrink-0 text-muted-foreground";
-  if (type === "publica") return <Users className={iconClass} />;
+  if (type === "publica" || type === "general") return <Users className={iconClass} />;
   if (type === "rural") return <MountainSnow className={iconClass} />;
   if (type === "zoom") return <Video className={iconClass} />;
   return null;
@@ -36,23 +40,33 @@ const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType }) => {
 export default function ProgramaMensualPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { userProfile, hasPermission } = usePermissions();
 
+  // Data States
   const [allPublishers, setAllPublishers] = useState<PublisherDetail[]>([]);
   const [allCasas, setAllCasas] = useState<Casa[]>([]);
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
   const [savedAssignments, setSavedAssignments] = useState<Assignment[]>([]);
+  const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
+  
+  // Loading States
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
+  const [isLoadingStaticData, setIsLoadingStaticData] = useState(true);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
+  // Dialog States
   const [isAddManualDialogOpen, setIsAddManualDialogOpen] = useState(false);
   const [dateForManualAdd, setDateForManualAdd] = useState<Date | null>(null);
+  const [slotForManualAdd, setSlotForManualAdd] = useState<ProgramScheduleSlot | null>(null);
   const [assignmentToEdit, setAssignmentToEdit] = useState<Assignment | null>(null);
   const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  
+  const isLoading = isLoadingAssignments || isLoadingStaticData || isLoadingSettings;
 
   useEffect(() => {
-    setIsLoading(true);
+    setIsLoadingStaticData(true);
     const publishersQuery = query(collection(db, "users"), where("isAssignable", "==", true));
     const unsubPublishers = onSnapshot(publishersQuery, (snap) => setAllPublishers(snap.docs.map(d => ({id: d.id, ...d.data()} as PublisherDetail))));
     
@@ -62,8 +76,22 @@ export default function ProgramaMensualPage() {
     const territoriesQuery = query(collection(db, "territories"));
     const unsubTerritories = onSnapshot(territoriesQuery, (snap) => setAllTerritories(snap.docs.map(d => ({id: d.id, ...d.data()} as Territory))));
     
-    const unsubscribers = [unsubPublishers, unsubCasas, unsubTerritories];
-    const timer = setTimeout(() => setIsLoading(false), 1500);
+    const settingsDocRef = doc(db, "settings", "programConfig");
+    const unsubSettings = onSnapshot(settingsDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const settingsData = docSnap.data() as SettingsDoc;
+        setProgramScheduleSlots(settingsData.programScheduleSlots || []);
+      } else {
+        setProgramScheduleSlots([]);
+      }
+      setIsLoadingSettings(false);
+    }, (error) => {
+      console.error("Error fetching program settings:", error);
+      setIsLoadingSettings(false);
+    });
+    
+    const unsubscribers = [unsubPublishers, unsubCasas, unsubTerritories, unsubSettings];
+    const timer = setTimeout(() => setIsLoadingStaticData(false), 1500); 
     
     return () => {
       unsubscribers.forEach(unsub => unsub());
@@ -72,33 +100,35 @@ export default function ProgramaMensualPage() {
   }, []);
 
   useEffect(() => {
-    setIsLoading(true);
+    setIsLoadingAssignments(true);
     const startDate = format(startOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
     const endDate = format(endOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
 
     const assignmentsQuery = query(collection(db, "assignments"), where("date", ">=", startDate), where("date", "<=", endDate));
     const unsubscribe = onSnapshot(assignmentsQuery, (snapshot) => {
       setSavedAssignments(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Assignment)));
-      setIsLoading(false);
+      setIsLoadingAssignments(false);
     }, (error) => {
         console.error("Error fetching assignments:", error);
         toast({title: "Error de Carga", description: "No se pudieron obtener las asignaciones para este mes.", variant: "destructive"});
-        setIsLoading(false);
+        setIsLoadingAssignments(false);
     });
     return () => unsubscribe();
   }, [selectedMonth, selectedYear, toast]);
 
   const canManageProgram = hasPermission(PERMISSIONS.MANAGE_MONTHLY_PROGRAM);
 
-  const handleOpenAddDialog = (date: Date) => {
+  const handleOpenAddDialog = (date: Date, slot?: ProgramScheduleSlot) => {
     setAssignmentToEdit(null);
     setDateForManualAdd(date);
+    setSlotForManualAdd(slot || null);
     setIsAddManualDialogOpen(true);
   };
   
   const handleOpenEditDialog = (assignment: Assignment) => {
     setAssignmentToEdit(assignment);
     setDateForManualAdd(null);
+    setSlotForManualAdd(null);
     setIsAddManualDialogOpen(true);
   };
 
@@ -142,13 +172,17 @@ export default function ProgramaMensualPage() {
         toast({ title: "Error", description: "Debe seleccionar un lugar (territorio o casa).", variant: "destructive"});
         return;
     }
+    
+    const locationName = data.type === 'zoom' 
+        ? 'Predicación por Zoom' 
+        : (location!.type === 'urban' && (location as Territory).number ? `U-${(location as Territory).number}` : location!.name);
 
     const newAssignment: Assignment = {
       id: docRef.id,
       date: format(data.date, "yyyy-MM-dd"),
       time: data.time,
       type: data.type,
-      locationName: data.type === 'zoom' ? 'Predicación por Zoom' : (location!.name || `U-${(location as Territory).number}`),
+      locationName: locationName,
       locationId: data.type === 'zoom' ? 'zoom' : location!.id,
       status: data.status || 'pending',
       assignedBy: userProfile?.name || 'Manual',
@@ -185,6 +219,20 @@ export default function ProgramaMensualPage() {
   const startingDayOfWeek = getDay(firstDayOfMonth);
   const dayOffset = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => new Date(selectedYear, selectedMonth, i + 1));
+
+  const AssignmentItem = ({ assignment, onEdit, onDelete }: { assignment: Assignment, onEdit: () => void, onDelete: () => void }) => (
+    <div>
+        <div className="flex items-center font-semibold text-primary"><PreachingTypeIcon type={assignment.type} /><span>{assignment.time}</span></div>
+        <p className="truncate text-foreground/90" title={assignment.userName}>{assignment.userName}</p>
+        <p className="truncate text-muted-foreground text-[0.7rem]" title={assignment.locationName}>{assignment.locationName}</p>
+        {canManageProgram && (
+            <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEdit}><Edit className="h-3 w-3 text-blue-600" /></Button>
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onDelete}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+            </div>
+        )}
+    </div>
+  );
 
   return (
     <div className="space-y-8">
@@ -233,6 +281,9 @@ export default function ProgramaMensualPage() {
                   const dayString = format(day, "yyyy-MM-dd");
                   const assignmentsForDay = (assignmentsToDisplay[dayString] || []).sort((a: any, b: any) => a.time.localeCompare(b.time));
                   const isToday = isSameDay(day, new Date());
+                  
+                  const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(day)];
+                  const slotsForDay = programScheduleSlots.filter(slot => slot.dayOfWeek === dayOfWeekKey).sort((a,b) => a.startTime.localeCompare(b.startTime));
 
                   return (
                     <Card key={dayString} className={`min-h-[120px] flex flex-col rounded-md shadow-sm ${isToday ? 'border-2 border-primary' : 'border bg-card'}`}>
@@ -240,24 +291,42 @@ export default function ProgramaMensualPage() {
                         <CardTitle className={`text-xs font-medium ${isToday ? 'text-primary font-bold' : 'text-muted-foreground'}`}>{format(day, "d")}</CardTitle>
                       </CardHeader>
                       <CardContent className="p-1.5 space-y-1.5 overflow-y-auto flex-grow">
-                        {assignmentsForDay.map((assign: any) => (
-                          <div key={assign.id} className="p-1.5 rounded-md bg-muted/50 text-xs shadow-sm group relative">
-                            <div className="flex items-center font-semibold text-primary"><PreachingTypeIcon type={assign.type} /><span>{assign.time}</span></div>
-                            <p className="truncate text-foreground/90" title={assign.userName}>{assign.userName}</p>
-                            <p className="truncate text-muted-foreground text-[0.7rem]" title={assign.locationName}>{assign.locationName}</p>
-                            {canManageProgram && (
-                                <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
-                                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleOpenEditDialog(assign)}><Edit className="h-3 w-3 text-blue-600" /></Button>
-                                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleDeleteAssignment(assign)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                        {slotsForDay.map(slot => {
+                            const assignmentForSlot = assignmentsForDay.find(a => a.time === slot.startTime);
+                            return (
+                                <div key={slot.id} className="p-1.5 rounded-md bg-muted/30 text-xs shadow-sm group relative min-h-[50px] flex flex-col justify-center">
+                                    {assignmentForSlot ? (
+                                        <AssignmentItem assignment={assignmentForSlot} onEdit={() => handleOpenEditDialog(assignmentForSlot)} onDelete={() => handleDeleteAssignment(assignmentForSlot)} />
+                                    ) : (
+                                        <div className="flex items-center justify-between w-full">
+                                            <div className="flex items-center text-muted-foreground">
+                                                <PreachingTypeIcon type={slot.type} />
+                                                <span>{slot.startTime}</span>
+                                                <span className="ml-2 capitalize">{slot.type}</span>
+                                                {slot.status === 'tentative' && <Badge variant="outline" className="ml-2 text-amber-600 border-amber-500 px-1 py-0 text-[0.6rem]">Tentativo</Badge>}
+                                            </div>
+                                            {canManageProgram && (
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenAddDialog(day, slot)}>
+                                                    <PlusCircle className="h-4 w-4 text-primary" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                          </div>
+                            );
+                        })}
+
+                        {assignmentsForDay.filter(a => !slotsForDay.some(s => s.startTime === a.time)).map(unmatchedAssignment => (
+                            <div key={unmatchedAssignment.id} className="p-1.5 rounded-md bg-rose-500/10 border border-dashed border-rose-500/30 text-xs shadow-sm group relative min-h-[50px] flex flex-col justify-center">
+                                <AssignmentItem assignment={unmatchedAssignment} onEdit={() => handleOpenEditDialog(unmatchedAssignment)} onDelete={() => handleDeleteAssignment(unmatchedAssignment)} />
+                            </div>
                         ))}
+
                       </CardContent>
-                      {canManageProgram && (
+                      {slotsForDay.length === 0 && canManageProgram && (
                           <CardFooter className="p-1 mt-auto border-t border-dashed">
                             <Button variant="ghost" size="sm" className="w-full h-7 text-xs" onClick={() => handleOpenAddDialog(day)}>
-                                <PlusCircle className="mr-1.5 h-3.5 w-3.5"/> Añadir
+                                <PlusCircle className="mr-1.5 h-3.5 w-3.5"/> Añadir Manual
                             </Button>
                           </CardFooter>
                       )}
@@ -292,6 +361,7 @@ export default function ProgramaMensualPage() {
             onAssignmentSubmit={handleManualAssignmentSubmit}
             date={dateForManualAdd}
             assignmentToEdit={assignmentToEdit}
+            slot={slotForManualAdd}
             allPublishers={allPublishers}
             allTerritories={allTerritories}
             allCasas={allCasas}
