@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
-import { format, getDaysInMonth, startOfMonth, getDay, isSameDay, parse, parseISO, endOfMonth } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parse, parseISO } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType, UserAssignment } from "@/types";
@@ -53,9 +53,7 @@ export default function ProgramaMensualPage() {
   const [winterStartDate, setWinterStartDate] = useState("");
   
   // Loading States
-  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
-  const [isLoadingStaticData, setIsLoadingStaticData] = useState(true);
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Dialog States
   const [isAddManualDialogOpen, setIsAddManualDialogOpen] = useState(false);
@@ -65,17 +63,15 @@ export default function ProgramaMensualPage() {
   const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   
-  const isLoading = isLoadingAssignments || isLoadingStaticData || isLoadingSettings;
-
   useEffect(() => {
-    setIsLoadingStaticData(true);
-    const publishersQuery = query(collection(db, "users"), where("isAssignable", "==", true));
+    setIsLoading(true);
+    const publishersQuery = query(collection(db, "users"), where("status", "==", "Activo"));
     const unsubPublishers = onSnapshot(publishersQuery, (snap) => setAllPublishers(snap.docs.map(d => ({id: d.id, ...d.data()} as PublisherDetail))));
     
     const casasQuery = query(collection(db, "casas"));
     const unsubCasas = onSnapshot(casasQuery, (snap) => setAllCasas(snap.docs.map(d => ({id: d.id, ...d.data()} as Casa))));
 
-    const territoriesQuery = query(collection(db, "territories"));
+    const territoriesQuery = query(collection(db, "territories"), orderBy("name"));
     const unsubTerritories = onSnapshot(territoriesQuery, (snap) => setAllTerritories(snap.docs.map(d => ({id: d.id, ...d.data()} as Territory))));
     
     const settingsDocRef = doc(db, "settings", "programConfig");
@@ -90,14 +86,10 @@ export default function ProgramaMensualPage() {
         setSummerStartDate("");
         setWinterStartDate("");
       }
-      setIsLoadingSettings(false);
-    }, (error) => {
-      console.error("Error fetching program settings:", error);
-      setIsLoadingSettings(false);
     });
     
     const unsubscribers = [unsubPublishers, unsubCasas, unsubTerritories, unsubSettings];
-    const timer = setTimeout(() => setIsLoadingStaticData(false), 1500); 
+    const timer = setTimeout(() => setIsLoading(false), 1500); 
     
     return () => {
       unsubscribers.forEach(unsub => unsub());
@@ -106,18 +98,15 @@ export default function ProgramaMensualPage() {
   }, []);
 
   useEffect(() => {
-    setIsLoadingAssignments(true);
     const startDate = format(startOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
     const endDate = format(endOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
 
     const assignmentsQuery = query(collection(db, "assignments"), where("date", ">=", startDate), where("date", "<=", endDate));
     const unsubscribe = onSnapshot(assignmentsQuery, (snapshot) => {
       setSavedAssignments(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Assignment)));
-      setIsLoadingAssignments(false);
     }, (error) => {
         console.error("Error fetching assignments:", error);
         toast({title: "Error de Carga", description: "No se pudieron obtener las asignaciones para este mes.", variant: "destructive"});
-        setIsLoadingAssignments(false);
     });
     return () => unsubscribe();
   }, [selectedMonth, selectedYear, toast]);
@@ -330,7 +319,7 @@ export default function ProgramaMensualPage() {
                       </CardHeader>
                       <CardContent className="p-1.5 space-y-1.5 overflow-y-auto flex-grow">
                         {slotsForDay.map(slot => {
-                            const assignmentForSlot = assignmentsForDay.find(a => a.time === slot.startTime);
+                            const assignmentForSlot = assignmentsForDay.find(a => a.time === slot.startTime && a.type === (slot.type === 'general' ? 'publica' : slot.type));
                             return (
                                 <div key={slot.id} className="p-1.5 rounded-md bg-muted/30 text-xs shadow-sm group relative min-h-[50px] flex flex-col justify-center">
                                     {assignmentForSlot ? (
@@ -400,13 +389,12 @@ export default function ProgramaMensualPage() {
             date={dateForManualAdd}
             assignmentToEdit={assignmentToEdit}
             slot={slotForManualAdd}
-            allPublishers={allPublishers}
+            allPublishers={allPublishers.filter(p => !p.blockInfo?.forSystem)}
             allTerritories={allTerritories}
             allCasas={allCasas}
+            allAssignmentsForMonth={savedAssignments}
         />
       )}
     </div>
   );
 }
-
-    
