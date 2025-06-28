@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -154,12 +155,19 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
     setIsSubmitting(true);
     try {
       const activeHolidayOverrides = (values.holidayOverrides || [])
-        .filter(override => override.enabled && override.hour && override.minute && override.type)
-        .map(override => ({
+        .filter(override => {
+          return !!(override.enabled && override.hour && override.minute && override.type);
+        })
+        .map(override => {
+          // This is the corrected, safer way to create the object.
+          const time = `${override.hour}:${override.minute}`;
+          const type = override.type as PreachingType;
+          return {
             date: override.date,
-            time: `${override.hour!}:${override.minute!}`,
-            type: override.type!,
-        }));
+            time: time,
+            type: type,
+          };
+        });
 
       await onSubmitGeneration({
         additionalInstructions: values.additionalInstructions || "",
