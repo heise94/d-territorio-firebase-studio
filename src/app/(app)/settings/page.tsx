@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Briefcase, CalendarCog, Users as UsersIconLucide, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck, KeyRound, Settings as SettingsIcon, Sun, Moon, CalendarIcon } from "lucide-react";
+import { Briefcase, CalendarCog, Users as UsersIconLucide, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck, KeyRound, Settings as SettingsIcon, Sun, Snowflake, CalendarIcon } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, SettingsDoc, ScheduleSeason, Territory } from "@/types";
@@ -1047,7 +1047,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                                     <div className="flex items-center justify-center gap-0.5">
                                         {slot.season && <Badge variant="outline" className={cn('capitalize text-[0.7rem] px-1 py-0', slot.season === 'summer' ? 'border-amber-400 text-amber-600' : slot.season === 'winter' ? 'border-sky-400 text-sky-600' : '')}>
                                             {slot.season === 'summer' && <Sun size={10} className="mr-1"/>}
-                                            {slot.season === 'winter' && <Moon size={10} className="mr-1"/>}
+                                            {slot.season === 'winter' && <Snowflake size={10} className="mr-1"/>}
                                             {slot.season === 'all_year' ? 'Todo Año' : slot.season === 'summer' ? 'Verano' : 'Invierno'}
                                         </Badge>}
                                         <Badge variant={slot.status === 'tentative' ? 'outline' : 'default'} className={cn('capitalize text-[0.7rem] px-1.5 py-0.5', slot.status === 'tentative' ? 'border-amber-500 text-amber-600' : '')}>
