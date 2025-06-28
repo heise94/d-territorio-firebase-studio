@@ -11,7 +11,7 @@ import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, deleteDoc, getDocs, writeBatch, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, GenerateMonthlyAssignmentsOutput } from "@/types";
+import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, GenerateMonthlyAssignmentsOutput, PreachingType } from "@/types";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { generateMonthlyAssignments } from "@/ai/flows/generate-monthly-assignments";
 import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
@@ -52,6 +52,7 @@ export default function ProgramaMensualPage() {
   const [allHolidays, setAllHolidays] = useState<CustomHoliday[]>([]);
   const [programSlots, setProgramSlots] = useState<ProgramScheduleSlot[]>([]);
   const [groupOrganizedDays, setGroupOrganizedDays] = useState<any>({});
+  const [allGroups, setAllGroups] = useState<PreachingGroup[]>([]);
 
   // Dialog and draft states
   const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false);
@@ -82,6 +83,9 @@ export default function ProgramaMensualPage() {
     const territoriesQuery = query(collection(db, "territories"));
     const unsubTerritories = onSnapshot(territoriesQuery, (snap) => setAllTerritories(snap.docs.map(d => ({id: d.id, ...d.data()} as Territory))));
     
+    const groupsQuery = query(collection(db, "preachingGroups"));
+    const unsubGroups = onSnapshot(groupsQuery, (snap) => setAllGroups(snap.docs.map(d => ({id: d.id, ...d.data()} as PreachingGroup))));
+
     const settingsDocRef = doc(db, "settings", "programConfig");
     const unsubSettings = onSnapshot(settingsDocRef, (snap) => {
       if (snap.exists()) {
@@ -106,7 +110,7 @@ export default function ProgramaMensualPage() {
 
     return () => {
       unsubAssignments(); unsubPublishers(); unsubCasas(); unsubTerritories();
-      unsubSettings(); unsubEvents(); clearTimeout(timer);
+      unsubSettings(); unsubEvents(); clearTimeout(timer); unsubGroups();
     };
   }, [selectedMonth, selectedYear]);
 
@@ -129,12 +133,49 @@ export default function ProgramaMensualPage() {
         availableDaysWithTimeSlots[slot.dayOfWeek].push({ startTime: slot.startTime, type: slot.type });
     });
 
-    const serializableTerritories = allTerritories.map(t => ({
-        ...t,
-        createdAt: format(t.createdAt.toDate(), 'yyyy-MM-dd'),
-        updatedAt: format(t.updatedAt.toDate(), 'yyyy-MM-dd'),
+    const serializableTerritories = allTerritories.map(t => {
+      const { createdAt, updatedAt, ...rest } = t;
+      return {
+        ...rest,
+        createdAt: createdAt ? format(createdAt.toDate(), 'yyyy-MM-dd') : undefined,
+        updatedAt: updatedAt ? format(updatedAt.toDate(), 'yyyy-MM-dd') : undefined,
+      };
+    });
+    
+    const serializableCasas = allCasas.map(c => {
+        const {unavailabilityPeriods, ...rest} = c;
+        const serializedUnavailability = (unavailabilityPeriods || []).map(p => ({
+            ...p,
+            startDate: p.startDate ? format((p.startDate as Timestamp).toDate(), 'yyyy-MM-dd') : undefined,
+            endDate: p.endDate ? format((p.endDate as Timestamp).toDate(), 'yyyy-MM-dd') : undefined,
+        }));
+        return {...rest, unavailabilityPeriods: serializedUnavailability};
+    });
+    
+    const serializablePublishers = allPublishers.map(p => {
+        const {availability, ...rest} = p;
+        const serializedUnavailability = (availability?.unavailabilityPeriods || []).map(up => ({
+            ...up,
+            startDate: up.startDate ? format((up.startDate as Timestamp).toDate(), 'yyyy-MM-dd') : undefined,
+            endDate: up.endDate ? format((up.endDate as Timestamp).toDate(), 'yyyy-MM-dd') : undefined,
+        }));
+        return { ...rest, availability: { ...availability, unavailabilityPeriods: serializedUnavailability }};
+    });
+    
+    const serializableCampaigns = allCampaigns.map(c => ({
+      ...c,
+      startDate: format(c.startDate as Date, 'yyyy-MM-dd'),
+      endDate: format(c.endDate as Date, 'yyyy-MM-dd'),
     }));
     
+    const serializableAssemblies = allAssemblies.map(a => ({
+        ...a,
+        startDate: format(a.startDate as Date, 'yyyy-MM-dd'),
+        endDate: format(a.endDate as Date, 'yyyy-MM-dd'),
+    }));
+
+    const serializableHolidays = allHolidays.map(h => format(h.date as Date, 'yyyy-MM-dd'));
+
     const inputForAI = {
       year: selectedYear,
       month: selectedMonth,
@@ -142,21 +183,21 @@ export default function ProgramaMensualPage() {
       assignCaptains: options.assignCaptains,
       assignCasas: options.assignLocations,
       assignTerritories: options.assignLocations,
-      availableCasas: allCasas.map(c => ({...c, unavailabilityPeriods: (c.unavailabilityPeriods || []).map(p => ({...p, startDate: format((p.startDate as Timestamp).toDate(), 'yyyy-MM-dd'), endDate: format((p.endDate as Timestamp).toDate(), 'yyyy-MM-dd')})) })),
+      availableCasas: serializableCasas,
       availableTerritories: serializableTerritories,
       groupPreachingDays,
-      configuredCampaigns: allCampaigns.map(c => ({...c, startDate: format(c.startDate as Date, 'yyyy-MM-dd'), endDate: format(c.endDate as Date, 'yyyy-MM-dd')})),
+      configuredCampaigns: serializableCampaigns,
       specialCampaignTerritoriesPerDay: 2, 
-      holidayDatesInMonth: allHolidays.map(h => format(h.date as Date, 'yyyy-MM-dd')),
+      holidayDatesInMonth: serializableHolidays,
       holidaySchedulingOverrides: options.holidayOverrides,
       designatedRuralWeekendDays: options.designatedRuralWeekendDays,
-      publisherDetailedAvailabilities: allPublishers.map(p => ({...p, unavailabilityPeriods: (p.availability?.unavailabilityPeriods || []).map(up => ({...up, startDate: format((up.startDate as Timestamp).toDate(), 'yyyy-MM-dd'), endDate: format((up.endDate as Timestamp).toDate(), 'yyyy-MM-dd')}))})),
+      publisherDetailedAvailabilities: serializablePublishers,
       additionalInstructions: options.additionalInstructions,
       preachingGroups: allGroups,
     };
 
     try {
-        const result = await generateMonthlyAssignments(inputForAI as any); // Cast as any to bypass TS type complexity on client
+        const result = await generateMonthlyAssignments(inputForAI as any);
         if (result && result.schedule) {
             const newDraft: Record<string, DraftAssignmentItem[]> = {};
             result.schedule.forEach(daySchedule => {
@@ -187,23 +228,33 @@ export default function ProgramaMensualPage() {
     }
 
     assignmentsInDraft.forEach(assign => {
-        const docRef = doc(db, "assignments", assign.id);
-        const assignData: Partial<Assignment> = {
-            id: assign.id,
-            date: assign.date,
-            time: assign.time,
-            preachingType: assign.preachingType as PreachingAssignedType,
-            status: 'pending',
-            captainId: assign.captainId,
-            userName: assign.captainName,
-            userEmail: allPublishers.find(p => p.id === assign.captainId)?.email,
-            locationName: assign.territoryName || assign.casaName || 'Zoom',
-            locationId: allTerritories.find(t => t.name === assign.territoryName)?.id || allCasas.find(c => c.ownerName === assign.casaName)?.id,
-            assignedBy: 'Sistema IA',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        };
-        batch.set(docRef, assignData, { merge: true });
+      if (!assign.id) {
+        console.error("Assignment in draft is missing an ID:", assign);
+        return;
+      }
+      const docRef = doc(db, "assignments", assign.id);
+      
+      const territory = allTerritories.find(t => t.name === assign.territoryName);
+      const casa = allCasas.find(c => c.ownerName === assign.casaName);
+      const publisher = allPublishers.find(p => p.id === assign.captainId);
+      
+      const assignData: Partial<Assignment> = {
+          id: assign.id,
+          date: assign.date,
+          time: assign.time,
+          type: assign.preachingType as PreachingAssignedType,
+          status: 'pending',
+          userId: assign.captainId,
+          userName: assign.captainName,
+          userEmail: publisher?.email,
+          userPhoneNumber: publisher?.phoneNumber,
+          locationName: assign.territoryName || assign.casaName || 'Zoom',
+          locationId: territory?.id || casa?.id,
+          assignedBy: 'Sistema IA',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+      };
+      batch.set(docRef, assignData, { merge: true });
     });
 
     try {
@@ -268,6 +319,11 @@ export default function ProgramaMensualPage() {
     }
   };
   
+  const handleEditAssignment = (id: string) => {
+    // This is just a stub for now. The logic is within the dialog.
+    toast({title: "Función no disponible en vista guardada", description: "Edita asignaciones desde la página de Gestión."});
+  }
+
   const hasDraft = Object.keys(draftAssignments).length > 0;
 
   const firstDayOfMonth = startOfMonth(new Date(selectedYear, selectedMonth));
@@ -351,16 +407,16 @@ export default function ProgramaMensualPage() {
                                   assignmentsForDay.map(assign => (
                                       <div key={assign.id} className="p-1.5 rounded-md bg-muted/50 text-xs shadow-sm group relative">
                                         <div className="flex items-center font-semibold text-primary">
-                                            <PreachingTypeIcon type={assign.preachingType as PreachingAssignedType} />
+                                            <PreachingTypeIcon type={assign.type as PreachingAssignedType} />
                                             <span>{assign.time}</span>
                                         </div>
-                                        <p className="truncate text-foreground/90" title={assign.userName || assign.captainName || 'Usuario no disponible'}>{assign.userName || assign.captainName}</p>
-                                        <p className="truncate text-muted-foreground text-[0.7rem]" title={assign.locationName || assign.territoryName || assign.casaName}>{assign.locationName || assign.territoryName || assign.casaName}</p>
+                                        <p className="truncate text-foreground/90" title={assign.userName || (assign as any).captainName || 'Usuario no disponible'}>{assign.userName || (assign as any).captainName}</p>
+                                        <p className="truncate text-muted-foreground text-[0.7rem]" title={assign.locationName || (assign as any).territoryName || (assign as any).casaName}>{assign.locationName || (assign as any).territoryName || (assign as any).casaName}</p>
                                         <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
-                                            {hasDraft && <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { setAssignmentToEdit(assign); setIsEditDialogOpen(true);}}><Edit className="h-3 w-3 text-blue-600" /></Button>}
+                                            {hasDraft && <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { setAssignmentToEdit(assign as DraftAssignmentItem); setIsEditDialogOpen(true);}}><Edit className="h-3 w-3 text-blue-600" /></Button>}
                                             <AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5"><Trash2 className="h-3 w-3 text-destructive" /></Button></AlertDialogTrigger>
                                                 <AlertDialogContent>
-                                                    <AlertDialogHeader><AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle><AlertDialogDescription>Se eliminará la asignación de {assign.userName || assign.captainName}.</AlertDialogDescription></AlertDialogHeader>
+                                                    <AlertDialogHeader><AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle><AlertDialogDescription>Se eliminará la asignación de {assign.userName || (assign as any).captainName}.</AlertDialogDescription></AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                                         <AlertDialogAction onClick={() => hasDraft ? handleDeleteDraftAssignment(assign.date, assign.id!) : setAssignmentIdToDelete(assign.id!)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
@@ -436,391 +492,5 @@ export default function ProgramaMensualPage() {
         </AlertDialog>
       )}
     </div>
-  );
-}
-```
-,
-  <change>
-    <file>/src/components/programa/generate-ai-dialog.tsx</file>
-    <content><![CDATA[
-"use client";
-
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
-import * as z from "zod";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  FormDescription as FormFieldDescription,
-} from "@/components/ui/form";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { Loader2, Bot, CalendarDays, AlertTriangle } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
-import { format, getDaysInMonth, getDay, startOfMonth, addDays, isSameMonth, parseISO } from "date-fns";
-import { es } from "date-fns/locale";
-import type { CustomHoliday, PreachingType, ProgramScheduleSlot } from "@/types";
-import { Timestamp } from "firebase/firestore";
-
-const holidayOverrideSchema = z.object({
-  date: z.string(),
-  name: z.string(),
-  enabled: z.boolean().default(false),
-  hour: z.string().optional(),
-  minute: z.string().optional(),
-  type: z.enum(['general', 'rural', 'zoom']).optional(),
-}).refine(data => {
-    if (!data.enabled) return true;
-    return !!data.hour && !!data.minute && !!data.type;
-}, {
-    message: "Si se habilita, la hora, minuto y tipo son obligatorios.",
-    path: ["hour"],
-});
-
-
-const generateAIDialogSchema = z.object({
-  assignLocations: z.boolean().default(true),
-  assignCaptains: z.boolean().default(true),
-  additionalInstructions: z.string().max(1000, "Máximo 1000 caracteres.").optional().or(z.literal('')),
-  holidayOverrides: z.array(holidayOverrideSchema).optional(),
-  designatedRuralWeekendDays: z.array(z.string()).optional().default([]),
-});
-
-type GenerateAIDialogValues = z.infer<typeof generateAIDialogSchema>;
-
-interface GenerateAIDialogProps {
-  isOpen: boolean;
-  onOpenChange: (isOpen: boolean) => void;
-  onSubmitGeneration: (data: { 
-    additionalInstructions: string; 
-    holidayOverrides?: Array<{date: string, time: string, type: PreachingType}>; 
-    designatedRuralWeekendDays: string[];
-    assignLocations: boolean;
-    assignCaptains: boolean;
-  }) => Promise<void>;
-  year: number;
-  month: number; // 0-indexed
-  holidays: CustomHoliday[];
-  programScheduleSlots: ProgramScheduleSlot[];
-}
-
-export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, year, month, holidays, programScheduleSlots }: GenerateAIDialogProps) {
-  const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const form = useForm<GenerateAIDialogValues>({
-    resolver: zodResolver(generateAIDialogSchema),
-    defaultValues: {
-      assignLocations: true,
-      assignCaptains: true,
-      additionalInstructions: "",
-      holidayOverrides: [],
-      designatedRuralWeekendDays: [],
-    },
-  });
-
-  const { fields, replace } = useFieldArray({
-    control: form.control,
-    name: "holidayOverrides",
-  });
-
-  const holidaysForMonth = useMemo(() => {
-    return holidays
-      .filter(h => {
-        const holidayDate = h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date);
-        return isSameMonth(holidayDate, new Date(year, month));
-      })
-      .sort((a,b) => (a.date as Date).getTime() - (b.date as Date).getTime());
-  }, [holidays, year, month]);
-
-  const weekendDaysForSelection = useMemo(() => {
-    const days: { date: Date; dayName: string; type: 'saturday' | 'sunday' }[] = [];
-    const firstDayOfMonth = startOfMonth(new Date(year, month));
-    const numDaysInMonth = getDaysInMonth(firstDayOfMonth);
-
-    const hasSaturdayRuralSlot = programScheduleSlots.some(slot => slot.dayOfWeek === 'saturday' && slot.type === 'rural');
-    const hasSundayRuralSlot = programScheduleSlots.some(slot => slot.dayOfWeek === 'sunday' && slot.type === 'rural');
-
-    for (let i = 0; i < numDaysInMonth; i++) {
-      const currentDate = addDays(firstDayOfMonth, i);
-      const dayOfWeek = getDay(currentDate);
-
-      if (dayOfWeek === 6 && hasSaturdayRuralSlot) {
-        days.push({ date: currentDate, dayName: format(currentDate, "EEEE, d 'de' MMMM", { locale: es }), type: 'saturday' });
-      } else if (dayOfWeek === 0 && hasSundayRuralSlot) {
-        days.push({ date: currentDate, dayName: format(currentDate, "EEEE, d 'de' MMMM", { locale: es }), type: 'sunday' });
-      }
-    }
-    return days;
-  }, [year, month, programScheduleSlots]);
-
-  useEffect(() => {
-    if (isOpen) {
-        const overrides = holidaysForMonth.map(h => ({
-            date: format(h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date), "yyyy-MM-dd"),
-            name: h.name,
-            enabled: false,
-            hour: '10',
-            minute: '00',
-            type: 'general' as PreachingType,
-        }));
-        replace(overrides);
-        form.reset({
-            assignLocations: true,
-            assignCaptains: true,
-            additionalInstructions: "",
-            holidayOverrides: overrides,
-            designatedRuralWeekendDays: [],
-        });
-    } else {
-        form.reset({ assignLocations: true, assignCaptains: true, additionalInstructions: "", holidayOverrides: [], designatedRuralWeekendDays: [] });
-    }
-  }, [isOpen, holidaysForMonth, form, replace]);
-
-
-  async function handleSubmit(values: GenerateAIDialogValues) {
-    setIsSubmitting(true);
-    try {
-      const activeHolidayOverrides = (values.holidayOverrides || [])
-        .filter(override => override.enabled && override.hour && override.minute && override.type)
-        .map(override => ({
-            date: override.date,
-            time: `${override.hour!}:${override.minute!}`,
-            type: override.type!,
-        }));
-
-      await onSubmitGeneration({
-        additionalInstructions: values.additionalInstructions || "",
-        holidayOverrides: activeHolidayOverrides,
-        designatedRuralWeekendDays: values.designatedRuralWeekendDays || [],
-        assignLocations: values.assignLocations,
-        assignCaptains: values.assignCaptains,
-      });
-    } catch (error) {
-      console.error("Error in dialog submission:", error);
-      toast({
-        title: "Error Inesperado",
-        description: "Ocurrió un error al procesar la solicitud.",
-        variant: "destructive",
-      });
-       setIsSubmitting(false);
-    }
-  }
-
-  const handleDialogClose = (open: boolean) => {
-    if (!open && !isSubmitting) {
-      form.reset({ assignLocations: true, assignCaptains: true, additionalInstructions: "", holidayOverrides: [], designatedRuralWeekendDays: [] });
-    }
-    onOpenChange(open);
-  };
-  
-  const monthName = format(new Date(year, month), "MMMM", { locale: es });
-
-  return (
-    <Dialog open={isOpen} onOpenChange={handleDialogClose}>
-      <DialogContent className="sm:max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center">
-            <Bot className="mr-2 h-6 w-6 text-primary" />
-            Generar Programa Automático para {monthName} {year}
-          </DialogTitle>
-          <DialogDescription>
-             Define instrucciones y habilita la predicación en días festivos y fines de semana rurales especiales.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 py-2 pr-1">
-             <div className="space-y-3">
-              <FormLabel className="text-base font-semibold flex items-center">
-                 <Bot className="mr-2 h-5 w-5 text-primary" />
-                Opciones de Generación
-              </FormLabel>
-              <div className="space-y-2 rounded-md border p-3 shadow-sm bg-muted/30">
-                <FormField
-                    control={form.control}
-                    name="assignLocations"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 p-2 rounded-md">
-                            <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                            <div className="space-y-0.5 leading-none">
-                                <FormLabel className="cursor-pointer">Asignar Territorios y Casas</FormLabel>
-                                <FormFieldDescription className="text-xs">Si se desmarca, la IA solo creará los horarios sin asignar un lugar específico.</FormFieldDescription>
-                            </div>
-                        </FormItem>
-                    )}
-                />
-                <FormField
-                    control={form.control}
-                    name="assignCaptains"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 p-2 rounded-md">
-                            <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                            <div className="space-y-0.5 leading-none">
-                                <FormLabel className="cursor-pointer">Asignar Capitanes</FormLabel>
-                                <FormFieldDescription className="text-xs">Si se desmarca, la IA creará los horarios sin asignar un publicador encargado.</FormFieldDescription>
-                            </div>
-                        </FormItem>
-                    )}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <FormLabel className="text-base font-semibold flex items-center">
-                <CalendarDays className="mr-2 h-5 w-5 text-primary" />
-                Configuración Especial de Días
-              </FormLabel>
-              <div className="max-h-52 overflow-y-auto space-y-2 rounded-md border p-3 shadow-sm bg-muted/30">
-                {holidaysForMonth.length > 0 && (
-                  <>
-                    <p className="text-xs font-medium text-muted-foreground px-1 pb-1">Días Festivos:</p>
-                    {fields.map((field, index) => {
-                      const isEnabled = form.watch(`holidayOverrides.${index}.enabled`);
-                      return (
-                        <div key={field.id} className="p-3 border bg-card rounded-md space-y-2">
-                          <FormField
-                            control={form.control}
-                            name={`holidayOverrides.${index}.enabled`}
-                            render={({ field: checkboxField }) => (
-                              <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                <FormControl><Checkbox checked={checkboxField.value} onCheckedChange={checkboxField.onChange} /></FormControl>
-                                <div className="space-y-0.5 leading-none">
-                                  <FormLabel className="cursor-pointer">{form.getValues(`holidayOverrides.${index}.name`)} ({format(parseISO(form.getValues(`holidayOverrides.${index}.date`)), "EEEE d", {locale: es})})</FormLabel>
-                                  <FormFieldDescription className="text-xs">Marcar para programar predicación en este día.</FormFieldDescription>
-                                </div>
-                              </FormItem>
-                            )}
-                          />
-                          {isEnabled && (
-                            <div className="grid grid-cols-3 gap-3 pl-8 pt-2">
-                               <FormField
-                                control={form.control}
-                                name={`holidayOverrides.${index}.hour`}
-                                render={({ field: hourField }) => (<FormItem><FormLabel className="text-xs">Hora</FormLabel>
-                                  <Select onValueChange={hourField.onChange} value={hourField.value}>
-                                    <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="HH" /></SelectTrigger></FormControl>
-                                    <SelectContent>
-                                      {Array.from({ length: 16 }, (_, i) => (i + 7).toString().padStart(2, '0')).map(hour => (<SelectItem key={hour} value={hour}>{hour}</SelectItem>))}
-                                    </SelectContent>
-                                  </Select>
-                                <FormMessage /></FormItem>)}
-                              />
-                               <FormField
-                                control={form.control}
-                                name={`holidayOverrides.${index}.minute`}
-                                render={({ field: minuteField }) => (<FormItem><FormLabel className="text-xs">Minuto</FormLabel>
-                                  <Select onValueChange={minuteField.onChange} value={minuteField.value}>
-                                    <FormControl><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="MM" /></SelectTrigger></FormControl>
-                                    <SelectContent>
-                                      {['00', '15', '30', '45'].map(minute => (<SelectItem key={minute} value={minute}>{minute}</SelectItem>))}
-                                    </SelectContent>
-                                  </Select>
-                                <FormMessage /></FormItem>)}
-                              />
-                              <FormField
-                                control={form.control}
-                                name={`holidayOverrides.${index}.type`}
-                                render={({ field: typeField }) => (
-                                  <FormItem><FormLabel className="text-xs">Tipo</FormLabel>
-                                  <Select onValueChange={typeField.onChange} value={typeField.value}><FormControl><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="general">General</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select>
-                                  <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </>
-                )}
-
-                {weekendDaysForSelection.length > 0 && (
-                  <>
-                    <p className="text-xs font-medium text-muted-foreground px-1 pt-2 pb-1">Fines de Semana Rurales:</p>
-                    {weekendDaysForSelection.map((day) => (
-                      <FormField
-                        key={day.date.toISOString()}
-                        control={form.control}
-                        name="designatedRuralWeekendDays"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-2.5 rounded-md hover:bg-muted/50 transition-colors bg-card">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value?.includes(format(day.date, "yyyy-MM-dd"))}
-                                onCheckedChange={(checked) => {
-                                  const dateString = format(day.date, "yyyy-MM-dd");
-                                  return checked
-                                    ? field.onChange([...(field.value || []), dateString])
-                                    : field.onChange((field.value || []).filter((value) => value !== dateString));
-                                }}
-                                id={`rural-day-${day.date.toISOString()}`}
-                              />
-                            </FormControl>
-                            <FormLabel htmlFor={`rural-day-${day.date.toISOString()}`} className="font-normal text-sm cursor-pointer w-full">
-                              {day.dayName} (Designar como rural especial)
-                            </FormLabel>
-                          </FormItem>
-                        )}
-                      />
-                    ))}
-                  </>
-                )}
-                {holidaysForMonth.length === 0 && weekendDaysForSelection.length === 0 && (
-                   <p className="text-sm text-muted-foreground text-center py-4">No hay días festivos o fines de semana rurales configurados para este mes.</p>
-                )}
-
-              </div>
-            </div>
-
-            <FormField
-              control={form.control}
-              name="additionalInstructions"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-base font-semibold">Instrucciones Adicionales (Opcional)</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Ej: Priorizar territorios no trabajados recientemente. Considerar asignar al Hno. X el día Y."
-                      {...field}
-                      rows={3}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <DialogFooter className="pt-4">
-              <DialogClose asChild>
-                <Button type="button" variant="outline" disabled={isSubmitting}>
-                  Cancelar
-                </Button>
-              </DialogClose>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Iniciar Generación con IA
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
   );
 }
