@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
-import { format, getDaysInMonth, startOfMonth, isBefore, getDay, isSameDay, parse, parseISO, endOfMonth } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, isBefore, getDay, isSameDay, parse, parseISO, endOfMonth, startOfDay } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType, UserAssignment } from "@/types";
@@ -70,7 +70,7 @@ export default function ProgramaMensualPage() {
     const publishersQuery = query(collection(db, "users"), where("isAssignable", "==", true));
     const unsubPublishers = onSnapshot(publishersQuery, (snap) => setAllPublishers(snap.docs.map(d => ({id: d.id, ...d.data()} as PublisherDetail))));
     
-    const casasQuery = query(collection(db, "casas"));
+    const casasQuery = query(collection(db, "casas"), orderBy("ownerName", "asc"));
     const unsubCasas = onSnapshot(casasQuery, (snap) => setAllCasas(snap.docs.map(d => ({id: d.id, ...d.data()} as Casa))));
 
     const territoriesQuery = query(collection(db, "territories"), orderBy("name"));
