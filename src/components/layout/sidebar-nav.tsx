@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -40,9 +41,8 @@ const navItems: NavItemConfig[] = [
     segment: "programa",
     permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM,
     children: [
-      { title: "Ver Programa", href: "/programa", icon: CircleDot, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM, segment: "programa" },
-      { title: "Crear Programa (IA)", href: "/programa/crear", icon: Bot, permission: PERMISSIONS.GENERATE_MONTHLY_PROGRAM, segment: "crear" },
-      { title: "Semanal", href: "/programa/semanal", icon: GanttChartSquare, permission: PERMISSIONS.VIEW_WEEKLY_PROGRAM, segment: "semanal" },
+      { title: "Ver Programa Mensual", href: "/programa", icon: CircleDot, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM, segment: "programa" },
+      { title: "Ver Programa Semanal", href: "/programa/semanal", icon: GanttChartSquare, permission: PERMISSIONS.VIEW_WEEKLY_PROGRAM, segment: "semanal" },
     ]
   },
   { title: "Gestión Asignaciones", href: "/gestion-asignaciones", icon: ListChecks, permission: PERMISSIONS.VIEW_ALL_ASSIGNMENTS, segment: "gestion-asignaciones" },

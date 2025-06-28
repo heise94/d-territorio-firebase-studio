@@ -26,14 +26,22 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Bot, Sparkles, CheckCircle, List, User, Building, MapPin } from "lucide-react";
-import { useState, useEffect } from "react";
-import type { Territory } from "@/types";
+import { Loader2, Bot, Sparkles, AlertTriangle, CalendarDays } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { format, getDaysInMonth, getDay, startOfMonth, addDays } from "date-fns";
+import { es } from "date-fns/locale";
+import type { ProgramScheduleSlot, CustomHoliday, Territory, PreachingType } from "@/types";
 
 const generateAIDialogSchema = z.object({
   additionalInstructions: z.string().max(1000, "Máximo 1000 caracteres.").optional().or(z.literal('')),
   assignLocations: z.boolean().default(true),
   assignCaptains: z.boolean().default(true),
+  holidayOverrides: z.array(z.object({
+    date: z.string(),
+    time: z.string(),
+    type: z.enum(['general', 'rural', 'zoom']),
+  })).optional(),
+  designatedRuralWeekendDays: z.array(z.string()).optional().default([]),
 });
 
 type GenerateAIDialogValues = z.infer<typeof generateAIDialogSchema>;
@@ -42,12 +50,16 @@ interface GenerateAIDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onSubmitGeneration: (data: { 
-    additionalInstructions: string; 
-    assignLocations: boolean;
     assignCaptains: boolean;
+    assignLocations: boolean;
+    additionalInstructions: string; 
+    holidayOverrides?: Array<{date: string, time: string, type: PreachingType}>;
+    designatedRuralWeekendDays: string[];
   }) => Promise<void>;
   year: number;
   month: number;
+  holidays: CustomHoliday[];
+  programScheduleSlots: ProgramScheduleSlot[];
   allTerritories: Territory[];
 }
 
@@ -56,15 +68,12 @@ export function GenerateAIDialog({
     onOpenChange, 
     onSubmitGeneration, 
     year, 
-    month, 
-    allTerritories
+    month,
+    holidays,
+    programScheduleSlots
 }: GenerateAIDialogProps) {
   const { toast } = useToast();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
-  const [step1Result, setStep1Result] = useState<string[] | null>(null);
-  const [step2Result, setStep2Result] = useState<string[] | null>(null);
-  const [step3Result, setStep3Result] = useState<string[] | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<GenerateAIDialogValues>({
     resolver: zodResolver(generateAIDialogSchema),
@@ -72,203 +81,183 @@ export function GenerateAIDialog({
       additionalInstructions: "",
       assignLocations: true,
       assignCaptains: true,
+      designatedRuralWeekendDays: [],
+      holidayOverrides: [],
     },
   });
 
-  const resetWizard = () => {
-    setCurrentStep(1);
-    setStep1Result(null);
-    setStep2Result(null);
-    setStep3Result(null);
-    form.reset();
-  };
-
   useEffect(() => {
-    if (isOpen) {
-      resetWizard();
+    if (!isOpen) {
+      form.reset();
     }
-  }, [isOpen]);
+  }, [isOpen, form]);
 
-  const handleExecuteStep1 = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const result = [
-        "Lógica de asignación de horarios de predicación ejecutada.",
-        "Se priorizará la disponibilidad horaria de cada publicador.",
-        "El sistema ahora considerará estos horarios para las asignaciones."
-      ];
-      setStep1Result(result);
-      setCurrentStep(2);
-      setIsProcessing(false);
-    }, 1000);
-  };
+  const monthName = format(new Date(year, month), "MMMM", { locale: es });
   
-  const handleExecuteStep2 = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const availableTerritories = (allTerritories || [])
-        .filter(t => !t.isBlocked && t.type !== 'rural')
-        .sort((a,b) => new Date(a.lastWorked || 0).getTime() - new Date(b.lastWorked || 0).getTime());
-      
-      const selectedTerritories = availableTerritories.slice(0, 7).map(t => t.number ? `U-${t.number}`: t.name);
+  const holidaysInMonth = useMemo(() => {
+    return holidays.filter(h => {
+        const d = new Date(h.date);
+        return d.getFullYear() === year && d.getMonth() === month;
+    });
+  }, [holidays, year, month]);
 
-      const result = [
-          `${availableTerritories.length} territorios urbanos disponibles encontrados.`,
-          `Se han seleccionado los ${selectedTerritories.length} más antiguos para la rotación:`,
-          ...selectedTerritories
-      ];
-      setStep2Result(result);
-      setCurrentStep(3);
-      setIsProcessing(false);
-    }, 1000);
-  };
+  const weekendDaysForSelection = useMemo(() => {
+    const days: { date: Date; dayName: string; type: 'saturday' | 'sunday' }[] = [];
+    const firstDayOfMonth = startOfMonth(new Date(year, month));
+    const numDaysInMonth = getDaysInMonth(firstDayOfMonth);
+    const hasSaturdayRuralSlot = programScheduleSlots.some(slot => slot.dayOfWeek === 'saturday' && slot.type === 'rural');
+    const hasSundayRuralSlot = programScheduleSlots.some(slot => slot.dayOfWeek === 'sunday' && slot.type === 'rural');
 
-  const handleExecuteStep3 = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const result = [
-          "Lógica de asignación de casas a territorios ejecutada.",
-          "El sistema ahora asociará cada territorio a una casa cercana disponible.",
-          "Esto se reflejará en el programa final."
-      ];
-      setStep3Result(result);
-      setCurrentStep(4);
-      setIsProcessing(false);
-    }, 1000);
-  };
+    for (let i = 0; i < numDaysInMonth; i++) {
+      const currentDate = addDays(firstDayOfMonth, i);
+      const dayOfWeek = getDay(currentDate); 
+      if (dayOfWeek === 6 && hasSaturdayRuralSlot) { days.push({ date: currentDate, dayName: format(currentDate, "EEEE, d 'de' MMMM", { locale: es }), type: 'saturday' }); }
+      else if (dayOfWeek === 0 && hasSundayRuralSlot) { days.push({ date: currentDate, dayName: format(currentDate, "EEEE, d 'de' MMMM", { locale: es }), type: 'sunday' });}
+    }
+    return days;
+  }, [year, month, programScheduleSlots]);
 
   async function handleSubmit(values: GenerateAIDialogValues) {
-    setIsProcessing(true);
+    setIsSubmitting(true);
+    
+    // Logic to prepare holiday overrides could be added here if needed, based on a form field.
+    // For now, it's an empty array passed up.
+
     try {
       await onSubmitGeneration({
-        additionalInstructions: values.additionalInstructions || "",
-        assignLocations: values.assignLocations,
         assignCaptains: values.assignCaptains,
+        assignLocations: values.assignLocations,
+        additionalInstructions: values.additionalInstructions || "",
+        designatedRuralWeekendDays: values.designatedRuralWeekendDays || [],
+        // holidayOverrides: ... // This would come from form state if implemented
       });
     } catch (error) {
       toast({ title: "Error", description: "Ocurrió un error al generar el programa.", variant: "destructive" });
     } finally {
-      setIsProcessing(false);
+      setIsSubmitting(false);
     }
   }
 
-  const Step = ({ stepNumber, title, icon: Icon, description, onExecute, children, isEnabled, result, lastStep = false }: any) => {
-    const isCompleted = currentStep > stepNumber;
-    const isCurrent = currentStep === stepNumber;
-
-    return (
-      <div className={`mb-4 p-4 rounded-lg shadow-inner transition-all duration-500 ${!isEnabled ? 'opacity-40 bg-gray-50' : (isCompleted ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200')}`}>
-        <h3 className={`text-lg font-semibold mb-2 flex items-center ${isCompleted ? 'text-green-800' : 'text-blue-800'}`}>
-            <Icon className="mr-2 h-5 w-5"/>
-            Paso {stepNumber}: {title} {isCompleted && <CheckCircle className="inline-block h-5 w-5 ml-2 text-green-600"/>}
-        </h3>
-        <p className="text-gray-700 text-sm mb-3">{description}</p>
-        {!isCompleted && !lastStep && (
-            <Button onClick={onExecute} disabled={!isEnabled || isProcessing} className="w-full">
-                {isProcessing && isCurrent ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}
-                Ejecutar Paso {stepNumber}
-            </Button>
-        )}
-        {result && (
-            <div className="mt-3 p-3 bg-white rounded-md border border-gray-200 text-xs text-gray-600 space-y-1">
-                {result.map((line: string, index: number) => <p key={index} className="flex items-start"><List className="h-3 w-3 mr-2 mt-0.5 shrink-0"/><span>{line}</span></p>)}
-            </div>
-        )}
-         {isCurrent && lastStep && children}
-      </div>
-    );
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center text-2xl">
-            <Bot className="mr-3 h-7 w-7 text-primary" />
-            Asistente de Generación
+          <DialogTitle className="flex items-center text-xl">
+            <Bot className="mr-3 h-6 w-6 text-primary" />
+            Generar Programa Automático para {monthName} {year}
           </DialogTitle>
           <DialogDescription>
-            Sigue los pasos para que la IA genere un borrador del programa de predicación.
+             Define instrucciones y habilita la predicación en días festivos y fines de semana rurales especiales.
           </DialogDescription>
         </DialogHeader>
-
-        <div className="py-4">
-            <Step stepNumber={1} title="Verificar Disponibilidad de Publicadores" icon={User} description="La IA revisará la disponibilidad horaria general de todos los publicadores para saber con quiénes puede contar." onExecute={handleExecuteStep1} isEnabled={currentStep >= 1} result={step1Result} />
-            <Step stepNumber={2} title="Seleccionar Territorios" icon={MapPin} description="Se buscarán territorios urbanos disponibles y no bloqueados, priorizando los que llevan más tiempo sin trabajar." onExecute={handleExecuteStep2} isEnabled={currentStep >= 2} result={step2Result} />
-            <Step stepNumber={3} title="Asociar Casas de Reunión" icon={Building} description="El sistema buscará y asociará casas de reunión a los territorios seleccionados para definir los puntos de encuentro." onExecute={handleExecuteStep3} isEnabled={currentStep >= 3} result={step3Result} />
-        
-            <Step stepNumber={4} title="Generar Programa y Asignar" icon={Sparkles} description="Introduce instrucciones adicionales y la IA generará el programa final para el mes." isEnabled={currentStep >= 4} lastStep={true}>
-                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 pt-2">
-                        <div className="space-y-2">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 py-2 pr-1">
+            <div className="space-y-3 p-3 border rounded-md bg-muted/30">
+                <FormLabel className="text-base font-semibold">Opciones de Generación</FormLabel>
+                <FormField
+                    control={form.control}
+                    name="assignLocations"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-3 shadow-sm">
+                        <div className="space-y-0.5"><FormLabel>Asignar Territorios y Casas</FormLabel><FormFieldDescription className="text-xs">Si se desmarca, la IA solo creará los horarios sin asignar un lugar específico.</FormFieldDescription></div>
+                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="assignCaptains"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border bg-background p-3 shadow-sm">
+                        <div className="space-y-0.5"><FormLabel>Asignar Capitanes</FormLabel><FormFieldDescription className="text-xs">Si se desmarca, la IA creará los horarios sin asignar un publicador encargado.</FormFieldDescription></div>
+                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange}/></FormControl>
+                        </FormItem>
+                    )}
+                />
+            </div>
+            
+            <div className="space-y-3 p-3 border rounded-md bg-muted/30">
+                <FormLabel className="text-base font-semibold">Configuración Especial de Días</FormLabel>
+                {holidaysInMonth.length > 0 && (
+                    <div className="space-y-2">
+                        <FormLabel className="text-sm font-medium">Días Festivos:</FormLabel>
+                        {holidaysInMonth.map(holiday => (
+                            <FormItem key={holiday.id} className="flex flex-row items-center space-x-3 space-y-0 p-2 rounded-md bg-background">
+                                <FormControl><Checkbox /></FormControl>
+                                <FormLabel className="font-normal text-sm w-full">{holiday.name} ({format(new Date(holiday.date), "EEEE, d", {locale: es})})</FormLabel>
+                                <FormFieldDescription className="text-xs !mt-0 text-right">Marcar para programar predicación en este día.</FormFieldDescription>
+                            </FormItem>
+                        ))}
+                    </div>
+                )}
+                 {weekendDaysForSelection.length > 0 && (
+                    <div className="space-y-2 pt-2">
+                         <FormLabel className="text-sm font-medium">Fines de Semana Rurales:</FormLabel>
+                        <div className="max-h-40 overflow-y-auto space-y-1 pr-2">
+                         {weekendDaysForSelection.map((day) => (
                             <FormField
+                                key={day.date.toISOString()}
                                 control={form.control}
-                                name="assignLocations"
+                                name="designatedRuralWeekendDays"
                                 render={({ field }) => (
-                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-white">
-                                    <div className="space-y-0.5">
-                                        <FormLabel>Asignar Territorios y Casas</FormLabel>
-                                        <FormFieldDescription className="text-xs">
-                                        Si se desmarca, la IA solo creará los horarios sin asignar un lugar específico.
-                                        </FormFieldDescription>
-                                    </div>
+                                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-2 rounded-md hover:bg-background/80 transition-colors">
                                     <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                                        <Checkbox
+                                        checked={field.value?.includes(format(day.date, "yyyy-MM-dd"))}
+                                        onCheckedChange={(checked) => {
+                                            const dateString = format(day.date, "yyyy-MM-dd");
+                                            return checked
+                                            ? field.onChange([...(field.value || []), dateString])
+                                            : field.onChange((field.value || []).filter((value) => value !== dateString));
+                                        }}
+                                        id={`rural-day-${day.date.toISOString()}`}
+                                        />
                                     </FormControl>
+                                    <FormLabel htmlFor={`rural-day-${day.date.toISOString()}`} className="font-normal text-xs cursor-pointer w-full">
+                                        {day.dayName} <span className="text-muted-foreground">(Designar como rural especial)</span>
+                                    </FormLabel>
                                     </FormItem>
                                 )}
                             />
-                             <FormField
-                                control={form.control}
-                                name="assignCaptains"
-                                render={({ field }) => (
-                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm bg-white">
-                                    <div className="space-y-0.5">
-                                        <FormLabel>Asignar Capitanes</FormLabel>
-                                        <FormFieldDescription className="text-xs">
-                                        Si se desmarca, la IA creará los horarios sin asignar un publicador encargado.
-                                        </FormFieldDescription>
-                                    </div>
-                                    <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange}/>
-                                    </FormControl>
-                                    </FormItem>
-                                )}
-                            />
+                        ))}
                         </div>
-                        <FormField
-                            control={form.control}
-                            name="additionalInstructions"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel className="font-semibold text-gray-800">Instrucciones Adicionales (Opcional)</FormLabel>
-                                <FormControl>
-                                    <Textarea
-                                    placeholder="Ej: Priorizar territorios no trabajados recientemente. Considerar asignar al Hno. X el día Y."
-                                    {...field}
-                                    rows={3}
-                                    />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <Button type="submit" disabled={isProcessing} className="w-full">
-                            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                            Iniciar Generación Final con IA
-                        </Button>
-                    </form>
-                </Form>
-            </Step>
-        </div>
+                    </div>
+                 )}
+                  {holidaysInMonth.length === 0 && weekendDaysForSelection.length === 0 && (
+                     <p className="text-xs text-muted-foreground text-center py-3">No hay festivos ni fines de semana rurales configurados para este mes.</p>
+                  )}
+            </div>
 
-        <DialogFooter className="pt-2 border-t">
-          <DialogClose asChild>
-            <Button type="button" variant="secondary">
-              Cerrar
-            </Button>
-          </DialogClose>
-        </DialogFooter>
+            <FormField
+              control={form.control}
+              name="additionalInstructions"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-base font-semibold">Instrucciones Adicionales (Opcional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Ej: Priorizar territorios no trabajados recientemente. Considerar asignar al Hno. X el día Y."
+                      {...field}
+                      rows={3}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter className="pt-4">
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={isSubmitting}>
+                  Cancelar
+                </Button>
+              </DialogClose>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Iniciar Generación con IA
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

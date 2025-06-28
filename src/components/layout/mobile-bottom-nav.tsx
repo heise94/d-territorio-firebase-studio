@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -22,7 +23,7 @@ const bottomNavItems: BottomNavItemConfig[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, permission: PERMISSIONS.VIEW_DASHBOARD },
   { title: "Mis Asig.", href: "/asignaciones", icon: CheckSquare, permission: PERMISSIONS.VIEW_OWN_ASSIGNMENTS },
   { title: "Territorios", href: "/territorios", icon: Map, permission: PERMISSIONS.VIEW_TERRITORIES },
-  { title: "Crear Prog.", href: "/programa/crear", icon: Bot, permission: PERMISSIONS.GENERATE_MONTHLY_PROGRAM },
+  { title: "Programa", href: "/programa", icon: CalendarDays, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM },
   { title: "Casas", href: "/casas", icon: Building, permission: PERMISSIONS.VIEW_CASAS },
   { title: "Grupos", href: "/grupos", icon: GroupIcon, permission: PERMISSIONS.VIEW_GROUPS },
   { title: "Usuarios", href: "/usuarios", icon: Users, permission: PERMISSIONS.VIEW_USERS },
