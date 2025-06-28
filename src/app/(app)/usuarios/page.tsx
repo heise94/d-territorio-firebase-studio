@@ -10,7 +10,8 @@ import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldC
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import { EditUserDialog } from "@/components/usuarios/edit-user-dialog";
 import { EditUserAvailabilityDialog } from "@/components/usuarios/edit-user-availability-dialog";
-import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc, Casa } from "@/types";
+import { EditUserUnavailabilityDialog } from "@/components/usuarios/edit-user-unavailability-dialog";
+import type { UserProfile, PreachingGroup, ProgramScheduleSlot, SettingsDoc, Casa, UnavailabilityPeriod } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, query, orderBy, updateDoc, writeBatch, deleteField } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -104,6 +105,9 @@ export default function UsuariosPage() {
   const [userToEditAvailability, setUserToEditAvailability] = useState<UserProfile | null>(null);
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+
+  const [isEditUnavailabilityDialogOpen, setIsEditUnavailabilityDialogOpen] = useState(false);
+  const [userToEditUnavailability, setUserToEditUnavailability] = useState<UserProfile | null>(null);
 
   const blockForm = useForm<BlockUserFormValues>({
     resolver: zodResolver(blockUserFormSchema),
@@ -433,6 +437,33 @@ export default function UsuariosPage() {
     }
   };
 
+  const handleOpenEditUnavailabilityDialog = (user: UserProfile) => {
+    setUserToEditUnavailability(user);
+    setIsEditUnavailabilityDialogOpen(true);
+  };
+
+  const handleUnavailabilityUpdate = async (userId: string, periods: UnavailabilityPeriod[]) => {
+    const userDocRef = doc(db, "users", userId);
+    try {
+      await updateDoc(userDocRef, {
+        "availability.unavailabilityPeriods": periods,
+        updatedAt: serverTimestamp(),
+      });
+      toast({
+        title: "Indisponibilidad Actualizada",
+        description: `Los períodos de indisponibilidad del usuario han sido actualizados.`,
+      });
+      setIsEditUnavailabilityDialogOpen(false);
+    } catch (error) {
+      console.error("Error updating unavailability:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar la indisponibilidad.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const getInitials = (name?: string) => {
     if (!name) return "??";
@@ -723,7 +754,18 @@ export default function UsuariosPage() {
                                             <CalendarCog className="h-4 w-4" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Editar Disponibilidad</TooltipContent>
+                                    <TooltipContent>Editar Disponibilidad Horaria</TooltipContent>
+                                </Tooltip>
+                            )}
+                            
+                             {canManageUsers && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditUnavailabilityDialog(user)} disabled={isSubmitting}>
+                                            <UserX className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Editar Indisponibilidad (Vacaciones)</TooltipContent>
                                 </Tooltip>
                             )}
 
@@ -827,6 +869,15 @@ export default function UsuariosPage() {
                 onAvailabilityUpdate={handleAvailabilityUpdate}
                 userToEdit={userToEditAvailability}
                 programScheduleSlots={programScheduleSlots}
+            />
+        )}
+        
+        {userToEditUnavailability && canManageUsers && (
+            <EditUserUnavailabilityDialog
+                isOpen={isEditUnavailabilityDialogOpen}
+                onOpenChange={setIsEditUnavailabilityDialogOpen}
+                onUnavailabilityUpdate={handleUnavailabilityUpdate}
+                userToEdit={userToEditUnavailability}
             />
         )}
         
