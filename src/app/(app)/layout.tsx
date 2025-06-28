@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, ReactNode } from 'react';
@@ -12,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { PermissionsProvider, usePermissions } from '@/hooks/use-permissions';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav';
 import { Notifications } from '@/components/layout/notifications';
 import { cn } from '@/lib/utils';
@@ -47,16 +46,13 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[80px_1fr]">
+    <div className="grid min-h-screen w-full md:grid-cols-[240px_1fr]">
       <div className="hidden border-r bg-muted/40 md:flex md:flex-col">
-        <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6 justify-center">
-          {/* Logo is now in the main header */}
+        <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+          <AppLogo />
         </div>
         <div className="flex-1 overflow-y-auto">
           <SidebarNav />
-        </div>
-        <div className="mt-auto p-4">
-          {/* Sidebar toggle button removed */}
         </div>
       </div>
       <div className="flex flex-col">
@@ -103,10 +99,6 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
                 </div>
             </SheetContent>
           </Sheet>
-
-           <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-             <AppLogo />
-           </div>
            
            <div className="w-full flex-1" />
            <Notifications />
