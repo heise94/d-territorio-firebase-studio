@@ -1,11 +1,14 @@
+
 import type {NextConfig} from 'next';
+
+const isDev = process.env.NODE_ENV !== 'production';
 
 /** @type {import('@ducanh2912/next-pwa').PWAConfig} */
 const withPWA = require('@ducanh2912/next-pwa').default({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
+  disable: isDev,
 });
 
 const nextConfig: NextConfig = {
@@ -22,4 +25,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withPWA(nextConfig);
+export default isDev ? nextConfig : withPWA(nextConfig);
