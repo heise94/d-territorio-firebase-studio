@@ -199,6 +199,21 @@ export default function ProgramaMensualPage() {
     
     const availableCasasForAI = casas.filter(c => !c.blockInfo || !c.blockInfo.forSystem);
 
+    const plainTerritoriesForAI = territories.map(t => {
+        const plainTerritory = { ...t } as any; // Create a mutable copy
+        // Convert any Timestamp fields to serializable strings
+        if (plainTerritory.createdAt && typeof plainTerritory.createdAt.toDate === 'function') {
+          plainTerritory.createdAt = (plainTerritory.createdAt as Timestamp).toDate().toISOString();
+        }
+        if (plainTerritory.updatedAt && typeof plainTerritory.updatedAt.toDate === 'function') {
+          plainTerritory.updatedAt = (plainTerritory.updatedAt as Timestamp).toDate().toISOString();
+        }
+        if (plainTerritory.unblockDate && typeof plainTerritory.unblockDate.toDate === 'function') {
+          plainTerritory.unblockDate = (plainTerritory.unblockDate as Timestamp).toDate().toISOString();
+        }
+        return plainTerritory;
+    });
+
     const input: GenerateMonthlyAssignmentsInput = {
       year: selectedYear,
       month: selectedMonth, 
@@ -279,7 +294,7 @@ export default function ProgramaMensualPage() {
         })),
 
       assignCasas: true, assignTerritories: true, 
-      detailedTerritoryReports: territories,
+      detailedTerritoryReports: plainTerritoriesForAI,
       specialCampaignTerritoriesPerDay: 1,
     };
 
