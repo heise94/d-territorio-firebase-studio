@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,6 +21,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription as FormFieldDescription,
 } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,7 +53,7 @@ export interface ManualAssignmentSubmitData {
     time: string;
     type: PreachingAssignedType;
     territoryId: string;
-    casaId?: string;
+    casaId: string;
     userId: string;
     notes?: string;
     status?: UserAssignment['status'];
@@ -103,6 +105,7 @@ export function AddManualAssignmentDialog({
   const { watch, setValue } = form;
   const selectedType = watch("type");
   const selectedUserId = watch("userId");
+  const selectedCasaId = watch("casaId");
 
   useEffect(() => {
     if (isOpen) {
@@ -158,24 +161,37 @@ export function AddManualAssignmentDialog({
   }, [allAssignmentsForMonth, allTerritories]);
 
   const availableTerritoriesForSelection = useMemo(() => {
-    return allTerritories
-      .filter(t => {
-        if (t.isBlocked) return false;
-        const isCorrectType = t.type === (selectedType === 'rural' ? 'rural' : 'urban');
-        if (!isCorrectType) return false;
+    const baseFiltered = allTerritories.filter(t => {
+      if (t.isBlocked) return false;
+      const isCorrectType = t.type === (selectedType === 'rural' ? 'rural' : 'urban');
+      if (!isCorrectType) return false;
+      if (isEditMode && assignmentToEdit?.locationId === t.id) {
+        return true;
+      }
+      return !assignedTerritoryIdsInMonth.has(t.id);
+    });
 
-        if (isEditMode && assignmentToEdit?.locationId === t.id) {
-            return true;
-        }
-        return !assignedTerritoryIdsInMonth.has(t.id);
-      })
-      .sort((a, b) => {
-        const dateA = a.lastWorked ? new Date(a.lastWorked).getTime() : 0;
-        const dateB = b.lastWorked ? new Date(b.lastWorked).getTime() : 0;
-        return dateA - dateB;
-      })
-      .slice(0, 20);
-  }, [allTerritories, selectedType, assignedTerritoryIdsInMonth, isEditMode, assignmentToEdit]);
+    const sortByLastWorked = (a: Territory, b: Territory) => {
+      const dateA = a.lastWorked ? new Date(a.lastWorked).getTime() : 0;
+      const dateB = b.lastWorked ? new Date(b.lastWorked).getTime() : 0;
+      return dateA - dateB;
+    };
+
+    if (selectedCasaId && selectedCasaId !== 'NO_CASA') {
+      const associatedTerritories = baseFiltered
+        .filter(t => t.associatedCasaIds?.includes(selectedCasaId))
+        .sort(sortByLastWorked);
+      const otherTerritories = baseFiltered
+        .filter(t => !t.associatedCasaIds?.includes(selectedCasaId))
+        .sort(sortByLastWorked);
+      const combined = [...associatedTerritories, ...otherTerritories];
+      return Array.from(new Map(combined.map(t => [t.id, t])).values()).slice(0, 20);
+    }
+    
+    return baseFiltered.sort(sortByLastWorked).slice(0, 20);
+
+  }, [allTerritories, selectedType, assignedTerritoryIdsInMonth, isEditMode, assignmentToEdit, selectedCasaId]);
+
 
   const availablePublishersForSlot = useMemo(() => {
     const assignmentDate = startOfDay(date || new Date());
@@ -280,41 +296,6 @@ export function AddManualAssignmentDialog({
             
             <FormField
               control={form.control}
-              name="territoryId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Territorio</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Seleccionar territorio" /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {availableTerritoriesForSelection.map(loc => {
-                        const name = loc.type === 'urban' && loc.number ? `U-${loc.number}: ${loc.name}` : loc.name;
-                        const isAlreadyAssigned = assignedTerritoryIdsInMonth.has(loc.id);
-                        return (
-                          <SelectItem key={loc.id} value={loc.id}>
-                            <div className="flex items-center justify-between w-full">
-                              <span>{name}</span>
-                              {isAlreadyAssigned && (
-                                <TooltipProvider><Tooltip>
-                                  <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
-                                  <TooltipContent><p>Ya asignado este mes</p></TooltipContent>
-                                </Tooltip></TooltipProvider>
-                              )}
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
               name="casaId"
               render={({ field }) => (
                 <FormItem>
@@ -357,6 +338,51 @@ export function AddManualAssignmentDialog({
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="territoryId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Territorio
+                    {selectedCasaId && selectedCasaId !== 'NO_CASA' && (
+                        <span className="ml-2 text-xs font-normal text-primary">(filtrado por casa)</span>
+                    )}
+                  </FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar territorio" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {availableTerritoriesForSelection.map(loc => {
+                        const name = loc.type === 'urban' && loc.number ? `U-${loc.number}: ${loc.name}` : loc.name;
+                        const isAlreadyAssigned = assignedTerritoryIdsInMonth.has(loc.id);
+                        return (
+                          <SelectItem key={loc.id} value={loc.id}>
+                            <div className="flex items-center justify-between w-full">
+                              <span>{name}</span>
+                              {isAlreadyAssigned && (
+                                <TooltipProvider><Tooltip>
+                                  <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
+                                  <TooltipContent><p>Ya asignado este mes</p></TooltipContent>
+                                </Tooltip></TooltipProvider>
+                              )}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <FormFieldDescription className="text-xs">
+                    {selectedCasaId && selectedCasaId !== 'NO_CASA'
+                        ? "La lista muestra primero los territorios asociados a la casa seleccionada."
+                        : "La lista muestra los 20 territorios disponibles con más tiempo sin trabajar."}
+                  </FormFieldDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
             <FormField
               control={form.control}
               name="userId"
