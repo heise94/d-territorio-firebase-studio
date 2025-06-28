@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddTerritoryDialog } from "@/components/territorios/add-territory-dialog";
 import { TerritoryCard } from "@/components/territorios/territory-card";
-import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert, Copy, Home, ArrowDownUp, XIcon, LayoutGrid, List, Pencil, ShieldCheck, Trash2 } from "lucide-react";
+import { PlusCircle, Search, MapPin, Loader2, Upload, AlertTriangle, ShieldAlert, Copy, Home, ArrowDownUp, XIcon, LayoutGrid, List, Pencil, ShieldCheck, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Territory, TerritoryType, Casa, PreachingGroup } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, setDoc, onSnapshot, deleteDoc, updateDoc, query, orderBy, deleteField, FieldValue, getDocs } from "firebase/firestore";
@@ -58,6 +58,10 @@ export default function TerritoriosPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all"); 
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(9);
 
 
   useEffect(() => {
@@ -132,6 +136,21 @@ export default function TerritoriosPage() {
       setTerritoryToEdit(null);
     }
   }, [isTerritoryDialogOpen]);
+  
+  // Adjust items per page based on view mode and reset page
+  useEffect(() => {
+    if (viewMode === 'list') {
+      setItemsPerPage(10);
+    } else {
+      setItemsPerPage(9);
+    }
+    setCurrentPage(1);
+  }, [viewMode]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterGroupId, filterCasaId, filterStatus, activeTab]);
 
   const handleOpenAddDialog = () => {
     setTerritoryToEdit(null);
@@ -317,6 +336,19 @@ export default function TerritoriosPage() {
         }
       });
   }, [territories, searchTerm, activeTab, filterGroupId, filterCasaId, filterStatus, sortOrder]);
+  
+  const territoriesForDisplay = useMemo(() => {
+    return filteredAndSortedTerritories.filter(t => t.type === activeTab);
+  }, [filteredAndSortedTerritories, activeTab]);
+
+  const totalPages = useMemo(() => {
+    return Math.ceil(territoriesForDisplay.length / itemsPerPage);
+  }, [territoriesForDisplay.length, itemsPerPage]);
+
+  const paginatedTerritories = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return territoriesForDisplay.slice(startIndex, startIndex + itemsPerPage);
+  }, [territoriesForDisplay, currentPage, itemsPerPage]);
 
 
   const canManageTerritories = hasPermission(PERMISSIONS.MANAGE_TERRITORIES);
@@ -404,7 +436,7 @@ export default function TerritoriosPage() {
             </div>
              <div className="pt-4 flex justify-between items-center">
               <CardDescription className="text-xs">
-                  Mostrando {filteredAndSortedTerritories.filter(t => t.type === activeTab).length} de {territories.filter(t => t.type === activeTab).length} territorios {activeTab === 'urban' ? 'urbanos' : 'rurales'}.
+                  Mostrando {paginatedTerritories.length} de {territoriesForDisplay.length} territorios {activeTab === 'urban' ? 'urbanos' : 'rurales'} filtrados.
                   <span className="block mt-1">
                       <Home className="inline-block h-3.5 w-3.5 mr-1" />
                       Total casas aprox. (todos los territorios): <strong className="text-foreground">{totalApproximateHousesAllTerritories}</strong>.
@@ -422,42 +454,68 @@ export default function TerritoriosPage() {
                 <TabsTrigger value="urban">Urbanos</TabsTrigger>
                 <TabsTrigger value="rural">Rurales</TabsTrigger>
               </TabsList>
-              {(["urban", "rural"] as TerritoryType[]).map(tabType => (
-                <TabsContent value={tabType} key={tabType}>
-                  {isLoadingAny ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {[...Array(3)].map((_, i) => <Card key={i}><CardHeader><Skeleton className="h-5 w-3/4" /></CardHeader><CardContent><Skeleton className="h-40 w-full" /></CardContent><CardFooter><Skeleton className="h-8 w-full" /></CardFooter></Card>)}
-                    </div>
-                  ) : filteredAndSortedTerritories.filter(t => t.type === tabType).length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
-                      <MapPin className="h-20 w-20 text-muted-foreground/70 mb-6" />
-                      <p className="text-xl font-medium text-muted-foreground mb-2">Sin resultados</p>
-                      <p className="text-sm text-muted-foreground">No se encontraron territorios que coincidan con los filtros.</p>
-                    </div>
-                  ) : viewMode === 'grid' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {filteredAndSortedTerritories.filter(t => t.type === tabType).map((territory) => (
-                        <TerritoryCard key={territory.id} territory={territory} onEdit={() => handleOpenEditDialog(territory)} onDelete={() => handleDeleteTerritory(territory.id)} onDuplicate={() => handleOpenDuplicateDialog(territory)} onBlockToggle={() => territory.isBlocked ? confirmToggleBlockTerritory() : handleOpenBlockReasonDialog(territory)} canManage={canManageTerritories} canViewBlockDetails={canViewBlockDetails} availableCasas={availableCasas} availableGroups={availableGroups} />
-                      ))}
-                    </div>
-                  ) : ( // List view
-                    <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>N°/Nombre</TableHead><TableHead>Manzanas</TableHead><TableHead>Casas Aprox.</TableHead><TableHead>Estado</TableHead><TableHead>Grupos</TableHead><TableHead className="text-center">Acciones</TableHead></TableRow></TableHeader><TableBody>
-                    {filteredAndSortedTerritories.filter(t => t.type === tabType).map((territory) => (
-                      <TableRow key={territory.id} className={territory.isBlocked ? "bg-muted/50" : ""}>
-                        <TableCell className="font-medium">{territory.type === 'urban' ? `U-${territory.number}` : territory.name}</TableCell>
-                        <TableCell>{territory.totalBlocks ?? 'N/A'}</TableCell>
-                        <TableCell>{territory.approxHouseCount ?? territory.blockHouseCounts?.reduce((a, b) => a + (b || 0), 0) ?? 'N/A'}</TableCell>
-                        <TableCell><Badge variant={territory.isBlocked ? "destructive" : "default"}>{territory.isBlocked ? "Bloqueado" : "Disponible"}</Badge></TableCell>
-                        <TableCell className="text-xs">{territory.groupIds && territory.groupIds.length > 0 ? availableGroups.filter(g => territory.groupIds!.includes(g.id)).map(g => g.name).join(', ') : 'N/A'}</TableCell>
-                        <TableCell className="text-center">{renderTerritoryActions(territory)}</TableCell>
-                      </TableRow>
+              
+              <TabsContent value={activeTab}>
+                {isLoadingAny ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[...Array(3)].map((_, i) => <Card key={i}><CardHeader><Skeleton className="h-5 w-3/4" /></CardHeader><CardContent><Skeleton className="h-40 w-full" /></CardContent><CardFooter><Skeleton className="h-8 w-full" /></CardFooter></Card>)}
+                  </div>
+                ) : territoriesForDisplay.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center bg-muted/30 rounded-lg border border-dashed">
+                    <MapPin className="h-20 w-20 text-muted-foreground/70 mb-6" />
+                    <p className="text-xl font-medium text-muted-foreground mb-2">Sin resultados</p>
+                    <p className="text-sm text-muted-foreground">No se encontraron territorios que coincidan con los filtros.</p>
+                  </div>
+                ) : viewMode === 'grid' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {paginatedTerritories.map((territory) => (
+                      <TerritoryCard key={territory.id} territory={territory} onEdit={() => handleOpenEditDialog(territory)} onDelete={() => handleDeleteTerritory(territory.id)} onDuplicate={() => handleOpenDuplicateDialog(territory)} onBlockToggle={() => territory.isBlocked ? confirmToggleBlockTerritory() : handleOpenBlockReasonDialog(territory)} canManage={canManageTerritories} canViewBlockDetails={canViewBlockDetails} availableCasas={availableCasas} availableGroups={availableGroups} />
                     ))}
-                    </TableBody></Table></div>
-                  )}
-                </TabsContent>
-              ))}
+                  </div>
+                ) : ( // List view
+                  <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>N°/Nombre</TableHead><TableHead>Manzanas</TableHead><TableHead>Casas Aprox.</TableHead><TableHead>Estado</TableHead><TableHead>Grupos</TableHead><TableHead className="text-center">Acciones</TableHead></TableRow></TableHeader><TableBody>
+                  {paginatedTerritories.map((territory) => (
+                    <TableRow key={territory.id} className={territory.isBlocked ? "bg-muted/50" : ""}>
+                      <TableCell className="font-medium">{territory.type === 'urban' ? `U-${territory.number}` : territory.name}</TableCell>
+                      <TableCell>{territory.totalBlocks ?? 'N/A'}</TableCell>
+                      <TableCell>{territory.approxHouseCount ?? territory.blockHouseCounts?.reduce((a, b) => a + (b || 0), 0) ?? 'N/A'}</TableCell>
+                      <TableCell><Badge variant={territory.isBlocked ? "destructive" : "default"}>{territory.isBlocked ? "Bloqueado" : "Disponible"}</Badge></TableCell>
+                      <TableCell className="text-xs">{territory.groupIds && territory.groupIds.length > 0 ? availableGroups.filter(g => territory.groupIds!.includes(g.id)).map(g => g.name).join(', ') : 'N/A'}</TableCell>
+                      <TableCell className="text-center">{renderTerritoryActions(territory)}</TableCell>
+                    </TableRow>
+                  ))}
+                  </TableBody></Table></div>
+                )}
+              </TabsContent>
             </Tabs>
           </CardContent>
+          {totalPages > 1 && (
+            <CardFooter className="border-t pt-4 pb-4 flex-col sm:flex-row gap-4 justify-between items-center">
+                <div className="text-sm text-muted-foreground">
+                    Página {currentPage} de {totalPages}
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                    >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Anterior
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                    >
+                        Siguiente
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                </div>
+            </CardFooter>
+          )}
         </Card>
 
         {canManageTerritories && (
