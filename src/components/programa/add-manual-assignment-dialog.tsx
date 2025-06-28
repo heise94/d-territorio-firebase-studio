@@ -70,7 +70,7 @@ interface AddManualAssignmentDialogProps {
   allPublishers: PublisherDetail[];
   allTerritories: Territory[];
   allCasas: Casa[];
-  allAssignmentsForMonth: Assignment[];
+  allAssignments: Assignment[];
 }
 
 const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType | 'general' }) => {
@@ -80,6 +80,8 @@ const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType | 'general' }
   if (type === "zoom") return <Video className={iconClass} />;
   return null;
 };
+
+const NO_SELECTION = "__NO_SELECTION__";
 
 export function AddManualAssignmentDialog({
   isOpen,
@@ -91,7 +93,7 @@ export function AddManualAssignmentDialog({
   allPublishers,
   allTerritories,
   allCasas,
-  allAssignmentsForMonth,
+  allAssignments,
 }: AddManualAssignmentDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -140,25 +142,42 @@ export function AddManualAssignmentDialog({
     }
   }, [isOpen, assignmentToEdit, slot, form]);
 
-  const { assignedCaptainIdsInMonth, assignedCasaIdsInMonth, assignedTerritoryIdsInMonth } = useMemo(() => {
+  const assignedInMonth = useMemo(() => {
+    if (!date) return { captainIds: new Set(), casaIds: new Set(), territoryIds: new Set() };
+    
+    const monthStart = startOfDay(startOfMonth(date));
+    const monthEnd = endOfDay(endOfMonth(date));
+    
     const captainIds = new Set<string>();
     const casaIds = new Set<string>();
     const territoryIds = new Set<string>();
 
-    allAssignmentsForMonth.forEach(a => {
-        if (a.userId) captainIds.add(a.userId);
-        if(a.casaId) casaIds.add(a.casaId);
-        if (a.locationId && allTerritories.some(t => t.id === a.locationId)) {
-            territoryIds.add(a.locationId);
+    allAssignments.forEach(a => {
+        const assignmentDate = parseISO(a.date);
+        if (isWithinInterval(assignmentDate, { start: monthStart, end: monthEnd })) {
+            if (a.userId) captainIds.add(a.userId);
+            if (a.casaId) casaIds.add(a.casaId);
+            if (a.locationId) territoryIds.add(a.locationId);
         }
     });
 
-    return { 
-        assignedCaptainIdsInMonth: captainIds, 
-        assignedCasaIdsInMonth: casaIds,
-        assignedTerritoryIdsInMonth: territoryIds
-    };
-  }, [allAssignmentsForMonth, allTerritories]);
+    return { captainIds, casaIds, territoryIds };
+  }, [allAssignments, date]);
+
+  const lastWorkedDates = useMemo(() => {
+    const map = new Map<string, string>();
+    allTerritories.forEach(territory => {
+      const lastAssignment = allAssignments
+        .filter(a => a.locationId === territory.id && a.lastReportData)
+        .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime())
+        [0];
+
+      if (lastAssignment) {
+        map.set(territory.id, lastAssignment.date);
+      }
+    });
+    return map;
+  }, [allAssignments, allTerritories]);
 
   const availableTerritoriesForSelection = useMemo(() => {
     const baseFiltered = allTerritories.filter(t => {
@@ -168,16 +187,16 @@ export function AddManualAssignmentDialog({
       if (isEditMode && assignmentToEdit?.locationId === t.id) {
         return true;
       }
-      return !assignedTerritoryIdsInMonth.has(t.id);
+      return !assignedInMonth.territoryIds.has(t.id);
     });
 
     const sortByLastWorked = (a: Territory, b: Territory) => {
-      const dateA = a.lastWorked ? parse(a.lastWorked, 'yyyy-MM-dd', new Date()).getTime() : 0;
-      const dateB = b.lastWorked ? parse(b.lastWorked, 'yyyy-MM-dd', new Date()).getTime() : 0;
+      const dateA = lastWorkedDates.get(a.id) ? parseISO(lastWorkedDates.get(a.id)!).getTime() : 0;
+      const dateB = lastWorkedDates.get(b.id) ? parseISO(lastWorkedDates.get(b.id)!).getTime() : 0;
       return dateA - dateB;
     };
 
-    if (selectedCasaId) {
+    if (selectedCasaId && selectedCasaId !== NO_SELECTION) {
       const associatedTerritories = baseFiltered
         .filter(t => t.associatedCasaIds?.includes(selectedCasaId))
         .sort(sortByLastWorked);
@@ -190,7 +209,7 @@ export function AddManualAssignmentDialog({
     
     return baseFiltered.sort(sortByLastWorked).slice(0, 20);
 
-  }, [allTerritories, selectedType, assignedTerritoryIdsInMonth, isEditMode, assignmentToEdit, selectedCasaId]);
+  }, [allTerritories, selectedType, assignedInMonth.territoryIds, isEditMode, assignmentToEdit, selectedCasaId, lastWorkedDates]);
 
 
   const availablePublishersForSlot = useMemo(() => {
@@ -309,7 +328,7 @@ export function AddManualAssignmentDialog({
                       {availableCasasForSlot.map(loc => {
                         const name = loc.ownerName || loc.address;
                         const isCaptainsHouse = selectedCaptain && loc.id === selectedCaptain.managedCasaId;
-                        const isAlreadyAssigned = assignedCasaIdsInMonth.has(loc.id);
+                        const isAlreadyAssigned = assignedInMonth.casaIds.has(loc.id);
                         return (
                           <SelectItem
                             key={loc.id}
@@ -345,7 +364,7 @@ export function AddManualAssignmentDialog({
                 <FormItem>
                   <FormLabel>
                     Territorio
-                    {selectedCasaId && (
+                    {selectedCasaId && selectedCasaId !== NO_SELECTION && (
                         <span className="ml-2 text-xs font-normal text-primary">(filtrado por casa)</span>
                     )}
                   </FormLabel>
@@ -358,11 +377,13 @@ export function AddManualAssignmentDialog({
                         const territoryDisplayName = loc.type === 'urban' && loc.number 
                             ? `U-${loc.number}: ${loc.name}` 
                             : loc.name;
-                        const lastWorkedDisplay = loc.lastWorked 
-                            ? format(parse(loc.lastWorked, "yyyy-MM-dd", new Date()), 'dd/MM/yy')
+                        const lastWorkedDate = lastWorkedDates.get(loc.id);
+                        const lastWorkedDisplay = lastWorkedDate
+                            ? format(parseISO(lastWorkedDate), 'dd/MM/yy')
                             : 'Nunca';
+
                         const fullDisplayName = `${territoryDisplayName} (${lastWorkedDisplay})`;
-                        const isAlreadyAssigned = assignedTerritoryIdsInMonth.has(loc.id);
+                        const isAlreadyAssigned = assignedInMonth.territoryIds.has(loc.id);
                         
                         return (
                             <SelectItem key={loc.id} value={loc.id}>
@@ -385,7 +406,7 @@ export function AddManualAssignmentDialog({
                     </SelectContent>
                   </Select>
                   <FormFieldDescription className="text-xs">
-                    {selectedCasaId
+                    {selectedCasaId && selectedCasaId !== NO_SELECTION
                         ? "La lista muestra primero los territorios asociados a la casa seleccionada."
                         : "La lista muestra los 20 territorios disponibles con más tiempo sin trabajar."}
                   </FormFieldDescription>
@@ -407,7 +428,7 @@ export function AddManualAssignmentDialog({
                           <SelectItem key={p.id} value={p.firebaseAuthUid || p.id}>
                               <div className="flex items-center justify-between w-full">
                                 <span>{p.name}</span>
-                                {(assignedCaptainIdsInMonth.has(p.id) || (p.firebaseAuthUid && assignedCaptainIdsInMonth.has(p.firebaseAuthUid))) && (
+                                {(assignedInMonth.captainIds.has(p.id) || (p.firebaseAuthUid && assignedInMonth.captainIds.has(p.firebaseAuthUid))) && (
                                   <TooltipProvider><Tooltip>
                                       <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
                                       <TooltipContent><p>Ya asignado este mes</p></TooltipContent>

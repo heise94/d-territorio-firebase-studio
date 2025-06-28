@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, ChangeEvent, useCallback } from "react";
@@ -12,7 +11,7 @@ import { USER_ROLES } from "@/lib/constants";
 import { historicalTerritoryData } from "@/lib/historical-data";
 import { usersToImport } from "@/lib/users-data"; // Import user data
 import { db } from "@/lib/firebase";
-import { collection, doc, writeBatch, getDocs, query, where, Timestamp } from "firebase/firestore";
+import { collection, doc, writeBatch, getDocs, query, where, Timestamp, serverTimestamp } from "firebase/firestore";
 import type { Territory, UserProfile, ReportedAssignmentData, SingleTerritoryReportDetails, Assignment } from "@/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -175,6 +174,28 @@ export default function ImportarDatosPage() {
         });
         
         setAssignmentImportLogs(prev => [...prev, { type: 'success', message: `Encontrados ${territoriesMap.size} territorios y ${usersMap.size} usuarios en la base de datos.` }]);
+        
+        const territoryLastWorkedMap = new Map<string, string>();
+        for (const territoryHistory of historicalTerritoryData) {
+            const territoryNumberStr = territoryHistory.numeroTerritorio.toString();
+            const territory = territoriesMap.get(territoryNumberStr);
+            if (!territory) continue;
+
+            let latestDate: Date | null = null;
+            territoryHistory.asignaciones.forEach(assignmentJson => {
+                const [day, month, year] = assignmentJson.fechaAsignacion.split('/').map(Number);
+                const assignmentDate = new Date(year, month - 1, day);
+                if (!latestDate || assignmentDate > latestDate) {
+                    latestDate = assignmentDate;
+                }
+            });
+            
+            if (latestDate) {
+                territoryLastWorkedMap.set(territory.id, format(latestDate, "yyyy-MM-dd"));
+            }
+        }
+        setAssignmentImportLogs(prev => [...prev, { type: 'success', message: `Pre-cálculo de fechas de último trabajo completado para ${territoryLastWorkedMap.size} territorios.` }]);
+
 
         for (const territoryHistory of historicalTerritoryData) {
             const territoryNumberStr = territoryHistory.numeroTerritorio.toString();
@@ -235,6 +256,12 @@ export default function ImportarDatosPage() {
             }
         }
         
+        for (const [territoryId, lastWorkedDate] of territoryLastWorkedMap.entries()) {
+            const territoryRef = doc(db, "territories", territoryId);
+            batch.update(territoryRef, { lastWorked: lastWorkedDate, updatedAt: serverTimestamp() });
+        }
+        setAssignmentImportLogs(prev => [...prev, { type: 'success', message: `Se preparó la actualización de la fecha de último trabajo para ${territoryLastWorkedMap.size} territorios.` }]);
+
         setAssignmentImportLogs(prev => [...prev, { type: 'success', message: `Datos procesados. Escribiendo en la base de datos...` }]);
         await batch.commit();
 
@@ -499,6 +526,3 @@ export default function ImportarDatosPage() {
     </div>
   );
 }
-    
-
-    

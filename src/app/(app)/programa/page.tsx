@@ -49,7 +49,7 @@ export default function ProgramaMensualPage() {
   const [allPublishers, setAllPublishers] = useState<PublisherDetail[]>([]);
   const [allCasas, setAllCasas] = useState<Casa[]>([]);
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
-  const [savedAssignments, setSavedAssignments] = useState<Assignment[]>([]);
+  const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [summerStartDate, setSummerStartDate] = useState("");
   const [winterStartDate, setWinterStartDate] = useState("");
@@ -67,7 +67,7 @@ export default function ProgramaMensualPage() {
   
   useEffect(() => {
     setIsLoading(true);
-    const publishersQuery = query(collection(db, "users"), where("status", "in", ["Activo", "Pendiente Invitación"]));
+    const publishersQuery = query(collection(db, "users"));
     const unsubPublishers = onSnapshot(publishersQuery, (snap) => setAllPublishers(snap.docs.map(d => ({id: d.id, ...d.data()} as PublisherDetail))));
     
     const casasQuery = query(collection(db, "casas"), orderBy("ownerName", "asc"));
@@ -89,29 +89,23 @@ export default function ProgramaMensualPage() {
         setWinterStartDate("");
       }
     });
+
+    const assignmentsQuery = query(collection(db, "assignments"), orderBy("date", "desc"));
+    const unsubAssignments = onSnapshot(assignmentsQuery, (snapshot) => {
+      setAllAssignments(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Assignment)));
+    }, (error) => {
+        console.error("Error fetching assignments:", error);
+        toast({title: "Error de Carga", description: "No se pudieron obtener las asignaciones.", variant: "destructive"});
+    });
     
-    const unsubscribers = [unsubPublishers, unsubCasas, unsubTerritories, unsubSettings];
+    const unsubscribers = [unsubPublishers, unsubCasas, unsubTerritories, unsubSettings, unsubAssignments];
     const timer = setTimeout(() => setIsLoading(false), 1500); 
     
     return () => {
       unsubscribers.forEach(unsub => unsub());
       clearTimeout(timer);
     };
-  }, []);
-
-  useEffect(() => {
-    const startDate = format(startOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
-    const endDate = format(endOfMonth(new Date(selectedYear, selectedMonth)), 'yyyy-MM-dd');
-
-    const assignmentsQuery = query(collection(db, "assignments"), where("date", ">=", startDate), where("date", "<=", endDate));
-    const unsubscribe = onSnapshot(assignmentsQuery, (snapshot) => {
-      setSavedAssignments(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Assignment)));
-    }, (error) => {
-        console.error("Error fetching assignments:", error);
-        toast({title: "Error de Carga", description: "No se pudieron obtener las asignaciones para este mes.", variant: "destructive"});
-    });
-    return () => unsubscribe();
-  }, [selectedMonth, selectedYear, toast]);
+  }, [toast]);
 
   const canManageProgram = hasPermission(PERMISSIONS.MANAGE_MONTHLY_PROGRAM);
   
@@ -230,11 +224,14 @@ export default function ProgramaMensualPage() {
   };
 
   const assignmentsToDisplay = useMemo(() => {
-    return savedAssignments.reduce((acc, curr) => {
-        (acc[curr.date] = acc[curr.date] || []).push(curr);
+    return allAssignments.reduce((acc, curr) => {
+        const assignmentDate = parseISO(curr.date);
+        if (assignmentDate.getFullYear() === selectedYear && assignmentDate.getMonth() === selectedMonth) {
+            (acc[curr.date] = acc[curr.date] || []).push(curr);
+        }
         return acc;
     }, {} as Record<string, any[]>);
-  }, [savedAssignments]);
+  }, [allAssignments, selectedMonth, selectedYear]);
   
   const firstDayOfMonth = startOfMonth(new Date(selectedYear, selectedMonth));
   const daysInMonth = getDaysInMonth(firstDayOfMonth);
@@ -390,7 +387,7 @@ export default function ProgramaMensualPage() {
             allPublishers={allPublishers}
             allTerritories={allTerritories}
             allCasas={allCasas}
-            allAssignmentsForMonth={savedAssignments}
+            allAssignments={allAssignments}
         />
       )}
     </div>

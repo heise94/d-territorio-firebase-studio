@@ -278,7 +278,7 @@ export default function MisAsignacionesPage() {
             if (report.territoryId && !report.territoryNotWorked) { // Only update if it was actually worked
                 const territoryRef = doc(db, "territories", report.territoryId);
                 batch.update(territoryRef, {
-                    lastWorked: format(new Date(), "yyyy-MM-dd"),
+                    lastWorked: assignmentToReport.date,
                     updatedAt: serverTimestamp()
                 });
             }

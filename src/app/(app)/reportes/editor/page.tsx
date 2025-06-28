@@ -130,7 +130,7 @@ export default function EditorHistorialPage() {
         if (report.territoryId && !report.territoryNotWorked) {
           const territoryRef = doc(db, "territories", report.territoryId);
           batch.update(territoryRef, {
-            lastWorked: format(new Date(), "yyyy-MM-dd"),
+            lastWorked: assignmentToEdit.date,
             updatedAt: serverTimestamp()
           });
         }
