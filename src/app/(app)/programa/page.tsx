@@ -11,8 +11,8 @@ import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, parseISO, parse } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, deleteDoc, getDocs, writeBatch, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, GenerateMonthlyAssignmentsOutput, PreachingType } from "@/types";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, GenerateMonthlyAssignmentsOutput, PreachingType, PreachingGroup } from "@/types";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { generateMonthlyAssignments } from "@/ai/flows/generate-monthly-assignments";
 import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
 import { EditAssignmentDialog } from "@/components/programa/edit-assignment-dialog";
@@ -60,7 +60,7 @@ export default function ProgramaMensualPage() {
   const [isAddManualDialogOpen, setIsAddManualDialogOpen] = useState(false);
   const [assignmentToEdit, setAssignmentToEdit] = useState<DraftAssignmentItem | null>(null);
   const [dayForManualAdd, setDayForManualAdd] = useState<string | null>(null);
-  const [assignmentIdToDelete, setAssignmentIdToDelete] = useState<string | null>(null);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
   const [draftAssignments, setDraftAssignments] = useState<Record<string, DraftAssignmentItem[]>>({});
 
 
@@ -143,7 +143,7 @@ export default function ProgramaMensualPage() {
     });
     
     const serializableCasas = allCasas.map(c => {
-        const {unavailabilityPeriods, ...rest} = c;
+        const {unavailabilityPeriods, createdAt, updatedAt, ...rest} = c;
         const serializedUnavailability = (unavailabilityPeriods || []).map(p => ({
             ...p,
             startDate: p.startDate ? format((p.startDate as Timestamp).toDate(), 'yyyy-MM-dd') : undefined,
@@ -153,7 +153,7 @@ export default function ProgramaMensualPage() {
     });
     
     const serializablePublishers = allPublishers.map(p => {
-        const {availability, ...rest} = p;
+        const {availability, createdAt, updatedAt, ...rest} = p;
         const serializedUnavailability = (availability?.unavailabilityPeriods || []).map(up => ({
             ...up,
             startDate: up.startDate ? format((up.startDate as Timestamp).toDate(), 'yyyy-MM-dd') : undefined,
@@ -308,12 +308,12 @@ export default function ProgramaMensualPage() {
   };
 
   const handleDeleteExistingAssignment = async () => {
-    if (!assignmentIdToDelete) return;
-    const assignmentRef = doc(db, "assignments", assignmentIdToDelete);
+    if (!assignmentToDelete || !assignmentToDelete.id) return;
+    const assignmentRef = doc(db, "assignments", assignmentToDelete.id);
     try {
         await deleteDoc(assignmentRef);
         toast({ title: "Asignación Eliminada", variant: "default" });
-        setAssignmentIdToDelete(null);
+        setAssignmentToDelete(null);
     } catch (error) {
         toast({ title: "Error al eliminar", variant: "destructive" });
     }
@@ -414,12 +414,15 @@ export default function ProgramaMensualPage() {
                                         <p className="truncate text-muted-foreground text-[0.7rem]" title={assign.locationName || (assign as any).territoryName || (assign as any).casaName}>{assign.locationName || (assign as any).territoryName || (assign as any).casaName}</p>
                                         <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
                                             {hasDraft && <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => { setAssignmentToEdit(assign as DraftAssignmentItem); setIsEditDialogOpen(true);}}><Edit className="h-3 w-3 text-blue-600" /></Button>}
-                                            <AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5"><Trash2 className="h-3 w-3 text-destructive" /></Button></AlertDialogTrigger>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setAssignmentToDelete(assign)} aria-label="Eliminar asignación"><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                                                </AlertDialogTrigger>
                                                 <AlertDialogContent>
                                                     <AlertDialogHeader><AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle><AlertDialogDescription>Se eliminará la asignación de {assign.userName || (assign as any).captainName}.</AlertDialogDescription></AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => hasDraft ? handleDeleteDraftAssignment(assign.date, assign.id!) : setAssignmentIdToDelete(assign.id!)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                                        <AlertDialogAction onClick={() => hasDraft ? handleDeleteDraftAssignment(assign.date, assign.id!) : handleDeleteExistingAssignment()} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
@@ -480,12 +483,12 @@ export default function ProgramaMensualPage() {
           />
       )}
       
-      {assignmentIdToDelete && !hasDraft && (
-        <AlertDialog open={!!assignmentIdToDelete} onOpenChange={(isOpen) => !isOpen && setAssignmentIdToDelete(null)}>
+      {assignmentToDelete && !hasDraft && (
+        <AlertDialog open={!!assignmentToDelete} onOpenChange={(isOpen) => !isOpen && setAssignmentToDelete(null)}>
             <AlertDialogContent>
                 <AlertDialogHeader><AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle></AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setAssignmentIdToDelete(null)}>Cancelar</AlertDialogCancel>
+                    <AlertDialogCancel onClick={() => setAssignmentToDelete(null)}>Cancelar</AlertDialogCancel>
                     <AlertDialogAction onClick={handleDeleteExistingAssignment} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
