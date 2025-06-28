@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -7,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, CalendarDays, Users, MountainSnow, Video, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
-import { format, getDaysInMonth, startOfMonth, getDay, isSameDay } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay } from 'date-fns';
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Assignment, PreachingAssignedType } from "@/types";
