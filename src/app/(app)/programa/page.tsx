@@ -153,7 +153,13 @@ export default function ProgramaMensualPage() {
     setIsGenerationDialogOpen(true);
   };
 
-  const handleGenerateAssignments = async (dialogData: { additionalInstructions: string; holidayOverrides?: Array<{ date: string; time: string; type: PreachingType }>; designatedRuralWeekendDays: string[] }) => {
+  const handleGenerateAssignments = async (dialogData: { 
+    additionalInstructions: string; 
+    holidayOverrides?: Array<{ date: string; time: string; type: PreachingType }>; 
+    designatedRuralWeekendDays: string[];
+    assignLocations: boolean;
+    assignCaptains: boolean;
+  }) => {
     setIsLoading(true);
     setGeneratedAssignments(null);
 
@@ -200,18 +206,18 @@ export default function ProgramaMensualPage() {
     const availableCasasForAI = casas.filter(c => !c.blockInfo || !c.blockInfo.forSystem);
 
     const plainTerritoriesForAI = territories.map(t => {
-      const plainTerritory: any = {};
-      for (const key in t) {
-          if (Object.prototype.hasOwnProperty.call(t, key)) {
-              const value = (t as any)[key];
-              if (value instanceof Timestamp) {
-                  plainTerritory[key] = value.toDate().toISOString();
-              } else {
-                  plainTerritory[key] = value;
-              }
-          }
-      }
-      return plainTerritory;
+        const plainTerritory: {[key: string]: any} = {};
+        for (const key in t) {
+            if (Object.prototype.hasOwnProperty.call(t, key)) {
+                const value = (t as any)[key];
+                if (value instanceof Timestamp) {
+                    plainTerritory[key] = value.toDate().toISOString();
+                } else {
+                    plainTerritory[key] = value;
+                }
+            }
+        }
+        return plainTerritory;
     });
 
     const input: GenerateMonthlyAssignmentsInput = {
@@ -222,7 +228,7 @@ export default function ProgramaMensualPage() {
       availableDaysWithTimeSlots: processedAvailableDays,
       groupPreachingDays: groupOrganizedDays,
 
-      publisherDetailedAvailabilities: publishers.map(p => ({ 
+      publisherDetailedAvailabilities: dialogData.assignCaptains ? publishers.map(p => ({ 
           id: p.firebaseAuthUid || p.id, 
           name: p.name,
           blockInfo: p.blockInfo,
@@ -232,7 +238,7 @@ export default function ProgramaMensualPage() {
             endDate: format(up.endDate instanceof Timestamp ? up.endDate.toDate() : new Date(up.endDate), "yyyy-MM-dd"),
             reason: up.reason
           }))
-      })),
+      })) : [],
       availableCasas: availableCasasForAI.map(c => ({ 
           id: c.id, 
           name: c.ownerName, 
@@ -294,7 +300,9 @@ export default function ProgramaMensualPage() {
             description: a.description || undefined,
         })),
 
-      assignCasas: true, assignTerritories: true, 
+      assignCasas: dialogData.assignLocations,
+      assignTerritories: dialogData.assignLocations,
+      assignCaptains: dialogData.assignCaptains,
       detailedTerritoryReports: plainTerritoriesForAI,
       specialCampaignTerritoriesPerDay: 1,
     };
@@ -611,4 +619,3 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
-

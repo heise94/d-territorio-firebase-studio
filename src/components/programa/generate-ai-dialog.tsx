@@ -52,6 +52,8 @@ const holidayOverrideSchema = z.object({
 
 
 const generateAIDialogSchema = z.object({
+  assignLocations: z.boolean().default(true),
+  assignCaptains: z.boolean().default(true),
   additionalInstructions: z.string().max(1000, "Máximo 1000 caracteres.").optional().or(z.literal('')),
   holidayOverrides: z.array(holidayOverrideSchema).optional(),
   designatedRuralWeekendDays: z.array(z.string()).optional().default([]),
@@ -62,7 +64,13 @@ type GenerateAIDialogValues = z.infer<typeof generateAIDialogSchema>;
 interface GenerateAIDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSubmitGeneration: (data: { additionalInstructions: string; holidayOverrides?: Array<{date: string, time: string, type: PreachingType}>; designatedRuralWeekendDays: string[] }) => Promise<void>;
+  onSubmitGeneration: (data: { 
+    additionalInstructions: string; 
+    holidayOverrides?: Array<{date: string, time: string, type: PreachingType}>; 
+    designatedRuralWeekendDays: string[];
+    assignLocations: boolean;
+    assignCaptains: boolean;
+  }) => Promise<void>;
   year: number;
   month: number; // 0-indexed
   holidays: CustomHoliday[];
@@ -76,6 +84,8 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
   const form = useForm<GenerateAIDialogValues>({
     resolver: zodResolver(generateAIDialogSchema),
     defaultValues: {
+      assignLocations: true,
+      assignCaptains: true,
       additionalInstructions: "",
       holidayOverrides: [],
       designatedRuralWeekendDays: [],
@@ -129,12 +139,14 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
         }));
         replace(overrides);
         form.reset({
+            assignLocations: true,
+            assignCaptains: true,
             additionalInstructions: "",
             holidayOverrides: overrides,
             designatedRuralWeekendDays: [],
         });
     } else {
-        form.reset({ additionalInstructions: "", holidayOverrides: [], designatedRuralWeekendDays: [] });
+        form.reset({ assignLocations: true, assignCaptains: true, additionalInstructions: "", holidayOverrides: [], designatedRuralWeekendDays: [] });
     }
   }, [isOpen, holidaysForMonth, form, replace]);
 
@@ -154,6 +166,8 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
         additionalInstructions: values.additionalInstructions || "",
         holidayOverrides: activeHolidayOverrides,
         designatedRuralWeekendDays: values.designatedRuralWeekendDays || [],
+        assignLocations: values.assignLocations,
+        assignCaptains: values.assignCaptains,
       });
     } catch (error) {
       console.error("Error in dialog submission:", error);
@@ -168,7 +182,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
 
   const handleDialogClose = (open: boolean) => {
     if (!open && !isSubmitting) {
-      form.reset({ additionalInstructions: "", holidayOverrides: [], designatedRuralWeekendDays: [] });
+      form.reset({ assignLocations: true, assignCaptains: true, additionalInstructions: "", holidayOverrides: [], designatedRuralWeekendDays: [] });
     }
     onOpenChange(open);
   };
@@ -189,7 +203,41 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 py-2 pr-1">
-            
+             <div className="space-y-3">
+              <FormLabel className="text-base font-semibold flex items-center">
+                 <Bot className="mr-2 h-5 w-5 text-primary" />
+                Opciones de Generación
+              </FormLabel>
+              <div className="space-y-2 rounded-md border p-3 shadow-sm bg-muted/30">
+                <FormField
+                    control={form.control}
+                    name="assignLocations"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 p-2 rounded-md">
+                            <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                            <div className="space-y-0.5 leading-none">
+                                <FormLabel className="cursor-pointer">Asignar Territorios y Casas</FormLabel>
+                                <FormFieldDescription className="text-xs">Si se desmarca, la IA solo creará los horarios sin asignar un lugar específico.</FormFieldDescription>
+                            </div>
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="assignCaptains"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 p-2 rounded-md">
+                            <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                            <div className="space-y-0.5 leading-none">
+                                <FormLabel className="cursor-pointer">Asignar Capitanes</FormLabel>
+                                <FormFieldDescription className="text-xs">Si se desmarca, la IA creará los horarios sin asignar un publicador encargado.</FormFieldDescription>
+                            </div>
+                        </FormItem>
+                    )}
+                />
+              </div>
+            </div>
+
             <div className="space-y-3">
               <FormLabel className="text-base font-semibold flex items-center">
                 <CalendarDays className="mr-2 h-5 w-5 text-primary" />
@@ -306,7 +354,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
                   <FormLabel className="text-base font-semibold">Instrucciones Adicionales (Opcional)</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Ej: Priorizar territorios no trabajados recientemente. En los días rurales especiales, asignar a los Superintendentes de Grupo."
+                      placeholder="Ej: Priorizar territorios no trabajados recientemente. Considerar asignar al Hno. X el día Y."
                       {...field}
                       rows={3}
                     />
@@ -323,7 +371,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
               </DialogClose>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Iniciar Generación Automática
+                Iniciar Generación con IA
               </Button>
             </DialogFooter>
           </form>

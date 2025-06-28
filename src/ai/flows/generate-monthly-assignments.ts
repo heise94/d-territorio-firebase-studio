@@ -68,8 +68,9 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
   availableDaysWithTimeSlots: AvailableDaysWithTimeSlotsAISchema
     .describe('Pre-processed available days and time slots for preaching. For each day and slot, one captain should be assigned, trying to use different ones if multiple slots on the same day.'),
   assignCasas: z.boolean().describe('Whether to assign houses to the schedule.'),
-  availableCasas: z.array(CasaForAISchema).describe('Available houses for assignment, including their unavailability periods.'),
   assignTerritories: z.boolean().describe('Whether to assign territories to the schedule.'),
+  assignCaptains: z.boolean().describe('Whether to assign captains to the schedule.'),
+  availableCasas: z.array(CasaForAISchema).describe('Available houses for assignment, including their unavailability periods.'),
   availableTerritories: z
     .array(z.object({id: z.string(), name: z.string(), type: z.enum(["urban", "rural"]), number: z.string().optional() }))
     .describe('Available territories for assignment (urban/rural).'),
@@ -113,8 +114,8 @@ export type GenerateMonthlyAssignmentsInput = z.infer<
 const ExtendedMonthlyCaptainAssignmentItemSchema = z.object({
   id: z.string().describe('UUID for this assignment'),
   date: z.string().describe('YYYY-MM-DD'),
-  captainId: z.string().describe('Firebase Auth UID of the assigned captain.'),
-  captainName: z.string().describe('Name of the assigned captain.'),
+  captainId: z.string().optional().nullable().describe('Firebase Auth UID of the assigned captain. Can be null if assignCaptains is false.'),
+  captainName: z.string().optional().nullable().describe('Name of the assigned captain. Can be null if assignCaptains is false.'),
   time: z.string().describe('HH:MM'),
   status: z.string().describe("('not_sent', 'pending_confirmation', 'accepted', 'rejected') - Initially always 'pending' after generation, to be confirmed by user."),
   preachingType: z.string().describe("('publica', 'zoom', 'rural')"),
@@ -167,52 +168,59 @@ const prompt = ai.definePrompt({
   {{/each}}
   
   Assign Houses: {{{assignCasas}}}
-  Available Houses (IMPORTANT: Check 'unavailabilityPeriods' for each house. Do NOT assign a house if the assignment date falls within any of its unavailability periods.):
-  {{#if availableCasas}}
-    {{#each availableCasas}} 
-    - ID: {{this.id}}, Name: {{this.name}}, Address: {{this.address}}
-      {{#if this.unavailabilityPeriods}}
-      Not Available:
-        {{#each this.unavailabilityPeriods}}
-        - From: {{this.startDate}} to {{this.endDate}} {{#if this.reason}} ({{this.reason}}) {{/if}}
-        {{/each}}
-      {{/if}}
-    {{/each}}
-  {{else}} No houses available. {{/if}}
+  {{#if assignCasas}}
+    Available Houses (IMPORTANT: Check 'unavailabilityPeriods' for each house. Do NOT assign a house if the assignment date falls within any of its unavailability periods.):
+    {{#if availableCasas}}
+      {{#each availableCasas}} 
+      - ID: {{this.id}}, Name: {{this.name}}, Address: {{this.address}}
+        {{#if this.unavailabilityPeriods}}
+        Not Available:
+          {{#each this.unavailabilityPeriods}}
+          - From: {{this.startDate}} to {{this.endDate}} {{#if this.reason}} ({{this.reason}}) {{/if}}
+          {{/each}}
+        {{/if}}
+      {{/each}}
+    {{else}} No houses available. {{/if}}
+  {{/if}}
 
   Assign Territories: {{{assignTerritories}}}
-  Available Territories:
-  {{#if availableTerritories}}
-    {{#each availableTerritories}} - ID: {{this.id}}, Name: {{this.name}}, Type: {{this.type}}{{#if this.number}}, Number: {{this.number}}{{/if}}{{/each}}
-  {{else}} No territories available. {{/if}}
+  {{#if assignTerritories}}
+    Available Territories:
+    {{#if availableTerritories}}
+      {{#each availableTerritories}} - ID: {{this.id}}, Name: {{this.name}}, Type: {{this.type}}{{#if this.number}}, Number: {{this.number}}{{/if}}{{/each}}
+    {{else}} No territories available. {{/if}}
 
-  Detailed Territory Reports (use to prioritize less worked territories):
-  {{#if detailedTerritoryReports}}
-    {{#each detailedTerritoryReports}} (Details of report for territory {{this.territoryId}} - The system should infer last worked date or status) {{/each}}
-  {{else}}
-    No detailed territory reports provided. Prioritize rotation or other factors.
+    Detailed Territory Reports (use to prioritize less worked territories):
+    {{#if detailedTerritoryReports}}
+      {{#each detailedTerritoryReports}} (Details of report for territory {{this.territoryId}} - The system should infer last worked date or status) {{/each}}
+    {{else}}
+      No detailed territory reports provided. Prioritize rotation or other factors.
+    {{/if}}
+  {{/if}}
+
+  Assign Captains: {{{assignCaptains}}}
+  {{#if assignCaptains}}
+    Publisher Detailed Availabilities (use this to get captainId, captainName, and check block status for assignments):
+    {{#if publisherDetailedAvailabilities}}
+      {{#each publisherDetailedAvailabilities}}
+      - Publisher ID (for captainId): {{this.id}}, Name (for captainName): {{this.name}} {{#if this.blockInfo.forSystem}} **(BLOQUEADO PARA SISTEMA)** {{/if}}
+        {{#if this.managedCasaId}} **(Gestiona Casa ID: {{this.managedCasaId}})** {{/if}}
+        {{#if this.unavailabilityPeriods}}
+        Not Available (Personal):
+          {{#each this.unavailabilityPeriods}}
+          - From: {{this.startDate}} to {{this.endDate}}
+          {{/each}}
+        {{/if}}
+      {{/each}}
+    {{else}}
+      No publisher availability data provided. You MUST still attempt to assign captains based on the general logic and output a placeholder like "PENDING_CAPTAIN_ID" and "Pending Captain Name" if specific publisher IDs cannot be determined, along with a note.
+    {{/if}}
   {{/if}}
   
   Days Organized by Groups (no centralized assignments for these):
   {{#each groupPreachingDays}}
     {{#if this}} - {{@key}} is a group day. {{/if}}
   {{/each}}
-
-  Publisher Detailed Availabilities (use this to get captainId, captainName, and check block status for assignments):
-  {{#if publisherDetailedAvailabilities}}
-    {{#each publisherDetailedAvailabilities}}
-    - Publisher ID (for captainId): {{this.id}}, Name (for captainName): {{this.name}} {{#if this.blockInfo.forSystem}} **(BLOQUEADO PARA SISTEMA)** {{/if}}
-      {{#if this.managedCasaId}} **(Gestiona Casa ID: {{this.managedCasaId}})** {{/if}}
-      {{#if this.unavailabilityPeriods}}
-      Not Available (Personal):
-        {{#each this.unavailabilityPeriods}}
-        - From: {{this.startDate}} to {{this.endDate}}
-        {{/each}}
-      {{/if}}
-    {{/each}}
-  {{else}}
-    No publisher availability data provided. You MUST still attempt to assign captains based on the general logic and output a placeholder like "PENDING_CAPTAIN_ID" and "Pending Captain Name" if specific publisher IDs cannot be determined, along with a note.
-  {{/if}}
   
   Holiday Dates in Month (YYYY-MM-DD format): {{{holidayDatesInMonth}}}
   Holiday Scheduling Overrides (Specific assignments for holidays):
@@ -265,24 +273,40 @@ const prompt = ai.definePrompt({
   3.  **Assignment Generation for Working Days**:
       -   For each **Working Day**, identify its day of the week (e.g., 'monday').
       -   Find the corresponding time slots for that day from 'availableDaysWithTimeSlots'.
-      -   For **EACH** time slot, you must create one assignment object with a unique captain.
+      -   For **EACH** time slot, you must create one assignment object.
       -   **Captain Selection**:
+          -   {{#if assignCaptains}}
           -   Select a captain from the 'publisherDetailedAvailabilities' list.
           -   **CRITICAL**: DO NOT assign a publisher if 'blockInfo.forSystem' is true.
           -   **CRITICAL**: DO NOT assign a publisher if the assignment date falls within one of their 'unavailabilityPeriods'.
           -   Try to rotate captains. Avoid assigning the same person multiple times on the same day if possible.
+          -   {{else}}
+          -   DO NOT assign a captain. Leave 'captainId' and 'captainName' as null.
+          -   {{/if}}
       -   **Casa (House) Assignment**:
-          -   This applies ONLY if 'assignCasas' is true and the slot type is 'publica' or 'rural'.
+          -   {{#if assignCasas}}
+          -   This applies ONLY if the slot type is 'publica' or 'rural'.
+          -   {{#if assignCaptains}}
           -   **PRIORITY**: If the chosen captain has a 'managedCasaId', you MUST assign their managed house. Look up the house details in 'availableCasas' using the 'managedCasaId'.
-          -   If the captain has no managed house, select another available house from 'availableCasas'.
+          -   If the captain has no managed house, select another available house from 'availableCasas' and rotate them.
+          -   {{else}}
+          -   Select an available house from 'availableCasas' and rotate them.
+          -   {{/if}}
           -   **CRITICAL**: DO NOT assign a house if the assignment date falls within its 'unavailabilityPeriods'.
+          -   {{else}}
+          -   DO NOT assign a house. Leave 'casaName' and 'casaAddress' as null.
+          -   {{/if}}
       -   **Territory Assignment**:
-          -   This applies ONLY if 'assignTerritories' is true and the slot type is 'publica' or 'rural'.
+          -   {{#if assignTerritories}}
+          -   This applies ONLY if the slot type is 'publica' or 'rural'.
           -   **PRIORITY**: You MUST prioritize assigning territories with the oldest 'lastWorked' date. You can find this information in the 'detailedTerritoryReports'. Rotate through available territories to ensure variety.
-          -   Consider campaign requirements ('specificTerritoryIds', 'specialCampaignTerritoriesPerDay').
+          -   Consider campaign requirements. For campaigns with 'specificTerritoryIds', prioritize or exclusively use those territories.
+          -   {{else}}
+          -   DO NOT assign a territory. Leave 'territoryName' as null.
+          -   {{/if}}
 
   4.  **Holiday Overrides**:
-      -   If a date from 'holidayDatesInMonth' is present in 'holidaySchedulingOverrides', you MUST create exactly one assignment for that date as specified, following the normal captain/location assignment logic.
+      -   If a date from 'holidayDatesInMonth' is present in 'holidaySchedulingOverrides', you MUST create exactly one assignment for that date as specified, following the assignment logic defined in step 3.
 
   5.  **Final Output Rules**:
       -   Return the schedule in the specified JSON format.
@@ -303,4 +327,3 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
     return output!;
   }
 );
-
