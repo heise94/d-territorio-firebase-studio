@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -138,7 +139,7 @@ export function AddManualAssignmentDialog({
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Editar Asignación" : "Añadir Asignación Manual"}</DialogTitle>
           <DialogDescription>
-            {isEditMode ? `Editando asignación para ${assignmentToEdit?.userName}` : `Añadiendo asignación para el ${format(date!, 'PPP', {locale: es})}.`}
+            {isEditMode ? `Editando asignación para ${assignmentToEdit?.userName}` : (date ? `Añadiendo asignación para el ${format(date, 'PPP', {locale: es})}.` : "Añadiendo asignación manual.")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
