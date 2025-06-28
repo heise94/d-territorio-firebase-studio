@@ -53,9 +53,10 @@ import type { Assignment, AssignmentStatus, PreachingAssignedType, PublisherDeta
 import { useToast } from "@/hooks/use-toast";
 import { Timestamp, collection, doc, onSnapshot, query, updateDoc, serverTimestamp, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { format, parse, isBefore } from "date-fns";
+import { format, parse, isBefore, getMonth, getYear } from "date-fns";
 import { es } from "date-fns/locale";
 import { findReplacementCaptain } from "@/ai/flows/find-replacement-captain";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingAssignedType; className?: string }) => {
   const defaultClass = "h-4 w-4 shrink-0";
@@ -96,6 +97,7 @@ const getInitials = (name?: string) => {
   return name.substring(0, 2).toUpperCase();
 };
 
+const currentFilterYear = new Date().getFullYear();
 
 export default function GestionAsignacionesPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -105,6 +107,12 @@ export default function GestionAsignacionesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const [isFindingReplacement, setIsFindingReplacement] = useState<string | null>(null);
+
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(currentFilterYear);
+
+  const monthsForFilter = useMemo(() => Array.from({ length: 12 }, (_, i) => ({ value: i, label: format(new Date(2000, i), "MMMM", { locale: es }) })), []);
+  const yearsForFilter = useMemo(() => Array.from({ length: 5 }, (_, i) => currentFilterYear - 2 + i).sort((a,b) => b-a), []);
 
   const formatLocationName = (name: string, type: PreachingAssignedType) => {
     if (type === 'publica' && name.toLowerCase().startsWith('territorio urbano ')) {
@@ -283,16 +291,21 @@ export default function GestionAsignacionesPage() {
     }
   };
 
-
   const filteredAssignments = useMemo(() => {
-    if (!searchTerm) return assignments;
-    return assignments.filter(assign =>
-      (assign.userName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (assign.userEmail?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      assign.locationName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      assign.type.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [assignments, searchTerm]);
+    return assignments.filter(assign => {
+        const assignmentDate = parse(assign.date, "yyyy-MM-dd", new Date());
+        if (getMonth(assignmentDate) !== selectedMonth || getYear(assignmentDate) !== selectedYear) {
+            return false;
+        }
+
+        if (!searchTerm) return true;
+
+        return (assign.userName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+            (assign.userEmail?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+            assign.locationName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            assign.type.toLowerCase().includes(searchTerm.toLowerCase());
+    });
+  }, [assignments, searchTerm, selectedMonth, selectedYear]);
 
   return (
     <TooltipProvider>
@@ -312,28 +325,36 @@ export default function GestionAsignacionesPage() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Todas las Asignaciones</CardTitle>
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pt-2">
-              <CardDescription>
-                {isLoading ? "Cargando asignaciones..." : 
-                  (filteredAssignments.length > 0
-                    ? `Mostrando ${filteredAssignments.length} de ${assignments.length} asignaciones.`
-                    : assignments.length > 0 ? "Ninguna asignación coincide con la búsqueda."
-                    : "Actualmente no hay asignaciones."
-                  )
-                }
-              </CardDescription>
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pt-2">
+              <div className="flex gap-2 items-center">
+                 <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                    <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>{monthsForFilter.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent>
+                </Select>
+                <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+                    <SelectTrigger className="w-[120px] h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>{yearsForFilter.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               <div className="relative w-full sm:w-64 md:w-72">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
                   placeholder="Buscar por usuario, lugar, tipo..."
-                  className="pl-8 w-full"
+                  className="pl-8 w-full h-9 text-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground pt-2">Filtros avanzados (por fecha, estado, etc.) estarán disponibles pronto.</p>
+             <CardDescription className="pt-2 text-xs">
+                {isLoading ? "Cargando asignaciones..." : 
+                  (filteredAssignments.length > 0
+                    ? `Mostrando ${filteredAssignments.length} asignaciones para ${monthsForFilter.find(m => m.value === selectedMonth)?.label} ${selectedYear}.`
+                    : `No se encontraron asignaciones para ${monthsForFilter.find(m => m.value === selectedMonth)?.label} ${selectedYear}.`
+                  )
+                }
+              </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (

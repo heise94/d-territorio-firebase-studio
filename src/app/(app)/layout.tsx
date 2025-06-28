@@ -1,9 +1,10 @@
+
 "use client";
 
 import { useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Menu, XCircle } from 'lucide-react'; 
+import { Loader2, Menu, XCircle, ChevronLeft } from 'lucide-react'; 
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { UserNav } from '@/components/layout/user-nav';
 import { AppLogo } from '@/components/layout/app-logo';
@@ -25,6 +26,7 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
     stopImpersonation 
   } = usePermissions(); 
   const router = useRouter();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -46,13 +48,19 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[240px_1fr]">
-      <div className="hidden border-r bg-muted/40 md:flex md:flex-col">
+    <div className="grid min-h-screen w-full md:grid-cols-[auto_1fr]">
+      <div className={cn("hidden border-r bg-muted/40 md:flex md:flex-col transition-all duration-300 ease-in-out", isSidebarCollapsed ? "w-[72px]" : "w-[240px]")}>
         <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-          <AppLogo />
+          <AppLogo isCollapsed={isSidebarCollapsed} />
         </div>
-        <div className="flex-1 overflow-y-auto">
-          <SidebarNav />
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          <SidebarNav isCollapsed={isSidebarCollapsed} />
+        </div>
+        <div className="mt-auto border-t p-2">
+            <Button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} variant="ghost" size="icon" className="w-full h-10">
+                <ChevronLeft className={cn("h-5 w-5 transition-transform", isSidebarCollapsed && "rotate-180")} />
+                <span className="sr-only">Contraer menú</span>
+            </Button>
         </div>
       </div>
       <div className="flex flex-col">
@@ -89,13 +97,13 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
                 <span className="sr-only">Toggle navigation menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="flex flex-col p-0">
+            <SheetContent side="left" className="flex flex-col p-0 w-[240px]">
                 <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
                     <AppLogo />
                     <SheetTitle className="sr-only">Navegación</SheetTitle>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                    <SidebarNav />
+                    <SidebarNav isCollapsed={false} />
                 </div>
             </SheetContent>
           </Sheet>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -15,6 +16,7 @@ import {
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS, PermissionId, USER_ROLES } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export interface NavItemConfig {
   title: string;
@@ -60,7 +62,7 @@ const navItems: NavItemConfig[] = [
   { title: "Importar Historial", href: "/admin/import-data", icon: Database, adminOnly: true, segment: "admin" },
 ];
 
-export function SidebarNav() {
+export function SidebarNav({ isCollapsed }: { isCollapsed: boolean }) {
   const pathname = usePathname() ?? "";
   const { userProfile, hasPermission, isLoadingPermissions } = usePermissions();
 
@@ -87,73 +89,99 @@ export function SidebarNav() {
   });
 
   return (
-    <nav className="grid items-start px-2 py-4 text-sm font-medium lg:px-4">
-      {visibleNavItems.map((item) => {
-        const Icon = item.icon;
-        
-        if (!item.children || item.children.length === 0) {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                isActive && "bg-muted text-primary"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.title}
-            </Link>
-          );
-        }
-
-        const visibleChildren = item.children.filter(child => {
-          if (child.adminOnly && userProfile?.role !== USER_ROLES.ENCARGADO_TERRITORIO) return false;
-          return !child.permission || hasPermission(child.permission);
-        });
-        
-        if(visibleChildren.length === 0) return null;
-        
-        const isParentActive = pathname.startsWith(item.href);
-
-        return (
-          <Accordion key={item.href} type="single" collapsible defaultValue={isParentActive ? item.href : undefined} className="w-full">
-            <AccordionItem value={item.href} className="border-b-0">
-              <AccordionTrigger
-                className={cn(
-                  "flex items-center justify-between w-full rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary hover:no-underline",
-                  isParentActive && "text-primary"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className="h-4 w-4" />
-                  <span>{item.title}</span>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pl-8 pt-1 pb-0">
-                <div className="flex flex-col space-y-1">
-                  {visibleChildren.map((child) => {
-                     const isChildActive = pathname === child.href;
-                    return (
-                      <Link
-                        key={child.href}
-                        href={child.href}
+    <TooltipProvider delayDuration={0}>
+        <nav className="grid items-start gap-1 px-2 py-4 text-sm font-medium lg:px-4">
+        {isCollapsed ? (
+            visibleNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = (item.href === "/" && pathname === "/") || (item.href !== "/" && pathname.startsWith(item.href));
+                return (
+                    <Tooltip key={item.href}>
+                    <TooltipTrigger asChild>
+                        <Link
+                        href={item.href}
                         className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                          isChildActive && "bg-muted text-primary font-semibold"
+                            "flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-primary hover:bg-muted",
+                            isActive && "bg-muted text-primary"
                         )}
-                      >
-                        {child.title}
-                      </Link>
+                        >
+                        <Icon className="h-5 w-5" />
+                        <span className="sr-only">{item.title}</span>
+                        </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">{item.title}</TooltipContent>
+                    </Tooltip>
+                );
+            })
+        ) : (
+            visibleNavItems.map((item) => {
+                const Icon = item.icon;
+                
+                if (!item.children || item.children.length === 0) {
+                    const isActive = pathname === item.href;
+                    return (
+                        <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                            isActive && "bg-muted text-primary"
+                        )}
+                        >
+                        <Icon className="h-4 w-4" />
+                        {item.title}
+                        </Link>
                     );
-                  })}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        );
-      })}
-    </nav>
+                }
+
+                const visibleChildren = item.children.filter(child => {
+                    if (child.adminOnly && userProfile?.role !== USER_ROLES.ENCARGADO_TERRITORIO) return false;
+                    return !child.permission || hasPermission(child.permission);
+                });
+                
+                if(visibleChildren.length === 0) return null;
+                
+                const isParentActive = pathname.startsWith(item.href);
+
+                return (
+                    <Accordion key={item.href} type="single" collapsible defaultValue={isParentActive ? item.href : undefined} className="w-full">
+                    <AccordionItem value={item.href} className="border-b-0">
+                        <AccordionTrigger
+                        className={cn(
+                            "flex items-center justify-between w-full rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary hover:no-underline",
+                            isParentActive && "text-primary"
+                        )}
+                        >
+                        <div className="flex items-center gap-3">
+                            <Icon className="h-4 w-4" />
+                            <span>{item.title}</span>
+                        </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pl-8 pt-1 pb-0">
+                        <div className="flex flex-col space-y-1">
+                            {visibleChildren.map((child) => {
+                                const isChildActive = pathname === child.href;
+                                return (
+                                <Link
+                                    key={child.href}
+                                    href={child.href}
+                                    className={cn(
+                                    "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                                    isChildActive && "bg-muted text-primary font-semibold"
+                                    )}
+                                >
+                                    {child.title}
+                                </Link>
+                                );
+                            })}
+                        </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                    </Accordion>
+                );
+            })
+        )}
+        </nav>
+    </TooltipProvider>
   );
 }
