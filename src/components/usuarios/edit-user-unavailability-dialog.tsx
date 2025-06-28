@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, UserX, PlusCircle, Trash2, CalendarIcon } from "lucide-react";
+import { Loader2, Save, PlusCircle, Trash2, CalendarIcon, CalendarOff } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { UserProfile, UnavailabilityPeriod } from "@/types";
 import { Timestamp } from "firebase/firestore";
@@ -111,7 +111,7 @@ export function EditUserUnavailabilityDialog({ isOpen, onOpenChange, onUnavailab
       <DialogContent className="sm:max-w-xl md:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center">
-            <UserX className="mr-2 h-6 w-6 text-primary" />
+            <CalendarOff className="mr-2 h-6 w-6 text-primary" />
             Editar Indisponibilidad de {userToEdit.name}
           </DialogTitle>
           <DialogDescription>
