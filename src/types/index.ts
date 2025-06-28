@@ -11,6 +11,7 @@ export interface UserProfile {
   phoneNumber: string;
   role: UserRole;
   status: 'Activo' | 'Bloqueado' | 'Pendiente Aprobación Admin' | 'Pendiente Invitación';
+  isAssignable?: boolean; // Can be assigned tasks even if not 'Activo'
   blockInfo?: {
     forSystem: boolean;
     forGroup: boolean;

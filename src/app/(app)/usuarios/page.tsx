@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2, Send, CalendarCog, KeyRound } from "lucide-react";
+import { PlusCircle, Search, Users, Settings2, Edit3, Trash2, ShieldOff, ShieldCheck, UserCog, CheckSquare, ShieldAlert, MessageSquareWarning, Loader2, Send, CalendarCog, KeyRound, UserCheck, UserX } from "lucide-react";
 import { InviteUserDialog } from "@/components/usuarios/invite-user-dialog";
 import { EditUserDialog } from "@/components/usuarios/edit-user-dialog";
 import { EditUserAvailabilityDialog } from "@/components/usuarios/edit-user-availability-dialog";
@@ -198,6 +198,7 @@ export default function UsuariosPage() {
       phoneNumber: newUserData.phoneNumber,
       role: newUserData.role,
       status: 'Pendiente Invitación',
+      isAssignable: false,
       adminApprovalStatus: 'approved',
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -287,6 +288,26 @@ export default function UsuariosPage() {
     } finally {
       setIsSubmitting(false);
       setIsBlockUserDialogOpen(false);
+    }
+  };
+
+  const handleToggleAssignableStatus = async (userId: string, isCurrentlyAssignable: boolean) => {
+    setIsSubmitting(true);
+    const userDocRef = doc(db, "users", userId);
+    try {
+        await updateDoc(userDocRef, {
+        isAssignable: !isCurrentlyAssignable,
+        updatedAt: Timestamp.now()
+        });
+        toast({
+        title: "Estado de Asignación Actualizado",
+        description: `El usuario ha sido ${!isCurrentlyAssignable ? 'habilitado' : 'deshabilitado'} para asignaciones.`,
+        });
+    } catch (error) {
+        console.error("Error toggling assignable status:", error);
+        toast({ title: "Error", description: "No se pudo actualizar el estado del usuario.", variant: "destructive" });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -544,7 +565,27 @@ export default function UsuariosPage() {
                     {filteredUsers.map((user) => {
                       const isUserAdmin = user.role === USER_ROLES.ENCARGADO_TERRITORIO;
                       const isPendingAdminApprovalFromGroup = user.addedByGroupId && user.adminApprovalStatus === 'pending';
-                      const displayStatus = isPendingAdminApprovalFromGroup ? 'Pendiente Aprobación Admin' : user.status;
+                      
+                      let displayStatus: React.ReactNode = user.status;
+                      let badgeVariant: "default" | "destructive" | "outline" | "secondary" = 'outline';
+                      let badgeClass = '';
+
+                      if (isPendingAdminApprovalFromGroup) {
+                        displayStatus = 'Pendiente Aprobación Admin';
+                        badgeClass = 'border-blue-500 text-blue-600 bg-blue-500/10';
+                      } else if (user.status === 'Activo') {
+                        badgeVariant = 'default';
+                      } else if (user.status === 'Pendiente Invitación') {
+                        if (user.isAssignable) {
+                          displayStatus = 'Asignable (Invit. Pend.)';
+                          badgeClass = 'border-green-500 text-green-700 bg-green-500/10';
+                        } else {
+                          badgeClass = 'border-purple-500 text-purple-600 bg-purple-500/10';
+                        }
+                      } else if (user.status === 'Bloqueado') {
+                        badgeVariant = 'destructive';
+                      }
+
                       const showBlockReasonTooltip = canViewSensitiveUserDetails && user.status === 'Bloqueado' && (user.blockInfo?.reason || user.blockInfo?.forSystem || user.blockInfo?.forGroup);
                       const groupName = user.assignedGroupId ? availableGroups.find(g => g.id === user.assignedGroupId)?.name : null;
 
@@ -576,17 +617,7 @@ export default function UsuariosPage() {
                         <TableCell>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Badge variant={
-                                  displayStatus === 'Activo' ? 'default'
-                                  : displayStatus === 'Pendiente Aprobación Admin' || displayStatus === 'Pendiente Invitación' ? 'outline'
-                                  : 'destructive' 
-                                }
-                                className={
-                                    displayStatus === 'Pendiente Aprobación Admin' ? 'border-blue-500 text-blue-600 bg-blue-500/10' 
-                                    : displayStatus === 'Pendiente Invitación' ? 'border-purple-500 text-purple-600 bg-purple-500/10'
-                                    : ''
-                                }
-                              >
+                              <Badge variant={badgeVariant} className={badgeClass}>
                                 {displayStatus}
                               </Badge>
                             </TooltipTrigger>
@@ -624,6 +655,17 @@ export default function UsuariosPage() {
                             {user.status === 'Pendiente Invitación' && canManageUsers && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700" onClick={() => handleToggleAssignableStatus(user.id, !!user.isAssignable)} disabled={isSubmitting}>
+                                    {user.isAssignable ? <UserX className="h-4 w-4 text-destructive" /> : <UserCheck className="h-4 w-4" />}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{user.isAssignable ? "Deshabilitar para asignaciones" : "Habilitar para asignaciones"}</TooltipContent>
+                              </Tooltip>
+                            )}
+
+                            {user.status === 'Pendiente Invitación' && user.adminApprovalStatus !== 'pending' && canManageUsers && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700" onClick={() => handleSendInvitation(user)} disabled={isSubmitting}>
                                     <Send className="h-4 w-4" />
                                   </Button>
@@ -631,7 +673,7 @@ export default function UsuariosPage() {
                                 <TooltipContent>Enviar Invitación WhatsApp</TooltipContent>
                               </Tooltip>
                             )}
-
+                            
                             {user.status === 'Activo' && canManageUsers && (
                                 <AlertDialog>
                                 <Tooltip>

@@ -51,7 +51,7 @@ export default function EditorHistorialPage() {
     });
 
     setIsLoadingPublishers(true);
-    const publishersQuery = query(collection(db, "users"), where("status", "==", "Activo"));
+    const publishersQuery = query(collection(db, "users"), where("isAssignable", "==", true));
     const unsubscribePublishers = onSnapshot(publishersQuery, (snapshot) => {
         setAllPublishers(snapshot.docs.map(d => ({id: d.id, ...d.data()} as UserProfile)));
         setIsLoadingPublishers(false);
@@ -375,4 +375,3 @@ export default function EditorHistorialPage() {
     </div>
   );
 }
-

@@ -74,6 +74,7 @@ function AcceptInvitationContent() {
       await updateDoc(doc(db, "users", userDoc.id), {
         firebaseAuthUid: authUser.uid,
         status: 'Activo',
+        isAssignable: true,
         updatedAt: new Date(),
       });
       

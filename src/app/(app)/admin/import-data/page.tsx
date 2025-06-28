@@ -95,6 +95,7 @@ export default function ImportarDatosPage() {
                 phoneNumber: user.phoneNumber,
                 role: user.role as UserProfile['role'],
                 status: 'Pendiente Invitación',
+                isAssignable: false,
                 adminApprovalStatus: 'approved',
                 createdAt: Timestamp.now(),
                 updatedAt: Timestamp.now(),

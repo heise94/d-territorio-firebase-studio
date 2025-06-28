@@ -138,7 +138,7 @@ export default function GestionAsignacionesPage() {
     });
     
     // Fetch data needed for AI flow
-    const usersQuery = query(collection(db, "users"), where("status", "==", "Activo"));
+    const usersQuery = query(collection(db, "users"), where("isAssignable", "==", true));
     onSnapshot(usersQuery, (snapshot) => {
         setAllPublishers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PublisherDetail)));
     });

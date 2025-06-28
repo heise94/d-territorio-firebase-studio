@@ -71,6 +71,7 @@ import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useForm } from "react-hook-form";
 
 
 const scheduleSlotFormSchema = z.object({
@@ -480,7 +481,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     setIsAddSlotDialogOpen(true);
   };
 
-  const onSubmitSlotDialog: SubmitHandler<ScheduleSlotFormValues> = async (data) => {
+  const onSubmitSlotDialog = async (data: ScheduleSlotFormValues) => {
     setIsSubmittingSlotDialog(true);
     let updatedSlots;
     const dayForAction = slotToEdit?.dayOfWeek || dayForNewSlot;
@@ -765,8 +766,8 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         
         const allHolidaysCombinedForState: CustomHoliday[] = [...currentCustomHolidaysWithJSDates, ...newFullCustomHolidays]
           .sort((a,b) => {
-            const dateA = a.date instanceof Timestamp ? a.date.toDate() : a.date; 
-            const dateB = b.date instanceof Timestamp ? b.date.toDate() : b.date; 
+            const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date); 
+            const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
             return dateA.getTime() - dateB.getTime();
           });
         

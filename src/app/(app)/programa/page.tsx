@@ -102,7 +102,11 @@ export default function ProgramaMensualPage() {
       }
 
       const collectionsToFetch = {
-        users: query(collection(db, "users"), where("status", "==", "Activo"), where("adminApprovalStatus", "==", "approved")),
+        users: query(
+            collection(db, "users"),
+            where("adminApprovalStatus", "==", "approved"),
+            where("isAssignable", "==", true)
+        ),
         casas: query(collection(db, "casas")),
         territories: query(collection(db, "territories"), where("isBlocked", "==", false)),
         preachingGroups: query(collection(db, "preachingGroups")),
@@ -280,10 +284,10 @@ export default function ProgramaMensualPage() {
 
 
             batch.set(newAssignmentRef, {
-                userId: assign.captainId,
+                userId: captainUser?.id || assign.captainId,
                 userName: assign.captainName,
                 userEmail: captainUser?.email || null, 
-                userPhoneNumber: captainUser?.email || null,
+                userPhoneNumber: captainUser?.phoneNumber || null,
                 date: assign.date,
                 time: assign.time,
                 type: assign.preachingType as PreachingAssignedType, 
