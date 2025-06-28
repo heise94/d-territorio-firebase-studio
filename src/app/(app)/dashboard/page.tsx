@@ -196,7 +196,7 @@ export default function DashboardPage() {
                   {label: 'bloq. p/ sistema', value: stats.blockedCasasSystem},
                   {label: 'bloq. p/ grupo', value: stats.blockedCasasGroup}
                ])}
-              <p className="text-xs text-muted-foreground pt-1">Casas no bloqueadas para el sistema (IA).</p>
+              <p className="text-xs text-muted-foreground pt-1">Casas disponibles para la generación automática.</p>
             </CardContent>
           </Link>
         </Card>
@@ -269,4 +269,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

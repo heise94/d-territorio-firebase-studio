@@ -19,7 +19,7 @@ const AssemblyAISchema = z.object({
 });
 
 const BlockInfoAISchema = z.object({
-  forSystem: z.boolean().describe("True if blocked for system-wide AI assignment."),
+  forSystem: z.boolean().describe("True if blocked for system-wide automatic assignment."),
   forGroup: z.boolean().describe("True if blocked for manual group assignment."),
   reason: z.string().optional().describe("Reason for block.")
 });
@@ -85,7 +85,7 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
     superintendentName: z.string().optional(),
     specialCampaignTerritoriesPerDay: z.number().optional().describe("Number of specific territories for this campaign per day. If 0 or undefined, use standard logic or global default."),
     description: z.string().optional(),
-  })).describe('Configured campaigns for the month. The AI should determine if a campaign is active based on its start/end dates relative to the current month being scheduled.'),
+  })).describe('Configured campaigns for the month. The system should determine if a campaign is active based on its start/end dates relative to the current month being scheduled.'),
   specialCampaignTerritoriesPerDay: z
     .number()
     .describe('Default number of territories to assign per day for special campaigns, if not specified in the campaign object itself.'),
@@ -100,7 +100,7 @@ const GenerateMonthlyAssignmentsInputSchema = z.object({
   publisherDetailedAvailabilities: z
     .array(PublisherDetailForAISchema)
     .describe("Detailed information for each available publisher. IMPORTANT: If a publisher has `blockInfo.forSystem` set to true, you MUST NOT assign them as a captain."),
-  additionalInstructions: z.string().optional().describe('Additional instructions for the AI, including how to handle holiday scheduling if different from normal days.'),
+  additionalInstructions: z.string().optional().describe('Additional instructions for the system, including how to handle holiday scheduling if different from normal days.'),
   preachingGroups: z.array(PreachingGroupAISchema).describe('List of all preaching groups, their names, and their superintendent IDs (SG).'),
 });
 
@@ -183,7 +183,7 @@ const prompt = ai.definePrompt({
 
   Detailed Territory Reports (use to prioritize less worked territories):
   {{#if detailedTerritoryReports}}
-    {{#each detailedTerritoryReports}} (Details of report for territory {{this.territoryId}} - AI should infer last worked date or status) {{/each}}
+    {{#each detailedTerritoryReports}} (Details of report for territory {{this.territoryId}} - The system should infer last worked date or status) {{/each}}
   {{else}}
     No detailed territory reports provided. Prioritize rotation or other factors.
   {{/if}}
@@ -230,7 +230,7 @@ const prompt = ai.definePrompt({
   Configured Campaigns:
   {{#if configuredCampaigns}}
     {{#each configuredCampaigns}}
-    - Campaign Name: {{this.name}} (Details omitted for brevity, but available to AI)
+    - Campaign Name: {{this.name}} (Details omitted for brevity, but available to system)
     {{/each}}
   {{else}}
     No specific campaigns configured for this month.

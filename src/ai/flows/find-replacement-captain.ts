@@ -64,7 +64,7 @@ const prompt = ai.definePrompt({
   name: 'findReplacementCaptainPrompt',
   input: {schema: FindReplacementCaptainInputSchema},
   output: {schema: FindReplacementCaptainOutputSchema},
-  prompt: `You are an AI assistant responsible for finding replacement captains for preaching assignments when the original captain is unavailable.
+  prompt: `You are an expert assistant responsible for finding replacement captains for preaching assignments when the original captain is unavailable.
 
   An assignment needs a replacement:
   - Date: {{{originalAssignment.date}}}
@@ -127,4 +127,3 @@ const findReplacementCaptainFlow = ai.defineFlow(
     return output!;
   }
 );
-

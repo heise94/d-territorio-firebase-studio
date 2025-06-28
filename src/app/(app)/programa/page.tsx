@@ -43,9 +43,9 @@ const initialGroupOrganizedDaysState: Record<TypeDayOfWeek, boolean> = {
 export default function ProgramaMensualPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-  const [isLoading, setIsLoading] = useState(false); // For AI generation
+  const [isLoading, setIsLoading] = useState(false); // For generation
   const [isSavingProgram, setIsSavingProgram] = useState(false);
-  const [isLoadingData, setIsLoadingData] = useState(true); // For fetching initial data for AI
+  const [isLoadingData, setIsLoadingData] = useState(true); // For fetching initial data
   const [generatedAssignments, setGeneratedAssignments] = useState<GenerateMonthlyAssignmentsOutput | null>(null);
   const { toast } = useToast();
 
@@ -247,10 +247,10 @@ export default function ProgramaMensualPage() {
     try {
       const result = await generateMonthlyAssignments(input);
       setGeneratedAssignments(result);
-      toast({ title: "Programa Generado por IA", description: "El borrador del programa mensual ha sido generado. Revísalo y guárdalo.", variant: "default", });
+      toast({ title: "Programa Generado", description: "El borrador del programa mensual ha sido generado. Revísalo y guárdalo.", variant: "default", });
     } catch (error) {
       console.error("Error generating monthly assignments:", error);
-      toast({ title: "Error de Generación", description: "Hubo un problema al generar el programa con la IA.", variant: "destructive", });
+      toast({ title: "Error de Generación", description: "Hubo un problema al generar el programa.", variant: "destructive", });
     } finally {
       setIsLoading(false);
       setIsGenerationDialogOpen(false);
@@ -299,7 +299,7 @@ export default function ProgramaMensualPage() {
                 locationName: assign.territoryName || assign.casaName || "Predicación por Zoom",
                 locationId: locationId,
                 status: 'pending', 
-                assignedBy: 'Admin IA',
+                assignedBy: 'Sistema',
                 assignedGroupId: captainUser?.assignedGroupId || null,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
@@ -379,7 +379,7 @@ export default function ProgramaMensualPage() {
           Programa Mensual de Predicación
         </h1>
         <p className="text-muted-foreground mt-1">
-          Planifica y visualiza las asignaciones para el mes. Usa la IA para generar automáticamente el programa.
+          Planifica y visualiza las asignaciones para el mes. Usa el sistema para generar automáticamente el programa.
         </p>
       </div>
 
@@ -399,7 +399,7 @@ export default function ProgramaMensualPage() {
             </div>
             <Button onClick={handleOpenGenerateDialog} size="lg" className="w-full sm:w-auto mt-2 sm:mt-0" disabled={isLoadingData || isLoading}>
               {isLoadingData ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Bot className="mr-2 h-5 w-5" />} 
-              {isLoadingData ? "Cargando Datos..." : "Generar Programa con IA"}
+              {isLoadingData ? "Cargando Datos..." : "Generar Programa"}
             </Button>
           </div>
         </CardHeader>
@@ -407,7 +407,7 @@ export default function ProgramaMensualPage() {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-              <p className="text-lg font-medium text-muted-foreground">Generando programa con IA...</p>
+              <p className="text-lg font-medium text-muted-foreground">Generando programa...</p>
               <p className="text-sm text-muted-foreground">Esto puede tardar unos momentos.</p>
             </div>
           ) : generatedAssignments && generatedAssignments.captainAssignments ? (
@@ -471,7 +471,7 @@ export default function ProgramaMensualPage() {
               <CalendarDays className="h-20 w-20 text-muted-foreground/70 mb-6" />
               <p className="text-xl font-medium text-muted-foreground mb-2">Programa Mensual Vacío</p>
               <p className="text-sm text-muted-foreground">
-                Selecciona un mes y año, luego haz clic en "Generar Programa con IA" para comenzar.
+                Selecciona un mes y año, luego haz clic en "Generar Programa" para comenzar.
               </p>
             </div>
           )}

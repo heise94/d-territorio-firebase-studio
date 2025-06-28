@@ -224,14 +224,14 @@ export default function GestionAsignacionesPage() {
     }
   };
 
-  const handleFindReplacementWithAI = async (assignment: Assignment) => {
+  const handleFindReplacement = async (assignment: Assignment) => {
     if (!assignment.userId) {
         toast({title: "Error", description: "La asignación no tiene un capitán original asignado.", variant: "destructive"});
         return;
     }
     setIsFindingReplacement(assignment.id);
     try {
-        const publishersForAI = allPublishers.map(p => ({
+        const publishersForFlow = allPublishers.map(p => ({
             ...p,
             availability: p.availability || { availableSlotIds: [] } // Ensure availability object exists
         }));
@@ -244,7 +244,7 @@ export default function GestionAsignacionesPage() {
                 locationName: assignment.locationName,
             },
             originalCaptainId: assignment.userId,
-            availablePublishers: publishersForAI, 
+            availablePublishers: publishersForFlow, 
             programScheduleSlots: programSlots, 
             additionalInstructions: "Prioritize captains with good attendance if possible."
         };
@@ -260,24 +260,24 @@ export default function GestionAsignacionesPage() {
                 userEmail: result.newCaptainEmail!,
                 userPhoneNumber: newCaptainDetails?.phoneNumber || null,
                 status: 'pending' as AssignmentStatus, 
-                notes: `Reasignado por IA. Original: ${assignment.userName}. ${result.reasoning || ''}`.trim(),
+                notes: `Reasignado por el sistema. Original: ${assignment.userName}. ${result.reasoning || ''}`.trim(),
                 updatedAt: serverTimestamp(),
             });
-            toast({ title: "Reemplazo Encontrado por IA", description: `${result.newCaptainName} ha sido asignado. Esperando confirmación.`});
+            toast({ title: "Reemplazo Encontrado", description: `${result.newCaptainName} ha sido asignado. Esperando confirmación.`});
         } else {
             const assignmentRef = doc(db, "assignments", assignment.id);
             await updateDoc(assignmentRef, { 
                 status: 'needs_manual_replacement' as AssignmentStatus, 
-                notes: `IA no encontró reemplazo. ${result.reasoning || ''}`.trim() 
+                notes: `Sistema no encontró reemplazo. ${result.reasoning || ''}`.trim() 
             });
-            toast({ title: "IA no encontró reemplazo", description: result.reasoning || "No se encontró un capitán disponible.", variant: "default" });
+            toast({ title: "Sistema no encontró reemplazo", description: result.reasoning || "No se encontró un capitán disponible.", variant: "default" });
         }
 
     } catch (error) {
-        console.error("Error finding replacement with AI:", error);
+        console.error("Error finding replacement:", error);
         const assignmentRef = doc(db, "assignments", assignment.id);
-        await updateDoc(assignmentRef, { status: 'needs_manual_replacement' as AssignmentStatus, notes: "Error durante búsqueda de IA." });
-        toast({ title: "Error con IA", description: "Hubo un problema al buscar reemplazo con la IA.", variant: "destructive" });
+        await updateDoc(assignmentRef, { status: 'needs_manual_replacement' as AssignmentStatus, notes: "Error durante búsqueda automática." });
+        toast({ title: "Error del Sistema", description: "Hubo un problema al buscar reemplazo.", variant: "destructive" });
     } finally {
         setIsFindingReplacement(null);
     }
@@ -406,11 +406,11 @@ export default function GestionAsignacionesPage() {
                             {(assign.status === 'rejected' || assign.status === 'replacement_requested' || assign.status === 'needs_manual_replacement') && (
                                 <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10" onClick={() => handleFindReplacementWithAI(assign)} disabled={isFindingReplacement === assign.id}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10" onClick={() => handleFindReplacement(assign)} disabled={isFindingReplacement === assign.id}>
                                     {isFindingReplacement === assign.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent><p>Buscar Reemplazo (IA)</p></TooltipContent>
+                                <TooltipContent><p>Buscar Reemplazo Automático</p></TooltipContent>
                                 </Tooltip>
                             )}
 
@@ -495,4 +495,3 @@ export default function GestionAsignacionesPage() {
     </TooltipProvider>
   );
 }
-    

@@ -181,7 +181,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
         <DialogHeader>
           <DialogTitle className="flex items-center">
             <Bot className="mr-2 h-6 w-6 text-primary" />
-            Generar Programa con IA para {monthName} {year}
+            Generar Programa Automático para {monthName} {year}
           </DialogTitle>
           <DialogDescription>
              Define instrucciones y habilita la predicación en días festivos y fines de semana rurales especiales.
@@ -303,7 +303,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
               name="additionalInstructions"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-base font-semibold">Instrucciones Adicionales para la IA (Opcional)</FormLabel>
+                  <FormLabel className="text-base font-semibold">Instrucciones Adicionales (Opcional)</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Ej: Priorizar territorios no trabajados recientemente. En los días rurales especiales, asignar a los Superintendentes de Grupo."
@@ -323,7 +323,7 @@ export function GenerateAIDialog({ isOpen, onOpenChange, onSubmitGeneration, yea
               </DialogClose>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Iniciar Generación con IA
+                Iniciar Generación Automática
               </Button>
             </DialogFooter>
           </form>

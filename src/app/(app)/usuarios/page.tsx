@@ -673,7 +673,7 @@ export default function UsuariosPage() {
                                   {user.blockInfo?.reason && <p className="text-xs italic">{user.blockInfo.reason}</p>}
                                   <p className='text-xs mt-1'>Alcance:</p>
                                   <ul className='list-disc pl-4 text-xs'>
-                                      {user.blockInfo?.forSystem && <li>Sistema (IA)</li>}
+                                      {user.blockInfo?.forSystem && <li>Sistema (Automático)</li>}
                                       {user.blockInfo?.forGroup && <li>Grupo (Manual)</li>}
                                   </ul>
                                </TooltipContent>
@@ -940,7 +940,7 @@ export default function UsuariosPage() {
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                         <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                        <div className="space-y-1 leading-none"><Label htmlFor="forSystem" className="font-normal">Bloquear para Sistema (IA)</Label><FormFieldDescription className="text-xs">El usuario no será considerado por la IA para el programa mensual.</FormFieldDescription></div>
+                        <div className="space-y-1 leading-none"><Label htmlFor="forSystem" className="font-normal">Bloquear para Sistema</Label><FormFieldDescription className="text-xs">El usuario no será considerado por el sistema para la generación automática del programa.</FormFieldDescription></div>
                       </FormItem>
                     )}
                   />
@@ -979,5 +979,3 @@ export default function UsuariosPage() {
     </TooltipProvider>
   );
 }
-
-    
