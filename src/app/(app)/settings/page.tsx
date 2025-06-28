@@ -2,13 +2,11 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Briefcase, CalendarCog, Users as UsersIconLucide, PlusCircle, Trash2, Video, MountainSnow, Users as UsersTypeIcon, AlertTriangle, Edit2, GanttChartSquare, Save, Edit, PackageSearch, CalendarDays, Upload, UsersRound, BookOpenCheck, KeyRound, Settings as SettingsIcon } from "lucide-react";
-import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import type { ProgramScheduleSlot, DayOfWeek, PreachingType, ScheduleSlotStatus, Campaign, CampaignType, CustomHoliday, PreachingGroup, Assembly, RoleConfiguration, SettingsDoc } from "@/types";
@@ -72,6 +70,7 @@ import { format as formatDate, getYear as getYearFromDateFn, getMonth as getMont
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const scheduleSlotFormSchema = z.object({
@@ -826,46 +825,32 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
   }, [customHolidays, selectedHolidayYear, selectedHolidayMonth]);
 
   const currentSection = settingsSections.find(sec => sec.id === activeSectionId);
-  const PERMISSIONS_MODULES_ORDERED_FOR_ACCORDION = PERMISSIONS_BY_MODULE.map(m => m.moduleName);
 
   return (
     <TooltipProvider>
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
-            <SettingsIcon className="mr-3 h-8 w-8 text-primary" />
-            Configuración General
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {currentSection?.description || "Ajusta los parámetros y preferencias de D-TERRITORIO."}
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
+          <SettingsIcon className="mr-3 h-8 w-8 text-primary" />
+          Configuración General
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          {currentSection?.description || "Ajusta los parámetros y preferencias de D-TERRITORIO."}
+        </p>
       </div>
 
-      <Separator />
+      <Tabs value={activeSectionId} onValueChange={(value) => setActiveSectionId(value as SettingsSectionId)} className="w-full">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 mb-6 h-auto">
+            {settingsSections.map((section) => (
+            <TabsTrigger key={section.id} value={section.id} className="gap-2 py-2.5">
+                <section.icon className="h-4 w-4" />
+                {section.title}
+            </TabsTrigger>
+            ))}
+        </TabsList>
 
-      <div className="flex flex-col md:flex-row gap-8">
-        <nav className="md:w-64 space-y-1 shrink-0">
-          {settingsSections.map((section) => (
-            <Button
-              key={section.id}
-              variant={activeSectionId === section.id ? "secondary" : "ghost"}
-              className={cn(
-                "w-full justify-start text-left h-auto py-2.5 px-3",
-                activeSectionId === section.id ? "font-semibold" : ""
-              )}
-              onClick={() => setActiveSectionId(section.id)}
-            >
-              <section.icon className="mr-2.5 h-5 w-5 text-primary/80" />
-              {section.title}
-            </Button>
-          ))}
-        </nav>
-
-        <div className="flex-1 min-w-0">
-          {activeSectionId === "permissions" && (
-            <Card className="shadow-lg">
+        <TabsContent value="permissions">
+           <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center text-xl">
                   <KeyRound className="mr-3 h-6 w-6 text-primary" />
@@ -942,10 +927,9 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                 </Button>
               </CardFooter>
             </Card>
-          )}
-
-          {activeSectionId === "weeklyProgram" && (
-            <Card className="shadow-lg">
+        </TabsContent>
+        <TabsContent value="weeklyProgram">
+             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center text-xl">
                   <CalendarCog className="mr-3 h-6 w-6 text-primary" />
@@ -1017,8 +1001,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                         );
                     })}
                     </div>
-                    <Separator className="my-8" />
-                    <div>
+                    <div className="mt-8">
                     <h3 className="text-lg font-medium mb-1 flex items-center">
                         <GanttChartSquare className="mr-2 h-5 w-5 text-primary" />
                         Días Organizados por Grupos
@@ -1044,10 +1027,9 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                 )}
               </CardContent>
             </Card>
-          )}
-
-          {activeSectionId === "specialEvents" && (
-            <div className="space-y-6">
+        </TabsContent>
+        <TabsContent value="specialEvents">
+          <div className="space-y-6">
               {isLoadingSpecialEvents ? (
                 <>
                   <Card className="shadow-lg"><CardHeader><Skeleton className="h-8 w-3/4" /></CardHeader><CardContent><Skeleton className="h-24 w-full" /></CardContent></Card>
@@ -1208,10 +1190,8 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
                 </Card>
               </>
               )}
-            </div>
-          )}
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={isAddSlotDialogOpen} onOpenChange={(isOpen) => {
           setIsAddSlotDialogOpen(isOpen);

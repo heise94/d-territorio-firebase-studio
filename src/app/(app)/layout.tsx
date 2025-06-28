@@ -4,7 +4,7 @@
 import { useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Menu, XCircle } from 'lucide-react'; 
+import { Loader2, Menu, XCircle, SidebarClose, SidebarOpen } from 'lucide-react'; 
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { UserNav } from '@/components/layout/user-nav';
 import { AppLogo } from '@/components/layout/app-logo';
@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav';
 import { Notifications } from '@/components/layout/notifications';
+import { cn } from '@/lib/utils';
 
 function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -25,6 +26,7 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
     stopImpersonation 
   } = usePermissions(); 
   const router = useRouter();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -46,15 +48,18 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-      <div className="hidden border-r bg-muted/40 md:block">
-        <div className="flex h-full max-h-screen flex-col gap-2">
-          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-            <AppLogo />
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <SidebarNav />
-          </div>
+    <div className={cn("grid min-h-screen w-full", isCollapsed ? "md:grid-cols-[80px_1fr]" : "md:grid-cols-[280px_1fr]")}>
+      <div className="hidden border-r bg-muted/40 md:flex md:flex-col">
+        <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+          <AppLogo isCollapsed={isCollapsed} />
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <SidebarNav isCollapsed={isCollapsed} />
+        </div>
+        <div className="mt-auto border-t p-4">
+          <Button variant="outline" size={isCollapsed ? "icon" : "default"} onClick={() => setIsCollapsed(!isCollapsed)} className="w-full">
+            {isCollapsed ? <SidebarOpen className="h-5 w-5" /> : <><SidebarClose className="mr-2 h-5 w-5" /> Contraer Menú</>}
+          </Button>
         </div>
       </div>
       <div className="flex flex-col">

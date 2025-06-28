@@ -16,7 +16,7 @@ import {
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS, PermissionId, USER_ROLES } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
-
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export interface NavItemConfig {
   title: string;
@@ -62,7 +62,7 @@ const navItems: NavItemConfig[] = [
   { title: "Importar Historial", href: "/admin/import-data", icon: Database, adminOnly: true, segment: "admin" },
 ];
 
-export function SidebarNav() {
+export function SidebarNav({ isCollapsed = false }: { isCollapsed?: boolean }) {
   const pathname = usePathname() ?? "";
   const { userProfile, hasPermission, isLoadingPermissions } = usePermissions();
 
@@ -76,23 +76,44 @@ export function SidebarNav() {
     );
   }
   
-  const createNavItem = (item: NavItemConfig) => {
-    if (item.permission && !hasPermission(item.permission)) return null;
-    if (item.adminOnly && userProfile?.role !== USER_ROLES.ENCARGADO_TERRITORIO) return null;
-
+  const createNavItem = (item: NavItemConfig, isChild = false) => {
     const Icon = item.icon;
-    const isActive = pathname === item.href;
+    const isActive = (pathname === item.href && !item.children) || 
+                   (item.children && pathname.startsWith(item.href) && !item.children.some(c => pathname === c.href && c.href !== item.href)) ||
+                   (item.href === "/programa" && pathname.startsWith("/programa") && pathname !== "/programa/semanal") || // special case for monthly program
+                   (item.href === "/reportes" && pathname.startsWith("/reportes") && pathname !== "/reportes/editor"); // special case for reports general
+    
+    if (isCollapsed) {
+      return (
+        <Tooltip key={item.href} delayDuration={0}>
+          <TooltipTrigger asChild>
+            <Link
+              href={item.href}
+              className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-primary",
+                isActive && "bg-muted text-primary"
+              )}
+            >
+              <Icon className="h-6 w-6" />
+              <span className="sr-only">{item.title}</span>
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right">{item.title}</TooltipContent>
+        </Tooltip>
+      );
+    }
     
     return (
         <Link
-            key={item.title}
+            key={item.href}
             href={item.href}
             className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                isActive && "bg-muted text-primary"
+                isActive && "bg-muted text-primary",
+                isChild && "text-sm"
             )}
             >
-            <Icon className="h-4 w-4" />
+            {!isChild && <Icon className="h-4 w-4" />}
             {item.title}
         </Link>
     )
@@ -107,6 +128,10 @@ export function SidebarNav() {
 
     if (visibleChildren.length === 0) return null;
     
+    if (isCollapsed) {
+      return createNavItem(item);
+    }
+    
     const Icon = item.icon;
     const isGroupActive = item.segment ? pathname.startsWith(`/${item.segment}`) : false;
 
@@ -115,7 +140,7 @@ export function SidebarNav() {
             <AccordionItem value={item.title} className="border-b-0">
                 <AccordionTrigger className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary hover:no-underline",
-                    isGroupActive && "text-primary"
+                    isGroupActive && !item.children?.some(c => pathname === c.href) && "text-primary"
                 )}>
                     <div className="flex items-center gap-3">
                       <Icon className="h-4 w-4" />
@@ -159,10 +184,12 @@ export function SidebarNav() {
   });
 
   return (
-    <nav className="grid items-start gap-y-1 px-2 text-sm font-medium lg:px-4">
+    <TooltipProvider>
+      <nav className={cn("grid items-start gap-y-1 px-2 text-sm font-medium lg:px-4", isCollapsed && "justify-center px-1")}>
         {visibleNavItems.map(item => 
             item.children ? createNavGroup(item) : createNavItem(item)
         )}
     </nav>
+    </TooltipProvider>
   );
 }
