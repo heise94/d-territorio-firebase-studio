@@ -254,7 +254,8 @@ export default function ProgramaMensualPage() {
           id: t.id, 
           name: t.type === 'urban' && t.number ? `U-${t.number}` : t.name, 
           type: t.type, 
-          number: t.number
+          number: t.number,
+          lastWorked: t.lastWorked,
       })),
       preachingGroups: preachingGroups.map(g => ({id: g.id, name: g.name, superintendentId: g.superintendentId})),
       
