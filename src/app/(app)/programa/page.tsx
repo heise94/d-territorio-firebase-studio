@@ -200,19 +200,18 @@ export default function ProgramaMensualPage() {
     const availableCasasForAI = casas.filter(c => !c.blockInfo || !c.blockInfo.forSystem);
 
     const plainTerritoriesForAI = territories.map(t => {
-        const plainTerritory: any = {};
-        for (const key in t) {
-            const typedKey = key as keyof Territory;
-            if (Object.prototype.hasOwnProperty.call(t, typedKey)) {
-                const value = t[typedKey];
-                if (value instanceof Timestamp) {
-                    plainTerritory[typedKey] = value.toDate().toISOString();
-                } else {
-                    plainTerritory[typedKey] = value;
-                }
-            }
-        }
-        return plainTerritory;
+      const plainTerritory: any = {};
+      for (const key in t) {
+          if (Object.prototype.hasOwnProperty.call(t, key)) {
+              const value = (t as any)[key];
+              if (value instanceof Timestamp) {
+                  plainTerritory[key] = value.toDate().toISOString();
+              } else {
+                  plainTerritory[key] = value;
+              }
+          }
+      }
+      return plainTerritory;
     });
 
     const input: GenerateMonthlyAssignmentsInput = {
@@ -227,6 +226,7 @@ export default function ProgramaMensualPage() {
           id: p.firebaseAuthUid || p.id, 
           name: p.name,
           blockInfo: p.blockInfo,
+          managedCasaId: p.managedCasaId,
           unavailabilityPeriods: (p.availability?.unavailabilityPeriods || []).map(up => ({
             startDate: format(up.startDate instanceof Timestamp ? up.startDate.toDate() : new Date(up.startDate), "yyyy-MM-dd"),
             endDate: format(up.endDate instanceof Timestamp ? up.endDate.toDate() : new Date(up.endDate), "yyyy-MM-dd"),
@@ -338,13 +338,23 @@ export default function ProgramaMensualPage() {
             
             const captainUser = publishers.find(p => p.id === assign.captainId || p.firebaseAuthUid === assign.captainId);
             const locationType = assign.territoryName ? 'territory' : (assign.casaName ? 'casa' : 'zoom');
-            const locationId = locationType === 'territory' 
-                ? territories.find(t => t.name === assign.territoryName || (t.type === 'urban' && `U-${t.number}` === assign.territoryName))?.id 
-                : (locationType === 'casa' ? casas.find(c => c.ownerName === assign.casaName)?.id : undefined);
+            
+            let locationId;
+            if (locationType === 'territory') {
+                const terrName = assign.territoryName;
+                if (terrName?.startsWith('U-')) {
+                    const terrNum = terrName.split('-')[1];
+                    locationId = territories.find(t => t.number === terrNum && t.type === 'urban')?.id;
+                } else {
+                    locationId = territories.find(t => t.name === terrName)?.id;
+                }
+            } else if (locationType === 'casa') {
+                 locationId = casas.find(c => c.ownerName === assign.casaName)?.id;
+            }
 
 
             batch.set(newAssignmentRef, {
-                userId: captainUser?.id || assign.captainId,
+                userId: captainUser?.firebaseAuthUid || assign.captainId,
                 userName: assign.captainName,
                 userEmail: captainUser?.email || null, 
                 userPhoneNumber: captainUser?.phoneNumber || null,
