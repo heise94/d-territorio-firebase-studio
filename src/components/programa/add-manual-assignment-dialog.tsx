@@ -375,7 +375,7 @@ export function AddManualAssignmentDialog({
                     <SelectContent>
                       {availableTerritoriesForSelection.map(loc => {
                         const territoryDisplayName = loc.type === 'urban' && loc.number 
-                            ? `U-${loc.number}: ${loc.name}` 
+                            ? `U-${loc.number}` 
                             : loc.name;
                         const lastWorkedDate = lastWorkedDates.get(loc.id);
                         const lastWorkedDisplay = lastWorkedDate

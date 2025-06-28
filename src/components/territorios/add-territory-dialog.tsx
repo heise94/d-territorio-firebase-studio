@@ -216,7 +216,7 @@ export function AddTerritoryDialog({
     const idForSubmit = territoryToEdit?.id && isEditMode ? territoryToEdit.id : crypto.randomUUID();
     
     const territoryNameForSubmit = values.type === 'urban' 
-        ? `Territorio Urbano ${values.number || ''}`.trim() 
+        ? ""
         : (values.name || 'Territorio Rural sin nombre');
 
     const territoryDataToSubmit: Partial<Territory> & Pick<Territory, 'id' | 'type' | 'name' | 'isBlocked' | 'createdAt' | 'updatedAt' | 'blockReason'> = {
