@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1033,11 +1033,11 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         <TabsContent value="specialEvents">
           <div className="space-y-6">
               {isLoadingSpecialEvents ? (
-                <>
+                <div className="space-y-6">
                   <Card className="shadow-lg"><CardHeader><Skeleton className="h-8 w-3/4" /></CardHeader><CardContent><Skeleton className="h-24 w-full" /></CardContent></Card>
                   <Card className="shadow-lg"><CardHeader><Skeleton className="h-8 w-3/4" /></CardHeader><CardContent><Skeleton className="h-24 w-full" /></CardContent></Card>
                   <Card className="shadow-lg"><CardHeader><Skeleton className="h-8 w-3/4" /></CardHeader><CardContent><Skeleton className="h-24 w-full" /></CardContent></Card>
-                </>
+                </div>
               ) : (
               <>
                 <Card className="shadow-lg">
@@ -1272,3 +1272,5 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     </TooltipProvider>
   );
 }
+
+  
