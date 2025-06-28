@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES, PERMISSIONS } from "@/lib/constants";
-import { AlertTriangle, Edit, Loader2, FileText, History, PlusCircle } from "lucide-react";
+import { AlertTriangle, Edit, Loader2, FileText, History, PlusCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { collection, query, where, onSnapshot, doc, getDoc, writeBatch, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -17,6 +17,7 @@ import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
 import { AddHistoricalReportDialog, type HistoricalReportSubmitData } from "@/components/reportes/add-historical-report-dialog";
+import { Input } from "@/components/ui/input";
 
 export default function EditorHistorialPage() {
   const { userProfile, isLoadingPermissions, hasPermission } = usePermissions();
@@ -35,9 +36,9 @@ export default function EditorHistorialPage() {
   const [territoryForDialog, setTerritoryForDialog] = useState<Territory | null>(null);
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
 
-  // State for the new dialog (Step 1)
   const [isAddHistoricalDialogOpen, setIsAddHistoricalDialogOpen] = useState(false);
-  
+  const [territorySearch, setTerritorySearch] = useState("");
+
   useEffect(() => {
     setIsLoadingTerritories(true);
     const territoriesQuery = query(collection(db, "territories"));
@@ -76,7 +77,6 @@ export default function EditorHistorialPage() {
     const assignmentsQuery = query(
       collection(db, "assignments"),
       where("locationId", "==", selectedTerritoryId),
-      // orderBy("date", "desc") // This requires composite index, sorting client-side
     );
     const unsubscribe = onSnapshot(assignmentsQuery, (snapshot) => {
       const fetchedAssignments = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Assignment));
@@ -91,6 +91,24 @@ export default function EditorHistorialPage() {
 
     return () => unsubscribe();
   }, [selectedTerritoryId, toast]);
+
+  const filteredTerritoriesForSelect = useMemo(() => {
+    if (!territorySearch) {
+      return allTerritories;
+    }
+    const searchTerm = territorySearch.toLowerCase();
+    return allTerritories.filter(t => 
+      (t.number && t.number.toLowerCase().includes(searchTerm)) ||
+      (t.name && t.name.toLowerCase().includes(searchTerm))
+    );
+  }, [allTerritories, territorySearch]);
+
+  useEffect(() => {
+    if (selectedTerritoryId && filteredTerritoriesForSelect.length > 0 && !filteredTerritoriesForSelect.some(t => t.id === selectedTerritoryId)) {
+      setSelectedTerritoryId("");
+    }
+  }, [selectedTerritoryId, filteredTerritoriesForSelect]);
+
 
   const handleOpenEditDialog = async (assignment: Assignment) => {
     const territory = allTerritories.find(t => t.id === assignment.locationId);
@@ -166,13 +184,12 @@ export default function EditorHistorialPage() {
 
     const batch = writeBatch(db);
     
-    // 1. Create the new assignment document
     const newAssignmentRef = doc(collection(db, "assignments"));
     const newAssignmentData: Omit<Assignment, 'id'> = {
         date: format(data.assignmentDate, "yyyy-MM-dd"),
-        time: "10:00", // Default time for historical records
+        time: "10:00", 
         type: territory.type === "urban" ? "publica" : "rural",
-        locationName: territory.name,
+        locationName: territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name,
         locationId: territory.id,
         status: "accepted",
         assignedBy: "Registro Histórico",
@@ -185,7 +202,6 @@ export default function EditorHistorialPage() {
         updatedAt: Timestamp.now(),
     };
     
-    // 2. Create the report data linked to this new assignment
     const reportDetails: ReportedAssignmentData = {
         assignmentId: newAssignmentRef.id,
         reports: [{
@@ -202,7 +218,6 @@ export default function EditorHistorialPage() {
     
     batch.set(newAssignmentRef, newAssignmentData);
 
-    // 3. Update territory's last worked date if it was worked
     if (!data.territoryNotWorked) {
         const territoryRef = doc(db, "territories", territory.id);
         batch.update(territoryRef, { lastWorked: format(data.assignmentDate, "yyyy-MM-dd") });
@@ -220,7 +235,6 @@ export default function EditorHistorialPage() {
     }
   };
 
-
   const getWorkedBlocksDisplay = (reportData?: ReportedAssignmentData): React.ReactNode => {
     if (!reportData || !reportData.reports || reportData.reports.length === 0) return "No reportado";
     const report = reportData.reports.find(r => r.territoryId === selectedTerritoryId);
@@ -229,7 +243,6 @@ export default function EditorHistorialPage() {
     if (!report.workedBlocksIds || report.workedBlocksIds.length === 0) return "Ninguna";
     return report.workedBlocksIds.map(id => id.split('-').pop()).join(', ');
   };
-
 
   if (isLoadingPermissions) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -269,18 +282,31 @@ export default function EditorHistorialPage() {
         </CardHeader>
         <CardContent>
           {isLoadingTerritories ? <Loader2 className="h-6 w-6 animate-spin" /> : (
-            <Select onValueChange={setSelectedTerritoryId} value={selectedTerritoryId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona un territorio..." />
-              </SelectTrigger>
-              <SelectContent>
-                {allTerritories.map(t => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.type === 'urban' && t.number ? `U-${t.number}: ${t.name}` : t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por número o nombre del territorio..."
+                  value={territorySearch}
+                  onChange={(e) => setTerritorySearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select onValueChange={setSelectedTerritoryId} value={selectedTerritoryId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un territorio..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredTerritoriesForSelect.length > 0 ? filteredTerritoriesForSelect.map(t => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.type === 'urban' && t.number ? `U-${t.number}` : t.name}
+                    </SelectItem>
+                  )) : (
+                    <div className="text-center text-sm text-muted-foreground p-4">No se encontraron territorios.</div>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </CardContent>
       </Card>
