@@ -821,7 +821,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
       })
       .sort((a, b) => {
           const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
-          const dateB = b.date.toDate instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+          const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
           return dateA.getTime() - dateB.getTime();
       });
   }, [customHolidays, selectedHolidayYear, selectedHolidayMonth]);
@@ -1271,5 +1271,3 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     </TooltipProvider>
   );
 }
-
-    
