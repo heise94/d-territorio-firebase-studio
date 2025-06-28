@@ -66,7 +66,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { format as formatDate, getYear as getYearFromDateFn, getMonth as getMonthFromDateFn } from 'date-fns';
+import { format as formatDate, getYear as getYearFromDateFn, getMonth as getMonthFromDateFn, parseISO } from 'date-fns';
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -695,7 +695,8 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
 
   const handleLoadExampleHolidays = async () => {
     setIsSavingSpecialEvents(true);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const baseFixedHolidays: { day: number; month: number; name: string }[] = [
       { day: 1, month: 0, name: "Año Nuevo" }, { day: 1, month: 4, name: "Día del Trabajo" },
       { day: 21, month: 4, name: "Día de las Glorias Navales" }, { day: 20, month: 5, name: "Día Nacional de los Pueblos Indígenas" },
@@ -703,17 +704,17 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
       { day: 15, month: 7, name: "Asunción de la Virgen" }, { day: 18, month: 8, name: "Independencia Nacional" },
       { day: 19, month: 8, name: "Día de las Glorias del Ejército" }, { day: 12, month: 9, name: "Encuentro de Dos Mundos" },
       { day: 27, month: 9, name: "Día Nacional de las Iglesias Evangélicas y Protestantes" },
-      { day: 31, month: 9, name: "Día Nacional de las Iglesias Evangélicas y Protestantes (Halloween)" }, 
+      { day: 31, month: 9, name: "Día Nacional de las Iglesias Evangélicas y Protestantes (Halloween)" },
       { day: 1, month: 10, name: "Día de Todos los Santos" }, { day: 8, month: 11, name: "Inmaculada Concepción" },
       { day: 25, month: 11, name: "Navidad" },
     ];
-    const easterExamples = [ 
+    const easterExamples = [
         { year: 2024, month: 2, day: 29, name: "Viernes Santo (Ej. 2024)"}, { year: 2024, month: 2, day: 30, name: "Sábado Santo (Ej. 2024)"},
         { year: 2025, month: 3, day: 18, name: "Viernes Santo (Ej. 2025)"}, { year: 2025, month: 3, day: 19, name: "Sábado Santo (Ej. 2025)"},
         { year: 2026, month: 3, day: 3, name: "Viernes Santo (Ej. 2026)"}, { year: 2026, month: 3, day: 4, name: "Sábado Santo (Ej. 2026)"},
     ];
-    
-    const holidaysToAddAsDates: Array<{ name: string; date: Date; description?: string | null;}> = [];
+
+    const holidaysToAddAsDates: Array<{ name: string; date: Date; description?: string | null }> = [];
 
     const existingDates = new Set(customHolidays.map(h => {
         const d = h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date);
@@ -722,7 +723,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     }));
 
     const currentLoopDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-    const endDateLimit = new Date(Date.UTC(today.getUTCFullYear() + 1, today.getUTCMonth(), 1)); 
+    const endDateLimit = new Date(Date.UTC(today.getUTCFullYear() + 1, today.getUTCMonth(), 1));
 
     while(currentLoopDate < endDateLimit) {
         const targetYear = currentLoopDate.getUTCFullYear();
@@ -748,29 +749,29 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
         });
         currentLoopDate.setUTCMonth(currentLoopDate.getUTCMonth() + 1);
     }
-    
+
     if (holidaysToAddAsDates.length > 0) {
         const newFullCustomHolidays: CustomHoliday[] = holidaysToAddAsDates.map(h_new => ({
             id: crypto.randomUUID(),
             name: h_new.name,
             date: h_new.date, // Already JS Date
             description: h_new.description || null,
-            createdAt: Timestamp.now(), 
-            updatedAt: Timestamp.now(), 
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
         }));
 
-        const currentCustomHolidaysWithJSDates: CustomHoliday[] = customHolidays.map(h_existing => ({ 
-            ...h_existing, 
-            date: (h_existing.date instanceof Timestamp ? h_existing.date.toDate() : new Date(h_existing.date)) 
+        const currentCustomHolidaysWithJSDates: CustomHoliday[] = customHolidays.map(h_existing => ({
+            ...h_existing,
+            date: (h_existing.date instanceof Timestamp ? h_existing.date.toDate() : new Date(h_existing.date))
         }));
-        
+
         const allHolidaysCombinedForState: CustomHoliday[] = [...currentCustomHolidaysWithJSDates, ...newFullCustomHolidays]
           .sort((a,b) => {
-            const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date); 
+            const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
             const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
             return dateA.getTime() - dateB.getTime();
           });
-        
+
         const success = await saveSpecialEventsToFirestore({ holidaysList: allHolidaysCombinedForState });
         if (success) {
             setCustomHolidays(allHolidaysCombinedForState);
@@ -789,13 +790,13 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
       years.add(getYearFromDateFn(d).toString());
     });
     const currentYr = new Date().getFullYear().toString();
-    if (!years.has(currentYr)) years.add(currentYr); 
+    if (!years.has(currentYr)) years.add(currentYr);
     return ["Todos los Años", ...Array.from(years).sort((a, b) => parseInt(b) - parseInt(a))];
   }, [customHolidays]);
 
   const holidayMonthsForFilter = useMemo(() => {
     const monthItems = Array.from({ length: 12 }, (_, i) => ({
-      value: `month_${i}`, 
+      value: `month_${i}`,
       label: formatDate(new Date(2000, i, 15), "MMMM", { locale: es }),
     }));
     return [{ value: "ALL_MONTHS", label: "Todos los Meses" }, ...monthItems];
@@ -820,7 +821,7 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
       })
       .sort((a, b) => {
           const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
-          const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+          const dateB = b.date.toDate instanceof Timestamp ? b.date.toDate() : new Date(b.date);
           return dateA.getTime() - dateB.getTime();
       });
   }, [customHolidays, selectedHolidayYear, selectedHolidayMonth]);
@@ -1270,3 +1271,5 @@ const saveSpecialEventsToFirestore = async (eventsData: { campaignsList?: Campai
     </TooltipProvider>
   );
 }
+
+    
