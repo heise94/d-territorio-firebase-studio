@@ -1,3 +1,4 @@
+
 'use server';
 
 import {ai} from '@/ai/genkit';
@@ -110,7 +111,7 @@ export type GenerateMonthlyAssignmentsInput = z.infer<
 >;
 
 const ExtendedMonthlyCaptainAssignmentItemSchema = z.object({
-  id: z.string().describe('UUID for this assignment'),
+  id: z.string().describe('A unique ID for this assignment, can be a random string.'),
   date: z.string().describe('YYYY-MM-DD'),
   captainId: z.string().optional().nullable().describe('Firebase Auth UID of the assigned captain. Can be null if assignCaptains is false.'),
   captainName: z.string().optional().nullable().describe('Name of the assigned captain. Can be null if assignCaptains is false.'),
@@ -148,39 +149,16 @@ const prompt = ai.definePrompt({
   name: 'generateMonthlyAssignmentsPrompt',
   input: {schema: GenerateMonthlyAssignmentsInputSchema},
   output: {schema: GenerateMonthlyAssignmentsOutputSchema},
-  prompt: `You are a meticulous and logical scheduler for a religious congregation. Your task is to generate a complete monthly preaching schedule.
+  prompt: `You are a master scheduler for a congregation, known for your fairness, logic, and meticulous attention to detail. You are creating the preaching schedule for {{{year}}}-{{{month}}}. Your output MUST be a valid JSON object matching the provided schema, with a "schedule" array containing an object for every day of the month.
 
-  Your goal is to create a schedule array containing an entry for EVERY SINGLE DAY of the specified month (year: {{{year}}}, month: {{{month}}}).
+  **Your Core Principles:**
+  1.  **Fairness in Rotation:** You never overwork anyone or any area. You rotate captains and casas intelligently. Most importantly, you always prioritize territories that have been waiting the longest by checking the 'lastWorked' date.
+  2.  **Respect for Availability:** You meticulously check every publisher's 'unavailabilityPeriods' and every casa's 'unavailabilityPeriods' before assigning them. You never assign a publisher who is blocked ('blockInfo.forSystem' is true).
+  3.  **Logical Assignments:** You understand that preaching from a captain's own home is most convenient. You always try to assign a captain to their 'managedCasaId' if they have one and it's available. If not, you find a casa close to the territory ('associatedCasaIds').
+  4.  **Adherence to Rules:** You know that no centralized assignments happen on holidays ('holidayDatesInMonth'), assembly days ('assembliesInMonth'), or days designated for group-organized preaching ('groupPreachingDays'). The 'assignments' array for these days MUST be empty, unless a specific override for a holiday is provided in 'holidaySchedulingOverrides'.
 
-  First, determine which days are NON-WORKING days. A day is non-working if it's a holiday, an assembly day, or a day designated for group-organized preaching. For these days, the 'assignments' array MUST be empty.
-
-  For all other days (WORKING days), you must iterate through EACH time slot defined in 'availableDaysWithTimeSlots' for that day of the week. For EACH time slot, you will create exactly ONE assignment object by following these steps IN ORDER:
-
-  **STEP 1: CHOOSE THE TERRITORY** (if 'assignTerritories' is true and the slot type is not 'zoom')
-  - First, check for active campaigns. If a campaign is active and has 'specificTerritoryIds', you MUST choose one of those territories.
-  - If no campaign dictates the territory, you MUST search the 'availableTerritories' list and select the one with the oldest 'lastWorked' date.
-  - This is now the [CHOSEN_TERRITORY]. If no suitable territory is found, this part of the assignment will be blank.
-
-  **STEP 2: CHOOSE THE CAPTAIN** (if 'assignCaptains' is true)
-  - Filter the 'publisherDetailedAvailabilities' list to find all publishers who are available for this specific date and time slot.
-  - IMPORTANT: You MUST EXCLUDE any publisher where 'blockInfo.forSystem' is true.
-  - IMPORTANT: You MUST EXCLUDE any publisher if the assignment date falls within one of their 'unavailabilityPeriods'.
-  - From the final list of available publishers, select one. Try to rotate captains to ensure variety.
-  - This is now the [CHOSEN_CAPTAIN]. If no captain can be chosen, this part of the assignment will be blank.
-
-  **STEP 3: CHOOSE THE CASA (MEETING PLACE)** (if 'assignCasas' is true and the slot type is not 'zoom')
-  - **Priority A: Captain's Managed Casa.** If a [CHOSEN_CAPTAIN] was selected and they have a 'managedCasaId', find that casa in the 'availableCasas' list. If that casa is available (not within an unavailability period), you MUST assign it.
-  - **Priority B: Territory's Associated Casa.** If Priority A is not met, check if the [CHOSEN_TERRITORY] has 'associatedCasaIds'. If it does, pick one of those casas from the 'availableCasas' list, ensuring it's available.
-  - **Priority C: Any Other Available Casa.** If neither Priority A nor B is met, select any other available casa from the 'availableCasas' list. Ensure it's not unavailable. Try to rotate casas.
-  - This is now the [CHOSEN_CASA].
-
-  **STEP 4: ASSEMBLE THE ASSIGNMENT OBJECT**
-  - Create the final JSON object for this time slot.
-  - Use the details from the [CHOSEN_TERRITORY], [CHOSEN_CAPTAIN], and [CHOSEN_CASA].
-  - Set 'status' to 'pending'.
-  - If 'preachingType' is 'zoom', then 'casaName', 'casaAddress', and 'territoryName' MUST be null.
-
-  Follow this logic meticulously for every assignment on every working day.
+  **Your Task:**
+  Based on the provided data ('availableTerritories', 'publisherDetailedAvailabilities', 'availableCasas', etc.), fill out the schedule for the entire month. For each working day, create an assignment for each available time slot. In each assignment, apply your core principles to select the best territory, captain, and casa. Remember to assign the 'id' for each assignment as a unique random string. The 'status' must always be 'pending'.
   `,
 });
 
@@ -195,3 +173,4 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
     return output!;
   }
 );
+
