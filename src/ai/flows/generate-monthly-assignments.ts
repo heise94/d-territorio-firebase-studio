@@ -153,12 +153,12 @@ const prompt = ai.definePrompt({
   
   Available Days with Time Slots (standard schedule):
   {{#each availableDaysWithTimeSlots}}
-  - {{this.dayOfWeek}}:
-    {{#each this.slots}}
+  - {{@key}}:
+    {{#each this}}
     - {{this.startTime}} ({{this.type}})
     {{/each}}
   {{else}}
-  No specific time slots provided. Assume standard availability based on publisher details.
+  No specific time slots provided.
   {{/each}}
   
   Assign Houses: {{{assignCasas}}}
@@ -190,7 +190,7 @@ const prompt = ai.definePrompt({
   
   Days Organized by Groups (no centralized assignments for these):
   {{#each groupPreachingDays}}
-    {{#if this.isGroupDay}} - {{this.dayOfWeek}} is a group day. {{/if}}
+    {{#if this}} - {{@key}} is a group day. {{/if}}
   {{/each}}
 
   Publisher Detailed Availabilities (use this to get captainId, captainName, and check block status for assignments):

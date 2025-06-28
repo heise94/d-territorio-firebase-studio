@@ -15,7 +15,7 @@ import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isWithinInterval, parseISO, parse } from 'date-fns';
 import { Timestamp, writeBatch, collection, doc, getDoc, getDocs, query, where, orderBy, deleteField, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { ProgramScheduleSlot, PublisherDetail, PreachingType as TypePreachingType, SettingsDoc, Casa, Territory, PreachingGroup, DayOfWeek as TypeDayOfWeek, Campaign, Assembly, CustomHoliday, PreachingAssignedType, PreachingType } from "@/types";
+import type { ProgramScheduleSlot, PublisherDetail, PreachingType as TypePreachingType, SettingsDoc, Casa, Territory, PreachingGroup, DayOfWeek as TypeDayOfWeek, Campaign, Assembly, CustomHoliday, PreachingAssignedType, PreachingType, ScheduleSeason } from "@/types";
 import { USER_ROLES } from "@/lib/constants";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -59,6 +59,8 @@ export default function ProgramaMensualPage() {
   // Data States
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [groupOrganizedDays, setGroupOrganizedDays] = useState<Record<TypeDayOfWeek, boolean>>(initialGroupOrganizedDaysState);
+  const [summerStartDate, setSummerStartDate] = useState<string>("");
+  const [winterStartDate, setWinterStartDate] = useState<string>("");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [holidays, setHolidays] = useState<CustomHoliday[]>([]);
   const [assemblies, setAssemblies] = useState<Assembly[]>([]);
@@ -89,9 +91,13 @@ export default function ProgramaMensualPage() {
         const organizedDaysMap: Record<TypeDayOfWeek, boolean> = { ...initialGroupOrganizedDaysState };
         (config.groupOrganizedDays || []).forEach(day => { if (day in organizedDaysMap) { organizedDaysMap[day as TypeDayOfWeek] = true; } });
         setGroupOrganizedDays(organizedDaysMap);
+        setSummerStartDate(config.summerScheduleStartDate || "");
+        setWinterStartDate(config.winterScheduleStartDate || "");
       } else {
         setProgramScheduleSlots([]);
         setGroupOrganizedDays(initialGroupOrganizedDaysState);
+        setSummerStartDate("");
+        setWinterStartDate("");
       }
 
       if (specialEventsConfigSnap.exists()) {
@@ -151,8 +157,40 @@ export default function ProgramaMensualPage() {
     setIsLoading(true);
     setGeneratedAssignments(null);
 
+    const getSeasonForMonth = (month: number, year: number): ScheduleSeason | 'all' => {
+        if (!summerStartDate || !winterStartDate) {
+            return 'all'; // If dates aren't set, all slots are valid
+        }
+        try {
+            const genDate = new Date(year, month, 15);
+            const summerStartThisYear = parse(summerStartDate, "MM-dd", new Date(year, 0, 1));
+            const winterStartThisYear = parse(winterStartDate, "MM-dd", new Date(year, 0, 1));
+
+            if (summerStartThisYear < winterStartThisYear) { // Northern Hemisphere style (e.g., Summer in June, Winter in Dec)
+                return (genDate >= summerStartThisYear && genDate < winterStartThisYear) ? 'summer' : 'winter';
+            } else { // Southern Hemisphere style (e.g., Summer in Dec, Winter in June)
+                return (genDate >= winterStartThisYear && genDate < summerStartThisYear) ? 'winter' : 'summer';
+            }
+        } catch (e) {
+            console.error("Error parsing season dates. Defaulting to 'all'.", e);
+            toast({
+                title: "Error de Fechas de Temporada",
+                description: "No se pudieron procesar las fechas de inicio de verano/invierno desde Ajustes. Se usarán todos los horarios.",
+                variant: "destructive",
+            });
+            return 'all';
+        }
+    };
+    
+    const currentSeason = getSeasonForMonth(selectedMonth, selectedYear);
+    
+    const activeSlots = programScheduleSlots.filter(slot => {
+        if (currentSeason === 'all') return true;
+        return !slot.season || slot.season === 'all_year' || slot.season === currentSeason;
+    });
+    
     const processedAvailableDays: Record<TypeDayOfWeek, {startTime: string; type: TypePreachingType}[]> = {} as Record<TypeDayOfWeek, {startTime: string; type: TypePreachingType}[]>;
-    programScheduleSlots.forEach(slot => {
+    activeSlots.forEach(slot => {
         if (!processedAvailableDays[slot.dayOfWeek]) {
             processedAvailableDays[slot.dayOfWeek] = [];
         }
