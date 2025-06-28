@@ -185,7 +185,7 @@ export default function ProgramaMensualPage() {
       assignTerritories: options.assignLocations,
       availableCasas: serializableCasas,
       availableTerritories: serializableTerritories,
-      groupPreachingDays,
+      groupPreachingDays: groupOrganizedDays,
       configuredCampaigns: serializableCampaigns,
       specialCampaignTerritoriesPerDay: 2, 
       holidayDatesInMonth: serializableHolidays,
@@ -494,5 +494,3 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
-
-    
