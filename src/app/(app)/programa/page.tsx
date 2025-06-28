@@ -12,7 +12,7 @@ import { format, getDaysInMonth, startOfMonth, endOfMonth, getDay, isSameDay, pa
 import { collection, doc, onSnapshot, query, where, deleteDoc, getDocs, writeBatch, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, GenerateMonthlyAssignmentsOutput, PreachingType, PreachingGroup } from "@/types";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogTrigger, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { generateMonthlyAssignments } from "@/ai/flows/generate-monthly-assignments";
 import { GenerateAIDialog } from "@/components/programa/generate-ai-dialog";
 import { EditAssignmentDialog } from "@/components/programa/edit-assignment-dialog";
@@ -133,33 +133,44 @@ export default function ProgramaMensualPage() {
         availableDaysWithTimeSlots[slot.dayOfWeek].push({ startTime: slot.startTime, type: slot.type });
     });
 
-    const serializableTerritories = allTerritories.map(t => {
-      const { createdAt, updatedAt, ...rest } = t;
+    const serializableTerritories = allTerritories.map(t => ({
+      id: t.id,
+      name: t.name,
+      type: t.type,
+      number: t.number,
+      lastWorked: t.lastWorked,
+      associatedCasaIds: t.associatedCasaIds || [],
+    }));
+
+    const serializableCasas = allCasas.map(c => {
+      const serializedUnavailability = (c.unavailabilityPeriods || []).map(p => ({
+          id: p.id,
+          startDate: p.startDate instanceof Timestamp ? format(p.startDate.toDate(), 'yyyy-MM-dd') : format(new Date(p.startDate), 'yyyy-MM-dd'),
+          endDate: p.endDate instanceof Timestamp ? format(p.endDate.toDate(), 'yyyy-MM-dd') : format(new Date(p.endDate), 'yyyy-MM-dd'),
+          reason: p.reason,
+      }));
       return {
-        ...rest,
-        createdAt: createdAt ? format(createdAt.toDate(), 'yyyy-MM-dd') : undefined,
-        updatedAt: updatedAt ? format(updatedAt.toDate(), 'yyyy-MM-dd') : undefined,
+        id: c.id,
+        ownerName: c.ownerName,
+        address: c.address,
+        unavailabilityPeriods: serializedUnavailability,
       };
     });
     
-    const serializableCasas = allCasas.map(c => {
-        const {unavailabilityPeriods, createdAt, updatedAt, ...rest} = c;
-        const serializedUnavailability = (unavailabilityPeriods || []).map(p => ({
-            ...p,
-            startDate: p.startDate ? format((p.startDate as Timestamp).toDate(), 'yyyy-MM-dd') : undefined,
-            endDate: p.endDate ? format((p.endDate as Timestamp).toDate(), 'yyyy-MM-dd') : undefined,
-        }));
-        return {...rest, unavailabilityPeriods: serializedUnavailability};
-    });
-    
     const serializablePublishers = allPublishers.map(p => {
-        const {availability, createdAt, updatedAt, ...rest} = p;
-        const serializedUnavailability = (availability?.unavailabilityPeriods || []).map(up => ({
-            ...up,
-            startDate: up.startDate ? format((up.startDate as Timestamp).toDate(), 'yyyy-MM-dd') : undefined,
-            endDate: up.endDate ? format((up.endDate as Timestamp).toDate(), 'yyyy-MM-dd') : undefined,
-        }));
-        return { ...rest, availability: { ...availability, unavailabilityPeriods: serializedUnavailability }};
+      const serializedUnavailability = (p.availability?.unavailabilityPeriods || []).map(up => ({
+          id: up.id,
+          startDate: up.startDate instanceof Timestamp ? format(up.startDate.toDate(), 'yyyy-MM-dd') : format(new Date(up.startDate), 'yyyy-MM-dd'),
+          endDate: up.endDate instanceof Timestamp ? format(up.endDate.toDate(), 'yyyy-MM-dd') : format(new Date(up.endDate), 'yyyy-MM-dd'),
+          reason: up.reason,
+      }));
+      return {
+        id: p.id,
+        name: p.name,
+        blockInfo: p.blockInfo,
+        unavailabilityPeriods: serializedUnavailability,
+        managedCasaId: p.managedCasaId,
+      };
     });
     
     const serializableCampaigns = allCampaigns.map(c => ({
@@ -497,5 +508,3 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
-
-    
