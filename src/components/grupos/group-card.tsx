@@ -17,8 +17,8 @@ interface GroupCardProps {
 }
 
 export function GroupCard({ group, onEdit, onDelete, availableUsers, canManage }: GroupCardProps) {
-  const superintendentName = availableUsers.find(u => u.firebaseAuthUid === group.superintendentId)?.name || group.superintendentId;
-  const auxiliaryName = availableUsers.find(u => u.firebaseAuthUid === group.auxiliaryId)?.name || group.auxiliaryId;
+  const superintendentName = availableUsers.find(u => u.id === group.superintendentId || u.firebaseAuthUid === group.superintendentId)?.name || group.superintendentId;
+  const auxiliaryName = availableUsers.find(u => u.id === group.auxiliaryId || u.firebaseAuthUid === group.auxiliaryId)?.name || group.auxiliaryId;
   
   return (
     <Card className="flex flex-col hover:shadow-xl transition-shadow duration-200 rounded-lg">
