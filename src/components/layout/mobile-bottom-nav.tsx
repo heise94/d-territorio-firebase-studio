@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  LayoutDashboard, Users, MapIcon as Map, Building, Users2 as GroupIcon, CalendarDays, CheckSquare, ListChecks, UserCog, UserCheck, FileText, Settings, BarChartHorizontal, Database, Pencil
+  LayoutDashboard, Users, MapIcon as Map, Building, Users2 as GroupIcon, CalendarDays, CheckSquare, ListChecks, UserCog, UserCheck, FileText, Settings, BarChartHorizontal, Database, Pencil, Bot
 } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS, PermissionId, USER_ROLES } from "@/lib/constants";
@@ -23,10 +23,10 @@ const bottomNavItems: BottomNavItemConfig[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, permission: PERMISSIONS.VIEW_DASHBOARD },
   { title: "Mis Asig.", href: "/asignaciones", icon: CheckSquare, permission: PERMISSIONS.VIEW_OWN_ASSIGNMENTS },
   { title: "Territorios", href: "/territorios", icon: Map, permission: PERMISSIONS.VIEW_TERRITORIES },
+  { title: "Crear Prog.", href: "/programa/crear", icon: Bot, permission: PERMISSIONS.GENERATE_MONTHLY_PROGRAM },
   { title: "Casas", href: "/casas", icon: Building, permission: PERMISSIONS.VIEW_CASAS },
   { title: "Grupos", href: "/grupos", icon: GroupIcon, permission: PERMISSIONS.VIEW_GROUPS },
   { title: "Usuarios", href: "/usuarios", icon: Users, permission: PERMISSIONS.VIEW_USERS },
-  { title: "Programa", href: "/programa", icon: CalendarDays, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM },
   { title: "Gestión Asig.", href: "/gestion-asignaciones", icon: ListChecks, permission: PERMISSIONS.VIEW_ALL_ASSIGNMENTS },
   { title: "Reportes", href: "/reportes", icon: BarChartHorizontal, permission: PERMISSIONS.VIEW_REPORTS },
   { title: "Editor Hist.", href: "/reportes/editor", icon: Pencil, permission: PERMISSIONS.EDIT_REPORTS },
