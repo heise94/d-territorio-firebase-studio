@@ -58,7 +58,7 @@ const GroupPreachingDaysAISchema = z.record(
 
 const CasaForAISchema = z.object({
     id: z.string(),
-    name: z.string(),
+    ownerName: z.string(),
     address: z.string().optional(),
     associatedTerritoryIds: z.array(z.string()).optional().describe("IDs of territories located near this house."),
     unavailabilityPeriods: z.array(UnavailabilityPeriodAISchema).optional().describe("Periods when the house is unavailable. Do not assign this house if the assignment date falls within any of these periods.")
@@ -154,9 +154,9 @@ const prompt = ai.definePrompt({
 **Your Core Principles:**
 1.  **Fairness in Rotation:** You always prioritize territories that have been waiting the longest by checking the 'lastWorked' date. You rotate captains and casas intelligently to avoid overworking anyone or any area.
 2.  **Respect for Availability:** You meticulously check every publisher's 'unavailabilityPeriods' and 'blockInfo.forSystem' status. You also check every casa's 'unavailabilityPeriods'. You NEVER assign a publisher or casa if they are unavailable or blocked.
-3.  **Logical Assignments:** You understand that preaching from a captain's own home is most convenient. You will ALWAYS try to assign a captain to their 'managedCasaId' if they have one and it's available. If not, you find another available casa, prioritizing those associated with the chosen territory.
+3.  **Logical Assignments:** You understand that preaching from a captain's own home is most convenient. You will ALWAYS try to assign a captain to their 'managedCasaId' if it's available. If not, you find another available casa, prioritizing those associated with the chosen territory.
 4.  **Adherence to Rules:** You know that no centralized assignments happen on holidays ('holidayDatesInMonth'), assembly days ('assembliesInMonth'), or days designated for group-organized preaching ('groupPreachingDays'). The 'assignments' array for these days MUST be empty, unless a specific override for a holiday is provided in 'holidaySchedulingOverrides'.
-5.  **Assignment Flags:** You must respect the 'assignCaptains' and 'assignTerritories' flags. If they are false, you must leave the corresponding fields in the output as null.
+5.  **Assignment Flags:** You must respect the 'assignCaptains', 'assignTerritories', and 'assignCasas' flags. If any are false, you must leave the corresponding fields in the output as null.
 
 **Available Data (USE THIS DATA ONLY):**
 
@@ -181,7 +181,7 @@ const prompt = ai.definePrompt({
 *   **Casas:**
     {{#if availableCasas}}
       {{#each availableCasas}}
-      - ID: {{this.id}}, Name: {{this.name}}
+      - ID: {{this.id}}, Name: {{this.ownerName}}
       {{/each}}
     {{else}}
       No casas available.
@@ -208,4 +208,5 @@ const generateMonthlyAssignmentsFlow = ai.defineFlow(
     return output!;
   }
 );
+
 
