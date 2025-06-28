@@ -29,7 +29,7 @@ import type { UserAssignment, PublisherDetail, Territory, Casa, PreachingAssigne
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Users, MountainSnow, Video, Home } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { format, parse, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { format, parse, parseISO, isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { Timestamp } from "firebase/firestore";
 import { cn } from "@/lib/utils";
@@ -167,13 +167,13 @@ export function AddManualAssignmentDialog({
   const lastWorkedDates = useMemo(() => {
     const map = new Map<string, string>();
     allTerritories.forEach(territory => {
-      const lastAssignment = allAssignments
-        .filter(a => a.locationId === territory.id && a.lastReportData)
-        .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime())
-        [0];
-
-      if (lastAssignment) {
-        map.set(territory.id, lastAssignment.date);
+      const reportDates = allAssignments
+        .filter(a => a.locationId === territory.id && a.lastReportData?.reportedAt)
+        .map(a => (a.lastReportData!.reportedAt as Timestamp).toDate());
+      
+      if (reportDates.length > 0) {
+        reportDates.sort((a,b) => b.getTime() - a.getTime());
+        map.set(territory.id, format(reportDates[0], 'yyyy-MM-dd'));
       }
     });
     return map;
