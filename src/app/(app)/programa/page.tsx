@@ -60,7 +60,7 @@ export default function ProgramaMensualPage() {
   const [isAddManualDialogOpen, setIsAddManualDialogOpen] = useState(false);
   const [assignmentToEdit, setAssignmentToEdit] = useState<DraftAssignmentItem | null>(null);
   const [dayForManualAdd, setDayForManualAdd] = useState<string | null>(null);
-  const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | DraftAssignmentItem | null>(null);
   const [draftAssignments, setDraftAssignments] = useState<Record<string, DraftAssignmentItem[]>>({});
 
 
@@ -145,8 +145,8 @@ export default function ProgramaMensualPage() {
     const serializableCasas = allCasas.map(c => {
       const serializedUnavailability = (c.unavailabilityPeriods || []).map(p => ({
           id: p.id,
-          startDate: p.startDate instanceof Timestamp ? format(p.startDate.toDate(), 'yyyy-MM-dd') : format(new Date(p.startDate), 'yyyy-MM-dd'),
-          endDate: p.endDate instanceof Timestamp ? format(p.endDate.toDate(), 'yyyy-MM-dd') : format(new Date(p.endDate), 'yyyy-MM-dd'),
+          startDate: format(p.startDate instanceof Timestamp ? p.startDate.toDate() : p.startDate, 'yyyy-MM-dd'),
+          endDate: format(p.endDate instanceof Timestamp ? p.endDate.toDate() : p.endDate, 'yyyy-MM-dd'),
           reason: p.reason,
       }));
       return {
@@ -154,18 +154,19 @@ export default function ProgramaMensualPage() {
         ownerName: c.ownerName,
         address: c.address,
         unavailabilityPeriods: serializedUnavailability,
+        associatedTerritoryIds: c.associatedCasaIds || [],
       };
     });
     
     const serializablePublishers = allPublishers.map(p => {
       const serializedUnavailability = (p.availability?.unavailabilityPeriods || []).map(up => ({
           id: up.id,
-          startDate: up.startDate instanceof Timestamp ? format(up.startDate.toDate(), 'yyyy-MM-dd') : format(new Date(up.startDate), 'yyyy-MM-dd'),
-          endDate: up.endDate instanceof Timestamp ? format(up.endDate.toDate(), 'yyyy-MM-dd') : format(new Date(up.endDate), 'yyyy-MM-dd'),
+          startDate: format(up.startDate instanceof Timestamp ? up.startDate.toDate() : up.startDate, 'yyyy-MM-dd'),
+          endDate: format(up.endDate instanceof Timestamp ? up.endDate.toDate() : up.endDate, 'yyyy-MM-dd'),
           reason: up.reason,
       }));
       return {
-        id: p.id,
+        id: p.id || p.firebaseAuthUid,
         name: p.name,
         blockInfo: p.blockInfo,
         unavailabilityPeriods: serializedUnavailability,
@@ -187,6 +188,12 @@ export default function ProgramaMensualPage() {
 
     const serializableHolidays = allHolidays.map(h => format(h.date as Date, 'yyyy-MM-dd'));
 
+    const serializableGroups = allGroups.map(g => ({
+        id: g.id,
+        name: g.name,
+        superintendentId: g.superintendentId,
+    }));
+
     const inputForAI = {
       year: selectedYear,
       month: selectedMonth,
@@ -204,7 +211,7 @@ export default function ProgramaMensualPage() {
       designatedRuralWeekendDays: options.designatedRuralWeekendDays,
       publisherDetailedAvailabilities: serializablePublishers,
       additionalInstructions: options.additionalInstructions,
-      preachingGroups: allGroups,
+      preachingGroups: serializableGroups,
     };
 
     try {
@@ -247,7 +254,7 @@ export default function ProgramaMensualPage() {
       
       const territory = allTerritories.find(t => t.name === assign.territoryName);
       const casa = allCasas.find(c => c.ownerName === assign.casaName);
-      const publisher = allPublishers.find(p => p.id === assign.captainId);
+      const publisher = allPublishers.find(p => p.id === assign.captainId || p.firebaseAuthUid === assign.captainId);
       
       const assignData: Partial<Assignment> = {
           id: assign.id,
@@ -508,3 +515,5 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
+
+    
