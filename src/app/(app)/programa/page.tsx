@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -263,8 +264,21 @@ export default function ProgramaMensualPage() {
             const territory = availableTerritories[0];
             if (!territory) { failedSlotsCount++; continue; }
             
-            const associatedCasas = allCasas.filter(c => territory.associatedCasaIds?.includes(c.id));
-            let casa = associatedCasas.find(c => c.ownerName.toLowerCase().includes("salón del reino")) || associatedCasas[0];
+            const allAvailableCasasForSlot = allCasas.filter(c => 
+              !c.blockInfo?.forSystem &&
+              (c.availableDays?.availableProgramSlotIds?.includes(slot.id) ?? false) &&
+              !c.unavailabilityPeriods?.some(period => 
+                  isWithinInterval(currentDate, { 
+                      start: startOfDay((period.startDate as Timestamp).toDate()), 
+                      end: endOfDay((period.endDate as Timestamp).toDate()) 
+                  })
+              )
+            );
+            const associatedAvailableCasas = allAvailableCasasForSlot.filter(c => territory.associatedCasaIds?.includes(c.id));
+            let casa = associatedAvailableCasas.find(c => c.ownerName.toLowerCase().includes("salón del reino")) || associatedAvailableCasas[0];
+            if (!casa) {
+                casa = allAvailableCasasForSlot.find(c => c.ownerName.toLowerCase().includes("salón del reino")) || allAvailableCasasForSlot[0];
+            }
             if (!casa) { failedSlotsCount++; continue; }
 
             const publisherAssignmentsCount = assignmentsInMonth.reduce((acc, a) => {
@@ -272,29 +286,42 @@ export default function ProgramaMensualPage() {
                 return acc;
             }, {} as Record<string, number>);
 
-            const availablePublishers = allPublishers.filter(p => {
+            const potentialPublishers = allPublishers.filter(p => {
                 const isStatusOk = (p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable));
                 if (!isStatusOk || p.blockInfo?.forSystem) return false;
-                const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => 
-                    isWithinInterval(currentDate, { start: startOfDay(period.startDate.toDate()), end: endOfDay(period.endDate.toDate()) })
+                const isUnavailable = p.availability?.unavailabilityPeriods?.some(period =>
+                    isWithinInterval(currentDate, { start: startOfDay((period.startDate as Timestamp).toDate()), end: endOfDay((period.endDate as Timestamp).toDate()) })
                 );
-                if (isUnavailable || !p.availability?.availableSlotIds?.includes(slot.id)) return false;
+                if (isUnavailable) return false;
                 const hasAssignmentToday = assignmentsInMonth.some(a => a.userId === p.firebaseAuthUid && a.date === format(currentDate, "yyyy-MM-dd"));
                 return !hasAssignmentToday;
-            }).sort((a, b) => (publisherAssignmentsCount[a.firebaseAuthUid!] || 0) - (publisherAssignmentsCount[b.firebaseAuthUid!] || 0));
+            });
+
+            let wasFallbackUsed = false;
+            let availablePublishers = potentialPublishers.filter(p => p.availability?.availableSlotIds?.includes(slot.id));
+            if (availablePublishers.length === 0) {
+                availablePublishers = potentialPublishers;
+                wasFallbackUsed = true;
+            }
+
+            availablePublishers.sort((a, b) => (publisherAssignmentsCount[a.firebaseAuthUid!] || 0) - (publisherAssignmentsCount[b.firebaseAuthUid!] || 0));
 
             const publisher = availablePublishers[0];
             if (!publisher || !publisher.firebaseAuthUid) { failedSlotsCount++; continue; }
 
             const newAssignmentRef = doc(collection(db, "assignments"));
             const territoryDisplayName = territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name;
+            const assignmentNotes = wasFallbackUsed 
+                ? 'Asignación automática. Por favor, confirme su disponibilidad para este horario.'
+                : 'Asignación generada por el sistema.';
+
             const newAssignmentData = {
                 id: newAssignmentRef.id, date: format(currentDate, "yyyy-MM-dd"), time: slot.startTime,
                 type: slot.type === 'general' ? 'publica' : slot.type, locationName: territoryDisplayName,
                 locationId: territory.id, territoryName: territoryDisplayName, casaId: casa.id, casaName: casa.ownerName,
                 casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: publisher.firebaseAuthUid,
                 userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber,
-                assignedGroupId: publisher.assignedGroupId, notes: `Asignación generada por el sistema.`,
+                assignedGroupId: publisher.assignedGroupId, notes: assignmentNotes,
                 createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
             };
             batch.set(newAssignmentRef, newAssignmentData);
