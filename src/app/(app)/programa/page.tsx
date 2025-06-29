@@ -18,7 +18,6 @@ import { PERMISSIONS } from "@/lib/constants";
 import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/components/programa/add-manual-assignment-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { GenerateAIDialog } from "@/components/programa/edit-assignment-dialog";
 
 
 const currentYear = new Date().getFullYear();
@@ -59,6 +58,7 @@ export default function ProgramaMensualPage() {
   // Loading States
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingSystem, setIsGeneratingSystem] = useState(false);
+  const [isSavingDrafts, setIsSavingDrafts] = useState(false);
 
   // Dialog States
   const [isAddManualDialogOpen, setIsAddManualDialogOpen] = useState(false);
@@ -67,6 +67,9 @@ export default function ProgramaMensualPage() {
   const [assignmentToEdit, setAssignmentToEdit] = useState<Assignment | null>(null);
   const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  
+  // Draft state
+  const [draftAssignments, setDraftAssignments] = useState<Assignment[]>([]);
   
   useEffect(() => {
     setIsLoading(true);
@@ -233,11 +236,10 @@ export default function ProgramaMensualPage() {
 
     const monthStartDate = startOfMonth(new Date(selectedYear, selectedMonth));
     const monthEndDate = endOfMonth(new Date(selectedYear, selectedMonth));
-    const batch = writeBatch(db);
-    let createdAssignmentsCount = 0;
+    const newDrafts: Assignment[] = [];
     let failedSlotsCount = 0;
 
-    const assignmentsInMonth = allAssignments.filter(a => {
+    const assignmentsInMonth = [...allAssignments, ...draftAssignments].filter(a => {
         try {
             const d = parseISO(a.date);
             return isWithinInterval(d, { start: monthStartDate, end: monthEndDate });
@@ -294,9 +296,10 @@ export default function ProgramaMensualPage() {
             }
             if (!casa) { failedSlotsCount++; continue; }
             
-            const publisherAssignmentsCount = assignmentsInMonth.reduce((acc, a) => {
-                if (a.userId) {
-                    const assignedUser = allPublishers.find(p => (p.firebaseAuthUid && p.firebaseAuthUid === a.userId) || p.id === a.userId);
+             const publisherAssignmentsCount = [...allAssignments, ...newDrafts].reduce((acc, a) => {
+                const userId = a.userId;
+                if (userId) {
+                    const assignedUser = allPublishers.find(p => p.firebaseAuthUid === userId || p.id === userId);
                     if (assignedUser) {
                         acc[assignedUser.id] = (acc[assignedUser.id] || 0) + 1;
                     }
@@ -311,13 +314,13 @@ export default function ProgramaMensualPage() {
                 if (p.blockInfo?.forSystem) return false;
 
                 const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
-                    const start = startOfDay((period.startDate as Timestamp).toDate());
-                    const end = endOfDay((period.endDate as Timestamp).toDate());
+                    const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
+                    const end = endOfDay(period.endDate instanceof Timestamp ? period.endDate.toDate() : new Date(period.endDate));
                     return isWithinInterval(currentDate, { start, end });
                 });
                 if (isUnavailable) return false;
 
-                const hasAssignmentToday = assignmentsInMonth.some(a => 
+                const hasAssignmentToday = [...allAssignments, ...newDrafts].some(a => 
                     a.date === format(currentDate, "yyyy-MM-dd") && 
                     ((p.firebaseAuthUid && a.userId === p.firebaseAuthUid) || a.userId === p.id)
                 );
@@ -336,47 +339,67 @@ export default function ProgramaMensualPage() {
             availablePublishers.sort((a, b) => (publisherAssignmentsCount[a.id] || 0) - (publisherAssignmentsCount[b.id] || 0));
 
             const publisher = availablePublishers[0];
-            if (!publisher) {
+            if (!publisher || !publisher.firebaseAuthUid) {
                 failedSlotsCount++; continue; 
             }
 
-            const newAssignmentRef = doc(collection(db, "assignments"));
             const territoryDisplayName = territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name;
             const assignmentNotes = wasFallbackUsed 
                 ? 'Asignación automática. Por favor, confirme su disponibilidad para este horario.'
                 : 'Asignación generada por el sistema.';
 
             const newAssignmentData = {
-                id: newAssignmentRef.id, date: format(currentDate, "yyyy-MM-dd"), time: slot.startTime,
+                id: crypto.randomUUID(), date: format(currentDate, "yyyy-MM-dd"), time: slot.startTime,
                 type: slot.type === 'general' ? 'publica' : slot.type, locationName: territoryDisplayName,
                 locationId: territory.id, territoryName: territoryDisplayName, casaId: casa.id, casaName: casa.ownerName,
-                casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: publisher.firebaseAuthUid || publisher.id,
+                casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: publisher.firebaseAuthUid,
                 userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber || null,
                 assignedGroupId: publisher.assignedGroupId || null, notes: assignmentNotes,
-                createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+                createdAt: serverTimestamp(), updatedAt: serverTimestamp(), isDraft: true
             };
-            batch.set(newAssignmentRef, newAssignmentData);
+            newDrafts.push(newAssignmentData as Assignment);
             assignmentsInMonth.push(newAssignmentData as Assignment);
-            createdAssignmentsCount++;
         }
     }
-
+    
+    setDraftAssignments(newDrafts);
+    toast({
+        title: "Borrador Generado",
+        description: `${newDrafts.length} asignaciones creadas en borrador. ${failedSlotsCount > 0 ? `${failedSlotsCount} horarios no se pudieron asignar.` : ''} Revisa y guarda para confirmar.`
+    });
+    setIsGeneratingSystem(false);
+  };
+  
+  const handleSaveDrafts = async () => {
+    if (draftAssignments.length === 0) return;
+    setIsSavingDrafts(true);
+    const batch = writeBatch(db);
+    draftAssignments.forEach(draft => {
+      const { isDraft, ...dataToSave } = draft;
+      const docRef = doc(collection(db, "assignments"));
+      batch.set(docRef, { ...dataToSave, id: docRef.id });
+    });
     try {
-        await batch.commit();
-        toast({
-            title: "Generación Completada",
-            description: `${createdAssignmentsCount} asignaciones creadas. ${failedSlotsCount > 0 ? `${failedSlotsCount} horarios no se pudieron asignar.` : ''}`
-        });
+      await batch.commit();
+      toast({ title: "Programa Guardado", description: `${draftAssignments.length} asignaciones se han guardado en la base de datos.` });
+      setDraftAssignments([]);
     } catch (error) {
-        console.error("Error committing batch:", error);
-        toast({ title: "Error al Guardar", description: "No se pudieron guardar las asignaciones.", variant: "destructive"});
+      console.error("Error saving drafts:", error);
+      toast({ title: "Error al guardar", description: "No se pudieron guardar las asignaciones.", variant: "destructive" });
     } finally {
-        setIsGeneratingSystem(false);
+      setIsSavingDrafts(false);
     }
   };
 
+  const handleDiscardDrafts = () => {
+    setDraftAssignments([]);
+    toast({ title: "Borrador Descartado", description: "El programa generado ha sido eliminado." });
+  };
+
+
   const assignmentsToDisplay = useMemo(() => {
-    return allAssignments.reduce((acc, curr) => {
+    const combinedAssignments = [...allAssignments, ...draftAssignments];
+    return combinedAssignments.reduce((acc, curr) => {
         try {
             const assignmentDate = parseISO(curr.date);
             if (assignmentDate.getFullYear() === selectedYear && assignmentDate.getMonth() === selectedMonth) {
@@ -386,8 +409,8 @@ export default function ProgramaMensualPage() {
              // Ignore invalid dates
         }
         return acc;
-    }, {} as Record<string, any[]>);
-  }, [allAssignments, selectedMonth, selectedYear]);
+    }, {} as Record<string, Assignment[]>);
+  }, [allAssignments, draftAssignments, selectedMonth, selectedYear]);
   
   const firstDayOfMonth = startOfMonth(new Date(selectedYear, selectedMonth));
   const daysInMonth = getDaysInMonth(firstDayOfMonth);
@@ -396,13 +419,16 @@ export default function ProgramaMensualPage() {
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => new Date(selectedYear, selectedMonth, i + 1));
 
   const AssignmentItem = ({ assignment, onEdit, onDelete }: { assignment: Assignment, onEdit: () => void, onDelete: () => void }) => (
-    <div className="text-sm md:text-xs">
+    <div className="text-sm md:text-xs group relative">
+        {assignment.isDraft && (
+            <Badge variant="outline" className="absolute -top-1.5 -left-1.5 text-xs px-1 py-0 border-amber-500 text-amber-600 bg-amber-500/10 z-10">Borrador</Badge>
+        )}
         <div className="flex items-center font-semibold text-primary"><PreachingTypeIcon type={assignment.type} /><span>{assignment.time}</span></div>
         <p className="truncate font-medium text-foreground/90" title={assignment.userName}>{assignment.userName}</p>
         <p className="truncate text-muted-foreground" title={assignment.locationName}>{assignment.locationName}</p>
         {canManageProgram && (
             <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
-                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEdit}><Edit className="h-3 w-3 text-blue-600" /></Button>
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEdit} disabled={assignment.isDraft}><Edit className="h-3 w-3 text-blue-600" /></Button>
                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onDelete}><Trash2 className="h-3 w-3 text-destructive" /></Button>
             </div>
         )}
@@ -439,10 +465,23 @@ export default function ProgramaMensualPage() {
             </div>
             {hasPermission(PERMISSIONS.GENERATE_MONTHLY_PROGRAM) && (
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                 <Button onClick={handleSystemGeneration} disabled={isLoading || isGeneratingSystem} className="w-full sm:w-auto">
-                  {isGeneratingSystem ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SettingsIcon className="mr-2 h-4 w-4" />}
-                  Generar con Sistema
-                </Button>
+                {draftAssignments.length > 0 ? (
+                  <>
+                    <Button onClick={handleSaveDrafts} disabled={isLoading || isSavingDrafts} className="w-full sm:w-auto bg-green-600 hover:bg-green-700">
+                      {isSavingDrafts ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                      Guardar Programa
+                    </Button>
+                    <Button onClick={handleDiscardDrafts} disabled={isLoading || isSavingDrafts} variant="destructive" className="w-full sm:w-auto">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Descartar Borrador
+                    </Button>
+                  </>
+                ) : (
+                  <Button onClick={handleSystemGeneration} disabled={isLoading || isGeneratingSystem} className="w-full sm:w-auto">
+                    {isGeneratingSystem ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SettingsIcon className="mr-2 h-4 w-4" />}
+                    Generar con Sistema
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -483,7 +522,23 @@ export default function ProgramaMensualPage() {
                             return (
                                 <div key={slot.id} className="p-2 md:p-1.5 rounded-md bg-muted/30 text-sm md:text-xs shadow-sm group relative min-h-[60px] flex flex-col justify-center">
                                     {assignmentForSlot ? (
-                                        <AssignmentItem assignment={assignmentForSlot} onEdit={() => handleOpenEditDialog(assignmentForSlot)} onDelete={() => handleDeleteAssignment(assignmentForSlot)} />
+                                        <AssignmentItem 
+                                          assignment={assignmentForSlot} 
+                                          onEdit={() => {
+                                              if (assignmentForSlot.isDraft) {
+                                                  toast({ title: "Guardar primero", description: "Guarda el programa antes de editar asignaciones individuales." });
+                                                  return;
+                                              }
+                                              handleOpenEditDialog(assignmentForSlot);
+                                          }} 
+                                          onDelete={() => {
+                                              if (assignmentForSlot.isDraft) {
+                                                  setDraftAssignments(drafts => drafts.filter(d => d.id !== assignmentForSlot.id));
+                                              } else {
+                                                  handleDeleteAssignment(assignmentForSlot);
+                                              }
+                                          }}
+                                        />
                                     ) : (
                                         <div className="flex items-center justify-between w-full">
                                             <div className="flex items-center text-muted-foreground">
@@ -505,7 +560,11 @@ export default function ProgramaMensualPage() {
 
                         {assignmentsForDay.filter(a => !slotsForDay.some(s => s.startTime === a.time && (s.type === a.type || (s.type === 'general' && a.type === 'publica')))).map(unmatchedAssignment => (
                             <div key={unmatchedAssignment.id} className="p-2 md:p-1.5 rounded-md bg-rose-500/10 border border-dashed border-rose-500/30 text-sm md:text-xs shadow-sm group relative min-h-[60px] flex flex-col justify-center">
-                                <AssignmentItem assignment={unmatchedAssignment} onEdit={() => handleOpenEditDialog(unmatchedAssignment)} onDelete={() => handleDeleteAssignment(unmatchedAssignment)} />
+                                <AssignmentItem 
+                                  assignment={unmatchedAssignment} 
+                                  onEdit={() => handleOpenEditDialog(unmatchedAssignment)} 
+                                  onDelete={() => handleDeleteAssignment(unmatchedAssignment)} 
+                                />
                             </div>
                         ))}
                       </CardContent>

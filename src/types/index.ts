@@ -250,6 +250,7 @@ export interface Assignment extends UserAssignment {
   casaName?: string;
   casaAddress?: string;
   territoryName?: string;
+  isDraft?: boolean;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
