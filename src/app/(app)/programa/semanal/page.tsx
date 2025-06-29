@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -9,10 +9,12 @@ import { useToast } from "@/hooks/use-toast";
 import type { Assignment, PreachingAssignedType } from "@/types";
 import { format, startOfWeek, addDays, parseISO, isSameDay, startOfDay, subWeeks, addWeeks, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
-import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle, ChevronLeft, CalendarClock as CalendarClockIcon, Loader2 } from "lucide-react";
+import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle, ChevronLeft, CalendarClock as CalendarClockIcon, Loader2, Image as ImageIcon } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { collection, doc, onSnapshot, query, where, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { toPng } from 'html-to-image';
+import { WeeklyScheduleImage } from "@/components/programa/weekly-schedule-image";
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingAssignedType; className?: string }) => {
   const defaultClass = "h-5 w-5 shrink-0";
@@ -33,6 +35,9 @@ export default function ProgramaSemanalPage() {
 
   const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date());
   const today = startOfDay(new Date());
+
+  const imageRef = useRef<HTMLDivElement>(null);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   const currentWeekDays = useMemo(() => {
     const start = startOfWeek(currentDisplayDate, { weekStartsOn: 1 });
@@ -127,6 +132,32 @@ export default function ProgramaSemanalPage() {
     setSelectedAssignmentToLead(null);
   };
 
+  const handleGenerateImage = useCallback(async () => {
+    if (!imageRef.current) {
+        toast({ title: "Error", description: "No se encontró el contenido para generar la imagen.", variant: "destructive" });
+        return;
+    }
+    setIsGeneratingImage(true);
+    toast({ title: "Generando imagen...", description: "Esto puede tardar unos segundos." });
+
+    try {
+        const dataUrl = await toPng(imageRef.current, { cacheBust: true, pixelRatio: 2 });
+        const link = document.createElement('a');
+        link.download = `programa-semanal-${format(currentWeekDays[0], 'yyyy-MM-dd')}.png`;
+        link.href = dataUrl;
+        link.click();
+        toast({ title: "¡Imagen Generada!", description: "La descarga de la imagen ha comenzado." });
+    } catch (err) {
+        console.error('oops, something went wrong!', err);
+        toast({ title: "Error al generar imagen", description: "No se pudo crear la imagen del programa.", variant: "destructive" });
+    } finally {
+        setIsGeneratingImage(false);
+    }
+  }, [currentWeekDays, toast]);
+
+  const weekTitle = `Semana del ${format(currentWeekDays[0], "d 'de' MMMM", { locale: es })} al ${format(currentWeekDays[6], "d 'de' MMMM 'de' yyyy", { locale: es })}`;
+
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -149,12 +180,16 @@ export default function ProgramaSemanalPage() {
             <Button variant="outline" onClick={goToNextWeek} size="icon" aria-label="Semana siguiente">
                 <ChevronRight className="h-5 w-5" />
             </Button>
+            <Button variant="default" onClick={handleGenerateImage} disabled={isGeneratingImage}>
+                {isGeneratingImage ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ImageIcon className="mr-2 h-4 w-4" />}
+                Generar Imagen
+            </Button>
         </div>
       </div>
       
       <div className="text-center mb-6">
         <h2 className="text-xl md:text-2xl font-semibold font-headline text-primary">
-            Semana del {format(currentWeekDays[0], "d 'de' MMMM", { locale: es })} al {format(currentWeekDays[6], "d 'de' MMMM 'de' yyyy", { locale: es })}
+            {weekTitle}
         </h2>
       </div>
 
@@ -167,7 +202,7 @@ export default function ProgramaSemanalPage() {
                 isSameDay(parseISO(assign.date), day) && assign.status === 'accepted'
             ).sort((a,b) => a.time.localeCompare(b.time));
 
-            const isActualCurrentDay = isSameDay(day, today); // Check if the day being rendered is actually 'today'
+            const isActualCurrentDay = isSameDay(day, today); 
 
             return (
                 <Card key={day.toISOString()} className={`shadow-md hover:shadow-lg transition-shadow ${isActualCurrentDay ? 'border-primary border-2' : 'border-border'}`}>
@@ -243,6 +278,13 @@ export default function ProgramaSemanalPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      <WeeklyScheduleImage 
+        ref={imageRef}
+        weekDays={currentWeekDays}
+        assignments={assignments}
+        weekTitle={weekTitle}
+      />
     </div>
   );
 }

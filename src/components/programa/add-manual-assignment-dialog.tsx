@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { Assignment, PublisherDetail, Territory, Casa, PreachingAssignedType, ProgramScheduleSlot, UserProfile } from "@/types";
+import type { Assignment, UserProfile, Territory, Casa, PreachingAssignedType, ProgramScheduleSlot } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Users, MountainSnow, Video, Home, MapPin } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
@@ -289,8 +289,8 @@ export function AddManualAssignmentDialog({
     setIsSubmitting(false);
   }
 
-  const dialogDescription = isEditMode 
-    ? `Editando asignación para ${assignmentToEdit?.userName}`
+  const dialogDescription = (isEditMode && assignmentToEdit)
+    ? `Editando asignación para ${assignmentToEdit.userName}`
     : date 
         ? `Añadiendo asignación para el ${format(date, 'PPP', {locale: es})}`
         : 'Añadiendo asignación manual.';

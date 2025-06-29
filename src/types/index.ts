@@ -31,19 +31,7 @@ export interface UserProfile {
 }
 
 // Definición de PublisherDetail corregida
-export interface PublisherDetail {
-  id: string; // Document ID from Firestore users collection
-  name: string;
-  email: string;
-  phoneNumber?: string;
-  availability?: UserAvailability;
-  assignedGroupId?: string;
-  firebaseAuthUid?: string; // UID from Firebase Authentication
-  status?: UserProfile['status'];
-  isAssignable?: boolean;
-  blockInfo?: { forSystem: boolean; forGroup: boolean; reason?: string }; // Add blockInfo
-  managedCasaId?: string;
-}
+export interface PublisherDetail extends UserProfile {}
 
 
 export interface RoleConfiguration {
@@ -237,13 +225,13 @@ export interface UserAssignment {
   status: AssignmentStatus;
   assignedBy?: string;
   notes?: string;
+  userName?: string;
   additionalTerritorySelected?: AdditionalTerritoryInfo;
   lastReportData?: ReportedAssignmentData;
 }
 
 export interface Assignment extends UserAssignment {
   userId?: string;
-  userName?: string;
   userEmail?: string;
   userPhoneNumber?: string;
   captainId?: string;
