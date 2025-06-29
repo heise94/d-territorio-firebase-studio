@@ -1,11 +1,10 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Bot, Settings as SettingsIcon } from "lucide-react";
+import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, parseISO, addDays, isWithinInterval } from 'date-fns';
@@ -18,7 +17,6 @@ import { PERMISSIONS } from "@/lib/constants";
 import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/components/programa/add-manual-assignment-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { GenerateAIDialog } from "@/components/programa/edit-assignment-dialog";
 
 
 const currentYear = new Date().getFullYear();
@@ -59,11 +57,9 @@ export default function ProgramaMensualPage() {
   // Loading States
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingSystem, setIsGeneratingSystem] = useState(false);
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   // Dialog States
   const [isAddManualDialogOpen, setIsAddManualDialogOpen] = useState(false);
-  const [isGenerateAIDialogOpen, setIsGenerateAIDialogOpen] = useState(false);
   const [dateForManualAdd, setDateForManualAdd] = useState<Date | null>(null);
   const [slotForManualAdd, setSlotForManualAdd] = useState<ProgramScheduleSlot | null>(null);
   const [assignmentToEdit, setAssignmentToEdit] = useState<Assignment | null>(null);
@@ -321,29 +317,6 @@ export default function ProgramaMensualPage() {
     }
   };
 
-  const handleSubmitAIGeneration = async (data: { additionalInstructions: string; designatedRuralWeekendDays: string[] }) => {
-    setIsGeneratingAI(true);
-    toast({ title: "Enviando a la IA...", description: "La IA está procesando tu solicitud para generar el programa." });
-
-    // Here you would call your AI flow, e.g.,
-    // const result = await generateProgramFlow({ ...data, year: selectedYear, month: selectedMonth });
-    
-    // Simulating AI call for now
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    // Handle result
-    // if (result.success) {
-    //   toast({ title: "Programa Generado", description: "La IA ha completado el programa. Revisa las asignaciones." });
-    //   setIsGenerateAIDialogOpen(false); // Close dialog on success
-    // } else {
-    //   toast({ title: "Error de IA", description: result.message || "La IA no pudo generar el programa.", variant: "destructive" });
-    // }
-    
-    toast({ title: "Función en desarrollo", description: "La generación con IA se implementará próximamente."});
-    setIsGenerateAIDialogOpen(false); // Close dialog
-    setIsGeneratingAI(false);
-  };
-
   const assignmentsToDisplay = useMemo(() => {
     return allAssignments.reduce((acc, curr) => {
         const assignmentDate = parseISO(curr.date);
@@ -404,11 +377,7 @@ export default function ProgramaMensualPage() {
             </div>
             {hasPermission(PERMISSIONS.GENERATE_MONTHLY_PROGRAM) && (
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                 <Button onClick={() => setIsGenerateAIDialogOpen(true)} disabled={isLoading || isGeneratingAI || isGeneratingSystem} className="w-full sm:w-auto">
-                  {isGeneratingAI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
-                  Generar con IA
-                </Button>
-                 <Button onClick={handleSystemGeneration} disabled={isLoading || isGeneratingAI || isGeneratingSystem} className="w-full sm:w-auto">
+                 <Button onClick={handleSystemGeneration} disabled={isLoading || isGeneratingSystem} className="w-full sm:w-auto">
                   {isGeneratingSystem ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SettingsIcon className="mr-2 h-4 w-4" />}
                   Generar con Sistema
                 </Button>
@@ -521,17 +490,6 @@ export default function ProgramaMensualPage() {
             allTerritories={allTerritories}
             allCasas={allCasas}
             allAssignments={allAssignments}
-        />
-      )}
-      
-      {hasPermission(PERMISSIONS.GENERATE_MONTHLY_PROGRAM) && (
-        <GenerateAIDialog 
-            isOpen={isGenerateAIDialogOpen}
-            onOpenChange={setIsGenerateAIDialogOpen}
-            onSubmitGeneration={handleSubmitAIGeneration}
-            year={selectedYear}
-            month={selectedMonth}
-            programScheduleSlots={programScheduleSlots}
         />
       )}
     </div>
