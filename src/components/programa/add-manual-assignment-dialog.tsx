@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { Assignment, UserProfile, Territory, Casa, PreachingAssignedType, ProgramScheduleSlot } from "@/types";
+import type { Assignment, UserProfile, Territory, Casa, PreachingAssignedType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Users, MountainSnow, Video, Home, MapPin } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
@@ -37,15 +37,26 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 
+const NO_SELECTION = "__NO_SELECTION__";
 
 const manualAssignmentSchema = z.object({
   time: z.string().min(1, "La hora es obligatoria."),
   type: z.enum(["publica", "rural", "zoom"], { required_error: "Debe seleccionar un tipo." }),
-  territoryId: z.string().min(1, "Debe seleccionar un territorio."),
-  casaId: z.string().min(1, "Debe seleccionar una casa de reunión."),
-  userId: z.string().min(1, "Debe seleccionar un publicador."),
+  territoryId: z.string().optional(),
+  casaId: z.string().optional(),
+  userId: z.string().min(1, "Debe seleccionar un publicador.").refine(val => val !== NO_SELECTION, "Debe seleccionar un publicador."),
   notes: z.string().max(500).optional(),
+}).superRefine((data, ctx) => {
+  if (data.type !== 'zoom') {
+    if (!data.territoryId || data.territoryId === NO_SELECTION) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe seleccionar un territorio.", path: ["territoryId"] });
+    }
+    if (!data.casaId || data.casaId === NO_SELECTION) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Debe seleccionar una casa.", path: ["casaId"] });
+    }
+  }
 });
+
 
 type ManualAssignmentFormValues = z.infer<typeof manualAssignmentSchema>;
 
@@ -54,8 +65,8 @@ export interface ManualAssignmentSubmitData {
     date: Date;
     time: string;
     type: PreachingAssignedType;
-    territoryId: string;
-    casaId: string;
+    territoryId?: string;
+    casaId?: string;
     userId: string;
     notes?: string;
     status?: Assignment['status'];
@@ -68,22 +79,11 @@ interface AddManualAssignmentDialogProps {
   onAssignmentSubmit: (data: ManualAssignmentSubmitData) => void;
   date: Date | null;
   assignmentToEdit?: Assignment | null;
-  slot?: ProgramScheduleSlot | null;
   allPublishers: UserProfile[];
   allTerritories: Territory[];
   allCasas: Casa[];
   allAssignments: Assignment[];
 }
-
-const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType | 'general' }) => {
-  const iconClass = "mr-1.5 h-4 w-4 shrink-0 text-muted-foreground";
-  if (type === "publica" || type === "general") return <Users className={iconClass} />;
-  if (type === "rural") return <MountainSnow className={iconClass} />;
-  if (type === "zoom") return <Video className={iconClass} />;
-  return null;
-};
-
-const NO_SELECTION = "__NO_SELECTION__";
 
 export function AddManualAssignmentDialog({
   isOpen,
@@ -91,7 +91,6 @@ export function AddManualAssignmentDialog({
   onAssignmentSubmit,
   date,
   assignmentToEdit,
-  slot,
   allPublishers,
   allTerritories,
   allCasas,
@@ -113,25 +112,28 @@ export function AddManualAssignmentDialog({
   const selectedCasaId = watch("casaId");
   const selectedTerritoryId = watch("territoryId");
 
+  const timeOptions = useMemo(() => {
+    const options = [];
+    for(let h=7; h<=21; h++){
+        for(let m=0; m<60; m+=15){
+            const timeStr = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+            options.push(timeStr);
+        }
+    }
+    return options;
+  },[]);
+
+
   useEffect(() => {
     if (isOpen) {
         if (assignmentToEdit) {
             form.reset({
                 time: assignmentToEdit.time,
                 type: assignmentToEdit.type,
-                territoryId: assignmentToEdit.locationId,
-                casaId: (assignmentToEdit as Assignment).casaId,
-                userId: (assignmentToEdit as any).userId,
+                territoryId: assignmentToEdit.locationId || NO_SELECTION,
+                casaId: (assignmentToEdit as Assignment).casaId || NO_SELECTION,
+                userId: (assignmentToEdit as any).userId || NO_SELECTION,
                 notes: assignmentToEdit.notes,
-            });
-        } else if (slot) {
-            form.reset({
-                time: slot.startTime,
-                type: slot.type === 'general' ? 'publica' : slot.type,
-                territoryId: NO_SELECTION,
-                casaId: NO_SELECTION,
-                userId: NO_SELECTION,
-                notes: "",
             });
         } else {
             form.reset({
@@ -145,15 +147,16 @@ export function AddManualAssignmentDialog({
         }
         setSelectionMode('territory');
     }
-  }, [isOpen, assignmentToEdit, slot, form]);
+  }, [isOpen, assignmentToEdit, form]);
   
   useEffect(() => {
+    if (!isOpen) return;
     if (selectionMode === 'territory') {
         setValue("casaId", NO_SELECTION, { shouldValidate: true });
     } else {
         setValue("territoryId", NO_SELECTION, { shouldValidate: true });
     }
-  }, [selectedTerritoryId, selectedCasaId, selectionMode, setValue]);
+  }, [selectedTerritoryId, selectedCasaId, selectionMode, setValue, isOpen]);
 
 
   const assignedInMonth = useMemo(() => {
@@ -211,36 +214,12 @@ export function AddManualAssignmentDialog({
         return baseFiltered.filter(t => t.associatedCasaIds?.includes(selectedCasaId)).sort(sortByLastWorked);
     }
     
-    // Default territory-first mode
     return baseFiltered.filter(t => isEditMode ? true : !assignedInMonth.territoryIds.has(t.id)).sort(sortByLastWorked).slice(0, 20);
 
   }, [allTerritories, selectedType, isEditMode, selectionMode, selectedCasaId, lastWorkedDates, assignedInMonth.territoryIds]);
 
 
-  const availablePublishersForSlot = useMemo(() => {
-    const assignmentDate = startOfDay(date || new Date());
-
-    return allPublishers.filter(p => {
-        const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable);
-        if (!isAllowedStatus) return false;
-
-        if (p.blockInfo?.forSystem) return false;
-
-      const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
-        const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
-        const end = endOfDay(period.endDate instanceof Timestamp ? period.endDate.toDate() : new Date(period.endDate));
-        return isWithinInterval(assignmentDate, { start, end });
-      });
-      if (isUnavailable) return false;
-
-      if (!slot) return true;
-
-      const hasSlot = p.availability?.availableSlotIds?.includes(slot.id);
-      return hasSlot;
-    });
-  }, [allPublishers, date, slot]);
-  
-  const availableCasasForSlot = useMemo(() => {
+  const availableCasasForSelection = useMemo(() => {
       const assignmentDate = startOfDay(date || new Date());
       
       let casas = allCasas.filter(c => {
@@ -252,18 +231,34 @@ export function AddManualAssignmentDialog({
               return isWithinInterval(assignmentDate, { start, end });
           });
           if (isUnavailable) return false;
-          if (!slot) return true;
-          return c.availableDays?.availableProgramSlotIds?.includes(slot.id);
+          return true;
       });
 
       if (selectionMode === 'territory' && selectedTerritoryId && selectedTerritoryId !== NO_SELECTION) {
           const selectedTerr = allTerritories.find(t => t.id === selectedTerritoryId);
           if (selectedTerr?.associatedCasaIds && selectedTerr.associatedCasaIds.length > 0) {
-              return casas.filter(c => selectedTerr.associatedCasaIds!.includes(c.id));
+              const associatedCasas = casas.filter(c => selectedTerr.associatedCasaIds!.includes(c.id));
+              if (associatedCasas.length > 0) return associatedCasas;
           }
       }
       return casas;
-  }, [allCasas, date, slot, selectionMode, selectedTerritoryId, allTerritories]);
+  }, [allCasas, date, selectionMode, selectedTerritoryId, allTerritories]);
+  
+  const availablePublishers = useMemo(() => {
+    const assignmentDate = startOfDay(date || new Date());
+    return allPublishers.filter(p => {
+        const isAllowedStatus = p.status === 'Activo' || (p.isAssignable);
+        if (!isAllowedStatus) return false;
+        if (p.blockInfo?.forSystem) return false;
+        const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
+            const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
+            const end = endOfDay(period.endDate instanceof Timestamp ? period.endDate.toDate() : new Date(period.endDate));
+            return isWithinInterval(assignmentDate, { start, end });
+        });
+        if (isUnavailable) return false;
+        return true;
+    });
+  }, [allPublishers, date]);
   
   const selectedCaptain = useMemo(() => {
       if (!selectedUserId) return null;
@@ -351,7 +346,7 @@ export function AddManualAssignmentDialog({
             <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar casa de reunión" /></SelectTrigger></FormControl>
             <SelectContent>
                 <SelectItem value={NO_SELECTION}>-- No Seleccionado --</SelectItem>
-                {availableCasasForSlot.map(loc => {
+                {availableCasasForSelection.map(loc => {
                 const name = loc.ownerName || loc.address;
                 return (
                     <SelectItem key={loc.id} value={loc.id}>
@@ -363,7 +358,7 @@ export function AddManualAssignmentDialog({
             </Select>
             <FormFieldDescription className="text-xs">
                 {selectionMode === 'territory'
-                    ? "Casas cercanas al territorio seleccionado."
+                    ? "Casas cercanas al territorio seleccionado (o todas si no hay)."
                     : "Casas disponibles para la fecha y horario."
                 }
             </FormFieldDescription>
@@ -385,53 +380,46 @@ export function AddManualAssignmentDialog({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            <RadioGroup
-                defaultValue="territory"
-                value={selectionMode}
-                onValueChange={(value: 'territory' | 'casa') => {
-                    setSelectionMode(value);
-                    setValue("territoryId", NO_SELECTION, { shouldValidate: true });
-                    setValue("casaId", NO_SELECTION, { shouldValidate: true });
-                }}
-                className="grid grid-cols-2 gap-2"
-            >
-                <Label htmlFor="mode_territory" className={cn("border rounded-md p-3 flex items-center justify-center text-sm font-medium cursor-pointer transition-colors", selectionMode === 'territory' && "bg-primary text-primary-foreground border-primary")}>
-                    <MapPin className="mr-2 h-4 w-4"/> Iniciar por Territorio
-                </Label>
-                <RadioGroupItem value="territory" id="mode_territory" className="sr-only"/>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="time" render={({ field }) => (
+                  <FormItem><FormLabel>Hora</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="HH:MM" /></SelectTrigger></FormControl><SelectContent>{timeOptions.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+              )}/>
+               <FormField control={form.control} name="type" render={({ field }) => (
+                  <FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="publica">Pública</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+              )}/>
+            </div>
+            
+            {selectedType !== 'zoom' && (
+              <>
+                <RadioGroup
+                    defaultValue="territory"
+                    value={selectionMode}
+                    onValueChange={(value: 'territory' | 'casa') => setSelectionMode(value)}
+                    className="grid grid-cols-2 gap-2"
+                >
+                    <Label htmlFor="mode_territory" className={cn("border rounded-md p-3 flex items-center justify-center text-sm font-medium cursor-pointer transition-colors", selectionMode === 'territory' && "bg-primary text-primary-foreground border-primary")}>
+                        <MapPin className="mr-2 h-4 w-4"/> Iniciar por Territorio
+                    </Label>
+                    <RadioGroupItem value="territory" id="mode_territory" className="sr-only"/>
+                    
+                    <Label htmlFor="mode_casa" className={cn("border rounded-md p-3 flex items-center justify-center text-sm font-medium cursor-pointer transition-colors", selectionMode === 'casa' && "bg-primary text-primary-foreground border-primary")}>
+                       <Home className="mr-2 h-4 w-4"/> Iniciar por Casa
+                    </Label>
+                    <RadioGroupItem value="casa" id="mode_casa" className="sr-only"/>
+                </RadioGroup>
                 
-                <Label htmlFor="mode_casa" className={cn("border rounded-md p-3 flex items-center justify-center text-sm font-medium cursor-pointer transition-colors", selectionMode === 'casa' && "bg-primary text-primary-foreground border-primary")}>
-                   <Home className="mr-2 h-4 w-4"/> Iniciar por Casa
-                </Label>
-                 <RadioGroupItem value="casa" id="mode_casa" className="sr-only"/>
-            </RadioGroup>
-            
-            {(slot || isEditMode) && (
-                <div className="grid grid-cols-2 gap-4 rounded-md border bg-muted/50 p-3">
-                    <div>
-                        <p className="text-xs font-medium text-muted-foreground">Hora</p>
-                        <p className="font-semibold">{form.getValues('time')}</p>
-                    </div>
-                    <div>
-                        <p className="text-xs font-medium text-muted-foreground">Tipo</p>
-                        <p className="font-semibold capitalize flex items-center">
-                            <PreachingTypeIcon type={form.getValues('type')} />
-                            {form.getValues('type')}
-                        </p>
-                    </div>
-                </div>
-            )}
-            
-            {selectionMode === 'territory' ? (
-                <>
-                    <TerritoryField />
-                    <CasaField />
-                </>
-            ) : (
-                <>
-                    <CasaField />
-                    <TerritoryField />
-                </>
+                {selectionMode === 'territory' ? (
+                    <>
+                        <TerritoryField />
+                        <CasaField />
+                    </>
+                ) : (
+                    <>
+                        <CasaField />
+                        <TerritoryField />
+                    </>
+                )}
+              </>
             )}
             
             <FormField
@@ -444,7 +432,7 @@ export function AddManualAssignmentDialog({
                     <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar publicador" /></SelectTrigger></FormControl>
                     <SelectContent>
                         <SelectItem value={NO_SELECTION}>-- No Seleccionado --</SelectItem>
-                      {availablePublishersForSlot.map(p => (
+                      {availablePublishers.map(p => (
                           <SelectItem key={p.id} value={p.firebaseAuthUid || p.id}>
                               <div className="flex items-center justify-between w-full">
                                 <span>{p.name}</span>

@@ -51,9 +51,6 @@ export default function ProgramaMensualPage() {
   const [allCasas, setAllCasas] = useState<Casa[]>([]);
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
-  const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
-  const [summerStartDate, setSummerStartDate] = useState("");
-  const [winterStartDate, setWinterStartDate] = useState("");
   
   // Loading States
   const [isLoading, setIsLoading] = useState(true);
@@ -63,7 +60,6 @@ export default function ProgramaMensualPage() {
   // Dialog States
   const [isAddManualDialogOpen, setIsAddManualDialogOpen] = useState(false);
   const [dateForManualAdd, setDateForManualAdd] = useState<Date | null>(null);
-  const [slotForManualAdd, setSlotForManualAdd] = useState<ProgramScheduleSlot | null>(null);
   const [assignmentToEdit, setAssignmentToEdit] = useState<Assignment | null>(null);
   const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -82,20 +78,6 @@ export default function ProgramaMensualPage() {
     const territoriesQuery = query(collection(db, "territories"), orderBy("name"));
     const unsubTerritories = onSnapshot(territoriesQuery, (snap) => setAllTerritories(snap.docs.map(d => ({id: d.id, ...d.data()} as Territory))));
     
-    const settingsDocRef = doc(db, "settings", "programConfig");
-    const unsubSettings = onSnapshot(settingsDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const settingsData = docSnap.data() as SettingsDoc;
-        setProgramScheduleSlots(settingsData.programScheduleSlots || []);
-        setSummerStartDate(settingsData.summerScheduleStartDate || "");
-        setWinterStartDate(settingsData.winterScheduleStartDate || "");
-      } else {
-        setProgramScheduleSlots([]);
-        setSummerStartDate("");
-        setWinterStartDate("");
-      }
-    });
-
     const assignmentsQuery = query(collection(db, "assignments"), orderBy("date", "desc"));
     const unsubAssignments = onSnapshot(assignmentsQuery, (snapshot) => {
       setAllAssignments(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Assignment)));
@@ -104,7 +86,7 @@ export default function ProgramaMensualPage() {
         toast({title: "Error de Carga", description: "No se pudieron obtener las asignaciones.", variant: "destructive"});
     });
     
-    const unsubscribers = [unsubPublishers, unsubCasas, unsubTerritories, unsubSettings, unsubAssignments];
+    const unsubscribers = [unsubPublishers, unsubCasas, unsubTerritories, unsubAssignments];
     const timer = setTimeout(() => setIsLoading(false), 1500); 
     
     return () => {
@@ -114,51 +96,16 @@ export default function ProgramaMensualPage() {
   }, [toast]);
 
   const canManageProgram = hasPermission(PERMISSIONS.MANAGE_MONTHLY_PROGRAM);
-  
-  const seasonalScheduleSlots = useMemo(() => {
-    if (!summerStartDate || !winterStartDate) {
-      return programScheduleSlots.filter(s => !s.season || s.season === 'all_year');
-    }
 
-    const currentDate = new Date(selectedYear, selectedMonth, 15); 
-    const [sMonth, sDay] = summerStartDate.split('-').map(Number);
-    const [wMonth, wDay] = winterStartDate.split('-').map(Number);
-    
-    const summerStartCurrentYear = new Date(selectedYear, sMonth - 1, sDay);
-    const winterStartCurrentYear = new Date(selectedYear, wMonth - 1, wDay);
-
-    let currentSeason: 'summer' | 'winter';
-
-    if (winterStartCurrentYear < summerStartCurrentYear) { // Southern Hemisphere case
-      if (currentDate >= winterStartCurrentYear && currentDate < summerStartCurrentYear) {
-        currentSeason = 'winter';
-      } else {
-        currentSeason = 'summer';
-      }
-    } else { // Northern Hemisphere case
-      if (currentDate >= summerStartCurrentYear && currentDate < winterStartCurrentYear) {
-        currentSeason = 'summer';
-      } else {
-        currentSeason = 'winter';
-      }
-    }
-
-    return programScheduleSlots.filter(slot => {
-        return !slot.season || slot.season === 'all_year' || slot.season === currentSeason;
-    });
-  }, [programScheduleSlots, selectedMonth, selectedYear, summerStartDate, winterStartDate]);
-
-  const handleOpenAddDialog = (date: Date, slot?: ProgramScheduleSlot) => {
+  const handleOpenAddDialog = (date: Date) => {
     setAssignmentToEdit(null);
     setDateForManualAdd(date);
-    setSlotForManualAdd(slot || null);
     setIsAddManualDialogOpen(true);
   };
   
   const handleOpenEditDialog = (assignment: Assignment) => {
     setAssignmentToEdit(assignment);
     setDateForManualAdd(null);
-    setSlotForManualAdd(null);
     setIsAddManualDialogOpen(true);
   };
 
@@ -185,27 +132,20 @@ export default function ProgramaMensualPage() {
     const docRef = data.id ? doc(db, "assignments", data.id) : doc(collection(db, "assignments"));
     
     const publisher = allPublishers.find(p => p.id === data.userId || p.firebaseAuthUid === data.userId);
-    const territory = allTerritories.find(t => t.id === data.territoryId);
-    const casa = allCasas.find(c => c.id === data.casaId);
     
-    if (!publisher || !territory || !casa) {
-        toast({ title: "Error", description: "Publicador, Territorio o Casa no válido.", variant: "destructive"});
+    if (!publisher) {
+        toast({ title: "Error", description: "Publicador no válido.", variant: "destructive"});
         return;
     }
     
-    const territoryDisplayName = territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name;
-
     const newAssignment: Omit<Assignment, 'id'> & { id: string } = {
       id: docRef.id,
       date: format(data.date, "yyyy-MM-dd"),
       time: data.time,
       type: data.type,
-      locationName: territoryDisplayName,
-      locationId: territory.id,
-      territoryName: territoryDisplayName,
-      casaId: casa?.id,
-      casaName: casa?.ownerName,
-      casaAddress: casa?.address,
+      locationName: 'N/A', // Placeholder, will be updated below
+      locationId: data.territoryId,
+      casaId: data.casaId,
       status: data.status || 'pending',
       assignedBy: userProfile?.name || 'Manual',
       userId: publisher.firebaseAuthUid || publisher.id,
@@ -214,9 +154,25 @@ export default function ProgramaMensualPage() {
       userPhoneNumber: publisher.phoneNumber || undefined,
       assignedGroupId: publisher.assignedGroupId || undefined,
       notes: data.notes || '',
-      updatedAt: serverTimestamp(),
-      createdAt: data.id ? (assignmentToEdit?.createdAt || serverTimestamp()) : serverTimestamp(),
+      updatedAt: serverTimestamp() as Timestamp,
+      createdAt: data.id ? (assignmentToEdit?.createdAt || serverTimestamp()) : serverTimestamp() as Timestamp,
     };
+    
+    if (data.type !== 'zoom') {
+        const territory = allTerritories.find(t => t.id === data.territoryId);
+        const casa = allCasas.find(c => c.id === data.casaId);
+        if (!territory || !casa) {
+            toast({ title: "Error", description: "Territorio o Casa no válido.", variant: "destructive"});
+            return;
+        }
+        const territoryDisplayName = territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name;
+        newAssignment.locationName = territoryDisplayName;
+        newAssignment.territoryName = territoryDisplayName;
+        newAssignment.casaName = casa?.ownerName;
+        newAssignment.casaAddress = casa?.address;
+    } else {
+        newAssignment.locationName = "Predicación por Zoom";
+    }
 
     batch.set(docRef, newAssignment, { merge: true });
     
@@ -249,11 +205,13 @@ export default function ProgramaMensualPage() {
     const publisherAssignmentsCount: Record<string, number> = {};
     const territoryAssignmentsCount: Record<string, number> = {};
 
-    existingAssignmentsInMonth.forEach(a => {
+    [...existingAssignmentsInMonth, ...draftAssignments].forEach(a => {
         if (a.userId) publisherAssignmentsCount[a.userId] = (publisherAssignmentsCount[a.userId] || 0) + 1;
         if (a.locationId) territoryAssignmentsCount[a.locationId] = (territoryAssignmentsCount[a.locationId] || 0) + 1;
     });
     
+    const seasonalScheduleSlots = programScheduleSlots; // Assuming no seasonal logic for now.
+
     for (let i = 0; i < getDaysInMonth(monthStartDate); i++) {
         const currentDate = addDays(monthStartDate, i);
         const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(currentDate)];
@@ -292,11 +250,8 @@ export default function ProgramaMensualPage() {
             );
 
             let casaOptions = generallyAvailableCasas.filter(c =>
-                c.availableDays?.availableProgramSlotIds?.includes(slot.id) &&
                 territory.associatedCasaIds?.includes(c.id)
             );
-            if (casaOptions.length === 0) casaOptions = generallyAvailableCasas.filter(c => c.availableDays?.availableProgramSlotIds?.includes(slot.id));
-            if (casaOptions.length === 0) casaOptions = generallyAvailableCasas.filter(c => territory.associatedCasaIds?.includes(c.id));
             if (casaOptions.length === 0) casaOptions = generallyAvailableCasas;
             
             let casa = casaOptions.find(c => c.ownerName.toLowerCase().includes("salón del reino")) || casaOptions[0];
@@ -307,9 +262,9 @@ export default function ProgramaMensualPage() {
             const potentialPublishers = allPublishers
                 .filter(p => {
                     const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable === true);
-                    if (!isAllowedStatus) return false;
-                    const userIdToCheck = p.firebaseAuthUid || p.id;
-                    if (assignmentsToday.includes(userIdToCheck)) return false;
+                    if (!isAllowedStatus || !p.firebaseAuthUid) return false;
+
+                    if (assignmentsToday.includes(p.firebaseAuthUid)) return false;
                     if (p.blockInfo?.forSystem) return false;
                     const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
                         const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
@@ -320,19 +275,21 @@ export default function ProgramaMensualPage() {
                     return true;
                 })
                 .sort((a, b) => {
+                    const countA = publisherAssignmentsCount[a.firebaseAuthUid!] || 0;
+                    const countB = publisherAssignmentsCount[b.firebaseAuthUid!] || 0;
+                    if (countA !== countB) return countA - countB;
+                    
                     const aHasSlot = a.availability?.availableSlotIds?.includes(slot.id) ?? false;
                     const bHasSlot = b.availability?.availableSlotIds?.includes(slot.id) ?? false;
                     if (aHasSlot && !bHasSlot) return -1;
                     if (!aHasSlot && bHasSlot) return 1;
-                    const countA = publisherAssignmentsCount[a.firebaseAuthUid || a.id] || 0;
-                    const countB = publisherAssignmentsCount[b.firebaseAuthUid || b.id] || 0;
-                    if (countA !== countB) return countA - countB;
+
                     return Math.random() - 0.5;
                 });
             
             let assignmentCreated = false;
             for (const publisher of potentialPublishers) {
-                const userIdToAssign = publisher.firebaseAuthUid || publisher.id;
+                const userIdToAssign = publisher.firebaseAuthUid!;
                 const wasFallbackUsed = !(publisher.availability?.availableSlotIds?.includes(slot.id) ?? false);
                 const territoryDisplayName = territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name;
                 const assignmentNotes = wasFallbackUsed 
@@ -346,7 +303,7 @@ export default function ProgramaMensualPage() {
                     casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: userIdToAssign,
                     userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber || undefined,
                     assignedGroupId: publisher.assignedGroupId || undefined, notes: assignmentNotes,
-                    createdAt: serverTimestamp(), updatedAt: serverTimestamp(), isDraft: true
+                    createdAt: serverTimestamp() as Timestamp, updatedAt: serverTimestamp() as Timestamp, isDraft: true
                 };
 
                 newDrafts.push(newAssignmentData as Assignment);
@@ -419,7 +376,7 @@ export default function ProgramaMensualPage() {
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => new Date(selectedYear, selectedMonth, i + 1));
 
   const AssignmentItem = ({ assignment, onEdit, onDelete }: { assignment: Assignment, onEdit: () => void, onDelete: () => void }) => (
-    <div className="text-sm md:text-xs group relative">
+    <div className="text-sm md:text-xs group relative p-2 md:p-1.5 rounded-md bg-muted/30 shadow-sm hover:bg-muted/70 transition-colors min-h-[60px] flex flex-col justify-center">
         {assignment.isDraft && (
             <Badge variant="outline" className="absolute -top-1.5 -left-1.5 text-xs px-1 py-0 border-amber-500 text-amber-600 bg-amber-500/10 z-10">Borrador</Badge>
         )}
@@ -506,9 +463,6 @@ export default function ProgramaMensualPage() {
                   const assignmentsForDay = (assignmentsToDisplay[dayString] || []).sort((a: any, b: any) => a.time.localeCompare(b.time));
                   const isToday = isSameDay(day, new Date());
                   
-                  const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(day)];
-                  const slotsForDay = seasonalScheduleSlots.filter(slot => slot.dayOfWeek === dayOfWeekKey).sort((a,b) => a.startTime.localeCompare(b.startTime));
-
                   return (
                     <Card key={dayString} className={`flex flex-col rounded-lg shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'}`}>
                       <CardHeader className="p-3 md:p-2 pb-1 flex flex-row justify-between items-center">
@@ -517,61 +471,37 @@ export default function ProgramaMensualPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-2 space-y-2 md:p-1.5 md:space-y-1.5 overflow-y-auto flex-grow min-h-[100px]">
-                        {slotsForDay.map(slot => {
-                            const assignmentForSlot = assignmentsForDay.find(a => a.time === slot.startTime && (a.type === (slot.type === 'general' ? 'publica' : slot.type) || a.type === slot.type));
-                            return (
-                                <div key={slot.id} className="p-2 md:p-1.5 rounded-md bg-muted/30 text-sm md:text-xs shadow-sm group relative min-h-[60px] flex flex-col justify-center">
-                                    {assignmentForSlot ? (
-                                        <AssignmentItem 
-                                          assignment={assignmentForSlot} 
-                                          onEdit={() => {
-                                              if (assignmentForSlot.isDraft) {
-                                                  toast({ title: "Guardar primero", description: "Guarda el programa antes de editar asignaciones individuales." });
-                                                  return;
-                                              }
-                                              handleOpenEditDialog(assignmentForSlot);
-                                          }} 
-                                          onDelete={() => {
-                                              if (assignmentForSlot.isDraft) {
-                                                  setDraftAssignments(drafts => drafts.filter(d => d.id !== assignmentForSlot.id));
-                                              } else {
-                                                  handleDeleteAssignment(assignmentForSlot);
-                                              }
-                                          }}
-                                        />
-                                    ) : (
-                                        <div className="flex items-center justify-between w-full">
-                                            <div className="flex items-center text-muted-foreground">
-                                                <PreachingTypeIcon type={slot.type} />
-                                                <span>{slot.startTime}</span>
-                                                <span className="ml-2 capitalize">{slot.type === 'general' ? 'Pública' : slot.type}</span>
-                                                {slot.status === 'tentative' && <Badge variant="outline" className="ml-2 text-amber-600 border-amber-500 px-1 py-0 text-[0.6rem]">Tentativo</Badge>}
-                                            </div>
-                                            {canManageProgram && !isBefore(day, startOfDay(new Date())) && (
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenAddDialog(day, slot)}>
-                                                    <PlusCircle className="h-4 w-4 text-primary" />
-                                                </Button>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-
-                        {assignmentsForDay.filter(a => !slotsForDay.some(s => s.startTime === a.time && (s.type === a.type || (s.type === 'general' && a.type === 'publica')))).map(unmatchedAssignment => (
-                            <div key={unmatchedAssignment.id} className="p-2 md:p-1.5 rounded-md bg-rose-500/10 border border-dashed border-rose-500/30 text-sm md:text-xs shadow-sm group relative min-h-[60px] flex flex-col justify-center">
-                                <AssignmentItem 
-                                  assignment={unmatchedAssignment} 
-                                  onEdit={() => handleOpenEditDialog(unmatchedAssignment)} 
-                                  onDelete={() => handleDeleteAssignment(unmatchedAssignment)} 
-                                />
+                        {assignmentsForDay.length > 0 ? (
+                           assignmentsForDay.map(assignment => (
+                              <AssignmentItem 
+                                key={assignment.id}
+                                assignment={assignment} 
+                                onEdit={() => {
+                                    if (assignment.isDraft) {
+                                        toast({ title: "Guardar primero", description: "Guarda el programa antes de editar asignaciones individuales." });
+                                        return;
+                                    }
+                                    handleOpenEditDialog(assignment);
+                                }} 
+                                onDelete={() => {
+                                    if (assignment.isDraft) {
+                                        setDraftAssignments(drafts => drafts.filter(d => d.id !== assignment.id));
+                                    } else {
+                                        handleDeleteAssignment(assignment);
+                                    }
+                                }}
+                              />
+                           ))
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-xs text-muted-foreground text-center">
+                                No hay asignaciones programadas.
                             </div>
-                        ))}
+                        )}
                       </CardContent>
                       {canManageProgram && !isBefore(day, startOfDay(new Date())) && (
                           <CardFooter className="p-2 md:p-1 mt-auto border-t border-dashed">
                             <Button variant="ghost" size="sm" className="w-full h-7 text-xs" onClick={() => handleOpenAddDialog(day)}>
-                                <PlusCircle className="mr-1.5 h-3.5 w-3.5"/> Añadir Manual
+                                <PlusCircle className="mr-1.5 h-3.5 w-3.5"/> Añadir Asignación
                             </Button>
                           </CardFooter>
                       )}
@@ -606,7 +536,6 @@ export default function ProgramaMensualPage() {
             onAssignmentSubmit={handleManualAssignmentSubmit}
             date={dateForManualAdd}
             assignmentToEdit={assignmentToEdit}
-            slot={slotForManualAdd}
             allPublishers={allPublishers}
             allTerritories={allTerritories}
             allCasas={allCasas}
