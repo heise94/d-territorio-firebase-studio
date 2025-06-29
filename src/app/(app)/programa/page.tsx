@@ -5,10 +5,10 @@ import { useState, useMemo, useEffect } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle } from "lucide-react";
+import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Bot, Settings as SettingsIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
-import { format, getDaysInMonth, startOfMonth, isBefore, getDay, isSameDay, parse, parseISO, endOfMonth, startOfDay } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, parseISO, addDays, isWithinInterval } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType, UserAssignment } from "@/types";
@@ -18,6 +18,8 @@ import { PERMISSIONS } from "@/lib/constants";
 import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/components/programa/add-manual-assignment-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { GenerateAIDialog } from "workspace/src/components/programa/generate-ai-dialog";
+
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 6 }, (_, i) => currentYear - 2 + i);
@@ -56,9 +58,12 @@ export default function ProgramaMensualPage() {
   
   // Loading States
   const [isLoading, setIsLoading] = useState(true);
+  const [isGeneratingSystem, setIsGeneratingSystem] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   // Dialog States
   const [isAddManualDialogOpen, setIsAddManualDialogOpen] = useState(false);
+  const [isGenerateAIDialogOpen, setIsGenerateAIDialogOpen] = useState(false);
   const [dateForManualAdd, setDateForManualAdd] = useState<Date | null>(null);
   const [slotForManualAdd, setSlotForManualAdd] = useState<ProgramScheduleSlot | null>(null);
   const [assignmentToEdit, setAssignmentToEdit] = useState<Assignment | null>(null);
@@ -222,6 +227,122 @@ export default function ProgramaMensualPage() {
         toast({ title: "Error al Guardar", description: "No se pudo guardar la asignación.", variant: "destructive" });
     }
   };
+  
+  const handleSystemGeneration = async () => {
+    setIsGeneratingSystem(true);
+    toast({ title: "Iniciando generación automática...", description: "El sistema está buscando las mejores asignaciones." });
+
+    const monthStartDate = startOfMonth(new Date(selectedYear, selectedMonth));
+    const monthEndDate = endOfMonth(new Date(selectedYear, selectedMonth));
+    const batch = writeBatch(db);
+    let createdAssignmentsCount = 0;
+    let failedSlotsCount = 0;
+
+    const assignmentsInMonth = allAssignments.filter(a => {
+        const d = parseISO(a.date);
+        return isWithinInterval(d, { start: monthStartDate, end: monthEndDate });
+    });
+
+    for (let i = 0; i < getDaysInMonth(monthStartDate); i++) {
+        const currentDate = addDays(monthStartDate, i);
+        const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(currentDate)];
+        const slotsForThisDay = seasonalScheduleSlots.filter(s => s.dayOfWeek === dayOfWeekKey);
+
+        for (const slot of slotsForThisDay) {
+            const assignmentExists = assignmentsInMonth.some(a => 
+                a.date === format(currentDate, "yyyy-MM-dd") && a.time === slot.startTime
+            );
+            if (assignmentExists) continue;
+
+            const territoryType = slot.type === 'rural' ? 'rural' : 'urban';
+            const availableTerritories = allTerritories
+                .filter(t => !t.isBlocked && t.type === territoryType)
+                .filter(t => !assignmentsInMonth.some(a => a.locationId === t.id))
+                .sort((a, b) => {
+                    const dateA = a.lastWorked ? parse(a.lastWorked, 'yyyy-MM-dd', new Date()).getTime() : 0;
+                    const dateB = b.lastWorked ? parse(b.lastWorked, 'yyyy-MM-dd', new Date()).getTime() : 0;
+                    return dateA - dateB;
+                });
+            
+            const territory = availableTerritories[0];
+            if (!territory) { failedSlotsCount++; continue; }
+            
+            const associatedCasas = allCasas.filter(c => territory.associatedCasaIds?.includes(c.id));
+            let casa = associatedCasas.find(c => c.ownerName.toLowerCase().includes("salón del reino")) || associatedCasas[0];
+            if (!casa) { failedSlotsCount++; continue; }
+
+            const publisherAssignmentsCount = assignmentsInMonth.reduce((acc, a) => {
+                if (a.userId) acc[a.userId] = (acc[a.userId] || 0) + 1;
+                return acc;
+            }, {} as Record<string, number>);
+
+            const availablePublishers = allPublishers.filter(p => {
+                const isStatusOk = (p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable));
+                if (!isStatusOk || p.blockInfo?.forSystem) return false;
+                const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => 
+                    isWithinInterval(currentDate, { start: startOfDay(period.startDate.toDate()), end: endOfDay(period.endDate.toDate()) })
+                );
+                if (isUnavailable || !p.availability?.availableSlotIds?.includes(slot.id)) return false;
+                const hasAssignmentToday = assignmentsInMonth.some(a => a.userId === p.firebaseAuthUid && a.date === format(currentDate, "yyyy-MM-dd"));
+                return !hasAssignmentToday;
+            }).sort((a, b) => (publisherAssignmentsCount[a.firebaseAuthUid!] || 0) - (publisherAssignmentsCount[b.firebaseAuthUid!] || 0));
+
+            const publisher = availablePublishers[0];
+            if (!publisher || !publisher.firebaseAuthUid) { failedSlotsCount++; continue; }
+
+            const newAssignmentRef = doc(collection(db, "assignments"));
+            const territoryDisplayName = territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name;
+            const newAssignmentData = {
+                id: newAssignmentRef.id, date: format(currentDate, "yyyy-MM-dd"), time: slot.startTime,
+                type: slot.type === 'general' ? 'publica' : slot.type, locationName: territoryDisplayName,
+                locationId: territory.id, territoryName: territoryDisplayName, casaId: casa.id, casaName: casa.ownerName,
+                casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: publisher.firebaseAuthUid,
+                userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber,
+                assignedGroupId: publisher.assignedGroupId, notes: `Asignación generada por el sistema.`,
+                createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+            };
+            batch.set(newAssignmentRef, newAssignmentData);
+            assignmentsInMonth.push(newAssignmentData as Assignment);
+            createdAssignmentsCount++;
+        }
+    }
+
+    try {
+        await batch.commit();
+        toast({
+            title: "Generación Completada",
+            description: `${createdAssignmentsCount} asignaciones creadas. ${failedSlotsCount > 0 ? `${failedSlotsCount} horarios no se pudieron asignar.` : ''}`
+        });
+    } catch (error) {
+        console.error("Error committing batch:", error);
+        toast({ title: "Error al Guardar", description: "No se pudieron guardar las asignaciones.", variant: "destructive"});
+    } finally {
+        setIsGeneratingSystem(false);
+    }
+  };
+
+  const handleSubmitAIGeneration = async (data: { additionalInstructions: string; designatedRuralWeekendDays: string[] }) => {
+    setIsGeneratingAI(true);
+    toast({ title: "Enviando a la IA...", description: "La IA está procesando tu solicitud para generar el programa." });
+
+    // Here you would call your AI flow, e.g.,
+    // const result = await generateProgramFlow({ ...data, year: selectedYear, month: selectedMonth });
+    
+    // Simulating AI call for now
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Handle result
+    // if (result.success) {
+    //   toast({ title: "Programa Generado", description: "La IA ha completado el programa. Revisa las asignaciones." });
+    //   setIsGenerateAIDialogOpen(false); // Close dialog on success
+    // } else {
+    //   toast({ title: "Error de IA", description: result.message || "La IA no pudo generar el programa.", variant: "destructive" });
+    // }
+    
+    toast({ title: "Función en desarrollo", description: "La generación con IA se implementará próximamente."});
+    setIsGenerateAIDialogOpen(false); // Close dialog
+    setIsGeneratingAI(false);
+  };
 
   const assignmentsToDisplay = useMemo(() => {
     return allAssignments.reduce((acc, curr) => {
@@ -281,6 +402,18 @@ export default function ProgramaMensualPage() {
                 </Select>
               </div>
             </div>
+            {hasPermission(PERMISSIONS.GENERATE_MONTHLY_PROGRAM) && (
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                 <Button onClick={() => setIsGenerateAIDialogOpen(true)} disabled={isLoading || isGeneratingAI || isGeneratingSystem} className="w-full sm:w-auto">
+                  {isGeneratingAI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
+                  Generar con IA
+                </Button>
+                 <Button onClick={handleSystemGeneration} disabled={isLoading || isGeneratingAI || isGeneratingSystem} className="w-full sm:w-auto">
+                  {isGeneratingSystem ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SettingsIcon className="mr-2 h-4 w-4" />}
+                  Generar con Sistema
+                </Button>
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -388,6 +521,17 @@ export default function ProgramaMensualPage() {
             allTerritories={allTerritories}
             allCasas={allCasas}
             allAssignments={allAssignments}
+        />
+      )}
+      
+      {hasPermission(PERMISSIONS.GENERATE_MONTHLY_PROGRAM) && (
+        <GenerateAIDialog 
+            isOpen={isGenerateAIDialogOpen}
+            onOpenChange={setIsGenerateAIDialogOpen}
+            onSubmitGeneration={handleSubmitAIGeneration}
+            year={selectedYear}
+            month={selectedMonth}
+            programScheduleSlots={programScheduleSlots}
         />
       )}
     </div>
