@@ -293,23 +293,37 @@ export default function ProgramaMensualPage() {
                 casa = allAvailableCasasForSlot.find(c => c.ownerName.toLowerCase().includes("salón del reino")) || allAvailableCasasForSlot[0];
             }
             if (!casa) { failedSlotsCount++; continue; }
-
+            
             const publisherAssignmentsCount = assignmentsInMonth.reduce((acc, a) => {
-                if (a.userId) acc[a.userId] = (acc[a.userId] || 0) + 1;
+                if (a.userId) {
+                    const assignedUser = allPublishers.find(p => p.id === a.userId || (p.firebaseAuthUid && p.firebaseAuthUid === a.userId));
+                    if (assignedUser) {
+                        acc[assignedUser.id] = (acc[assignedUser.id] || 0) + 1;
+                    }
+                }
                 return acc;
             }, {} as Record<string, number>);
 
             const potentialPublishers = allPublishers.filter(p => {
-                const isStatusOk = (p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable)) && p.firebaseAuthUid;
-                if (!isStatusOk || p.blockInfo?.forSystem) return false;
+                const isStatusOk = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable === true);
+                if (!isStatusOk) return false;
+                
+                if (p.blockInfo?.forSystem) return false;
 
-                const isUnavailable = p.availability?.unavailabilityPeriods?.some(period =>
-                    isWithinInterval(currentDate, { start: startOfDay((period.startDate as Timestamp).toDate()), end: endOfDay((period.endDate as Timestamp).toDate()) })
-                );
+                const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
+                    const start = startOfDay((period.startDate as Timestamp).toDate());
+                    const end = endOfDay((period.endDate as Timestamp).toDate());
+                    return isWithinInterval(currentDate, { start, end });
+                });
                 if (isUnavailable) return false;
 
-                const hasAssignmentToday = assignmentsInMonth.some(a => a.userId === p.firebaseAuthUid && a.date === format(currentDate, "yyyy-MM-dd"));
-                return !hasAssignmentToday;
+                const hasAssignmentToday = assignmentsInMonth.some(a => 
+                    a.date === format(currentDate, "yyyy-MM-dd") && 
+                    (a.userId === p.id || (p.firebaseAuthUid && a.userId === p.firebaseAuthUid))
+                );
+                if (hasAssignmentToday) return false;
+
+                return true;
             });
 
             let wasFallbackUsed = false;
@@ -319,7 +333,7 @@ export default function ProgramaMensualPage() {
                 wasFallbackUsed = true;
             }
 
-            availablePublishers.sort((a, b) => (publisherAssignmentsCount[a.firebaseAuthUid!] || 0) - (publisherAssignmentsCount[b.firebaseAuthUid!] || 0));
+            availablePublishers.sort((a, b) => (publisherAssignmentsCount[a.id] || 0) - (publisherAssignmentsCount[b.id] || 0));
 
             const publisher = availablePublishers[0];
             if (!publisher) {
@@ -336,7 +350,7 @@ export default function ProgramaMensualPage() {
                 id: newAssignmentRef.id, date: format(currentDate, "yyyy-MM-dd"), time: slot.startTime,
                 type: slot.type === 'general' ? 'publica' : slot.type, locationName: territoryDisplayName,
                 locationId: territory.id, territoryName: territoryDisplayName, casaId: casa.id, casaName: casa.ownerName,
-                casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: publisher.firebaseAuthUid!,
+                casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: publisher.firebaseAuthUid || publisher.id,
                 userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber || null,
                 assignedGroupId: publisher.assignedGroupId || null, notes: assignmentNotes,
                 createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
