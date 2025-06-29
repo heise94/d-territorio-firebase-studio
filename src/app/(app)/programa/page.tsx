@@ -296,7 +296,7 @@ export default function ProgramaMensualPage() {
             
             const publisherAssignmentsCount = assignmentsInMonth.reduce((acc, a) => {
                 if (a.userId) {
-                    const assignedUser = allPublishers.find(p => p.id === a.userId || (p.firebaseAuthUid && p.firebaseAuthUid === a.userId));
+                    const assignedUser = allPublishers.find(p => (p.firebaseAuthUid && p.firebaseAuthUid === a.userId) || p.id === a.userId);
                     if (assignedUser) {
                         acc[assignedUser.id] = (acc[assignedUser.id] || 0) + 1;
                     }
@@ -319,7 +319,7 @@ export default function ProgramaMensualPage() {
 
                 const hasAssignmentToday = assignmentsInMonth.some(a => 
                     a.date === format(currentDate, "yyyy-MM-dd") && 
-                    (a.userId === p.id || (p.firebaseAuthUid && a.userId === p.firebaseAuthUid))
+                    ((p.firebaseAuthUid && a.userId === p.firebaseAuthUid) || a.userId === p.id)
                 );
                 if (hasAssignmentToday) return false;
 
