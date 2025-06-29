@@ -27,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import type { UserAssignment, PublisherDetail, Territory, Casa, PreachingAssignedType, ProgramScheduleSlot, Assignment, UserAvailability } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Users, MountainSnow, Video, Home, Map, MapPin } from "lucide-react";
+import { Loader2, Save, Users, MountainSnow, Video, Home, Map as MapIcon, MapPin } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { format, parse, parseISO, isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -396,7 +396,7 @@ export function AddManualAssignmentDialog({
                 className="grid grid-cols-2 gap-2"
             >
                 <Label htmlFor="mode_territory" className={cn("border rounded-md p-3 flex items-center justify-center text-sm font-medium cursor-pointer transition-colors", selectionMode === 'territory' && "bg-primary text-primary-foreground border-primary")}>
-                    <Map className="mr-2 h-4 w-4"/> Iniciar por Territorio
+                    <MapIcon className="mr-2 h-4 w-4"/> Iniciar por Territorio
                 </Label>
                 <RadioGroupItem value="territory" id="mode_territory" className="sr-only"/>
                 
@@ -483,4 +483,3 @@ export function AddManualAssignmentDialog({
     </Dialog>
   );
 }
-
