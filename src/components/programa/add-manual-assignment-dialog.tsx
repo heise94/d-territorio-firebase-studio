@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { UserAssignment, PublisherDetail, Territory, Casa, PreachingAssignedType, ProgramScheduleSlot, Assignment, UserAvailability } from "@/types";
+import type { Assignment, PublisherDetail, Territory, Casa, PreachingAssignedType, ProgramScheduleSlot, UserProfile } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Users, MountainSnow, Video, Home, MapPin } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
@@ -58,7 +58,7 @@ export interface ManualAssignmentSubmitData {
     casaId: string;
     userId: string;
     notes?: string;
-    status?: UserAssignment['status'];
+    status?: Assignment['status'];
 }
 
 
@@ -67,9 +67,9 @@ interface AddManualAssignmentDialogProps {
   onOpenChange: (isOpen: boolean) => void;
   onAssignmentSubmit: (data: ManualAssignmentSubmitData) => void;
   date: Date | null;
-  assignmentToEdit?: UserAssignment | null;
+  assignmentToEdit?: Assignment | null;
   slot?: ProgramScheduleSlot | null;
-  allPublishers: PublisherDetail[];
+  allPublishers: UserProfile[];
   allTerritories: Territory[];
   allCasas: Casa[];
   allAssignments: Assignment[];

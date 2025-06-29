@@ -11,7 +11,7 @@ import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, parseISO, addDays, isWithinInterval } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Assignment, PreachingAssignedType, PublisherDetail, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType, UserAssignment } from "@/types";
+import type { Assignment, PreachingAssignedType, UserProfile, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType } from "@/types";
 import { AlertDialog, AlertDialogTrigger, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
@@ -48,7 +48,7 @@ export default function ProgramaMensualPage() {
   const isMobile = useIsMobile();
 
   // Data States
-  const [allPublishers, setAllPublishers] = useState<PublisherDetail[]>([]);
+  const [allPublishers, setAllPublishers] = useState<UserProfile[]>([]);
   const [allCasas, setAllCasas] = useState<Casa[]>([]);
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
@@ -75,7 +75,7 @@ export default function ProgramaMensualPage() {
   useEffect(() => {
     setIsLoading(true);
     const publishersQuery = query(collection(db, "users"));
-    const unsubPublishers = onSnapshot(publishersQuery, (snap) => setAllPublishers(snap.docs.map(d => ({id: d.id, ...d.data()} as PublisherDetail))));
+    const unsubPublishers = onSnapshot(publishersQuery, (snap) => setAllPublishers(snap.docs.map(d => ({id: d.id, ...d.data()} as UserProfile))));
     
     const casasQuery = query(collection(db, "casas"), orderBy("ownerName", "asc"));
     const unsubCasas = onSnapshot(casasQuery, (snap) => setAllCasas(snap.docs.map(d => ({id: d.id, ...d.data()} as Casa))));
@@ -212,8 +212,8 @@ export default function ProgramaMensualPage() {
       userId: publisher.firebaseAuthUid || publisher.id,
       userName: publisher.name,
       userEmail: publisher.email,
-      userPhoneNumber: publisher.phoneNumber || null,
-      assignedGroupId: publisher.assignedGroupId || null,
+      userPhoneNumber: publisher.phoneNumber || undefined,
+      assignedGroupId: publisher.assignedGroupId || undefined,
       notes: data.notes || '',
       updatedAt: serverTimestamp(),
       createdAt: data.id ? (assignmentToEdit?.createdAt || serverTimestamp()) : serverTimestamp(),
@@ -231,7 +231,7 @@ export default function ProgramaMensualPage() {
     }
   };
   
-  const handleSystemGeneration = async () => {
+ const handleSystemGeneration = async () => {
     setIsGeneratingSystem(true);
     toast({ title: "Iniciando generación automática...", description: "El sistema está buscando las mejores asignaciones." });
 
@@ -240,8 +240,7 @@ export default function ProgramaMensualPage() {
     const newDrafts: Assignment[] = [];
     let failedSlotsCount = 0;
 
-    // Pre-calculate assignments in the current month from existing and new drafts
-    const assignmentsInMonth = [...allAssignments, ...newDrafts].filter(a => {
+    const assignmentsInMonth = allAssignments.filter(a => {
         try {
             const d = parseISO(a.date);
             return isWithinInterval(d, { start: monthStartDate, end: monthEndDate });
@@ -249,13 +248,12 @@ export default function ProgramaMensualPage() {
     });
 
     const publisherAssignmentsCount = allAssignments.reduce((acc, a) => {
-        const userId = a.userId;
-        if (userId) {
-            const assignedUser = allPublishers.find(p => p.firebaseAuthUid === userId || p.id === userId);
-            if (assignedUser) {
-                acc[assignedUser.id] = (acc[assignedUser.id] || 0) + 1;
-            }
-        }
+        if (a.userId) acc[a.userId] = (acc[a.userId] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+    
+    const territoryAssignmentsCount = allAssignments.reduce((acc, a) => {
+        if (a.locationId) acc[a.locationId] = (acc[a.locationId] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
 
@@ -265,18 +263,13 @@ export default function ProgramaMensualPage() {
         const slotsForThisDay = seasonalScheduleSlots.filter(s => s.dayOfWeek === dayOfWeekKey);
 
         for (const slot of slotsForThisDay) {
-            const assignmentExists = [...allAssignments, ...newDrafts].some(a =>
+            const assignmentExists = [...assignmentsInMonth, ...newDrafts].some(a =>
                 a.date === format(currentDate, "yyyy-MM-dd") && a.time === slot.startTime
             );
             if (assignmentExists) continue;
 
             const territoryType = slot.type === 'rural' ? 'rural' : 'urban';
             
-            const territoryAssignmentsCount = [...allAssignments, ...newDrafts].reduce((acc, a) => {
-                if (a.locationId) acc[a.locationId] = (acc[a.locationId] || 0) + 1;
-                return acc;
-            }, {} as Record<string, number>);
-
             const availableTerritories = allTerritories
                 .filter(t => !t.isBlocked && t.type === territoryType)
                 .sort((a, b) => {
@@ -305,19 +298,10 @@ export default function ProgramaMensualPage() {
                 c.availableDays?.availableProgramSlotIds?.includes(slot.id) &&
                 territory.associatedCasaIds?.includes(c.id)
             );
-            if (casaOptions.length === 0) {
-                casaOptions = generallyAvailableCasas.filter(c => 
-                    c.availableDays?.availableProgramSlotIds?.includes(slot.id)
-                );
-            }
-            if (casaOptions.length === 0) {
-                casaOptions = generallyAvailableCasas.filter(c => 
-                    territory.associatedCasaIds?.includes(c.id)
-                );
-            }
-            if (casaOptions.length === 0) {
-                casaOptions = generallyAvailableCasas;
-            }
+            if (casaOptions.length === 0) casaOptions = generallyAvailableCasas.filter(c => c.availableDays?.availableProgramSlotIds?.includes(slot.id));
+            if (casaOptions.length === 0) casaOptions = generallyAvailableCasas.filter(c => territory.associatedCasaIds?.includes(c.id));
+            if (casaOptions.length === 0) casaOptions = generallyAvailableCasas;
+            
             let casa = casaOptions.find(c => c.ownerName.toLowerCase().includes("salón del reino")) || casaOptions[0];
             if (!casa) { failedSlotsCount++; continue; }
             
@@ -325,6 +309,7 @@ export default function ProgramaMensualPage() {
                 .filter(p => {
                     const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable === true);
                     if (!isAllowedStatus) return false;
+                    if (!p.firebaseAuthUid) return false;
                     if (p.blockInfo?.forSystem) return false;
                     const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
                         const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
@@ -332,8 +317,8 @@ export default function ProgramaMensualPage() {
                         return isWithinInterval(currentDate, { start, end });
                     });
                     if (isUnavailable) return false;
-                    const hasAssignmentToday = [...allAssignments, ...newDrafts].some(a => 
-                        a.date === format(currentDate, "yyyy-MM-dd") && a.userId === (p.firebaseAuthUid || p.id)
+                    const hasAssignmentToday = [...assignmentsInMonth, ...newDrafts].some(a => 
+                        a.date === format(currentDate, "yyyy-MM-dd") && a.userId === p.firebaseAuthUid
                     );
                     if (hasAssignmentToday) return false;
                     return true;
@@ -343,14 +328,15 @@ export default function ProgramaMensualPage() {
                     const bHasSlot = b.availability?.availableSlotIds?.includes(slot.id) ?? false;
                     if (aHasSlot && !bHasSlot) return -1;
                     if (!aHasSlot && bHasSlot) return 1;
-                    const countA = publisherAssignmentsCount[a.id] || 0;
-                    const countB = publisherAssignmentsCount[b.id] || 0;
+                    const countA = publisherAssignmentsCount[a.firebaseAuthUid!] || 0;
+                    const countB = publisherAssignmentsCount[b.firebaseAuthUid!] || 0;
                     if (countA !== countB) return countA - countB;
                     return Math.random() - 0.5;
                 });
             
             let assignmentCreated = false;
             for (const publisher of potentialPublishers) {
+                if (!publisher.firebaseAuthUid) continue;
                 const wasFallbackUsed = !(publisher.availability?.availableSlotIds?.includes(slot.id) ?? false);
                 const territoryDisplayName = territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name;
                 const assignmentNotes = wasFallbackUsed 
@@ -361,14 +347,15 @@ export default function ProgramaMensualPage() {
                     id: crypto.randomUUID(), date: format(currentDate, "yyyy-MM-dd"), time: slot.startTime,
                     type: slot.type === 'general' ? 'publica' : slot.type, locationName: territoryDisplayName,
                     locationId: territory.id, territoryName: territoryDisplayName, casaId: casa.id, casaName: casa.ownerName,
-                    casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: publisher.firebaseAuthUid || publisher.id,
-                    userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber || null,
-                    assignedGroupId: publisher.assignedGroupId || null, notes: assignmentNotes,
+                    casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: publisher.firebaseAuthUid,
+                    userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber || undefined,
+                    assignedGroupId: publisher.assignedGroupId || undefined, notes: assignmentNotes,
                     createdAt: serverTimestamp(), updatedAt: serverTimestamp(), isDraft: true
                 };
 
                 newDrafts.push(newAssignmentData as Assignment);
-                publisherAssignmentsCount[publisher.id] = (publisherAssignmentsCount[publisher.id] || 0) + 1;
+                publisherAssignmentsCount[publisher.firebaseAuthUid] = (publisherAssignmentsCount[publisher.firebaseAuthUid] || 0) + 1;
+                territoryAssignmentsCount[territory.id] = (territoryAssignmentsCount[territory.id] || 0) + 1;
                 assignmentCreated = true;
                 break; 
             }
@@ -633,5 +620,3 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
-
-    

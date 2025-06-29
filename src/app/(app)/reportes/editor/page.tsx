@@ -196,8 +196,8 @@ export default function EditorHistorialPage() {
         userId: publisher.firebaseAuthUid || publisher.id,
         userName: publisher.name,
         userEmail: publisher.email,
-        userPhoneNumber: publisher.phoneNumber || null,
-        assignedGroupId: publisher.assignedGroupId || null,
+        userPhoneNumber: publisher.phoneNumber || undefined,
+        assignedGroupId: publisher.assignedGroupId || undefined,
         createdAt: Timestamp.fromDate(data.assignmentDate),
         updatedAt: Timestamp.now(),
     };

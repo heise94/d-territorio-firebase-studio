@@ -1,5 +1,6 @@
 
-import type { Timestamp } from 'firebase/firestore';
+
+import type { Timestamp, FieldValue } from 'firebase/firestore';
 import type { UserRole as RoleType, PermissionId } from '@/lib/constants';
 
 export type UserRole = RoleType;
@@ -38,7 +39,8 @@ export interface PublisherDetail {
   availability?: UserAvailability;
   assignedGroupId?: string;
   firebaseAuthUid?: string; // UID from Firebase Authentication
-  status?: 'Activo' | 'Bloqueado'; // Add status to PublisherDetail
+  status?: UserProfile['status'];
+  isAssignable?: boolean;
   blockInfo?: { forSystem: boolean; forGroup: boolean; reason?: string }; // Add blockInfo
   managedCasaId?: string;
 }
@@ -251,8 +253,8 @@ export interface Assignment extends UserAssignment {
   casaAddress?: string;
   territoryName?: string;
   isDraft?: boolean;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
+  createdAt?: Timestamp | FieldValue;
+  updatedAt?: Timestamp | FieldValue;
 }
 
 export interface GroupAssignment {
