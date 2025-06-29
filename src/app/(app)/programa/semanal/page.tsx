@@ -156,7 +156,15 @@ export default function ProgramaSemanalPage() {
     toast({ title: "Generando imagen...", description: "Esto puede tardar unos segundos." });
 
     try {
-        const dataUrl = await toPng(imageRef.current, { cacheBust: true, pixelRatio: 2 });
+        const fontURL = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+        const response = await fetch(fontURL);
+        const cssText = await response.text();
+        
+        const dataUrl = await toPng(imageRef.current, { 
+            cacheBust: true, 
+            pixelRatio: 2,
+            fontEmbedCSS: cssText,
+        });
         const link = document.createElement('a');
         link.download = `programa-semanal-${format(currentWeekDays[0], 'yyyy-MM-dd')}.png`;
         link.href = dataUrl;
