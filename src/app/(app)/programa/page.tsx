@@ -18,6 +18,7 @@ import { PERMISSIONS } from "@/lib/constants";
 import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/components/programa/add-manual-assignment-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { GenerateAIDialog } from "@/components/programa/edit-assignment-dialog";
 
 
 const currentYear = new Date().getFullYear();
@@ -239,12 +240,24 @@ export default function ProgramaMensualPage() {
     const newDrafts: Assignment[] = [];
     let failedSlotsCount = 0;
 
-    const assignmentsInMonth = [...allAssignments, ...draftAssignments].filter(a => {
+    // Pre-calculate assignments in the current month from existing and new drafts
+    const assignmentsInMonth = [...allAssignments, ...newDrafts].filter(a => {
         try {
             const d = parseISO(a.date);
             return isWithinInterval(d, { start: monthStartDate, end: monthEndDate });
         } catch(e) { return false; }
     });
+
+    const publisherAssignmentsCount = allAssignments.reduce((acc, a) => {
+        const userId = a.userId;
+        if (userId) {
+            const assignedUser = allPublishers.find(p => p.firebaseAuthUid === userId || p.id === userId);
+            if (assignedUser) {
+                acc[assignedUser.id] = (acc[assignedUser.id] || 0) + 1;
+            }
+        }
+        return acc;
+    }, {} as Record<string, number>);
 
     for (let i = 0; i < getDaysInMonth(monthStartDate); i++) {
         const currentDate = addDays(monthStartDate, i);
@@ -252,14 +265,14 @@ export default function ProgramaMensualPage() {
         const slotsForThisDay = seasonalScheduleSlots.filter(s => s.dayOfWeek === dayOfWeekKey);
 
         for (const slot of slotsForThisDay) {
-            const assignmentExists = assignmentsInMonth.some(a => 
+            const assignmentExists = [...allAssignments, ...newDrafts].some(a =>
                 a.date === format(currentDate, "yyyy-MM-dd") && a.time === slot.startTime
             );
             if (assignmentExists) continue;
 
             const territoryType = slot.type === 'rural' ? 'rural' : 'urban';
             
-            const territoryAssignmentsCount = assignmentsInMonth.reduce((acc, a) => {
+            const territoryAssignmentsCount = [...allAssignments, ...newDrafts].reduce((acc, a) => {
                 if (a.locationId) acc[a.locationId] = (acc[a.locationId] || 0) + 1;
                 return acc;
             }, {} as Record<string, number>);
@@ -270,7 +283,6 @@ export default function ProgramaMensualPage() {
                     const countA = territoryAssignmentsCount[a.id] || 0;
                     const countB = territoryAssignmentsCount[b.id] || 0;
                     if (countA !== countB) return countA - countB;
-                    
                     const dateA = a.lastWorked ? parse(a.lastWorked, 'yyyy-MM-dd', new Date()).getTime() : 0;
                     const dateB = b.lastWorked ? parse(b.lastWorked, 'yyyy-MM-dd', new Date()).getTime() : 0;
                     return dateA - dateB;
@@ -279,9 +291,8 @@ export default function ProgramaMensualPage() {
             const territory = availableTerritories[0];
             if (!territory) { failedSlotsCount++; continue; }
             
-            const allAvailableCasasForSlot = allCasas.filter(c => 
+            const generallyAvailableCasas = allCasas.filter(c => 
               !c.blockInfo?.forSystem &&
-              (c.availableDays?.availableProgramSlotIds?.includes(slot.id) ?? false) &&
               !c.unavailabilityPeriods?.some(period => 
                   isWithinInterval(currentDate, { 
                       start: startOfDay((period.startDate as Timestamp).toDate()), 
@@ -289,61 +300,54 @@ export default function ProgramaMensualPage() {
                   })
               )
             );
-            
-            let casaOptions = allAvailableCasasForSlot.filter(c => territory.associatedCasaIds?.includes(c.id));
-            if(casaOptions.length === 0) {
-                casaOptions = allAvailableCasasForSlot;
+
+            let casaOptions = generallyAvailableCasas.filter(c =>
+                c.availableDays?.availableProgramSlotIds?.includes(slot.id) &&
+                territory.associatedCasaIds?.includes(c.id)
+            );
+            if (casaOptions.length === 0) {
+                casaOptions = generallyAvailableCasas.filter(c => 
+                    c.availableDays?.availableProgramSlotIds?.includes(slot.id)
+                );
             }
-            
+            if (casaOptions.length === 0) {
+                casaOptions = generallyAvailableCasas.filter(c => 
+                    territory.associatedCasaIds?.includes(c.id)
+                );
+            }
+            if (casaOptions.length === 0) {
+                casaOptions = generallyAvailableCasas;
+            }
             let casa = casaOptions.find(c => c.ownerName.toLowerCase().includes("salón del reino")) || casaOptions[0];
             if (!casa) { failedSlotsCount++; continue; }
-
-            const publisherAssignmentsCount = [...allAssignments, ...newDrafts].reduce((acc, a) => {
-                const userId = a.userId;
-                if (userId) {
-                    const assignedUser = allPublishers.find(p => p.firebaseAuthUid === userId || p.id === userId);
-                    if (assignedUser) {
-                        acc[assignedUser.id] = (acc[assignedUser.id] || 0) + 1;
-                    }
-                }
-                return acc;
-            }, {} as Record<string, number>);
-
-            const potentialPublishers = allPublishers.filter(p => {
-                const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable === true);
-                if (!isAllowedStatus) return false;
-                
-                if (p.blockInfo?.forSystem) return false;
-
-                const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
-                    const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
-                    const end = endOfDay(period.endDate instanceof Timestamp ? period.endDate.toDate() : new Date(period.endDate));
-                    return isWithinInterval(currentDate, { start, end });
+            
+            const potentialPublishers = allPublishers
+                .filter(p => {
+                    const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable === true);
+                    if (!isAllowedStatus) return false;
+                    if (p.blockInfo?.forSystem) return false;
+                    const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
+                        const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
+                        const end = endOfDay(period.endDate instanceof Timestamp ? period.endDate.toDate() : new Date(period.endDate));
+                        return isWithinInterval(currentDate, { start, end });
+                    });
+                    if (isUnavailable) return false;
+                    const hasAssignmentToday = [...allAssignments, ...newDrafts].some(a => 
+                        a.date === format(currentDate, "yyyy-MM-dd") && a.userId === (p.firebaseAuthUid || p.id)
+                    );
+                    if (hasAssignmentToday) return false;
+                    return true;
+                })
+                .sort((a, b) => {
+                    const aHasSlot = a.availability?.availableSlotIds?.includes(slot.id) ?? false;
+                    const bHasSlot = b.availability?.availableSlotIds?.includes(slot.id) ?? false;
+                    if (aHasSlot && !bHasSlot) return -1;
+                    if (!aHasSlot && bHasSlot) return 1;
+                    const countA = publisherAssignmentsCount[a.id] || 0;
+                    const countB = publisherAssignmentsCount[b.id] || 0;
+                    if (countA !== countB) return countA - countB;
+                    return Math.random() - 0.5;
                 });
-                if (isUnavailable) return false;
-
-                const hasAssignmentToday = [...allAssignments, ...newDrafts].some(a => 
-                    a.date === format(currentDate, "yyyy-MM-dd") && ((p.firebaseAuthUid && a.userId === p.firebaseAuthUid) || a.userId === p.id)
-                );
-                if (hasAssignmentToday) return false;
-
-                return true;
-            });
-
-            potentialPublishers.sort((a, b) => {
-                const aHasSlot = a.availability?.availableSlotIds?.includes(slot.id) ?? false;
-                const bHasSlot = b.availability?.availableSlotIds?.includes(slot.id) ?? false;
-
-                if (aHasSlot && !bHasSlot) return -1;
-                if (!aHasSlot && bHasSlot) return 1;
-
-                const countA = publisherAssignmentsCount[a.id] || 0;
-                const countB = publisherAssignmentsCount[b.id] || 0;
-                if (countA !== countB) {
-                    return countA - countB;
-                }
-                return Math.random() - 0.5;
-            });
             
             let assignmentCreated = false;
             for (const publisher of potentialPublishers) {
@@ -364,7 +368,7 @@ export default function ProgramaMensualPage() {
                 };
 
                 newDrafts.push(newAssignmentData as Assignment);
-                assignmentsInMonth.push(newAssignmentData as Assignment);
+                publisherAssignmentsCount[publisher.id] = (publisherAssignmentsCount[publisher.id] || 0) + 1;
                 assignmentCreated = true;
                 break; 
             }
@@ -629,3 +633,5 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
+
+    
