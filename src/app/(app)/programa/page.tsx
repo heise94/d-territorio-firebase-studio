@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon } from "lucide-react";
+import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, parseISO, addDays, isWithinInterval } from 'date-fns';
@@ -209,7 +209,7 @@ export default function ProgramaMensualPage() {
       userName: publisher.name,
       userEmail: publisher.email,
       userPhoneNumber: publisher.phoneNumber || null,
-      assignedGroupId: publisher.assignedGroupId,
+      assignedGroupId: publisher.assignedGroupId || null,
       notes: data.notes || '',
       updatedAt: serverTimestamp(),
       createdAt: data.id ? (assignmentToEdit?.createdAt || serverTimestamp()) : serverTimestamp(),
@@ -338,7 +338,7 @@ export default function ProgramaMensualPage() {
                 locationId: territory.id, territoryName: territoryDisplayName, casaId: casa.id, casaName: casa.ownerName,
                 casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: publisher.firebaseAuthUid!,
                 userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber || null,
-                assignedGroupId: publisher.assignedGroupId, notes: assignmentNotes,
+                assignedGroupId: publisher.assignedGroupId || null, notes: assignmentNotes,
                 createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
             };
             batch.set(newAssignmentRef, newAssignmentData);
@@ -543,7 +543,3 @@ export default function ProgramaMensualPage() {
     </div>
   );
 }
-
-
-
-    

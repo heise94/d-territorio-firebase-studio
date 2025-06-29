@@ -27,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import type { UserAssignment, PublisherDetail, Territory, Casa, PreachingAssignedType, ProgramScheduleSlot, Assignment, UserAvailability } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Users, MountainSnow, Video, Home, Map as MapIcon, MapPin } from "lucide-react";
+import { Loader2, Save, Users, MountainSnow, Video, Home, MapPin } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { format, parse, parseISO, isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
