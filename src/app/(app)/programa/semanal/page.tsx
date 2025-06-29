@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { Assignment, PreachingAssignedType } from "@/types";
+import type { Assignment, PreachingAssignedType, SettingsDoc, DayOfWeek } from "@/types";
 import { format, startOfWeek, addDays, parseISO, isSameDay, startOfDay, subWeeks, addWeeks, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle, ChevronLeft, CalendarClock as CalendarClockIcon, Loader2, Image as ImageIcon } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
-import { collection, doc, onSnapshot, query, where, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toPng } from 'html-to-image';
 import { WeeklyScheduleImage } from "@/components/programa/weekly-schedule-image";
@@ -38,6 +38,9 @@ export default function ProgramaSemanalPage() {
 
   const imageRef = useRef<HTMLDivElement>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  
+  const [groupOrganizedDays, setGroupOrganizedDays] = useState<DayOfWeek[]>([]);
+
 
   const currentWeekDays = useMemo(() => {
     const start = startOfWeek(currentDisplayDate, { weekStartsOn: 1 });
@@ -49,13 +52,15 @@ export default function ProgramaSemanalPage() {
     const start = startOfWeek(currentDisplayDate, { weekStartsOn: 1 });
     const end = endOfWeek(currentDisplayDate, { weekStartsOn: 1 });
     
+    const unsubscribers: (() => void)[] = [];
+
     const q = query(
       collection(db, "assignments"),
       where("date", ">=", format(start, "yyyy-MM-dd")),
       where("date", "<=", format(end, "yyyy-MM-dd"))
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    unsubscribers.push(onSnapshot(q, (snapshot) => {
         const fetchedAssignments = snapshot.docs.map(d => ({id: d.id, ...d.data()} as Assignment));
         setAssignments(fetchedAssignments);
         setIsLoading(false);
@@ -63,9 +68,19 @@ export default function ProgramaSemanalPage() {
         console.error("Error fetching weekly assignments:", error);
         toast({title: "Error", description: "No se pudieron cargar las asignaciones de la semana.", variant: "destructive"});
         setIsLoading(false);
-    });
+    }));
 
-    return () => unsubscribe();
+    // Fetch Group Organized Days
+    const settingsRef = doc(db, "settings", "programConfig");
+    unsubscribers.push(onSnapshot(settingsRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const settingsData = snapshot.data() as SettingsDoc;
+            setGroupOrganizedDays(settingsData.groupOrganizedDays || []);
+        }
+    }));
+
+
+    return () => unsubscribers.forEach(unsub => unsub());
   }, [currentDisplayDate, toast]);
 
 
@@ -83,7 +98,7 @@ export default function ProgramaSemanalPage() {
 
 
   const handleRequestToLead = (assignment: Assignment) => {
-    if (assignment.captainId === userProfile?.firebaseAuthUid) {
+    if (assignment.userId === userProfile?.firebaseAuthUid) {
         toast({
             title: "Ya eres el encargado",
             description: "Ya estás asignado para dirigir esta predicación.",
@@ -104,7 +119,7 @@ export default function ProgramaSemanalPage() {
     const assignmentRef = doc(db, "assignments", selectedAssignmentToLead.id);
     try {
         await updateDoc(assignmentRef, {
-            captainId: userProfile.firebaseAuthUid,
+            userId: userProfile.firebaseAuthUid,
             userName: userProfile.name,
             userEmail: userProfile.email,
             userPhoneNumber: userProfile.phoneNumber,
@@ -226,7 +241,7 @@ export default function ProgramaSemanalPage() {
                         <p className="text-xs text-muted-foreground mt-0.5">
                             Encargado: <span className="font-medium text-foreground">{assign.userName || "No asignado"}</span>
                         </p>
-                        {isActualCurrentDay && assign.captainId !== userProfile?.firebaseAuthUid && (
+                        {isActualCurrentDay && assign.userId !== userProfile?.firebaseAuthUid && (
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -236,7 +251,7 @@ export default function ProgramaSemanalPage() {
                                 <ChevronRight className="mr-1.5 h-3.5 w-3.5" /> Solicitar Dirigir
                             </Button>
                         )}
-                        {assign.captainId === userProfile?.firebaseAuthUid && (
+                        {assign.userId === userProfile?.firebaseAuthUid && (
                             <p className="mt-1.5 text-xs text-green-600 font-medium bg-green-500/10 p-1 rounded-md text-center">
                                 Tú eres el encargado actual.
                             </p>
@@ -270,7 +285,7 @@ export default function ProgramaSemanalPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={handleCloseDialog}>Salir</AlertDialogCancel>
+              <AlertDialogCancel onClick={handleCloseDialog}>Cancelar</AlertDialogCancel>
               <AlertDialogAction onClick={handleConfirmLead} className="bg-primary hover:bg-primary/90">
                 Aceptar y Dirigir
               </AlertDialogAction>
@@ -284,6 +299,7 @@ export default function ProgramaSemanalPage() {
         weekDays={currentWeekDays}
         assignments={assignments}
         weekTitle={weekTitle}
+        groupOrganizedDays={groupOrganizedDays}
       />
     </div>
   );
