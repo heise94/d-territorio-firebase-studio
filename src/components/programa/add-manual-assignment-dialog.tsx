@@ -27,13 +27,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import type { UserAssignment, PublisherDetail, Territory, Casa, PreachingAssignedType, ProgramScheduleSlot, Assignment, UserAvailability } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Users, MountainSnow, Video, Home } from "lucide-react";
+import { Loader2, Save, Users, MountainSnow, Video, Home, Map, MapPin } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { format, parse, parseISO, isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { Timestamp } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 
 
 const manualAssignmentSchema = z.object({
@@ -98,6 +100,7 @@ export function AddManualAssignmentDialog({
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = !!assignmentToEdit;
+  const [selectionMode, setSelectionMode] = useState<'territory' | 'casa'>('territory');
   
   const form = useForm<ManualAssignmentFormValues>({
     resolver: zodResolver(manualAssignmentSchema),
@@ -108,6 +111,7 @@ export function AddManualAssignmentDialog({
   const selectedType = watch("type");
   const selectedUserId = watch("userId");
   const selectedCasaId = watch("casaId");
+  const selectedTerritoryId = watch("territoryId");
 
   useEffect(() => {
     if (isOpen) {
@@ -124,23 +128,33 @@ export function AddManualAssignmentDialog({
             form.reset({
                 time: slot.startTime,
                 type: slot.type === 'general' ? 'publica' : slot.type,
-                territoryId: "",
-                casaId: "",
-                userId: "",
+                territoryId: NO_SELECTION,
+                casaId: NO_SELECTION,
+                userId: NO_SELECTION,
                 notes: "",
             });
         } else {
             form.reset({
                 time: "10:00",
                 type: "publica",
-                territoryId: "",
-                casaId: "",
-                userId: "",
+                territoryId: NO_SELECTION,
+                casaId: NO_SELECTION,
+                userId: NO_SELECTION,
                 notes: "",
             });
         }
+        setSelectionMode('territory');
     }
   }, [isOpen, assignmentToEdit, slot, form]);
+  
+  useEffect(() => {
+    if (selectionMode === 'territory') {
+        setValue("casaId", NO_SELECTION, { shouldValidate: true });
+    } else {
+        setValue("territoryId", NO_SELECTION, { shouldValidate: true });
+    }
+  }, [selectedTerritoryId, selectedCasaId, selectionMode, setValue]);
+
 
   const assignedInMonth = useMemo(() => {
     if (!date) return { captainIds: new Set(), casaIds: new Set(), territoryIds: new Set() };
@@ -167,13 +181,12 @@ export function AddManualAssignmentDialog({
   const lastWorkedDates = useMemo(() => {
     const map = new Map<string, string>();
     allTerritories.forEach(territory => {
-      const reportDates = allAssignments
+      const reports = allAssignments
         .filter(a => a.locationId === territory.id && a.lastReportData?.reportedAt)
-        .map(a => (a.lastReportData!.reportedAt as Timestamp).toDate());
       
-      if (reportDates.length > 0) {
-        reportDates.sort((a,b) => b.getTime() - a.getTime());
-        map.set(territory.id, format(reportDates[0], 'yyyy-MM-dd'));
+      if (reports.length > 0) {
+        reports.sort((a,b) => (b.lastReportData!.reportedAt as Timestamp).toMillis() - (a.lastReportData!.reportedAt as Timestamp).toMillis());
+        map.set(territory.id, format((reports[0].lastReportData!.reportedAt as Timestamp).toDate(), 'dd/MM/yy'));
       }
     });
     return map;
@@ -184,32 +197,24 @@ export function AddManualAssignmentDialog({
       if (t.isBlocked) return false;
       const isCorrectType = t.type === (selectedType === 'rural' ? 'rural' : 'urban');
       if (!isCorrectType) return false;
-      if (isEditMode && assignmentToEdit?.locationId === t.id) {
-        return true;
-      }
-      return !assignedInMonth.territoryIds.has(t.id);
+      return true;
     });
 
     const sortByLastWorked = (a: Territory, b: Territory) => {
-      const dateA = lastWorkedDates.get(a.id) ? parseISO(lastWorkedDates.get(a.id)!).getTime() : 0;
-      const dateB = lastWorkedDates.get(b.id) ? parseISO(lastWorkedDates.get(b.id)!).getTime() : 0;
+      const dateA = lastWorkedDates.get(a.id) ? parse(lastWorkedDates.get(a.id)!, 'dd/MM/yy', new Date()).getTime() : 0;
+      const dateB = lastWorkedDates.get(b.id) ? parse(lastWorkedDates.get(b.id)!, 'dd/MM/yy', new Date()).getTime() : 0;
       return dateA - dateB;
     };
-
-    if (selectedCasaId && selectedCasaId !== NO_SELECTION) {
-      const associatedTerritories = baseFiltered
-        .filter(t => t.associatedCasaIds?.includes(selectedCasaId))
-        .sort(sortByLastWorked);
-      const otherTerritories = baseFiltered
-        .filter(t => !t.associatedCasaIds?.includes(selectedCasaId))
-        .sort(sortByLastWorked);
-      const combined = [...associatedTerritories, ...otherTerritories];
-      return Array.from(new Map(combined.map(t => [t.id, t])).values()).slice(0, 20);
+    
+    if (selectionMode === 'casa') {
+        if (!selectedCasaId || selectedCasaId === NO_SELECTION) return [];
+        return baseFiltered.filter(t => t.associatedCasaIds?.includes(selectedCasaId)).sort(sortByLastWorked);
     }
     
-    return baseFiltered.sort(sortByLastWorked).slice(0, 20);
+    // Default territory-first mode
+    return baseFiltered.filter(t => isEditMode ? true : !assignedInMonth.territoryIds.has(t.id)).sort(sortByLastWorked).slice(0, 20);
 
-  }, [allTerritories, selectedType, assignedInMonth.territoryIds, isEditMode, assignmentToEdit, selectedCasaId, lastWorkedDates]);
+  }, [allTerritories, selectedType, isEditMode, selectionMode, selectedCasaId, lastWorkedDates, assignedInMonth.territoryIds]);
 
 
   const availablePublishersForSlot = useMemo(() => {
@@ -238,7 +243,7 @@ export function AddManualAssignmentDialog({
   const availableCasasForSlot = useMemo(() => {
       const assignmentDate = startOfDay(date || new Date());
       
-      return allCasas.filter(c => {
+      let casas = allCasas.filter(c => {
           if (c.blockInfo?.forSystem) return false;
 
           const isUnavailable = c.unavailabilityPeriods?.some(period => {
@@ -247,13 +252,18 @@ export function AddManualAssignmentDialog({
               return isWithinInterval(assignmentDate, { start, end });
           });
           if (isUnavailable) return false;
-
           if (!slot) return true;
-
-          const hasSlot = c.availableDays?.availableProgramSlotIds?.includes(slot.id);
-          return hasSlot;
+          return c.availableDays?.availableProgramSlotIds?.includes(slot.id);
       });
-  }, [allCasas, date, slot]);
+
+      if (selectionMode === 'territory' && selectedTerritoryId && selectedTerritoryId !== NO_SELECTION) {
+          const selectedTerr = allTerritories.find(t => t.id === selectedTerritoryId);
+          if (selectedTerr?.associatedCasaIds && selectedTerr.associatedCasaIds.length > 0) {
+              return casas.filter(c => selectedTerr.associatedCasaIds!.includes(c.id));
+          }
+      }
+      return casas;
+  }, [allCasas, date, slot, selectionMode, selectedTerritoryId, allTerritories]);
   
   const selectedCaptain = useMemo(() => {
       if (!selectedUserId) return null;
@@ -284,6 +294,84 @@ export function AddManualAssignmentDialog({
     : date 
         ? `Añadiendo asignación para el ${format(date, 'PPP', {locale: es})}`
         : 'Añadiendo asignación manual.';
+        
+  const TerritoryField = () => (
+    <FormField
+        control={form.control}
+        name="territoryId"
+        render={({ field }) => (
+        <FormItem>
+            <FormLabel>
+                {selectionMode === 'territory' ? '1. Territorio' : '2. Territorio'}
+            </FormLabel>
+            <Select
+                onValueChange={field.onChange}
+                value={field.value}
+                disabled={selectionMode === 'casa' && (!selectedCasaId || selectedCasaId === NO_SELECTION)}
+            >
+                <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar territorio" /></SelectTrigger></FormControl>
+                <SelectContent>
+                    <SelectItem value={NO_SELECTION}>-- No Seleccionado --</SelectItem>
+                    {availableTerritoriesForSelection.map(loc => {
+                    const territoryDisplayName = loc.number ? `U-${loc.number}` : loc.name;
+                    const lastWorkedDisplay = lastWorkedDates.get(loc.id) || 'Nunca';
+                    const fullDisplayName = `${territoryDisplayName} (${lastWorkedDisplay})`;
+                    return (
+                        <SelectItem key={loc.id} value={loc.id}>
+                            {fullDisplayName}
+                        </SelectItem>
+                    );
+                    })}
+                </SelectContent>
+            </Select>
+            <FormFieldDescription className="text-xs">
+                {selectionMode === 'casa'
+                    ? "Territorios asociados a la casa seleccionada."
+                    : "Los 20 territorios más antiguos sin trabajar."
+                }
+            </FormFieldDescription>
+            <FormMessage />
+        </FormItem>
+        )}
+    />
+  );
+  
+  const CasaField = () => (
+     <FormField
+        control={form.control}
+        name="casaId"
+        render={({ field }) => (
+        <FormItem>
+            <FormLabel>{selectionMode === 'casa' ? '1. Casa de Reunión' : '2. Casa de Reunión'}</FormLabel>
+            <Select
+            onValueChange={field.onChange}
+            value={field.value}
+            disabled={selectionMode === 'territory' && (!selectedTerritoryId || selectedTerritoryId === NO_SELECTION)}
+            >
+            <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar casa de reunión" /></SelectTrigger></FormControl>
+            <SelectContent>
+                <SelectItem value={NO_SELECTION}>-- No Seleccionado --</SelectItem>
+                {availableCasasForSlot.map(loc => {
+                const name = loc.ownerName || loc.address;
+                return (
+                    <SelectItem key={loc.id} value={loc.id}>
+                    {name}
+                    </SelectItem>
+                );
+                })}
+            </SelectContent>
+            </Select>
+            <FormFieldDescription className="text-xs">
+                {selectionMode === 'territory'
+                    ? "Casas cercanas al territorio seleccionado."
+                    : "Casas disponibles para la fecha y horario."
+                }
+            </FormFieldDescription>
+            <FormMessage />
+        </FormItem>
+        )}
+    />
+  );
 
 
   return (
@@ -297,7 +385,28 @@ export function AddManualAssignmentDialog({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-             {(slot || isEditMode) && (
+            <RadioGroup
+                defaultValue="territory"
+                value={selectionMode}
+                onValueChange={(value: 'territory' | 'casa') => {
+                    setSelectionMode(value);
+                    setValue("territoryId", NO_SELECTION, { shouldValidate: true });
+                    setValue("casaId", NO_SELECTION, { shouldValidate: true });
+                }}
+                className="grid grid-cols-2 gap-2"
+            >
+                <Label htmlFor="mode_territory" className={cn("border rounded-md p-3 flex items-center justify-center text-sm font-medium cursor-pointer transition-colors", selectionMode === 'territory' && "bg-primary text-primary-foreground border-primary")}>
+                    <Map className="mr-2 h-4 w-4"/> Iniciar por Territorio
+                </Label>
+                <RadioGroupItem value="territory" id="mode_territory" className="sr-only"/>
+                
+                <Label htmlFor="mode_casa" className={cn("border rounded-md p-3 flex items-center justify-center text-sm font-medium cursor-pointer transition-colors", selectionMode === 'casa' && "bg-primary text-primary-foreground border-primary")}>
+                   <Home className="mr-2 h-4 w-4"/> Iniciar por Casa
+                </Label>
+                 <RadioGroupItem value="casa" id="mode_casa" className="sr-only"/>
+            </RadioGroup>
+            
+            {(slot || isEditMode) && (
                 <div className="grid grid-cols-2 gap-4 rounded-md border bg-muted/50 p-3">
                     <div>
                         <p className="text-xs font-medium text-muted-foreground">Hora</p>
@@ -311,109 +420,19 @@ export function AddManualAssignmentDialog({
                         </p>
                     </div>
                 </div>
-             )}
+            )}
             
-            <FormField
-              control={form.control}
-              name="casaId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Casa de Reunión</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                  >
-                    <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar casa de reunión" /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {availableCasasForSlot.map(loc => {
-                        const name = loc.ownerName || loc.address;
-                        const isCaptainsHouse = selectedCaptain && loc.id === selectedCaptain.managedCasaId;
-                        const isAlreadyAssigned = assignedInMonth.casaIds.has(loc.id);
-                        return (
-                          <SelectItem
-                            key={loc.id}
-                            value={loc.id}
-                            className={cn(isCaptainsHouse && "bg-green-100 dark:bg-green-800/50 text-green-900 dark:text-green-200 font-semibold")}
-                          >
-                            <div className="flex items-center justify-between w-full">
-                                <span className="flex items-center">
-                                    {isCaptainsHouse && <Home className="h-4 w-4 mr-2 text-green-700" />}
-                                    {name}
-                                </span>
-                              {isAlreadyAssigned && !isCaptainsHouse && (
-                                 <TooltipProvider><Tooltip>
-                                    <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
-                                    <TooltipContent><p>Ya asignada este mes</p></TooltipContent>
-                                </Tooltip></TooltipProvider>
-                              )}
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="territoryId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Territorio
-                    {selectedCasaId && selectedCasaId !== NO_SELECTION && (
-                        <span className="ml-2 text-xs font-normal text-primary">(filtrado por casa)</span>
-                    )}
-                  </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Seleccionar territorio" /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {availableTerritoriesForSelection.map(loc => {
-                        const territoryDisplayName = loc.type === 'urban' && loc.number 
-                            ? `U-${loc.number}` 
-                            : loc.name;
-                        const lastWorkedDate = lastWorkedDates.get(loc.id);
-                        const lastWorkedDisplay = lastWorkedDate
-                            ? format(parseISO(lastWorkedDate), 'dd/MM/yy')
-                            : 'Nunca';
-
-                        const fullDisplayName = `${territoryDisplayName} (${lastWorkedDisplay})`;
-                        const isAlreadyAssigned = assignedInMonth.territoryIds.has(loc.id);
-                        
-                        return (
-                            <SelectItem key={loc.id} value={loc.id}>
-                                <div className="flex items-center justify-between w-full">
-                                    <span title={fullDisplayName}>{fullDisplayName}</span>
-                                    {isAlreadyAssigned && (
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <span className="h-2 w-2 rounded-full bg-amber-500 ml-2" />
-                                                </TooltipTrigger>
-                                                <TooltipContent><p>Ya asignado este mes</p></TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                    )}
-                                </div>
-                            </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                  <FormFieldDescription className="text-xs">
-                    {selectedCasaId && selectedCasaId !== NO_SELECTION
-                        ? "La lista muestra primero los territorios asociados a la casa seleccionada."
-                        : "La lista muestra los 20 territorios disponibles con más tiempo sin trabajar."}
-                  </FormFieldDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {selectionMode === 'territory' ? (
+                <>
+                    <TerritoryField />
+                    <CasaField />
+                </>
+            ) : (
+                <>
+                    <CasaField />
+                    <TerritoryField />
+                </>
+            )}
             
             <FormField
               control={form.control}
@@ -424,6 +443,7 @@ export function AddManualAssignmentDialog({
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar publicador" /></SelectTrigger></FormControl>
                     <SelectContent>
+                        <SelectItem value={NO_SELECTION}>-- No Seleccionado --</SelectItem>
                       {availablePublishersForSlot.map(p => (
                           <SelectItem key={p.id} value={p.firebaseAuthUid || p.id}>
                               <div className="flex items-center justify-between w-full">
@@ -463,3 +483,4 @@ export function AddManualAssignmentDialog({
     </Dialog>
   );
 }
+
