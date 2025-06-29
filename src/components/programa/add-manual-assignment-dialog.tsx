@@ -396,7 +396,7 @@ export function AddManualAssignmentDialog({
                 className="grid grid-cols-2 gap-2"
             >
                 <Label htmlFor="mode_territory" className={cn("border rounded-md p-3 flex items-center justify-center text-sm font-medium cursor-pointer transition-colors", selectionMode === 'territory' && "bg-primary text-primary-foreground border-primary")}>
-                    <MapIcon className="mr-2 h-4 w-4"/> Iniciar por Territorio
+                    <MapPin className="mr-2 h-4 w-4"/> Iniciar por Territorio
                 </Label>
                 <RadioGroupItem value="territory" id="mode_territory" className="sr-only"/>
                 

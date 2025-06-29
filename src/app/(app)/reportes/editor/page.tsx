@@ -196,7 +196,7 @@ export default function EditorHistorialPage() {
         userId: publisher.id,
         userName: publisher.name,
         userEmail: publisher.email,
-        userPhoneNumber: publisher.phoneNumber,
+        userPhoneNumber: publisher.phoneNumber || null,
         assignedGroupId: publisher.assignedGroupId,
         createdAt: Timestamp.fromDate(data.assignmentDate),
         updatedAt: Timestamp.now(),

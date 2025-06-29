@@ -207,7 +207,8 @@ export default function ProgramaMensualPage() {
       userId: publisher.firebaseAuthUid || publisher.id,
       userName: publisher.name,
       userEmail: publisher.email,
-      userPhoneNumber: publisher.phoneNumber,
+      userPhoneNumber: publisher.phoneNumber || null,
+      assignedGroupId: publisher.assignedGroupId,
       notes: data.notes || '',
       updatedAt: serverTimestamp(),
       createdAt: data.id ? (assignmentToEdit?.createdAt || serverTimestamp()) : serverTimestamp(),
@@ -333,7 +334,7 @@ export default function ProgramaMensualPage() {
                 type: slot.type === 'general' ? 'publica' : slot.type, locationName: territoryDisplayName,
                 locationId: territory.id, territoryName: territoryDisplayName, casaId: casa.id, casaName: casa.ownerName,
                 casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: publisher.firebaseAuthUid!,
-                userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber,
+                userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber || null,
                 assignedGroupId: publisher.assignedGroupId, notes: assignmentNotes,
                 createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
             };
