@@ -18,7 +18,7 @@ import { PERMISSIONS } from "@/lib/constants";
 import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/components/programa/add-manual-assignment-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { GenerateAIDialog } from "workspace/src/components/programa/generate-ai-dialog";
+import { GenerateAIDialog } from "@/components/programa/edit-assignment-dialog";
 
 
 const currentYear = new Date().getFullYear();
