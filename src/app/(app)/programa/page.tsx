@@ -18,6 +18,7 @@ import { PERMISSIONS } from "@/lib/constants";
 import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/components/programa/add-manual-assignment-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { GenerateAIDialog } from "@/components/programa/edit-assignment-dialog";
 
 
 const currentYear = new Date().getFullYear();
@@ -237,8 +238,10 @@ export default function ProgramaMensualPage() {
     let failedSlotsCount = 0;
 
     const assignmentsInMonth = allAssignments.filter(a => {
-        const d = parseISO(a.date);
-        return isWithinInterval(d, { start: monthStartDate, end: monthEndDate });
+        try {
+            const d = parseISO(a.date);
+            return isWithinInterval(d, { start: monthStartDate, end: monthEndDate });
+        } catch(e) { return false; }
     });
 
     for (let i = 0; i < getDaysInMonth(monthStartDate); i++) {
@@ -297,8 +300,8 @@ export default function ProgramaMensualPage() {
             }, {} as Record<string, number>);
 
             const potentialPublishers = allPublishers.filter(p => {
-                const isStatusOk = (p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable));
-                if (!isStatusOk || p.blockInfo?.forSystem || !p.firebaseAuthUid) return false;
+                const isStatusOk = (p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable)) && p.firebaseAuthUid;
+                if (!isStatusOk || p.blockInfo?.forSystem) return false;
 
                 const isUnavailable = p.availability?.unavailabilityPeriods?.some(period =>
                     isWithinInterval(currentDate, { start: startOfDay((period.startDate as Timestamp).toDate()), end: endOfDay((period.endDate as Timestamp).toDate()) })
@@ -360,9 +363,13 @@ export default function ProgramaMensualPage() {
 
   const assignmentsToDisplay = useMemo(() => {
     return allAssignments.reduce((acc, curr) => {
-        const assignmentDate = parseISO(curr.date);
-        if (assignmentDate.getFullYear() === selectedYear && assignmentDate.getMonth() === selectedMonth) {
-            (acc[curr.date] = acc[curr.date] || []).push(curr);
+        try {
+            const assignmentDate = parseISO(curr.date);
+            if (assignmentDate.getFullYear() === selectedYear && assignmentDate.getMonth() === selectedMonth) {
+                (acc[curr.date] = acc[curr.date] || []).push(curr);
+            }
+        } catch(e) {
+             // Ignore invalid dates
         }
         return acc;
     }, {} as Record<string, any[]>);
@@ -537,3 +544,6 @@ export default function ProgramaMensualPage() {
   );
 }
 
+
+
+    
