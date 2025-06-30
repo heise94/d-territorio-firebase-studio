@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,7 +23,7 @@ import {
   FormMessage,
   FormDescription as FormFieldDescription,
 } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Assignment, UserProfile, Territory, Casa, PreachingAssignedType, ProgramScheduleSlot, DayOfWeek } from "@/types";
 import { useToast } from "@/hooks/use-toast";
@@ -39,7 +40,7 @@ import { Label } from "@/components/ui/label";
 const NO_SELECTION = "__NO_SELECTION__";
 
 const manualAssignmentSchema = z.object({
-  time: z.string().min(1, "La hora es obligatoria."),
+  time: z.string().min(1, "La hora es obligatoria.").refine(val => val !== NO_SELECTION, "Debe seleccionar una hora."),
   type: z.enum(["publica", "rural", "zoom"], { required_error: "Debe seleccionar un tipo." }),
   territoryId: z.string().optional(),
   casaId: z.string().optional(),
@@ -119,6 +120,7 @@ export function AddManualAssignmentDialog({
   const { watch, setValue } = form;
   const selectedType = watch("type");
   const selectedUserId = watch("userId");
+  const selectedTerritoryId = watch("territoryId");
 
   const assignmentDate = date || (assignmentToEdit ? parseISO(assignmentToEdit!.date) : null);
   
@@ -215,21 +217,33 @@ export function AddManualAssignmentDialog({
   }, [allTerritories, selectedType, lastWorkedDates]);
 
 
-  const availableCasasForSelection = useMemo(() => {
-      if (!assignmentDate) return [];
-      
-      return allCasas.filter(c => {
-          if (c.blockInfo?.forSystem) return false;
+ const availableCasasForSelection = useMemo(() => {
+    if (!assignmentDate) return { associated: [], others: [] };
 
-          const isUnavailable = c.unavailabilityPeriods?.some(period => {
-              const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
-              const end = endOfDay(period.endDate instanceof Timestamp ? period.endDate.toDate() : new Date(period.endDate));
-              return isWithinInterval(assignmentDate, { start, end });
-          });
-          if (isUnavailable) return false;
-          return true;
-      });
-  }, [allCasas, assignmentDate]);
+    const availableOnDate = allCasas.filter(c => {
+        if (c.blockInfo?.forSystem) return false;
+        const isUnavailable = c.unavailabilityPeriods?.some(period => {
+            const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
+            const end = endOfDay(period.endDate instanceof Timestamp ? period.endDate.toDate() : new Date(period.endDate));
+            return isWithinInterval(assignmentDate, { start, end });
+        });
+        if (isUnavailable) return false;
+        return true;
+    });
+
+    if (!selectedTerritoryId || selectedTerritoryId === NO_SELECTION) {
+        return { associated: [], others: availableOnDate.sort((a,b) => a.ownerName.localeCompare(b.ownerName)) };
+    }
+
+    const territory = allTerritories.find(t => t.id === selectedTerritoryId);
+    const associatedIds = new Set(territory?.associatedCasaIds || []);
+
+    const associated = availableOnDate.filter(c => associatedIds.has(c.id)).sort((a,b) => a.ownerName.localeCompare(b.ownerName));
+    const others = availableOnDate.filter(c => !associatedIds.has(c.id)).sort((a,b) => a.ownerName.localeCompare(b.ownerName));
+    
+    return { associated, others };
+}, [allCasas, assignmentDate, selectedTerritoryId, allTerritories]);
+
   
   const availablePublishers = useMemo(() => {
     if (!assignmentDate) return [];
@@ -293,7 +307,7 @@ export function AddManualAssignmentDialog({
                   <FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="publica">Pública</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select><FormMessage /></FormItem>
               )}/>
               <FormField control={form.control} name="time" render={({ field }) => (
-                 <FormItem><FormLabel>Hora</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedType || availableTimeSlots.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedType ? "Selecciona tipo primero" : (availableTimeSlots.length > 0 ? "Selecciona hora" : "No hay horarios disponibles")} /></SelectTrigger></FormControl><SelectContent>{availableTimeSlots.map(t => <SelectItem key={t.id} value={t.startTime}>{t.startTime}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                 <FormItem><FormLabel>Hora</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedType || availableTimeSlots.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedType ? "Selecciona tipo" : (availableTimeSlots.length > 0 ? "Selecciona hora" : "No hay horarios")} /></SelectTrigger></FormControl><SelectContent>{availableTimeSlots.map(t => <SelectItem key={t.id} value={t.startTime}>{t.startTime}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
              )}/>
             </div>
             
@@ -335,14 +349,27 @@ export function AddManualAssignmentDialog({
                         <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar casa de reunión" /></SelectTrigger></FormControl>
                         <SelectContent>
                             <SelectItem value={NO_SELECTION}>-- No Seleccionado --</SelectItem>
-                            {availableCasasForSelection.map(loc => {
-                            const name = loc.ownerName || loc.address;
-                            return (
-                                <SelectItem key={loc.id} value={loc.id}>
-                                {name}
-                                </SelectItem>
-                            );
-                            })}
+                             {availableCasasForSelection.associated.length > 0 && (
+                                <SelectGroup>
+                                    <SelectLabel>Casas Cercanas Sugeridas</SelectLabel>
+                                    {availableCasasForSelection.associated.map(loc => {
+                                        const name = loc.ownerName || loc.address;
+                                        return <SelectItem key={loc.id} value={loc.id}>{name}</SelectItem>;
+                                    })}
+                                </SelectGroup>
+                            )}
+                            {availableCasasForSelection.others.length > 0 && (
+                                <SelectGroup>
+                                    <SelectLabel>Otras Casas Disponibles</SelectLabel>
+                                    {availableCasasForSelection.others.map(loc => {
+                                        const name = loc.ownerName || loc.address;
+                                        return <SelectItem key={loc.id} value={loc.id}>{name}</SelectItem>;
+                                    })}
+                                </SelectGroup>
+                            )}
+                            {availableCasasForSelection.associated.length === 0 && availableCasasForSelection.others.length === 0 && (
+                                <div className="text-center text-xs text-muted-foreground p-2">No hay casas disponibles para la fecha seleccionada.</div>
+                            )}
                         </SelectContent>
                         </Select>
                         <FormMessage />

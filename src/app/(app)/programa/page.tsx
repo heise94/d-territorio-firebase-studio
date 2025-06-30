@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -210,10 +211,13 @@ export default function ProgramaMensualPage() {
 
     const publisherAssignmentsCount: Record<string, number> = {};
     const territoryAssignmentsCount: Record<string, number> = {};
+    const casaAssignmentsCount: Record<string, number> = {};
 
     [...existingAssignmentsInMonth, ...draftAssignments].forEach(a => {
-        if (a.userId) publisherAssignmentsCount[a.userId] = (publisherAssignmentsCount[a.userId] || 0) + 1;
+        const userKey = a.userId || a.userName; // Use userName as fallback for older data
+        if (userKey) publisherAssignmentsCount[userKey] = (publisherAssignmentsCount[userKey] || 0) + 1;
         if (a.locationId) territoryAssignmentsCount[a.locationId] = (territoryAssignmentsCount[a.locationId] || 0) + 1;
+        if (a.casaId) casaAssignmentsCount[a.casaId] = (casaAssignmentsCount[a.casaId] || 0) + 1;
     });
     
     for (let i = 0; i < getDaysInMonth(monthStartDate); i++) {
@@ -252,11 +256,12 @@ export default function ProgramaMensualPage() {
                       end: endOfDay((period.endDate as Timestamp).toDate()) 
                   })
               )
-            );
+            ).sort((a,b) => (casaAssignmentsCount[a.id] || 0) - (casaAssignmentsCount[b.id] || 0));
 
             let casaOptions = generallyAvailableCasas.filter(c =>
                 territory.associatedCasaIds?.includes(c.id)
             );
+            if (casaOptions.length === 0) casaOptions = generallyAvailableCasas.filter(c => c.availableDays?.availableProgramSlotIds?.includes(slot.id));
             if (casaOptions.length === 0) casaOptions = generallyAvailableCasas;
             
             let casa = casaOptions.find(c => c.ownerName.toLowerCase().includes("salón del reino")) || casaOptions[0];
@@ -266,10 +271,10 @@ export default function ProgramaMensualPage() {
 
             const potentialPublishers = allPublishers
                 .filter(p => {
-                    const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable === true);
-                    if (!isAllowedStatus || !p.firebaseAuthUid) return false;
-
-                    if (assignmentsToday.includes(p.firebaseAuthUid)) return false;
+                    const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable);
+                    if (!isAllowedStatus) return false;
+                    const userKey = p.firebaseAuthUid || p.id;
+                    if (assignmentsToday.includes(userKey)) return false;
                     if (p.blockInfo?.forSystem) return false;
                     const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
                         const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
@@ -280,8 +285,8 @@ export default function ProgramaMensualPage() {
                     return true;
                 })
                 .sort((a, b) => {
-                    const countA = publisherAssignmentsCount[a.firebaseAuthUid!] || 0;
-                    const countB = publisherAssignmentsCount[b.firebaseAuthUid!] || 0;
+                    const countA = publisherAssignmentsCount[a.firebaseAuthUid || a.id] || 0;
+                    const countB = publisherAssignmentsCount[b.firebaseAuthUid || b.id] || 0;
                     if (countA !== countB) return countA - countB;
                     
                     const aHasSlot = a.availability?.availableSlotIds?.includes(slot.id) ?? false;
@@ -292,35 +297,33 @@ export default function ProgramaMensualPage() {
                     return Math.random() - 0.5;
                 });
             
-            let assignmentCreated = false;
-            for (const publisher of potentialPublishers) {
-                const userIdToAssign = publisher.firebaseAuthUid!;
-                const wasFallbackUsed = !(publisher.availability?.availableSlotIds?.includes(slot.id) ?? false);
-                const territoryDisplayName = territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name;
-                const assignmentNotes = wasFallbackUsed 
-                    ? 'Asignación automática. Por favor, confirme su disponibilidad para este horario.'
-                    : 'Asignación generada por el sistema.';
-
-                const newAssignmentData: Omit<Assignment, 'id'> & { id: string, isDraft: boolean } = {
-                    id: crypto.randomUUID(), date: format(currentDate, "yyyy-MM-dd"), time: slot.startTime,
-                    type: slot.type === 'general' ? 'publica' : slot.type, locationName: territoryDisplayName,
-                    locationId: territory.id, territoryName: territoryDisplayName, casaId: casa.id, casaName: casa.ownerName,
-                    casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: userIdToAssign,
-                    userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber || undefined,
-                    assignedGroupId: publisher.assignedGroupId || undefined, notes: assignmentNotes,
-                    createdAt: serverTimestamp() as Timestamp, updatedAt: serverTimestamp() as Timestamp, isDraft: true
-                };
-
-                newDrafts.push(newAssignmentData as Assignment);
-                publisherAssignmentsCount[userIdToAssign] = (publisherAssignmentsCount[userIdToAssign] || 0) + 1;
-                territoryAssignmentsCount[territory.id] = (territoryAssignmentsCount[territory.id] || 0) + 1;
-                assignmentCreated = true;
-                break; 
-            }
-
-            if (!assignmentCreated) {
+            if (potentialPublishers.length === 0) {
                 failedSlotsCount++;
+                continue;
             }
+            const publisher = potentialPublishers[0];
+            
+            const userIdToAssign = publisher.firebaseAuthUid || publisher.id;
+            const wasFallbackUsed = !(publisher.availability?.availableSlotIds?.includes(slot.id) ?? false);
+            const territoryDisplayName = territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name;
+            const assignmentNotes = wasFallbackUsed 
+                ? 'Asignación automática. Por favor, confirme su disponibilidad para este horario.'
+                : 'Asignación generada por el sistema.';
+
+            const newAssignmentData: Omit<Assignment, 'id'> & { id: string, isDraft: boolean } = {
+                id: crypto.randomUUID(), date: format(currentDate, "yyyy-MM-dd"), time: slot.startTime,
+                type: slot.type === 'general' ? 'publica' : slot.type, locationName: territoryDisplayName,
+                locationId: territory.id, territoryName: territoryDisplayName, casaId: casa.id, casaName: casa.ownerName,
+                casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: userIdToAssign,
+                userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber || undefined,
+                assignedGroupId: publisher.assignedGroupId || undefined, notes: assignmentNotes,
+                createdAt: serverTimestamp() as Timestamp, updatedAt: serverTimestamp() as Timestamp, isDraft: true
+            };
+
+            newDrafts.push(newAssignmentData as Assignment);
+            publisherAssignmentsCount[userIdToAssign] = (publisherAssignmentsCount[userIdToAssign] || 0) + 1;
+            territoryAssignmentsCount[territory.id] = (territoryAssignmentsCount[territory.id] || 0) + 1;
+            casaAssignmentsCount[casa.id] = (casaAssignmentsCount[casa.id] || 0) + 1;
         }
     }
     
