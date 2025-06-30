@@ -280,7 +280,19 @@ export function AddManualAssignmentDialog({
       return [];
     }
 
-    let filteredByDay = allPublishers.filter(p => {
+    const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(assignmentDate)];
+    const filterType = selectedType === 'publica' ? 'general' : selectedType;
+    const selectedSlot = programScheduleSlots.find(slot => 
+        slot.dayOfWeek === dayOfWeekKey && 
+        slot.type === filterType && 
+        slot.startTime === selectedTime
+    );
+
+    if (!selectedSlot) {
+        return [];
+    }
+    
+    return allPublishers.filter(p => {
         const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable);
         if (!isAllowedStatus) return false;
         if (p.blockInfo?.forSystem) return false;
@@ -290,29 +302,9 @@ export function AddManualAssignmentDialog({
             return isWithinInterval(assignmentDate, { start, end });
         });
         if (isUnavailable) return false;
-        return true;
+
+        return p.availability?.availableSlotIds?.includes(selectedSlot.id);
     });
-
-    if (selectedType) {
-        const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(assignmentDate)];
-        const filterType = selectedType === 'publica' ? 'general' : selectedType;
-        const selectedSlot = programScheduleSlots.find(slot => 
-            slot.dayOfWeek === dayOfWeekKey && 
-            slot.type === filterType && 
-            slot.startTime === selectedTime
-        );
-
-        if (selectedSlot) {
-            filteredByDay = filteredByDay.filter(p => 
-                p.availability?.availableSlotIds?.includes(selectedSlot.id)
-            );
-        } else {
-            return [];
-        }
-    }
-    
-    return filteredByDay;
-
   }, [allPublishers, assignmentDate, selectedTime, selectedType, programScheduleSlots]);
   
   const selectedCaptain = useMemo(() => {
@@ -348,6 +340,7 @@ export function AddManualAssignmentDialog({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
+        <TooltipProvider>
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Editar Asignación" : "Añadir Asignación Manual"}</DialogTitle>
           <DialogDescription>
@@ -361,7 +354,7 @@ export function AddManualAssignmentDialog({
                   <FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="publica">Pública</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select><FormMessage /></FormItem>
               )}/>
               <FormField control={form.control} name="time" render={({ field }) => (
-                 <FormItem><FormLabel>Hora</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedType || availableTimeSlots.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedType ? "Selecciona tipo" : (availableTimeSlots.length > 0 ? "Selecciona hora" : "No hay horarios")} /></SelectTrigger></FormControl><SelectContent>
+                 <FormItem><FormLabel>Hora</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedType || availableTimeSlots.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedType ? "Selecciona tipo primero" : (availableTimeSlots.length > 0 ? "Selecciona hora" : "No hay horarios")} /></SelectTrigger></FormControl><SelectContent>
                     {availableTimeSlots.map(t => <SelectItem key={t.id} value={t.startTime}>{t.startTime}</SelectItem>)}
                  </SelectContent></Select><FormMessage /></FormItem>
              )}/>
@@ -394,10 +387,10 @@ export function AddManualAssignmentDialog({
                           <div className="flex items-center justify-between w-full">
                            <span>{`${loc.number ? `U-${loc.number}` : loc.name} (Últ. vez: ${lastWorkedDates.get(loc.id) || 'Nunca'})`}</span>
                            {showWarning && (
-                            <TooltipProvider><Tooltip>
+                            <Tooltip>
                                 <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
-                                <TooltipContent><p>Asignado el {assignedDateStr}</p></TooltipContent>
-                            </Tooltip></TooltipProvider>
+                                <TooltipContent onPointerDown={(e) => e.preventDefault()}><p>Asignado el {assignedDateStr}</p></TooltipContent>
+                            </Tooltip>
                            )}
                           </div>
                         </SelectItem>)
@@ -451,10 +444,10 @@ export function AddManualAssignmentDialog({
                           <div className="flex items-center justify-between w-full">
                            <span>{`${loc.number ? `U-${loc.number}` : loc.name} (Últ. vez: ${lastWorkedDates.get(loc.id) || 'Nunca'})`}</span>
                            {showWarning && (
-                            <TooltipProvider><Tooltip>
+                            <Tooltip>
                                 <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
-                                <TooltipContent><p>Asignado el {assignedDateStr}</p></TooltipContent>
-                            </Tooltip></TooltipProvider>
+                                <TooltipContent onPointerDown={(e) => e.preventDefault()}><p>Asignado el {assignedDateStr}</p></TooltipContent>
+                            </Tooltip>
                            )}
                           </div>
                         </SelectItem>)
@@ -474,16 +467,16 @@ export function AddManualAssignmentDialog({
                     <FormControl><SelectTrigger><SelectValue placeholder={!selectedTime || selectedTime === NO_SELECTION ? "Selecciona hora primero" : "Seleccionar publicador"} /></SelectTrigger></FormControl>
                     <SelectContent>
                         {availablePublishers.map(p => {
-                            const isAssignedThisMonth = p.id ? assignedTerritoriesInMonthMap.has(p.id) : (p.firebaseAuthUid ? assignedTerritoriesInMonthMap.has(p.firebaseAuthUid) : false);
+                            const assignmentsThisMonth = allAssignments.filter(a => (a.userId === p.id || a.userId === p.firebaseAuthUid) && isWithinInterval(parseISO(a.date), { start: startOfMonth(assignmentDate!), end: endOfMonth(assignmentDate!) }) ).length;
                            return (
                           <SelectItem key={p.id} value={p.firebaseAuthUid || p.id}>
                               <div className="flex items-center justify-between w-full">
                                 <span>{p.name}</span>
-                                {isAssignedThisMonth && (
-                                  <TooltipProvider><Tooltip>
-                                      <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
-                                      <TooltipContent><p>Ya asignado este mes</p></TooltipContent>
-                                  </Tooltip></TooltipProvider>
+                                {assignmentsThisMonth > 0 && (
+                                  <Tooltip>
+                                      <TooltipTrigger asChild><span className="text-xs text-muted-foreground ml-2">({assignmentsThisMonth})</span></TooltipTrigger>
+                                      <TooltipContent onPointerDown={(e) => e.preventDefault()}><p>Tiene {assignmentsThisMonth} asignacion(es) este mes.</p></TooltipContent>
+                                  </Tooltip>
                                 )}
                               </div>
                           </SelectItem>
@@ -513,6 +506,7 @@ export function AddManualAssignmentDialog({
             </DialogFooter>
           </form>
         </Form>
+        </TooltipProvider>
       </DialogContent>
     </Dialog>
   );
