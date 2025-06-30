@@ -180,21 +180,27 @@ export function AddManualAssignmentDialog({
     setValue('casaId', NO_SELECTION);
   }, [filterMode, setValue]);
 
-  const assignedTerritoryIdsInMonth = useMemo(() => {
-    if (!date) return new Set<string>();
-    
+  const assignedTerritoriesInMonthMap = useMemo(() => {
+    if (!date) return new Map<string, string>(); // Map<territoryId, dateString>
+
     const monthStart = startOfDay(startOfMonth(date));
     const monthEnd = endOfDay(endOfMonth(date));
-    const territoryIds = new Set<string>();
+    const territoryMap = new Map<string, string>();
 
-    allAssignments.forEach(a => {
-        const assignmentDate = parseISO(a.date);
-        if (isWithinInterval(assignmentDate, { start: monthStart, end: monthEnd })) {
-            if (a.locationId) territoryIds.add(a.locationId);
+    const assignmentsInMonth = allAssignments.filter(a => {
+        try {
+            const assignmentDate = parseISO(a.date);
+            return isWithinInterval(assignmentDate, { start: monthStart, end: monthEnd });
+        } catch (e) { return false; }
+    }).sort((a,b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
+
+    assignmentsInMonth.forEach(a => {
+        if (a.locationId && !territoryMap.has(a.locationId)) {
+            territoryMap.set(a.locationId, format(parseISO(a.date), 'dd/MM/yy'));
         }
     });
 
-    return territoryIds;
+    return territoryMap;
   }, [allAssignments, date]);
 
   const isDuringCampaign = useMemo(() => {
@@ -381,7 +387,8 @@ export function AddManualAssignmentDialog({
                  {filterMode === 'territory' ? (
                     <>
                     <FormField control={form.control} name="territoryId" render={({ field }) => (<FormItem><FormLabel>Territorio</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar territorio" /></SelectTrigger></FormControl><SelectContent>{availableTerritoriesForSelection.map(loc => {
-                        const isAlreadyAssigned = assignedTerritoryIdsInMonth.has(loc.id);
+                        const isAlreadyAssigned = assignedTerritoriesInMonthMap.has(loc.id);
+                        const assignedDateStr = assignedTerritoriesInMonthMap.get(loc.id);
                         const showWarning = isAlreadyAssigned && !isDuringCampaign;
                         return (<SelectItem key={loc.id} value={loc.id}>
                           <div className="flex items-center justify-between w-full">
@@ -389,7 +396,7 @@ export function AddManualAssignmentDialog({
                            {showWarning && (
                             <TooltipProvider><Tooltip>
                                 <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
-                                <TooltipContent><p>Ya asignado este mes</p></TooltipContent>
+                                <TooltipContent><p>Asignado el {assignedDateStr}</p></TooltipContent>
                             </Tooltip></TooltipProvider>
                            )}
                           </div>
@@ -437,7 +444,8 @@ export function AddManualAssignmentDialog({
                       </FormItem>
                     )}/>
                     <FormField control={form.control} name="territoryId" render={({ field }) => (<FormItem><FormLabel>Territorio (asociado a casa)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedCasaId || selectedCasaId === NO_SELECTION || availableTerritoriesForSelection.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedCasaId || selectedCasaId === NO_SELECTION ? "Selecciona casa primero" : (availableTerritoriesForSelection.length > 0 ? "Seleccionar territorio" : "No hay territorios asociados")} /></SelectTrigger></FormControl><SelectContent>{availableTerritoriesForSelection.map(loc => {
-                       const isAlreadyAssigned = assignedTerritoryIdsInMonth.has(loc.id);
+                       const isAlreadyAssigned = assignedTerritoriesInMonthMap.has(loc.id);
+                       const assignedDateStr = assignedTerritoriesInMonthMap.get(loc.id);
                        const showWarning = isAlreadyAssigned && !isDuringCampaign;
                         return (<SelectItem key={loc.id} value={loc.id}>
                           <div className="flex items-center justify-between w-full">
@@ -445,7 +453,7 @@ export function AddManualAssignmentDialog({
                            {showWarning && (
                             <TooltipProvider><Tooltip>
                                 <TooltipTrigger asChild><span className="h-2 w-2 rounded-full bg-amber-500 ml-2" /></TooltipTrigger>
-                                <TooltipContent><p>Ya asignado este mes</p></TooltipContent>
+                                <TooltipContent><p>Asignado el {assignedDateStr}</p></TooltipContent>
                             </Tooltip></TooltipProvider>
                            )}
                           </div>
@@ -466,7 +474,7 @@ export function AddManualAssignmentDialog({
                     <FormControl><SelectTrigger><SelectValue placeholder={!selectedTime || selectedTime === NO_SELECTION ? "Selecciona hora primero" : "Seleccionar publicador"} /></SelectTrigger></FormControl>
                     <SelectContent>
                         {availablePublishers.map(p => {
-                            const isAssignedThisMonth = p.id ? assignedTerritoryIdsInMonth.has(p.id) : (p.firebaseAuthUid ? assignedTerritoryIdsInMonth.has(p.firebaseAuthUid) : false);
+                            const isAssignedThisMonth = p.id ? assignedTerritoriesInMonthMap.has(p.id) : (p.firebaseAuthUid ? assignedTerritoriesInMonthMap.has(p.firebaseAuthUid) : false);
                            return (
                           <SelectItem key={p.id} value={p.firebaseAuthUid || p.id}>
                               <div className="flex items-center justify-between w-full">
