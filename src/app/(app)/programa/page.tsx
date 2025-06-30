@@ -18,6 +18,7 @@ import { PERMISSIONS } from "@/lib/constants";
 import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/components/programa/add-manual-assignment-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 const currentYear = new Date().getFullYear();
@@ -26,6 +27,10 @@ const months = Array.from({ length: 12 }, (_, i) => ({
   value: i,
   label: format(new Date(currentYear, i), "MMMM", { locale: es }),
 }));
+
+const DAY_OF_WEEK_MAP: Record<number, DayOfWeek> = {
+  0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday',
+};
 
 const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType | PreachingType }) => {
   const iconClass = "mr-1.5 h-4 w-4 shrink-0 text-muted-foreground";
@@ -49,6 +54,8 @@ export default function ProgramaMensualPage() {
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [summerStartDate, setSummerStartDate] = useState<string>('');
+  const [winterStartDate, setWinterStartDate] = useState<string>('');
   
   // Loading States
   const [isLoading, setIsLoading] = useState(true);
@@ -89,8 +96,12 @@ export default function ProgramaMensualPage() {
       if (docSnap.exists()) {
         const settingsData = docSnap.data() as SettingsDoc;
         setProgramScheduleSlots(settingsData.programScheduleSlots || []);
+        setSummerStartDate(settingsData.summerScheduleStartDate || '');
+        setWinterStartDate(settingsData.winterScheduleStartDate || '');
       } else {
         setProgramScheduleSlots([]);
+        setSummerStartDate('');
+        setWinterStartDate('');
       }
     });
 
@@ -415,6 +426,7 @@ export default function ProgramaMensualPage() {
   );
 
   return (
+    <TooltipProvider>
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-headline font-bold tracking-tight flex items-center">
@@ -485,12 +497,46 @@ export default function ProgramaMensualPage() {
                   const assignmentsForDay = (assignmentsToDisplay[dayString] || []).sort((a: any, b: any) => a.time.localeCompare(b.time));
                   const isToday = isSameDay(day, new Date());
                   
+                  const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(day)];
+
+                  const isSummer = (date: Date, summerStart?: string, winterStart?: string): boolean => {
+                      if (!summerStart || !winterStart) return true; // Default behavior if dates not set
+                      const dateMMDD = format(date, 'MM-dd');
+                      if (summerStart < winterStart) {
+                          return dateMMDD >= summerStart && dateMMDD < winterStart;
+                      } else { // winter wraps around the new year
+                          return dateMMDD >= summerStart || dateMMDD < winterStart;
+                      }
+                  };
+                  
+                  const currentSeason = isSummer(day, summerStartDate, winterStartDate) ? 'summer' : 'winter';
+                  
+                  const expectedSlots = programScheduleSlots.filter(slot => 
+                      slot.dayOfWeek === dayOfWeekKey && (slot.season === 'all_year' || slot.season === currentSeason)
+                  );
+                  
+                  const pendingSlotsCount = Math.max(0, expectedSlots.length - assignmentsForDay.length);
+                  const allSlotsFilled = expectedSlots.length > 0 && pendingSlotsCount === 0;
+                  const someSlotsPending = expectedSlots.length > 0 && pendingSlotsCount > 0;
+                  
                   return (
                     <Card key={dayString} className={`flex flex-col rounded-lg shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'}`}>
                       <CardHeader className="p-3 md:p-2 pb-1 flex flex-row justify-between items-center">
                         <CardTitle className="text-base md:text-xs font-semibold md:font-medium">
                           {isMobile ? format(day, "EEEE d", { locale: es }) : format(day, "d")}
                         </CardTitle>
+                        <Tooltip>
+                           <TooltipTrigger asChild>
+                              <div>
+                                {allSlotsFilled && <div className="h-2 w-2 rounded-full bg-green-500" />}
+                                {someSlotsPending && <div className="h-2 w-2 rounded-full bg-amber-500" />}
+                              </div>
+                           </TooltipTrigger>
+                            <TooltipContent>
+                                {allSlotsFilled && <p>Horarios completos para este día.</p>}
+                                {someSlotsPending && <p>{pendingSlotsCount} horario(s) pendiente(s) de asignar.</p>}
+                           </TooltipContent>
+                        </Tooltip>
                       </CardHeader>
                       <CardContent className="p-2 space-y-2 md:p-1.5 md:space-y-1.5 overflow-y-auto flex-grow min-h-[100px]">
                         {assignmentsForDay.length > 0 ? (
@@ -564,8 +610,11 @@ export default function ProgramaMensualPage() {
             allAssignments={allAssignments}
             programScheduleSlots={programScheduleSlots}
             campaigns={campaigns}
+            summerScheduleStartDate={summerStartDate}
+            winterScheduleStartDate={winterStartDate}
         />
       )}
     </div>
+    </TooltipProvider>
   );
 }
