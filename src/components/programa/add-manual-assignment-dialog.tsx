@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -108,7 +107,7 @@ export function AddManualAssignmentDialog({
   const form = useForm<ManualAssignmentFormValues>({
     resolver: zodResolver(manualAssignmentSchema),
     defaultValues: {
-        time: "",
+        time: NO_SELECTION,
         type: "publica",
         territoryId: NO_SELECTION,
         casaId: NO_SELECTION,
@@ -121,6 +120,7 @@ export function AddManualAssignmentDialog({
   const selectedType = watch("type");
   const selectedUserId = watch("userId");
   const selectedTerritoryId = watch("territoryId");
+  const selectedTime = watch("time");
 
   const assignmentDate = date || (assignmentToEdit ? parseISO(assignmentToEdit!.date) : null);
   
@@ -144,11 +144,11 @@ export function AddManualAssignmentDialog({
                 territoryId: assignmentToEdit.locationId || NO_SELECTION,
                 casaId: assignmentToEdit.casaId || NO_SELECTION,
                 userId: assignmentToEdit.userId || NO_SELECTION,
-                notes: assignmentToEdit.notes,
+                notes: assignmentToEdit.notes || "",
             });
         } else {
             form.reset({
-                time: "",
+                time: NO_SELECTION,
                 type: "publica",
                 territoryId: NO_SELECTION,
                 casaId: NO_SELECTION,
@@ -161,10 +161,10 @@ export function AddManualAssignmentDialog({
 
   useEffect(() => {
     const currentTime = form.getValues('time');
-    if (currentTime && !availableTimeSlots.some(slot => slot.startTime === currentTime)) {
-        form.setValue('time', '', { shouldValidate: true });
+    if (currentTime && currentTime !== NO_SELECTION && !availableTimeSlots.some(slot => slot.startTime === currentTime)) {
+        form.setValue('time', NO_SELECTION, { shouldValidate: true });
     }
-  }, [availableTimeSlots, form]);
+  }, [availableTimeSlots, form, selectedType]);
 
 
   const assignedInMonth = useMemo(() => {
@@ -246,8 +246,12 @@ export function AddManualAssignmentDialog({
 
   
   const availablePublishers = useMemo(() => {
-    if (!assignmentDate) return [];
-    return allPublishers.filter(p => {
+    if (!assignmentDate || !selectedTime || selectedTime === NO_SELECTION) {
+      return [];
+    }
+
+    // First, filter publishers based on their general status and unavailability for the day
+    let filteredByDay = allPublishers.filter(p => {
         const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable);
         if (!isAllowedStatus) return false;
         if (p.blockInfo?.forSystem) return false;
@@ -259,7 +263,29 @@ export function AddManualAssignmentDialog({
         if (isUnavailable) return false;
         return true;
     });
-  }, [allPublishers, assignmentDate]);
+
+    // Now, filter by the specific time slot
+    if (selectedType) {
+        const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(assignmentDate)];
+        const filterType = selectedType === 'publica' ? 'general' : selectedType;
+        const selectedSlot = programScheduleSlots.find(slot => 
+            slot.dayOfWeek === dayOfWeekKey && 
+            slot.type === filterType && 
+            slot.startTime === selectedTime
+        );
+
+        if (selectedSlot) {
+            filteredByDay = filteredByDay.filter(p => 
+                p.availability?.availableSlotIds?.includes(selectedSlot.id)
+            );
+        } else {
+            return []; // No matching slot found for this time, so no one is available.
+        }
+    }
+    
+    return filteredByDay;
+
+  }, [allPublishers, assignmentDate, selectedTime, selectedType, programScheduleSlots]);
   
   const selectedCaptain = useMemo(() => {
       if (!selectedUserId) return null;
@@ -307,7 +333,10 @@ export function AddManualAssignmentDialog({
                   <FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="publica">Pública</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select><FormMessage /></FormItem>
               )}/>
               <FormField control={form.control} name="time" render={({ field }) => (
-                 <FormItem><FormLabel>Hora</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedType || availableTimeSlots.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedType ? "Selecciona tipo" : (availableTimeSlots.length > 0 ? "Selecciona hora" : "No hay horarios")} /></SelectTrigger></FormControl><SelectContent>{availableTimeSlots.map(t => <SelectItem key={t.id} value={t.startTime}>{t.startTime}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+                 <FormItem><FormLabel>Hora</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedType || availableTimeSlots.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedType ? "Selecciona tipo" : (availableTimeSlots.length > 0 ? "Selecciona hora" : "No hay horarios")} /></SelectTrigger></FormControl><SelectContent>
+                    <SelectItem value={NO_SELECTION}>-- No Seleccionado --</SelectItem>
+                    {availableTimeSlots.map(t => <SelectItem key={t.id} value={t.startTime}>{t.startTime}</SelectItem>)}
+                 </SelectContent></Select><FormMessage /></FormItem>
              )}/>
             </div>
             
@@ -385,11 +414,11 @@ export function AddManualAssignmentDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Publicador Encargado</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar publicador" /></SelectTrigger></FormControl>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={!selectedTime || selectedTime === NO_SELECTION}>
+                    <FormControl><SelectTrigger><SelectValue placeholder={!selectedTime || selectedTime === NO_SELECTION ? "Selecciona hora primero" : "Seleccionar publicador"} /></SelectTrigger></FormControl>
                     <SelectContent>
                         <SelectItem value={NO_SELECTION}>-- No Seleccionado --</SelectItem>
-                      {availablePublishers.map(p => (
+                        {availablePublishers.map(p => (
                           <SelectItem key={p.id} value={p.firebaseAuthUid || p.id}>
                               <div className="flex items-center justify-between w-full">
                                 <span>{p.name}</span>
@@ -401,7 +430,10 @@ export function AddManualAssignmentDialog({
                                 )}
                               </div>
                           </SelectItem>
-                      ))}
+                        ))}
+                        {selectedTime && selectedTime !== NO_SELECTION && availablePublishers.length === 0 && (
+                             <div className="text-center text-xs text-muted-foreground p-2">No hay publicadores disponibles para este horario.</div>
+                        )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
