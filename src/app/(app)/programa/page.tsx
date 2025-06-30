@@ -48,6 +48,7 @@ export default function ProgramaMensualPage() {
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   
   // Loading States
   const [isLoading, setIsLoading] = useState(true);
@@ -93,7 +94,20 @@ export default function ProgramaMensualPage() {
       }
     });
 
-    const unsubscribers = [unsubPublishers, unsubCasas, unsubTerritories, unsubAssignments, unsubSettings];
+    const eventsConfigRef = doc(db, "settings", "specialEventsConfig");
+    const unsubEvents = onSnapshot(eventsConfigRef, (docSnap) => {
+      if (docSnap.exists()) {
+          const settings = docSnap.data() as SettingsDoc;
+          const campaignsList = (settings.campaignsList || []).map(c => ({ 
+              ...c, 
+              startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : c.startDate,
+              endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : c.endDate
+          }));
+          setCampaigns(campaignsList as Campaign[]);
+      }
+    });
+
+    const unsubscribers = [unsubPublishers, unsubCasas, unsubTerritories, unsubAssignments, unsubSettings, unsubEvents];
     const timer = setTimeout(() => setIsLoading(false), 1500); 
     
     return () => {
@@ -161,8 +175,8 @@ export default function ProgramaMensualPage() {
       userPhoneNumber: publisher.phoneNumber || undefined,
       assignedGroupId: publisher.assignedGroupId || undefined,
       notes: data.notes || '',
-      updatedAt: serverTimestamp() as Timestamp,
-      createdAt: data.id ? (assignmentToEdit?.createdAt || serverTimestamp()) : serverTimestamp() as Timestamp,
+      updatedAt: Timestamp.now(),
+      createdAt: data.id ? (assignmentToEdit?.createdAt || Timestamp.now()) : Timestamp.now(),
     };
     
     if (data.type !== 'zoom') {
@@ -271,7 +285,7 @@ export default function ProgramaMensualPage() {
 
             const potentialPublishers = allPublishers
                 .filter(p => {
-                    const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable);
+                    const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable === true);
                     if (!isAllowedStatus) return false;
                     const userKey = p.firebaseAuthUid || p.id;
                     if (assignmentsToday.includes(userKey)) return false;
@@ -317,7 +331,7 @@ export default function ProgramaMensualPage() {
                 casaAddress: casa.address, status: 'pending', assignedBy: 'Sistema Automático', userId: userIdToAssign,
                 userName: publisher.name, userEmail: publisher.email, userPhoneNumber: publisher.phoneNumber || undefined,
                 assignedGroupId: publisher.assignedGroupId || undefined, notes: assignmentNotes,
-                createdAt: serverTimestamp() as Timestamp, updatedAt: serverTimestamp() as Timestamp, isDraft: true
+                createdAt: Timestamp.now(), updatedAt: Timestamp.now(), isDraft: true
             };
 
             newDrafts.push(newAssignmentData as Assignment);
@@ -549,6 +563,7 @@ export default function ProgramaMensualPage() {
             allCasas={allCasas}
             allAssignments={allAssignments}
             programScheduleSlots={programScheduleSlots}
+            campaigns={campaigns}
         />
       )}
     </div>
