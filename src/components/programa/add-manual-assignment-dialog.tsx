@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -106,7 +106,14 @@ export function AddManualAssignmentDialog({
   
   const form = useForm<ManualAssignmentFormValues>({
     resolver: zodResolver(manualAssignmentSchema),
-    defaultValues: {},
+    defaultValues: {
+        time: "",
+        type: "publica",
+        territoryId: NO_SELECTION,
+        casaId: NO_SELECTION,
+        userId: NO_SELECTION,
+        notes: "",
+    },
   });
   
   const { watch, setValue } = form;
@@ -227,7 +234,7 @@ export function AddManualAssignmentDialog({
   const availablePublishers = useMemo(() => {
     if (!assignmentDate) return [];
     return allPublishers.filter(p => {
-        const isAllowedStatus = p.status === 'Activo' || (p.isAssignable);
+        const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable);
         if (!isAllowedStatus) return false;
         if (p.blockInfo?.forSystem) return false;
         const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
@@ -264,7 +271,7 @@ export function AddManualAssignmentDialog({
     setIsSubmitting(false);
   }
 
-  const dialogDescription = (isEditMode && assignmentToEdit?.userName)
+  const dialogDescription = (isEditMode && assignmentToEdit)
     ? `Editando asignación para ${assignmentToEdit.userName}`
     : date 
         ? `Añadiendo asignación para el ${format(date, 'PPP', {locale: es})}`
@@ -285,9 +292,9 @@ export function AddManualAssignmentDialog({
                <FormField control={form.control} name="type" render={({ field }) => (
                   <FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar tipo" /></SelectTrigger></FormControl><SelectContent><SelectItem value="publica">Pública</SelectItem><SelectItem value="rural">Rural</SelectItem><SelectItem value="zoom">Zoom</SelectItem></SelectContent></Select><FormMessage /></FormItem>
               )}/>
-               <FormField control={form.control} name="time" render={({ field }) => (
-                  <FormItem><FormLabel>Hora</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedType || availableTimeSlots.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedType ? "Selecciona un tipo" : "Selecciona hora"} /></SelectTrigger></FormControl><SelectContent>{availableTimeSlots.length > 0 ? availableTimeSlots.map(t => <SelectItem key={t.id} value={t.startTime}>{t.startTime}</SelectItem>) : <SelectItem value="" disabled>No hay horarios</SelectItem>}</SelectContent></Select><FormMessage /></FormItem>
-              )}/>
+              <FormField control={form.control} name="time" render={({ field }) => (
+                 <FormItem><FormLabel>Hora</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedType || availableTimeSlots.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedType ? "Selecciona tipo primero" : (availableTimeSlots.length > 0 ? "Selecciona hora" : "No hay horarios disponibles")} /></SelectTrigger></FormControl><SelectContent>{availableTimeSlots.map(t => <SelectItem key={t.id} value={t.startTime}>{t.startTime}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+             )}/>
             </div>
             
             {selectedType !== 'zoom' && (
