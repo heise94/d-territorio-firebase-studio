@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -957,7 +956,7 @@ export default function UsuariosPage() {
                   {blockForm.formState.errors.forSystem && <p className="text-sm font-medium text-destructive">{blockForm.formState.errors.forSystem.message}</p>}
                 </div>
                 <FormField
-                  control={blockForm.control}
+                  control={form.control}
                   name="reason"
                   render={({ field }) => (
                     <FormItem><Label>Razón del Bloqueo (Opcional)</Label><FormControl><Textarea placeholder="Ej: Inactividad, solicitud del usuario, etc." {...field} /></FormControl></FormItem>

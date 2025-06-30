@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -27,10 +26,6 @@ const months = Array.from({ length: 12 }, (_, i) => ({
   label: format(new Date(currentYear, i), "MMMM", { locale: es }),
 }));
 
-const DAY_OF_WEEK_MAP: Record<number, DayOfWeek> = {
-  0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday',
-};
-
 const PreachingTypeIcon = ({ type }: { type: PreachingAssignedType | PreachingType }) => {
   const iconClass = "mr-1.5 h-4 w-4 shrink-0 text-muted-foreground";
   if (type === "publica" || type === "general") return <Users className={iconClass} />;
@@ -51,6 +46,7 @@ export default function ProgramaMensualPage() {
   const [allCasas, setAllCasas] = useState<Casa[]>([]);
   const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
+  const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   
   // Loading States
   const [isLoading, setIsLoading] = useState(true);
@@ -86,7 +82,17 @@ export default function ProgramaMensualPage() {
         toast({title: "Error de Carga", description: "No se pudieron obtener las asignaciones.", variant: "destructive"});
     });
     
-    const unsubscribers = [unsubPublishers, unsubCasas, unsubTerritories, unsubAssignments];
+    const settingsDocRef = doc(db, "settings", "programConfig");
+    const unsubSettings = onSnapshot(settingsDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const settingsData = docSnap.data() as SettingsDoc;
+        setProgramScheduleSlots(settingsData.programScheduleSlots || []);
+      } else {
+        setProgramScheduleSlots([]);
+      }
+    });
+
+    const unsubscribers = [unsubPublishers, unsubCasas, unsubTerritories, unsubAssignments, unsubSettings];
     const timer = setTimeout(() => setIsLoading(false), 1500); 
     
     return () => {
@@ -210,12 +216,11 @@ export default function ProgramaMensualPage() {
         if (a.locationId) territoryAssignmentsCount[a.locationId] = (territoryAssignmentsCount[a.locationId] || 0) + 1;
     });
     
-    const seasonalScheduleSlots = programScheduleSlots; // Assuming no seasonal logic for now.
-
     for (let i = 0; i < getDaysInMonth(monthStartDate); i++) {
         const currentDate = addDays(monthStartDate, i);
-        const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(currentDate)];
-        const slotsForThisDay = seasonalScheduleSlots.filter(s => s.dayOfWeek === dayOfWeekKey);
+        const dayOfWeekKey = getDay(currentDate) === 0 ? 'sunday' : format(currentDate, 'eeee', { locale: es }).toLowerCase() as DayOfWeek;
+
+        const slotsForThisDay = programScheduleSlots.filter(s => s.dayOfWeek === dayOfWeekKey);
 
         for (const slot of slotsForThisDay) {
             const assignmentExists = [...existingAssignmentsInMonth, ...newDrafts].some(a =>
@@ -540,6 +545,7 @@ export default function ProgramaMensualPage() {
             allTerritories={allTerritories}
             allCasas={allCasas}
             allAssignments={allAssignments}
+            programScheduleSlots={programScheduleSlots}
         />
       )}
     </div>
