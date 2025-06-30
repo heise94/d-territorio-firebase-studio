@@ -349,7 +349,6 @@ export function AddManualAssignmentDialog({
               )}/>
               <FormField control={form.control} name="time" render={({ field }) => (
                  <FormItem><FormLabel>Hora</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedType || availableTimeSlots.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedType ? "Selecciona tipo" : (availableTimeSlots.length > 0 ? "Selecciona hora" : "No hay horarios")} /></SelectTrigger></FormControl><SelectContent>
-                    <SelectItem value={NO_SELECTION}>-- No Seleccionado --</SelectItem>
                     {availableTimeSlots.map(t => <SelectItem key={t.id} value={t.startTime}>{t.startTime}</SelectItem>)}
                  </SelectContent></Select><FormMessage /></FormItem>
              )}/>
@@ -405,7 +404,16 @@ export function AddManualAssignmentDialog({
                     </>
                  ) : (
                     <>
-                    <FormField control={form.control} name="casaId" render={({ field }) => (<FormItem><FormLabel>Casa de Reunión</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={availableCasasOnDate.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={availableCasasOnDate.length > 0 ? "Seleccionar casa" : "No hay casas disponibles"} /></SelectTrigger></FormControl><SelectContent>{availableCasasOnDate.map(loc => (<SelectItem key={loc.id} value={loc.id}>{loc.ownerName}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                    <FormField control={form.control} name="casaId" render={({ field }) => (
+                      <FormItem><FormLabel>Casa de Reunión</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={!selectedTime || selectedTime === NO_SELECTION || availableCasasForSelectedSlot.length === 0}>
+                          <FormControl><SelectTrigger>
+                              <SelectValue placeholder={!selectedTime || selectedTime === NO_SELECTION ? "Selecciona hora primero" : (availableCasasForSelectedSlot.length > 0 ? "Seleccionar casa" : "No hay casas disponibles para este horario")} />
+                          </SelectTrigger></FormControl>
+                          <SelectContent>{availableCasasForSelectedSlot.map(loc => (<SelectItem key={loc.id} value={loc.id}>{loc.ownerName}</SelectItem>))}</SelectContent>
+                        </Select><FormMessage />
+                      </FormItem>
+                    )}/>
                     <FormField control={form.control} name="territoryId" render={({ field }) => (<FormItem><FormLabel>Territorio (asociado a casa)</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedCasaId || selectedCasaId === NO_SELECTION || availableTerritoriesForSelection.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedCasaId || selectedCasaId === NO_SELECTION ? "Selecciona casa primero" : (availableTerritoriesForSelection.length > 0 ? "Seleccionar territorio" : "No hay territorios asociados")} /></SelectTrigger></FormControl><SelectContent>{availableTerritoriesForSelection.map(loc => (<SelectItem key={loc.id} value={loc.id}>{`${loc.number ? `U-${loc.number}` : loc.name} (Últ. vez: ${lastWorkedDates.get(loc.id) || 'Nunca'})`}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)}/>
                     </>
                  )}
