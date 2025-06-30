@@ -44,7 +44,7 @@ const manualAssignmentSchema = z.object({
   type: z.enum(["publica", "rural", "zoom"], { required_error: "Debe seleccionar un tipo." }),
   territoryId: z.string().optional(),
   casaId: z.string().optional(),
-  userId: z.string().min(1, "Debe seleccionar un publicador.").refine(val => val !== NO_SELECTION, "Debe seleccionar un publicador."),
+  userId: z.string().min(1, "Debes seleccionar un publicador.").refine(val => val !== NO_SELECTION, "Debe seleccionar un publicador."),
   notes: z.string().max(500).optional(),
   filterMode: z.enum(["territory", "casa"]).default("territory"),
 }).superRefine((data, ctx) => {
@@ -227,8 +227,8 @@ export function AddManualAssignmentDialog({
     if (!assignmentDate || !campaigns) return false;
     const currentAssignmentDate = startOfDay(assignmentDate);
     return campaigns.some(campaign => {
-        const startDate = startOfDay(campaign.startDate instanceof Timestamp ? campaign.startDate.toDate() : new Date(campaign.startDate));
-        const endDate = endOfDay(campaign.endDate instanceof Timestamp ? campaign.endDate.toDate() : new Date(campaign.endDate));
+        const startDate = startOfDay((campaign.startDate as Timestamp).toDate());
+        const endDate = endOfDay((campaign.endDate as Timestamp).toDate());
         return isWithinInterval(currentAssignmentDate, { start: startDate, end: endDate });
     });
   }, [assignmentDate, campaigns]);
@@ -401,29 +401,58 @@ export function AddManualAssignmentDialog({
                 />
                  {filterMode === 'territory' ? (
                     <>
-                    <FormField control={form.control} name="territoryId" render={({ field }) => (<FormItem><FormLabel>Territorio</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar territorio" /></SelectTrigger></FormControl><SelectContent>{availableTerritoriesForSelection.map(loc => {
-                        const isAlreadyAssigned = assignedTerritoriesInMonthMap.has(loc.id);
-                        const assignedDateStr = assignedTerritoriesInMonthMap.get(loc.id);
-                        const showWarning = isAlreadyAssigned && !isDuringCampaign;
-                        const tooltipContent = showWarning ? `Asignado el ${assignedDateStr}` : `Última vez trabajado: ${lastWorkedDates.get(loc.id) || 'Nunca'}`;
-                        return (
-                          <Tooltip key={loc.id}>
-                            <TooltipTrigger asChild>
-                              <SelectItem value={loc.id}>
-                                <div className="flex items-center justify-between w-full">
-                                  <span className="flex items-center">
-                                    {showWarning && <span className="h-2 w-2 rounded-full bg-amber-500 mr-2" />}
-                                    {`${loc.number ? `U-${loc.number}` : loc.name}`}
-                                  </span>
-                                </div>
-                              </SelectItem>
-                            </TooltipTrigger>
-                            <TooltipContent onPointerDown={(e) => e.preventDefault()}>
-                              <p>{tooltipContent}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )
-                    })}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                    <FormField
+                      control={form.control}
+                      name="territoryId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Territorio</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar territorio" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {availableTerritoriesForSelection.map((loc) => {
+                                const lastWorkedStr = lastWorkedDates.get(loc.id) || 'Nunca';
+                                const territoryName = loc.number ? `U-${loc.number}` : loc.name;
+                                const assignedDateStr = assignedTerritoriesInMonthMap.get(loc.id);
+                                const isAlreadyAssigned = !!assignedDateStr;
+                                const showWarning = isAlreadyAssigned && !isDuringCampaign;
+                                
+                                return (
+                                  <SelectItem key={loc.id} value={loc.id}>
+                                    <div className="flex items-center justify-between w-full">
+                                      <div className="flex items-center gap-2">
+                                        {showWarning && (
+                                          <div className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                                        )}
+                                        <div>
+                                          <span className="font-medium">{territoryName}</span>
+                                          <span className="text-xs text-muted-foreground ml-2">
+                                            (Últ. vez: {lastWorkedStr})
+                                          </span>
+                                          {showWarning && (
+                                            <span className="text-xs text-amber-600 font-semibold ml-2">
+                                              - Asignado el {assignedDateStr}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <FormField
                         control={form.control}
                         name="casaId"
@@ -431,20 +460,18 @@ export function AddManualAssignmentDialog({
                             const territory = allTerritories.find(t => t.id === selectedTerritoryId);
                             const associatedIds = new Set(territory?.associatedCasaIds || []);
                             const suggestedCasas = availableCasasForSelectedSlot.filter(c => associatedIds.has(c.id));
-                            const otherAvailableCasas = availableCasasForSelectedSlot.filter(c => !associatedIds.has(c.id));
                             
                             return (
                                 <FormItem>
                                     <FormLabel>Casa de Reunión</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value} disabled={!selectedTerritoryId || selectedTerritoryId === NO_SELECTION || availableCasasForSelectedSlot.length === 0}>
+                                    <Select onValueChange={field.onChange} value={field.value} disabled={!selectedTerritoryId || selectedTerritoryId === NO_SELECTION || suggestedCasas.length === 0}>
                                         <FormControl>
                                             <SelectTrigger>
-                                                <SelectValue placeholder={!selectedTerritoryId || selectedTerritoryId === NO_SELECTION ? "Selecciona territorio y horario" : (availableCasasForSelectedSlot.length > 0 ? "Seleccionar casa" : "No hay casas disponibles")} />
+                                                <SelectValue placeholder={!selectedTerritoryId || selectedTerritoryId === NO_SELECTION ? "Selecciona territorio y horario" : (suggestedCasas.length > 0 ? "Seleccionar casa sugerida" : "No hay casas cercanas para este horario")} />
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
                                             {suggestedCasas.length > 0 && <SelectGroup><SelectLabel>Casas Cercanas Sugeridas</SelectLabel>{suggestedCasas.map(loc => (<SelectItem key={loc.id} value={loc.id}>{loc.ownerName}</SelectItem>))}</SelectGroup>}
-                                            {otherAvailableCasas.length > 0 && <SelectGroup><SelectLabel>Otras Casas Disponibles</SelectLabel>{otherAvailableCasas.map(loc => (<SelectItem key={loc.id} value={loc.id}>{loc.ownerName}</SelectItem>))}</SelectGroup>}
                                         </SelectContent>
                                     </Select>
                                     <FormMessage />
@@ -470,21 +497,26 @@ export function AddManualAssignmentDialog({
                        const assignedDateStr = assignedTerritoriesInMonthMap.get(loc.id);
                        const showWarning = isAlreadyAssigned && !isDuringCampaign;
                         return (
-                          <Tooltip key={loc.id}>
-                            <TooltipTrigger asChild>
-                              <SelectItem value={loc.id}>
+                           <SelectItem key={loc.id} value={loc.id}>
                                 <div className="flex items-center justify-between w-full">
-                                <span className="flex items-center">
-                                    {showWarning && <span className="h-2 w-2 rounded-full bg-amber-500 mr-2" />}
-                                    {`${loc.number ? `U-${loc.number}` : loc.name} (Últ. vez: ${lastWorkedDates.get(loc.id) || 'Nunca'})`}
-                                </span>
+                                  <div className="flex items-center gap-2">
+                                    {showWarning && (
+                                      <div className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                                    )}
+                                    <div>
+                                      <span className="font-medium">{loc.number ? `U-${loc.number}` : loc.name}</span>
+                                      <span className="text-xs text-muted-foreground ml-2">
+                                        (Últ. vez: {lastWorkedDates.get(loc.id) || 'Nunca'})
+                                      </span>
+                                      {showWarning && (
+                                        <span className="text-xs text-amber-600 font-semibold ml-2">
+                                          - Asignado el {assignedDateStr}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               </SelectItem>
-                            </TooltipTrigger>
-                             <TooltipContent onPointerDown={(e) => e.preventDefault()}>
-                                {showWarning ? <p>Asignado el {assignedDateStr}</p> : <p>Disponible</p>}
-                            </TooltipContent>
-                          </Tooltip>
                         )
                     })}</SelectContent></Select><FormMessage /></FormItem>)}/>
                     </>
