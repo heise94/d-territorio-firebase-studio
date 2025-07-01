@@ -422,7 +422,16 @@ export default function ProgramaMensualPage() {
                 
                 const details = [];
                 if (assign.locationName) details.push(`Territorio: ${assign.locationName}`);
-                if (assign.casaName) details.push(`Casa: ${assign.casaName}`);
+                if (assign.casaName || assign.casaAddress) {
+                    let casaInfo = 'Casa: ';
+                    if (assign.casaName) {
+                        casaInfo += assign.casaName;
+                    }
+                    if (assign.casaAddress) {
+                        casaInfo += `${assign.casaName ? ' - ' : ''}${assign.casaAddress}`;
+                    }
+                    details.push(casaInfo);
+                }
                 
                 if (details.length > 0) {
                     line += ` (${details.join(', ')})`;
@@ -475,7 +484,7 @@ export default function ProgramaMensualPage() {
   const daysInMonth = getDaysInMonth(firstDayOfMonth);
   const startingDayOfWeek = getDay(firstDayOfMonth);
   const dayOffset = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
-  const calendarDays = Array.from({ length: daysInMonth }, (_, i) => new Date(selectedYear, selectedMonth, i + 1));
+  const calendarDays = Array.from({ length: daysInMonth }, (_, i) => addDays(firstDayOfMonth, i));
 
   const AssignmentItem = ({ assignment, onEdit, onDelete }: { assignment: Assignment, onEdit: () => void, onDelete: () => void }) => (
     <div className="text-sm md:text-xs group relative p-2 md:p-1.5 rounded-md bg-muted/30 shadow-sm hover:bg-muted/70 transition-colors min-h-[60px] flex flex-col justify-start">
@@ -707,3 +716,5 @@ export default function ProgramaMensualPage() {
     </TooltipProvider>
   );
 }
+
+    
