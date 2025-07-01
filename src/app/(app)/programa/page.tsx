@@ -11,7 +11,7 @@ import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, parseISO, addDays, isWithinInterval } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Assignment, PreachingAssignedType, UserProfile, Casa, Territory, Campaign, Assembly, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType } from "@/types";
+import type { Assignment, PreachingAssignedType, UserProfile, Casa, Territory, Campaign, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType } from "@/types";
 import { AlertDialog, AlertDialogTrigger, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
@@ -177,7 +177,7 @@ export default function ProgramaMensualPage() {
         return;
     }
     
-    const newAssignment: Omit<Assignment, 'id'> & { id: string } = {
+    const newAssignmentData: Omit<Assignment, 'id'> & { id: string } = {
       id: docRef.id,
       date: format(data.date, "yyyy-MM-dd"),
       time: data.time,
@@ -197,7 +197,7 @@ export default function ProgramaMensualPage() {
     };
 
     if (publisher.assignedGroupId) {
-        newAssignment.assignedGroupId = publisher.assignedGroupId;
+        newAssignmentData.assignedGroupId = publisher.assignedGroupId;
     }
     
     if (data.type !== 'zoom') {
@@ -208,15 +208,15 @@ export default function ProgramaMensualPage() {
             return;
         }
         const territoryDisplayName = territory.type === 'urban' && territory.number ? `U-${territory.number}` : territory.name;
-        newAssignment.locationName = territoryDisplayName;
-        newAssignment.territoryName = territoryDisplayName;
-        newAssignment.casaName = casa?.ownerName;
-        newAssignment.casaAddress = casa?.address;
+        newAssignmentData.locationName = territoryDisplayName;
+        newAssignmentData.territoryName = territoryDisplayName;
+        newAssignmentData.casaName = casa?.ownerName;
+        newAssignmentData.casaAddress = casa?.address;
     } else {
-        newAssignment.locationName = "Predicación por Zoom";
+        newAssignmentData.locationName = "Predicación por Zoom";
     }
 
-    batch.set(docRef, newAssignment, { merge: true });
+    batch.set(docRef, newAssignmentData, { merge: true });
     
     try {
         await batch.commit();
@@ -412,9 +412,7 @@ export default function ProgramaMensualPage() {
         const dataUrl = await toPng(imageRef.current, { 
             cacheBust: true, 
             pixelRatio: 2.5, // Increased for better quality
-            style: {
-              fontFamily: "'Inter', sans-serif",
-            },
+            fontEmbedCSS: cssText,
         });
         const link = document.createElement('a');
         const monthName = format(new Date(selectedYear, selectedMonth), "MMMM-yyyy", { locale: es });
@@ -672,11 +670,13 @@ export default function ProgramaMensualPage() {
             allAssignments={allAssignments}
             programScheduleSlots={programScheduleSlots}
             campaigns={campaigns}
-            summerScheduleStartDate={summerStartDate}
-            winterScheduleStartDate={winterStartDate}
+            summerScheduleStartDate={summerScheduleStartDate}
+            winterScheduleStartDate={winterScheduleStartDate}
         />
       )}
     </div>
     </TooltipProvider>
   );
 }
+
+    
