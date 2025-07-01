@@ -565,7 +565,7 @@ export default function ProgramaMensualPage() {
                       }
                   };
                   
-                  const currentSeason = isSummer(day, summerScheduleStartDate, winterScheduleStartDate) ? 'summer' : 'winter';
+                  const currentSeason = isSummer(day, summerStartDate, winterStartDate) ? 'summer' : 'winter';
                   
                   const expectedSlots = programScheduleSlots.filter(slot => 
                       slot.dayOfWeek === dayOfWeekKey && (slot.season === 'all_year' || slot.season === currentSeason)
