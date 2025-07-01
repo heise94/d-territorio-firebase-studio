@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot, Home, Image as ImageIcon } from "lucide-react";
+import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot, Home } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, parseISO, addDays, isWithinInterval } from 'date-fns';
@@ -19,8 +19,6 @@ import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/co
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { toPng } from 'html-to-image';
-import { MonthlyScheduleImage } from "@/components/programa/monthly-schedule-image";
 
 
 const currentYear = new Date().getFullYear();
@@ -48,7 +46,6 @@ export default function ProgramaMensualPage() {
   const { toast } = useToast();
   const { userProfile, hasPermission } = usePermissions();
   const isMobile = useIsMobile();
-  const imageRef = useRef<HTMLDivElement>(null);
 
   // Data States
   const [allPublishers, setAllPublishers] = useState<UserProfile[]>([]);
@@ -65,7 +62,7 @@ export default function ProgramaMensualPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingSystem, setIsGeneratingSystem] = useState(false);
   const [isSavingDrafts, setIsSavingDrafts] = useState(false);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
 
   // Dialog States
   const [isAddManualDialogOpen, setIsAddManualDialogOpen] = useState(false);
@@ -400,37 +397,58 @@ export default function ProgramaMensualPage() {
     toast({ title: "Borrador Descartado", description: "El programa generado ha sido eliminado." });
   };
 
-  const handleGenerateImage = useCallback(async () => {
-    if (!imageRef.current) {
-        toast({ title: "Error", description: "No se encontró el contenido para generar la imagen.", variant: "destructive" });
-        return;
-    }
-    setIsGeneratingImage(true);
-    toast({ title: "Generando imagen...", description: "Esto puede tardar unos segundos." });
+  const handleCopyToText = async () => {
+    setIsCopying(true);
+    const monthName = format(new Date(selectedYear, selectedMonth), "MMMM yyyy", { locale: es });
+    let programText = `PROGRAMA DE PREDICACIÓN - ${monthName.toUpperCase()}\n\n`;
+
+    calendarDays.forEach(day => {
+        const dayString = format(day, "yyyy-MM-dd");
+        const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(day)];
+        const assignmentsForDay = (assignmentsToDisplay[dayString] || []).sort((a,b) => a.time.localeCompare(b.time));
+        const isGroupDay = groupOrganizedDays.includes(dayOfWeekKey);
+
+        programText += `**${format(day, "EEEE dd", { locale: es }).toUpperCase()}**\n`;
+
+        if (assignmentsForDay.length > 0) {
+            assignmentsForDay.forEach(assign => {
+                const typeText = assign.type.charAt(0).toUpperCase() + assign.type.slice(1);
+                let line = `- ${assign.time} - ${typeText}: ${assign.userName}`;
+                
+                const details = [];
+                if (assign.locationName) details.push(`Territorio: ${assign.locationName}`);
+                if (assign.casaName) details.push(`Casa: ${assign.casaName}`);
+                
+                if (details.length > 0) {
+                    line += ` (${details.join(', ')})`;
+                }
+                programText += `${line}\n`;
+            });
+        } else if (isGroupDay) {
+            programText += "Predicación por Grupo\n";
+        } else {
+            programText += "(Sin asignaciones)\n";
+        }
+        programText += "\n";
+    });
 
     try {
-        const fontURL = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
-        const response = await fetch(fontURL);
-        const cssText = await response.text();
-        
-        const dataUrl = await toPng(imageRef.current, { 
-            cacheBust: true, 
-            pixelRatio: 2.5, // Increased for better quality
-            fontEmbedCSS: cssText,
+        await navigator.clipboard.writeText(programText);
+        toast({
+            title: "Programa Copiado",
+            description: "El programa del mes ha sido copiado a tu portapapeles como texto.",
         });
-        const link = document.createElement('a');
-        const monthName = format(new Date(selectedYear, selectedMonth), "MMMM-yyyy", { locale: es });
-        link.download = `programa-${monthName}.png`;
-        link.href = dataUrl;
-        link.click();
-        toast({ title: "¡Imagen Generada!", description: "La descarga de la imagen ha comenzado." });
     } catch (err) {
-        console.error('Oops, something went wrong!', err);
-        toast({ title: "Error al generar imagen", description: "No se pudo crear la imagen del programa.", variant: "destructive" });
+        console.error('Failed to copy text: ', err);
+        toast({
+            title: "Error al Copiar",
+            description: "No se pudo copiar el texto. Revisa los permisos de tu navegador.",
+            variant: "destructive",
+        });
     } finally {
-        setIsGeneratingImage(false);
+        setIsCopying(false);
     }
-  }, [selectedMonth, selectedYear, toast]);
+};
 
 
   const assignmentsToDisplay = useMemo(() => {
@@ -526,9 +544,9 @@ export default function ProgramaMensualPage() {
                   </Button>
                 )
               )}
-              <Button onClick={handleGenerateImage} disabled={isLoading || isGeneratingImage} variant="outline" className="w-full sm:w-auto">
-                {isGeneratingImage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-2 h-4 w-4" />}
-                Generar Imagen
+               <Button onClick={handleCopyToText} disabled={isLoading || isCopying} variant="outline" className="w-full sm:w-auto">
+                {isCopying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                Copiar a Texto
               </Button>
             </div>
           </div>
@@ -638,14 +656,6 @@ export default function ProgramaMensualPage() {
         </CardContent>
       </Card>
 
-      <MonthlyScheduleImage 
-        ref={imageRef}
-        assignments={allAssignments}
-        year={selectedYear}
-        month={selectedMonth}
-        groupOrganizedDays={groupOrganizedDays}
-      />
-      
       <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
         <AlertDialogContent>
             <AlertDialogHeader>
@@ -675,7 +685,7 @@ export default function ProgramaMensualPage() {
             programScheduleSlots={programScheduleSlots}
             campaigns={campaigns}
             summerScheduleStartDate={summerStartDate}
-            winterScheduleStartDate={winterStartDate}
+            winterScheduleStartDate={winterScheduleStartDate}
         />
       )}
     </div>
