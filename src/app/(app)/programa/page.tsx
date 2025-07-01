@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MonthlyScheduleImage } from '@/components/programa/monthly-schedule-image';
+import { cn } from "@/lib/utils";
 
 
 const currentYear = new Date().getFullYear();
