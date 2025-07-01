@@ -227,8 +227,10 @@ export function AddManualAssignmentDialog({
     if (!assignmentDate || !campaigns) return false;
     const currentAssignmentDate = startOfDay(assignmentDate);
     return campaigns.some(campaign => {
-        const startDate = startOfDay((campaign.startDate as Timestamp).toDate());
-        const endDate = endOfDay((campaign.endDate as Timestamp).toDate());
+        const start = campaign.startDate instanceof Timestamp ? campaign.startDate.toDate() : new Date(campaign.startDate);
+        const end = campaign.endDate instanceof Timestamp ? campaign.endDate.toDate() : new Date(campaign.endDate);
+        const startDate = startOfDay(start);
+        const endDate = endOfDay(end);
         return isWithinInterval(currentAssignmentDate, { start: startDate, end: endDate });
     });
   }, [assignmentDate, campaigns]);
@@ -284,9 +286,14 @@ export function AddManualAssignmentDialog({
       if (t.isBlocked) return false;
       const isCorrectType = t.type === (selectedType === 'rural' ? 'rural' : 'urban');
       if (!isCorrectType) return false;
-      if (filterMode === 'casa' && selectedCasaId && selectedCasaId !== NO_SELECTION) {
-        return t.associatedCasaIds?.includes(selectedCasaId);
+      
+      if (filterMode === 'casa') {
+        if (selectedCasaId && selectedCasaId !== NO_SELECTION) {
+          return t.associatedCasaIds?.includes(selectedCasaId) ?? false;
+        }
+        return false;
       }
+      
       return true;
     }).sort((a, b) => {
       const dateA = lastWorkedDates.get(a.id) ? parse(lastWorkedDates.get(a.id)!, 'dd/MM/yy', new Date()).getTime() : 0;
@@ -377,7 +384,6 @@ export function AddManualAssignmentDialog({
                  <FormItem><FormLabel>Hora</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={!selectedType || availableTimeSlots.length === 0}><FormControl><SelectTrigger><SelectValue placeholder={!selectedType ? "Selecciona tipo primero" : (availableTimeSlots.length > 0 ? "Selecciona hora" : "No hay horarios")} /></SelectTrigger></FormControl><SelectContent>
                     {availableTimeSlots.length > 0 && <SelectItem value={NO_SELECTION}>Seleccionar hora</SelectItem>}
                     {availableTimeSlots.map(t => <SelectItem key={t.id} value={t.startTime}>{t.startTime}</SelectItem>)}
-                    {availableTimeSlots.length === 0 && <SelectItem value={NO_SELECTION} disabled>No hay horarios disponibles</SelectItem>}
                  </SelectContent></Select><FormMessage /></FormItem>
              )}/>
             </div>
@@ -425,26 +431,35 @@ export function AddManualAssignmentDialog({
                                 const showWarning = isAlreadyAssigned && !isDuringCampaign;
                                 
                                 return (
-                                  <SelectItem key={loc.id} value={loc.id}>
-                                    <div className="flex items-center justify-between w-full">
-                                      <div className="flex items-center gap-2">
-                                        {showWarning && (
-                                          <div className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                                        )}
-                                        <div>
-                                          <span className="font-medium">{territoryName}</span>
-                                          <span className="text-xs text-muted-foreground ml-2">
-                                            (Últ. vez: {lastWorkedStr})
-                                          </span>
-                                          {showWarning && (
-                                            <span className="text-xs text-amber-600 font-semibold ml-2">
-                                              - Asignado el {assignedDateStr}
-                                            </span>
-                                          )}
+                                  <Tooltip key={loc.id}>
+                                    <TooltipTrigger asChild>
+                                      <SelectItem value={loc.id}>
+                                        <div className="flex items-center justify-between w-full">
+                                          <div className="flex items-center gap-2">
+                                            {showWarning && (
+                                              <div className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                                            )}
+                                            <div>
+                                              <span className="font-medium">{territoryName}</span>
+                                              <span className="text-xs text-muted-foreground ml-2">
+                                                (Últ. vez: {lastWorkedStr})
+                                              </span>
+                                              {showWarning && (
+                                                <span className="text-xs text-amber-600 font-semibold ml-2">
+                                                  - Asignado el {assignedDateStr}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
                                         </div>
-                                      </div>
-                                    </div>
-                                  </SelectItem>
+                                      </SelectItem>
+                                    </TooltipTrigger>
+                                    {showWarning && (
+                                      <TooltipContent onPointerDown={(e) => e.preventDefault()}>
+                                          <p>Asignado el {assignedDateStr}</p>
+                                      </TooltipContent>
+                                    )}
+                                  </Tooltip>
                                 );
                               })}
                             </SelectContent>
@@ -497,7 +512,9 @@ export function AddManualAssignmentDialog({
                        const assignedDateStr = assignedTerritoriesInMonthMap.get(loc.id);
                        const showWarning = isAlreadyAssigned && !isDuringCampaign;
                         return (
-                           <SelectItem key={loc.id} value={loc.id}>
+                          <Tooltip key={loc.id}>
+                            <TooltipTrigger asChild>
+                           <SelectItem value={loc.id}>
                                 <div className="flex items-center justify-between w-full">
                                   <div className="flex items-center gap-2">
                                     {showWarning && (
@@ -517,6 +534,13 @@ export function AddManualAssignmentDialog({
                                   </div>
                                 </div>
                               </SelectItem>
+                            </TooltipTrigger>
+                             {showWarning && (
+                                <TooltipContent onPointerDown={(e) => e.preventDefault()}>
+                                    <p>Asignado el {assignedDateStr}</p>
+                                </TooltipContent>
+                            )}
+                           </Tooltip>
                         )
                     })}</SelectContent></Select><FormMessage /></FormItem>)}/>
                     </>
