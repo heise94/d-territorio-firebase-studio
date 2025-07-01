@@ -41,12 +41,12 @@ export const MonthlyScheduleImage = forwardRef<HTMLDivElement, MonthlyScheduleIm
       .calendar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px; }
       .day-card { background-color: #f9f9f9; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); padding: 10px; display: flex; flex-direction: column; min-height: 150px; }
       .day-header { background-color: #a5d6a7; color: #333; padding: 6px 10px; border-radius: 5px; font-weight: bold; display: inline-block; margin-bottom: 8px; font-size: 0.9rem; text-transform: capitalize; }
-      .holiday-header { background-color: #80deea; color: #006064; }
+      .holiday-header { background-color: #fecaca; color: #991b1b; }
       .event-details { margin-bottom: 8px; }
       .event-details > div { display: flex; align-items: flex-start; margin-bottom: 3px; color: #555; font-size: 0.8rem; line-height: 1.3; }
       .event-details span { flex-grow: 1; }
       .group-day { font-weight: bold; text-align: center; color: #333; padding: 10px; }
-      .holiday-text { font-weight: bold; text-align: center; color: #006064; padding: 10px; }
+      .holiday-text { font-weight: bold; text-align: center; color: #991b1b; padding: 10px; }
     `;
 
     const firstDayOfMonth = startOfMonth(new Date(year, month));

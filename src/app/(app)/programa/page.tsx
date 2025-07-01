@@ -21,6 +21,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MonthlyScheduleImage } from '@/components/programa/monthly-schedule-image';
 import { cn } from "@/lib/utils";
+import { toPng } from 'html-to-image';
 
 
 const currentYear = new Date().getFullYear();
@@ -309,6 +310,38 @@ export default function ProgramaMensualPage() {
     }
 };
 
+  const handleGenerateImage = useCallback(async () => {
+    if (!imageRef.current) {
+        toast({ title: "Error", description: "No se encontró el contenido para generar la imagen.", variant: "destructive" });
+        return;
+    }
+    setIsCopying(true);
+    toast({ title: "Generando imagen...", description: "Esto puede tardar unos segundos." });
+
+    try {
+        const fontURL = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+        const response = await fetch(fontURL);
+        const cssText = await response.text();
+        
+        const dataUrl = await toPng(imageRef.current, { 
+            cacheBust: true, 
+            pixelRatio: 2.5,
+            fontEmbedCSS: cssText,
+        });
+
+        const link = document.createElement('a');
+        link.download = `programa-${format(new Date(selectedYear, selectedMonth), "MMMM-yyyy", { locale: es })}.png`;
+        link.href = dataUrl;
+        link.click();
+        toast({ title: "¡Imagen Generada!", description: "La descarga de la imagen ha comenzado." });
+    } catch (err) {
+        console.error('oops, something went wrong!', err);
+        toast({ title: "Error al generar imagen", description: "No se pudo crear la imagen del programa.", variant: "destructive" });
+    } finally {
+        setIsCopying(false);
+    }
+  }, [selectedMonth, selectedYear, toast]);
+
 
   const assignmentsToDisplay = useMemo(() => {
     const combinedAssignments = [...allAssignments];
@@ -439,7 +472,7 @@ export default function ProgramaMensualPage() {
                   const dayCardClasses = cn(
                       'flex flex-col rounded-lg shadow-sm', 
                       isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card',
-                      holidayForDay && 'bg-teal-50 dark:bg-teal-900/20 border-teal-300 dark:border-teal-700/40'
+                      holidayForDay && 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700/40'
                   );
 
                   return (
@@ -452,7 +485,7 @@ export default function ProgramaMensualPage() {
                             {holidayForDay && (
                                 <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Badge variant="outline" className="text-xs px-1.5 py-0.5 border-teal-500 text-teal-700 bg-teal-100 dark:text-teal-300 dark:bg-teal-800/50 dark:border-teal-600 cursor-default">
+                                    <Badge variant="outline" className="text-xs px-1.5 py-0.5 border-red-500 text-red-700 bg-red-100 dark:text-red-300 dark:bg-red-800/50 dark:border-red-600 cursor-default">
                                     <Gift size={10}/>
                                     </Badge>
                                 </TooltipTrigger>
@@ -507,16 +540,14 @@ export default function ProgramaMensualPage() {
         </CardContent>
       </Card>
       
-      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-        <MonthlyScheduleImage
-          ref={imageRef}
-          assignments={allAssignments}
-          year={selectedYear}
-          month={selectedMonth}
-          groupOrganizedDays={groupOrganizedDays}
-          customHolidays={customHolidays}
-        />
-      </div>
+      <MonthlyScheduleImage
+        ref={imageRef}
+        assignments={allAssignments}
+        year={selectedYear}
+        month={selectedMonth}
+        groupOrganizedDays={groupOrganizedDays}
+        customHolidays={customHolidays}
+      />
 
       <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
         <AlertDialogContent>
