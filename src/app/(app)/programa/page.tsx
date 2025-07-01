@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot, Home } from "lucide-react";
+import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot, Home, Gift } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, parseISO, addDays, isWithinInterval } from 'date-fns';
@@ -56,6 +56,7 @@ export default function ProgramaMensualPage() {
   const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   const [summerStartDate, setSummerStartDate] = useState<string>('');
   const [winterStartDate, setWinterStartDate] = useState<string>('');
   const [groupOrganizedDays, setGroupOrganizedDays] = useState<DayOfWeek[]>([]);
@@ -115,7 +116,12 @@ export default function ProgramaMensualPage() {
               startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate),
               endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate)
           }));
+          const holidaysList = (settings.holidaysList || []).map(h => ({
+              ...h,
+              date: h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date)
+          }));
           setCampaigns(campaignsList as Campaign[]);
+          setCustomHolidays(holidaysList as CustomHoliday[]);
       }
     });
 
@@ -239,8 +245,17 @@ export default function ProgramaMensualPage() {
         const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(day)];
         const assignmentsForDay = (assignmentsToDisplay[dayString] || []).sort((a,b) => a.time.localeCompare(b.time));
         const isGroupDay = groupOrganizedDays.includes(dayOfWeekKey);
+        
+        const holidayForDay = customHolidays.find(h => {
+            const holidayDate = h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date);
+            return isSameDay(holidayDate, day);
+        });
 
-        programText += `**${format(day, "EEEE dd", { locale: es }).toUpperCase()}**\n`;
+        programText += `**${format(day, "EEEE dd", { locale: es }).toUpperCase()}`;
+        if (holidayForDay) {
+          programText += ` (FESTIVO: ${holidayForDay.name})`;
+        }
+        programText += `**\n`;
 
         if (assignmentsForDay.length > 0) {
             assignmentsForDay.forEach(assign => {
@@ -265,8 +280,10 @@ export default function ProgramaMensualPage() {
                 }
                 programText += `${line}\n`;
             });
-        } else if (isGroupDay) {
+        } else if (isGroupDay && !holidayForDay) {
             programText += "Predicación por Grupo\n";
+        } else if (holidayForDay) {
+             programText += `(Día festivo: ${holidayForDay.name})\n`;
         } else {
             programText += "(Sin asignaciones)\n";
         }
@@ -413,24 +430,49 @@ export default function ProgramaMensualPage() {
                   const allSlotsFilled = expectedSlots.length > 0 && pendingSlotsCount === 0;
                   const someSlotsPending = expectedSlots.length > 0 && pendingSlotsCount > 0;
                   
+                  const holidayForDay = customHolidays.find(h => {
+                      const holidayDate = h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date);
+                      return isSameDay(holidayDate, day);
+                  });
+                  
+                  const dayCardClasses = cn(
+                      'flex flex-col rounded-lg shadow-sm', 
+                      isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card',
+                      holidayForDay && 'bg-teal-50 dark:bg-teal-900/20 border-teal-300 dark:border-teal-700/40'
+                  );
+
                   return (
-                    <Card key={dayString} className={`flex flex-col rounded-lg shadow-sm ${isToday ? 'border-2 border-primary bg-primary/5' : 'border bg-card'}`}>
+                    <Card key={dayString} className={dayCardClasses}>
                       <CardHeader className="p-3 md:p-2 pb-1 flex flex-row justify-between items-center">
                         <CardTitle className="text-base md:text-xs font-semibold md:font-medium">
                           {isMobile ? format(day, "EEEE d", { locale: es }) : format(day, "d")}
                         </CardTitle>
-                        <Tooltip>
-                           <TooltipTrigger asChild>
-                              <div>
-                                {allSlotsFilled && <div className="h-2 w-2 rounded-full bg-green-500" />}
-                                {someSlotsPending && <div className="h-2 w-2 rounded-full bg-amber-500" />}
-                              </div>
-                           </TooltipTrigger>
-                            <TooltipContent>
-                                {allSlotsFilled && <p>Horarios completos para este día.</p>}
-                                {someSlotsPending && <p>{pendingSlotsCount} horario(s) pendiente(s) de asignar.</p>}
-                           </TooltipContent>
-                        </Tooltip>
+                        <div className="flex items-center gap-2">
+                            {holidayForDay && (
+                                <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="text-xs px-1.5 py-0.5 border-teal-500 text-teal-700 bg-teal-100 dark:text-teal-300 dark:bg-teal-800/50 dark:border-teal-600 cursor-default">
+                                    <Gift size={10}/>
+                                    </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{holidayForDay.name}</p>
+                                </TooltipContent>
+                                </Tooltip>
+                            )}
+                            <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div>
+                                    {allSlotsFilled && <div className="h-2 w-2 rounded-full bg-green-500" />}
+                                    {someSlotsPending && <div className="h-2 w-2 rounded-full bg-amber-500" />}
+                                </div>
+                            </TooltipTrigger>
+                                <TooltipContent>
+                                    {allSlotsFilled && <p>Horarios completos para este día.</p>}
+                                    {someSlotsPending && <p>{pendingSlotsCount} horario(s) pendiente(s) de asignar.</p>}
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
                       </CardHeader>
                       <CardContent className="p-2 space-y-2 md:p-1.5 md:space-y-1.5 overflow-y-auto flex-grow min-h-[100px]">
                         {assignmentsForDay.length > 0 ? (
@@ -444,7 +486,7 @@ export default function ProgramaMensualPage() {
                            ))
                         ) : (
                             <div className="flex items-center justify-center h-full text-xs text-muted-foreground text-center">
-                                No hay asignaciones programadas.
+                                {holidayForDay ? holidayForDay.name : "No hay asignaciones programadas."}
                             </div>
                         )}
                       </CardContent>
@@ -471,6 +513,7 @@ export default function ProgramaMensualPage() {
           year={selectedYear}
           month={selectedMonth}
           groupOrganizedDays={groupOrganizedDays}
+          customHolidays={customHolidays}
         />
       </div>
 

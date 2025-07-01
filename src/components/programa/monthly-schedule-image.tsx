@@ -2,16 +2,18 @@
 "use client";
 
 import React, { forwardRef } from 'react';
-import type { Assignment, DayOfWeek } from '@/types';
-import { format, getDay, getDaysInMonth, startOfMonth, parseISO, addDays } from 'date-fns';
+import type { Assignment, DayOfWeek, CustomHoliday } from '@/types';
+import { format, getDay, getDaysInMonth, startOfMonth, parseISO, addDays, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Clock, User, MapPin, Home, Globe } from 'lucide-react';
+import { Timestamp } from 'firebase/firestore';
 
 interface MonthlyScheduleImageProps {
   assignments: Assignment[];
   year: number;
   month: number;
   groupOrganizedDays: DayOfWeek[];
+  customHolidays: CustomHoliday[];
 }
 
 const DAY_OF_WEEK_MAP_NUM_TO_KEY: Record<number, DayOfWeek> = {
@@ -26,7 +28,7 @@ const IconWrapper = ({ children }: { children: React.ReactNode }) => (
 
 
 export const MonthlyScheduleImage = forwardRef<HTMLDivElement, MonthlyScheduleImageProps>(
-  ({ assignments, year, month, groupOrganizedDays }, ref) => {
+  ({ assignments, year, month, groupOrganizedDays, customHolidays }, ref) => {
 
     const scheduleStyles = `
       body { font-family: "Inter", sans-serif; }
@@ -39,10 +41,12 @@ export const MonthlyScheduleImage = forwardRef<HTMLDivElement, MonthlyScheduleIm
       .calendar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px; }
       .day-card { background-color: #f9f9f9; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); padding: 10px; display: flex; flex-direction: column; min-height: 150px; }
       .day-header { background-color: #a5d6a7; color: #333; padding: 6px 10px; border-radius: 5px; font-weight: bold; display: inline-block; margin-bottom: 8px; font-size: 0.9rem; text-transform: capitalize; }
+      .holiday-header { background-color: #80deea; color: #006064; }
       .event-details { margin-bottom: 8px; }
       .event-details > div { display: flex; align-items: flex-start; margin-bottom: 3px; color: #555; font-size: 0.8rem; line-height: 1.3; }
       .event-details span { flex-grow: 1; }
       .group-day { font-weight: bold; text-align: center; color: #333; padding: 10px; }
+      .holiday-text { font-weight: bold; text-align: center; color: #006064; padding: 10px; }
     `;
 
     const firstDayOfMonth = startOfMonth(new Date(year, month));
@@ -77,9 +81,14 @@ export const MonthlyScheduleImage = forwardRef<HTMLDivElement, MonthlyScheduleIm
                     const dayAssignments = (assignmentsByDay[dayKey] || []).sort((a,b) => a.time.localeCompare(b.time));
                     const isGroupDay = groupOrganizedDays.includes(dayOfWeek) && dayAssignments.length === 0;
 
+                    const holidayForDay = customHolidays.find(h => {
+                        const holidayDate = h.date instanceof Timestamp ? h.date.toDate() : new Date(h.date);
+                        return isSameDay(holidayDate, day);
+                    });
+
                     return (
                         <div key={dayKey} className="day-card">
-                            <div className="day-header">{format(day, "EEEE dd", { locale: es })}</div>
+                            <div className={`day-header ${holidayForDay ? 'holiday-header' : ''}`}>{format(day, "EEEE dd", { locale: es })}{holidayForDay ? ` (${holidayForDay.name})` : ''}</div>
                             {dayAssignments.length > 0 ? (
                                 dayAssignments.map(assign => (
                                     <div key={assign.id} className="event-details">
@@ -89,6 +98,8 @@ export const MonthlyScheduleImage = forwardRef<HTMLDivElement, MonthlyScheduleIm
                                         <div><IconWrapper><Globe size={12} /></IconWrapper> <span>Territorio: {assign.locationName}</span></div>
                                     </div>
                                 ))
+                            ) : holidayForDay ? (
+                                <div className="holiday-text">{holidayForDay.name}</div>
                             ) : isGroupDay ? (
                                 <div className="group-day">Predicación por Grupo</div>
                             ) : null}
