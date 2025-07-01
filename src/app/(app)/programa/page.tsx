@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
@@ -214,6 +213,10 @@ export default function ProgramaMensualPage() {
         newAssignmentData.casaAddress = casa?.address;
     } else {
         newAssignmentData.locationName = "Predicación por Zoom";
+    }
+
+    if (newAssignmentData.assignedGroupId === undefined) {
+      delete (newAssignmentData as any).assignedGroupId;
     }
 
     batch.set(docRef, newAssignmentData, { merge: true });
@@ -561,7 +564,7 @@ export default function ProgramaMensualPage() {
                       }
                   };
                   
-                  const currentSeason = isSummer(day, summerStartDate, winterStartDate) ? 'summer' : 'winter';
+                  const currentSeason = isSummer(day, summerScheduleStartDate, winterScheduleStartDate) ? 'summer' : 'winter';
                   
                   const expectedSlots = programScheduleSlots.filter(slot => 
                       slot.dayOfWeek === dayOfWeekKey && (slot.season === 'all_year' || slot.season === currentSeason)
@@ -678,5 +681,3 @@ export default function ProgramaMensualPage() {
     </TooltipProvider>
   );
 }
-
-    
