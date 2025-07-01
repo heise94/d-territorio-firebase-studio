@@ -1,9 +1,8 @@
-
 "use client";
 
 import React, { forwardRef } from 'react';
 import type { Assignment, DayOfWeek } from '@/types';
-import { format, getDay, getDaysInMonth, startOfMonth, parseISO } from 'date-fns';
+import { format, getDay, getDaysInMonth, startOfMonth, parseISO, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Clock, User, MapPin, Home, Globe } from 'lucide-react';
 
