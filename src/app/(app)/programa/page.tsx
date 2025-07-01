@@ -184,7 +184,7 @@ export default function ProgramaMensualPage() {
       userName: publisher.name,
       userEmail: publisher.email,
       userPhoneNumber: publisher.phoneNumber || undefined,
-      assignedGroupId: publisher.assignedGroupId || undefined,
+      ...(publisher.assignedGroupId && { assignedGroupId: publisher.assignedGroupId }),
       notes: data.notes || '',
       updatedAt: Timestamp.now(),
       createdAt: data.id ? (assignmentToEdit?.createdAt || Timestamp.now()) : Timestamp.now(),
@@ -618,3 +618,4 @@ export default function ProgramaMensualPage() {
     </TooltipProvider>
   );
 }
+
