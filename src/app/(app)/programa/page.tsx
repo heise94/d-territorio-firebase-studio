@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot, Home } from "lucide-react";
+import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot, Home, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, parseISO, addDays, isWithinInterval } from 'date-fns';
@@ -19,6 +19,8 @@ import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/co
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { toPng } from 'html-to-image';
+import { MonthlyScheduleImage } from "@/components/programa/monthly-schedule-image";
 
 
 const currentYear = new Date().getFullYear();
@@ -46,6 +48,7 @@ export default function ProgramaMensualPage() {
   const { toast } = useToast();
   const { userProfile, hasPermission } = usePermissions();
   const isMobile = useIsMobile();
+  const imageRef = useRef<HTMLDivElement>(null);
 
   // Data States
   const [allPublishers, setAllPublishers] = useState<UserProfile[]>([]);
@@ -56,11 +59,13 @@ export default function ProgramaMensualPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [summerStartDate, setSummerStartDate] = useState<string>('');
   const [winterStartDate, setWinterStartDate] = useState<string>('');
+  const [groupOrganizedDays, setGroupOrganizedDays] = useState<DayOfWeek[]>([]);
   
   // Loading States
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingSystem, setIsGeneratingSystem] = useState(false);
   const [isSavingDrafts, setIsSavingDrafts] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   // Dialog States
   const [isAddManualDialogOpen, setIsAddManualDialogOpen] = useState(false);
@@ -98,10 +103,12 @@ export default function ProgramaMensualPage() {
         setProgramScheduleSlots(settingsData.programScheduleSlots || []);
         setSummerStartDate(settingsData.summerScheduleStartDate || '');
         setWinterStartDate(settingsData.winterScheduleStartDate || '');
+        setGroupOrganizedDays(settingsData.groupOrganizedDays || []);
       } else {
         setProgramScheduleSlots([]);
         setSummerStartDate('');
         setWinterStartDate('');
+        setGroupOrganizedDays([]);
       }
     });
 
@@ -389,6 +396,40 @@ export default function ProgramaMensualPage() {
     toast({ title: "Borrador Descartado", description: "El programa generado ha sido eliminado." });
   };
 
+  const handleGenerateImage = useCallback(async () => {
+    if (!imageRef.current) {
+        toast({ title: "Error", description: "No se encontró el contenido para generar la imagen.", variant: "destructive" });
+        return;
+    }
+    setIsGeneratingImage(true);
+    toast({ title: "Generando imagen...", description: "Esto puede tardar unos segundos." });
+
+    try {
+        const fontURL = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+        const response = await fetch(fontURL);
+        const cssText = await response.text();
+        
+        const dataUrl = await toPng(imageRef.current, { 
+            cacheBust: true, 
+            pixelRatio: 2.5, // Increased for better quality
+            style: {
+              fontFamily: "'Inter', sans-serif",
+            },
+        });
+        const link = document.createElement('a');
+        const monthName = format(new Date(selectedYear, selectedMonth), "MMMM-yyyy", { locale: es });
+        link.download = `programa-${monthName}.png`;
+        link.href = dataUrl;
+        link.click();
+        toast({ title: "¡Imagen Generada!", description: "La descarga de la imagen ha comenzado." });
+    } catch (err) {
+        console.error('Oops, something went wrong!', err);
+        toast({ title: "Error al generar imagen", description: "No se pudo crear la imagen del programa.", variant: "destructive" });
+    } finally {
+        setIsGeneratingImage(false);
+    }
+  }, [selectedMonth, selectedYear, toast]);
+
 
   const assignmentsToDisplay = useMemo(() => {
     const combinedAssignments = [...allAssignments, ...draftAssignments];
@@ -463,9 +504,9 @@ export default function ProgramaMensualPage() {
                 </Select>
               </div>
             </div>
-            {hasPermission(PERMISSIONS.GENERATE_MONTHLY_PROGRAM) && (
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                {draftAssignments.length > 0 ? (
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              {hasPermission(PERMISSIONS.GENERATE_MONTHLY_PROGRAM) && (
+                draftAssignments.length > 0 ? (
                   <>
                     <Button onClick={handleSaveDrafts} disabled={isLoading || isSavingDrafts} className="w-full sm:w-auto bg-green-600 hover:bg-green-700">
                       {isSavingDrafts ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -481,9 +522,13 @@ export default function ProgramaMensualPage() {
                     {isGeneratingSystem ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SettingsIcon className="mr-2 h-4 w-4" />}
                     Generar con Sistema
                   </Button>
-                )}
-              </div>
-            )}
+                )
+              )}
+              <Button onClick={handleGenerateImage} disabled={isLoading || isGeneratingImage} variant="outline" className="w-full sm:w-auto">
+                {isGeneratingImage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-2 h-4 w-4" />}
+                Generar Imagen
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -590,6 +635,14 @@ export default function ProgramaMensualPage() {
           )}
         </CardContent>
       </Card>
+
+      <MonthlyScheduleImage 
+        ref={imageRef}
+        assignments={allAssignments}
+        year={selectedYear}
+        month={selectedMonth}
+        groupOrganizedDays={groupOrganizedDays}
+      />
       
       <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
         <AlertDialogContent>
@@ -627,5 +680,3 @@ export default function ProgramaMensualPage() {
     </TooltipProvider>
   );
 }
-
-    
