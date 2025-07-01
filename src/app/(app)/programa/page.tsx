@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot } from "lucide-react";
+import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot, Home } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, parseISO, addDays, isWithinInterval } from 'date-fns';
@@ -184,11 +184,14 @@ export default function ProgramaMensualPage() {
       userName: publisher.name,
       userEmail: publisher.email,
       userPhoneNumber: publisher.phoneNumber || undefined,
-      ...(publisher.assignedGroupId && { assignedGroupId: publisher.assignedGroupId }),
       notes: data.notes || '',
       updatedAt: Timestamp.now(),
       createdAt: data.id ? (assignmentToEdit?.createdAt || Timestamp.now()) : Timestamp.now(),
     };
+
+    if (publisher.assignedGroupId) {
+        newAssignment.assignedGroupId = publisher.assignedGroupId;
+    }
     
     if (data.type !== 'zoom') {
         const territory = allTerritories.find(t => t.id === data.territoryId);
@@ -409,13 +412,19 @@ export default function ProgramaMensualPage() {
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => new Date(selectedYear, selectedMonth, i + 1));
 
   const AssignmentItem = ({ assignment, onEdit, onDelete }: { assignment: Assignment, onEdit: () => void, onDelete: () => void }) => (
-    <div className="text-sm md:text-xs group relative p-2 md:p-1.5 rounded-md bg-muted/30 shadow-sm hover:bg-muted/70 transition-colors min-h-[60px] flex flex-col justify-center">
+    <div className="text-sm md:text-xs group relative p-2 md:p-1.5 rounded-md bg-muted/30 shadow-sm hover:bg-muted/70 transition-colors min-h-[60px] flex flex-col justify-start">
         {assignment.isDraft && (
             <Badge variant="outline" className="absolute -top-1.5 -left-1.5 text-xs px-1 py-0 border-amber-500 text-amber-600 bg-amber-500/10 z-10">Borrador</Badge>
         )}
         <div className="flex items-center font-semibold text-primary"><PreachingTypeIcon type={assignment.type} /><span>{assignment.time}</span></div>
         <p className="truncate font-medium text-foreground/90" title={assignment.userName}>{assignment.userName}</p>
         <p className="truncate text-muted-foreground" title={assignment.locationName}>{assignment.locationName}</p>
+        {(assignment.type === 'publica' || assignment.type === 'rural') && assignment.casaName && (
+            <p className="truncate text-muted-foreground text-[11px] flex items-center mt-0.5" title={assignment.casaName}>
+                <Home className="h-3 w-3 mr-1 shrink-0" />
+                {assignment.casaName}
+            </p>
+        )}
         {canManageProgram && (
             <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
                 <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEdit} disabled={assignment.isDraft}><Edit className="h-3 w-3 text-blue-600" /></Button>
@@ -619,3 +628,4 @@ export default function ProgramaMensualPage() {
   );
 }
 
+    
