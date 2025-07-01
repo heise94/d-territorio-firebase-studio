@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { PermissionsProvider, usePermissions } from '@/hooks/use-permissions';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav';
 import { Notifications } from '@/components/layout/notifications';
 import { cn } from '@/lib/utils';
@@ -56,12 +56,7 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
         <div className="flex-1 overflow-y-auto no-scrollbar">
           <SidebarNav isCollapsed={isSidebarCollapsed} />
         </div>
-        <div className="mt-auto border-t p-2">
-            <Button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} variant="ghost" size="icon" className="w-full h-10">
-                <ChevronLeft className={cn("h-5 w-5 transition-transform", isSidebarCollapsed && "rotate-180")} />
-                <span className="sr-only">Contraer menú</span>
-            </Button>
-        </div>
+        {/* The collapse button has been moved to the main header */}
       </div>
       <div className="flex flex-col">
         {isImpersonating && userProfile && (
@@ -107,6 +102,17 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
                 </div>
             </SheetContent>
           </Sheet>
+          
+          {/* New Sidebar Toggle Button for Desktop */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 hidden md:flex"
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          >
+            <ChevronLeft className={cn("h-5 w-5 transition-transform", isSidebarCollapsed && "rotate-180")} />
+            <span className="sr-only">Contraer menú</span>
+          </Button>
            
            <div className="w-full flex-1" />
            <Notifications />
