@@ -175,11 +175,13 @@ export function AddCasaDialog({
   async function onSubmit(values: CasaFormValues) {
     setIsSubmitting(true);
 
+    const isDuplication = isEditMode && casaToEdit && casaToEdit.ownerName.startsWith("Copia de ");
+
     const submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] } = {
-      id: isEditMode && casaToEdit ? casaToEdit.id : crypto.randomUUID(),
+      id: isDuplication ? crypto.randomUUID() : (isEditMode && casaToEdit ? casaToEdit.id : crypto.randomUUID()),
       ownerName: values.ownerName,
       address: values.address,
-      createdAt: isEditMode && casaToEdit ? casaToEdit.createdAt : Timestamp.now(),
+      createdAt: isDuplication || !isEditMode ? Timestamp.now() : casaToEdit.createdAt,
       updatedAt: Timestamp.now(),
       selectedNearbyTerritoryIds: values.selectedNearbyTerritoryIds || [],
     };
@@ -208,8 +210,10 @@ export function AddCasaDialog({
         submittedCasaData.addedByGroupId = undefined; 
     }
     
-    if (!isEditMode) {
+    if (!isEditMode || isDuplication) {
         submittedCasaData.lastVisitedAt = undefined;
+    } else if (isEditMode && casaToEdit.lastVisitedAt) {
+        submittedCasaData.lastVisitedAt = casaToEdit.lastVisitedAt;
     }
 
     submittedCasaData.unavailabilityPeriods = (values.unavailabilityPeriods || []).map(p => ({
@@ -219,13 +223,13 @@ export function AddCasaDialog({
       reason: p.reason || undefined,
     }));
 
-    if (isEditMode && casaToEdit && casaToEdit.blockInfo) {
+    if (isEditMode && !isDuplication && casaToEdit.blockInfo) {
         submittedCasaData.blockInfo = casaToEdit.blockInfo;
     }
     
     onCasaSubmit(submittedCasaData);
     
-    if (!isEditMode) form.reset(); 
+    if (!isEditMode || isDuplication) form.reset(); 
     setIsSubmitting(false);
   }
 
@@ -557,4 +561,3 @@ export function AddCasaDialog({
     </Dialog>
   );
 }
-

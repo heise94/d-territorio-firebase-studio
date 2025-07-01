@@ -311,11 +311,9 @@ export default function CasasPage() {
   const handleOpenDuplicateDialog = (casa: Casa) => {
     const duplicatedCasaData = {
       ...casa,
-      id: crypto.randomUUID(),
+      // Pass the original ID so the dialog can find associated territories
       ownerName: `Copia de ${casa.ownerName}`,
       address: "", // Force user to enter new address
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
       blockInfo: undefined, // Do not copy block info
     };
     setCasaToEdit(duplicatedCasaData as Casa);
