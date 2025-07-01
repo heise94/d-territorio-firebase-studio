@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,6 +19,7 @@ import { AddManualAssignmentDialog, type ManualAssignmentSubmitData } from "@/co
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { MonthlyScheduleImage } from '@/components/programa/monthly-schedule-image';
 
 
 const currentYear = new Date().getFullYear();
@@ -46,6 +47,7 @@ export default function ProgramaMensualPage() {
   const { toast } = useToast();
   const { userProfile, hasPermission } = usePermissions();
   const isMobile = useIsMobile();
+  const imageRef = useRef<HTMLDivElement>(null);
 
   // Data States
   const [allPublishers, setAllPublishers] = useState<UserProfile[]>([]);
@@ -115,8 +117,8 @@ export default function ProgramaMensualPage() {
           const settings = docSnap.data() as SettingsDoc;
           const campaignsList = (settings.campaignsList || []).map(c => ({ 
               ...c, 
-              startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : c.startDate,
-              endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : c.endDate
+              startDate: c.startDate instanceof Timestamp ? c.startDate.toDate() : new Date(c.startDate),
+              endDate: c.endDate instanceof Timestamp ? c.endDate.toDate() : new Date(c.endDate)
           }));
           setCampaigns(campaignsList as Campaign[]);
       }
@@ -188,6 +190,7 @@ export default function ProgramaMensualPage() {
       userName: publisher.name,
       userEmail: publisher.email,
       userPhoneNumber: publisher.phoneNumber || undefined,
+      assignedGroupId: publisher.assignedGroupId,
       notes: data.notes || '',
       updatedAt: Timestamp.now(),
       createdAt: data.id ? (assignmentToEdit?.createdAt || Timestamp.now()) : Timestamp.now(),
@@ -195,6 +198,8 @@ export default function ProgramaMensualPage() {
 
     if (publisher.assignedGroupId) {
         newAssignmentData.assignedGroupId = publisher.assignedGroupId;
+    } else {
+        delete (newAssignmentData as any).assignedGroupId;
     }
     
     if (data.type !== 'zoom') {
@@ -655,6 +660,16 @@ export default function ProgramaMensualPage() {
           )}
         </CardContent>
       </Card>
+      
+      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+        <MonthlyScheduleImage
+          ref={imageRef}
+          assignments={[...allAssignments, ...draftAssignments]}
+          year={selectedYear}
+          month={selectedMonth}
+          groupOrganizedDays={groupOrganizedDays}
+        />
+      </div>
 
       <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
         <AlertDialogContent>
@@ -685,7 +700,7 @@ export default function ProgramaMensualPage() {
             programScheduleSlots={programScheduleSlots}
             campaigns={campaigns}
             summerScheduleStartDate={summerStartDate}
-            winterScheduleStartDate={winterScheduleStartDate}
+            winterScheduleStartDate={winterStartDate}
         />
       )}
     </div>
