@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, Filter, X as XIcon, LayoutGrid, List, ChevronLeft, ChevronRight } from "lucide-react";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, Filter, X as XIcon, LayoutGrid, List, ChevronLeft, ChevronRight, Copy } from "lucide-react";
 import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType, Territory } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -307,6 +307,20 @@ export default function CasasPage() {
     setCasaToEdit(casa);
     setIsCasaDialogOpen(true);
   };
+  
+  const handleOpenDuplicateDialog = (casa: Casa) => {
+    const duplicatedCasaData = {
+      ...casa,
+      id: crypto.randomUUID(),
+      ownerName: `Copia de ${casa.ownerName}`,
+      address: "", // Force user to enter new address
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      blockInfo: undefined, // Do not copy block info
+    };
+    setCasaToEdit(duplicatedCasaData as Casa);
+    setIsCasaDialogOpen(true);
+  };
 
   const handleCasaSubmit = async (
     submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] }
@@ -316,7 +330,7 @@ export default function CasasPage() {
       return;
     }
     
-    const isActualEditOperation = !!casaToEdit; 
+    const isActualEditOperation = !!casas.find(c => c.id === submittedCasaData.id);
     const casaIdToUse = submittedCasaData.id; 
 
     const dataForCasaDoc: { [key: string]: any } = {
@@ -324,7 +338,7 @@ export default function CasasPage() {
         ownerName: submittedCasaData.ownerName,
         address: submittedCasaData.address,
         updatedAt: Timestamp.now(),
-        createdAt: submittedCasaData.createdAt,
+        createdAt: isActualEditOperation ? submittedCasaData.createdAt : Timestamp.now(),
     };
     
     const optionalFields: (keyof Casa)[] = ['phoneNumber', 'notes', 'notesForSS', 'addedByGroupId', 'isSuitableForRural', 'lastVisitedAt'];
@@ -543,6 +557,7 @@ export default function CasasPage() {
   const renderCasaActions = (casa: Casa) => (
     <div className="flex items-center justify-center gap-0.5">
       {canManageCasas && (
+        <>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
@@ -551,6 +566,16 @@ export default function CasasPage() {
           </TooltipTrigger>
           <TooltipContent><p>Editar</p></TooltipContent>
         </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" onClick={() => handleOpenDuplicateDialog(casa)} aria-label="Duplicar casa" className="h-8 w-8">
+                <Copy className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent><p>Duplicar</p></TooltipContent>
+        </Tooltip>
+        </>
       )}
 
       {canManageCasas && (
