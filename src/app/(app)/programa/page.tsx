@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
@@ -673,8 +674,8 @@ export default function ProgramaMensualPage() {
             allAssignments={allAssignments}
             programScheduleSlots={programScheduleSlots}
             campaigns={campaigns}
-            summerScheduleStartDate={summerScheduleStartDate}
-            winterScheduleStartDate={winterScheduleStartDate}
+            summerScheduleStartDate={summerStartDate}
+            winterScheduleStartDate={winterStartDate}
         />
       )}
     </div>
