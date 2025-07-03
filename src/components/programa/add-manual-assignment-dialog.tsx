@@ -153,14 +153,31 @@ export function AddManualAssignmentDialog({
     
     const currentSeason = isSummer(assignmentDate, summerScheduleStartDate, winterScheduleStartDate) ? 'summer' : 'winter';
 
-    return programScheduleSlots
+    const baseSlots = programScheduleSlots
       .filter(slot => 
         slot.dayOfWeek === dayOfWeekKey && 
         slot.type === filterType &&
         (slot.season === 'all_year' || slot.season === currentSeason)
-      )
-      .sort((a,b) => a.startTime.localeCompare(b.startTime));
-  }, [selectedType, assignmentDate, programScheduleSlots, summerScheduleStartDate, winterScheduleStartDate]);
+      );
+    
+    // Add the currently saved time to the list if editing, to prevent it from disappearing
+    if (isEditMode && assignmentToEdit && assignmentToEdit.type === selectedType) {
+        const existingTime = assignmentToEdit.time;
+        if (!baseSlots.some(slot => slot.startTime === existingTime)) {
+            const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(parseISO(assignmentToEdit.date))];
+            baseSlots.push({
+                id: `edit-temp-${existingTime}`,
+                startTime: existingTime,
+                dayOfWeek: dayOfWeekKey,
+                type: assignmentToEdit.type === 'publica' ? 'general' : assignmentToEdit.type,
+                status: 'fixed',
+                season: 'all_year'
+            });
+        }
+    }
+    
+    return baseSlots.sort((a,b) => a.startTime.localeCompare(b.startTime));
+  }, [selectedType, assignmentDate, programScheduleSlots, summerScheduleStartDate, winterScheduleStartDate, isEditMode, assignmentToEdit]);
 
   useEffect(() => {
       if (isOpen) {
@@ -190,10 +207,11 @@ export function AddManualAssignmentDialog({
 
   useEffect(() => {
     const currentTime = form.getValues('time');
-    if (currentTime && currentTime !== NO_SELECTION && !availableTimeSlots.some(slot => slot.startTime === currentTime)) {
+    // Only reset time if it's not the one from the item being edited.
+    if (!isEditMode && currentTime && currentTime !== NO_SELECTION && !availableTimeSlots.some(slot => slot.startTime === currentTime)) {
         form.setValue('time', NO_SELECTION, { shouldValidate: true });
     }
-  }, [availableTimeSlots, form, selectedType]);
+  }, [availableTimeSlots, form, selectedType, isEditMode]);
 
   useEffect(() => {
     setValue('territoryId', NO_SELECTION);

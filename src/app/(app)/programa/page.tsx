@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot, Home, Gift } from "lucide-react";
+import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot, Home, Gift, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, parseISO, addDays, isWithinInterval } from 'date-fns';
@@ -364,26 +364,69 @@ export default function ProgramaMensualPage() {
   const dayOffset = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => addDays(firstDayOfMonth, i));
 
-  const AssignmentItem = ({ assignment, onEdit, onDelete }: { assignment: Assignment, onEdit: () => void, onDelete: () => void }) => (
-    <div className="text-sm md:text-xs group relative p-2 md:p-1.5 rounded-md bg-muted/30 shadow-sm hover:bg-muted/70 transition-colors min-h-[60px] flex flex-col justify-start">
-        
-        <div className="flex items-center font-semibold text-primary"><PreachingTypeIcon type={assignment.type} /><span>{assignment.time}</span></div>
-        <p className="truncate font-medium text-foreground/90" title={assignment.userName}>{assignment.userName}</p>
-        <p className="truncate text-muted-foreground" title={assignment.locationName}>{assignment.locationName}</p>
-        {(assignment.type === 'publica' || assignment.type === 'rural') && assignment.casaName && (
-            <p className="truncate text-muted-foreground text-[11px] flex items-center mt-0.5" title={assignment.casaName}>
-                <Home className="h-3 w-3 mr-1 shrink-0" />
-                {assignment.casaName}
-            </p>
-        )}
-        {canManageProgram && (
-            <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
-                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEdit}><Edit className="h-3 w-3 text-blue-600" /></Button>
-                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onDelete}><Trash2 className="h-3 w-3 text-destructive" /></Button>
-            </div>
-        )}
-    </div>
-  );
+  const AssignmentItem = ({ assignment, onEdit, onDelete }: { assignment: Assignment, onEdit: () => void, onDelete: () => void }) => {
+    const publisher = allPublishers.find(p => p.id === assignment.userId || p.firebaseAuthUid === assignment.userId);
+    const assignmentDate = parseISO(assignment.date);
+    let isProblematic = assignment.status === 'rejected' || assignment.status === 'replacement_requested' || assignment.status === 'needs_manual_replacement';
+    let problemReason = "";
+
+    if (assignment.status === 'rejected') problemReason = "Rechazada por el publicador";
+    if (assignment.status === 'replacement_requested') problemReason = "El publicador solicitó reemplazo";
+    if (assignment.status === 'needs_manual_replacement') problemReason = "Necesita reemplazo manual";
+
+    if (!isProblematic && publisher?.availability?.unavailabilityPeriods) {
+        const isUnavailable = publisher.availability.unavailabilityPeriods.some(period => {
+            const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
+            const end = endOfDay(period.endDate instanceof Timestamp ? period.endDate.toDate() : new Date(period.endDate));
+            return isWithinInterval(assignmentDate, { start, end });
+        });
+        if (isUnavailable) {
+            isProblematic = true;
+            problemReason = "El publicador está no disponible en esta fecha.";
+        }
+    }
+    
+    const itemClasses = cn(
+        "text-sm md:text-xs group relative p-2 md:p-1.5 rounded-md shadow-sm hover:bg-muted/70 transition-colors min-h-[60px] flex flex-col justify-start",
+        isProblematic ? "bg-orange-100 dark:bg-orange-900/30 border border-orange-400 dark:border-orange-700/50" : "bg-muted/30"
+    );
+
+    const contentDivClasses = cn(
+        isProblematic && "pl-4"
+    );
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <div className={itemClasses}>
+                    {isProblematic && <AlertTriangle className="absolute top-1.5 left-1.5 h-3 w-3 text-orange-600 dark:text-orange-400" />}
+                    <div className={contentDivClasses}>
+                        <div className="flex items-center font-semibold text-primary"><PreachingTypeIcon type={assignment.type} /><span>{assignment.time}</span></div>
+                        <p className="truncate font-medium text-foreground/90" title={assignment.userName}>{assignment.userName}</p>
+                        <p className="truncate text-muted-foreground" title={assignment.locationName}>{assignment.locationName}</p>
+                        {(assignment.type === 'publica' || assignment.type === 'rural') && assignment.casaName && (
+                            <p className="truncate text-muted-foreground text-[11px] flex items-center mt-0.5" title={assignment.casaName}>
+                                <Home className="h-3 w-3 mr-1 shrink-0" />
+                                {assignment.casaName}
+                            </p>
+                        )}
+                    </div>
+                    {canManageProgram && (
+                        <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
+                            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEdit}><Edit className="h-3 w-3 text-blue-600" /></Button>
+                            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onDelete}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                        </div>
+                    )}
+                </div>
+            </TooltipTrigger>
+            {isProblematic && (
+                <TooltipContent side="bottom" className="bg-orange-600 text-white border-orange-700">
+                    <p>{problemReason}</p>
+                </TooltipContent>
+            )}
+        </Tooltip>
+    );
+};
 
   return (
     <TooltipProvider>
