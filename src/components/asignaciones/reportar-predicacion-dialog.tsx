@@ -27,12 +27,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import type { UserAssignment, Territory, ReportedAssignmentData, SingleTerritoryReportDetails, AdditionalTerritoryInfo, PreachingAssignedType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, FileText, MapPin, CalendarDays, Clock, Edit3, CloudOff, Map as MapIcon, ChevronDown, ChevronUp, Eye, ListChecks } from "lucide-react";
+import { Loader2, FileText, MapPin, CalendarDays, Clock, Edit3, CloudOff, Map as MapIcon, ChevronDown, ChevronUp, Eye, ListChecks, XCircle, CheckSquare, Columns2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import Image from 'next/image';
 import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 const singleTerritoryReportSchema = z.object({
   territoryId: z.string(),
@@ -65,6 +66,8 @@ interface ReportarPredicacionDialogProps {
   initialReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null;
 }
 
+type ReportMode = 'completo' | 'parcial' | 'no_trabajado';
+
 
 export function ReportarPredicacionDialog({
   isOpen,
@@ -79,6 +82,7 @@ export function ReportarPredicacionDialog({
   const isEditMode = !!initialReportData;
   const [openTerritorySections, setOpenTerritorySections] = useState<Record<string, boolean>>({});
   const [visibleMaps, setVisibleMaps] = useState<Record<string, boolean>>({});
+  const [reportModes, setReportModes] = useState<Record<string, ReportMode>>({});
 
   const form = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
@@ -142,15 +146,26 @@ export function ReportarPredicacionDialog({
       const initialReportsForForm: FormReportItem[] = [];
       const initialOpenSections: Record<string, boolean> = {};
       const initialVisibleMaps: Record<string, boolean> = {};
+      const initialModes: Record<string, ReportMode> = {};
 
       territoriesToReportForDialog.forEach((terrInfo) => {
         const existingReportForThisTerritory = initialReportData?.reports?.find(r => r.territoryId === terrInfo.id);
+        
         initialReportsForForm.push({
           territoryId: terrInfo.id,
           territoryName: terrInfo.name, 
           territoryNotWorked: existingReportForThisTerritory?.territoryNotWorked ?? false,
           workedBlocksIds: existingReportForThisTerritory?.workedBlocksIds || [],
         });
+
+        if (existingReportForThisTerritory?.territoryNotWorked) {
+            initialModes[terrInfo.id] = 'no_trabajado';
+        } else if (existingReportForThisTerritory && terrInfo.displayableBlockNumbers.length > 0 && existingReportForThisTerritory.workedBlocksIds?.length === terrInfo.displayableBlockNumbers.length) {
+            initialModes[terrInfo.id] = 'completo';
+        } else {
+            initialModes[terrInfo.id] = 'parcial';
+        }
+        
         initialOpenSections[terrInfo.id] = true; 
         initialVisibleMaps[terrInfo.id] = false; 
       });
@@ -159,33 +174,19 @@ export function ReportarPredicacionDialog({
       form.setValue("generalNotes", initialReportData?.generalNotes || "");
       form.setValue("additionalTerritorySelectedInAssignment", !!assignment?.additionalTerritorySelected);
       
+      setReportModes(initialModes);
       setOpenTerritorySections(initialOpenSections);
       setVisibleMaps(initialVisibleMaps);
 
     } else if (!isOpen) {
        replace([]); 
        form.reset({ reports: [], generalNotes: "", additionalTerritorySelectedInAssignment: false });
+       setReportModes({});
        setOpenTerritorySections({});
        setVisibleMaps({});
     }
   }, [isOpen, initialReportData, form, territoriesToReportForDialog, assignment, replace]);
 
-
-  const watchedReports = form.watch("reports");
-  useEffect(() => {
-    watchedReports.forEach((report, index) => {
-      if (report.territoryNotWorked) {
-        const currentWorkedBlocks = form.getValues(`reports.${index}.workedBlocksIds`);
-        if (currentWorkedBlocks && currentWorkedBlocks.length > 0) {
-            form.setValue(`reports.${index}.workedBlocksIds`, [], { shouldDirty: true });
-        }
-        const territoryId = form.getValues(`reports.${index}.territoryId`);
-        if (visibleMaps[territoryId]) {
-            setVisibleMaps(prev => ({ ...prev, [territoryId]: false }));
-        }
-      }
-    });
-  }, [watchedReports, form, visibleMaps]);
 
   const toggleTerritorySection = (territoryId: string) => {
     setOpenTerritorySections(prev => ({ ...prev, [territoryId]: !prev[territoryId] }));
@@ -194,6 +195,26 @@ export function ReportarPredicacionDialog({
   const toggleMapVisibility = (territoryId: string) => {
     setVisibleMaps(prev => ({ ...prev, [territoryId]: !prev[territoryId] }));
   };
+  
+  const handleModeChange = (reportIndex: number, newMode: ReportMode) => {
+    const territoryId = territoriesToReportForDialog[reportIndex].id;
+    setReportModes(prev => ({ ...prev, [territoryId]: newMode }));
+
+    if (newMode === 'no_trabajado') {
+        form.setValue(`reports.${reportIndex}.territoryNotWorked`, true);
+        form.setValue(`reports.${reportIndex}.workedBlocksIds`, []);
+    } else if (newMode === 'completo') {
+        const territoryInfo = territoriesToReportForDialog[reportIndex];
+        const allBlockIds = territoryInfo.displayableBlockNumbers.map(
+            (blockNumber) => `block-${territoryInfo.id}-${blockNumber}`
+        );
+        form.setValue(`reports.${reportIndex}.territoryNotWorked`, false);
+        form.setValue(`reports.${reportIndex}.workedBlocksIds`, allBlockIds);
+    } else { // 'parcial'
+        form.setValue(`reports.${reportIndex}.territoryNotWorked`, false);
+        // On purpose, we don't clear the blocks if they switch from 'completo' to 'parcial'
+    }
+  };
 
   const formatLocationName = (name: string, type: PreachingAssignedType) => {
     if (type === 'publica' && name.toLowerCase().startsWith('territorio urbano ')) {
@@ -201,26 +222,6 @@ export function ReportarPredicacionDialog({
     }
     return name;
   };
-  
-  const handleSelectAllBlocks = (reportIndex: number) => {
-    const territoryInfo = territoriesToReportForDialog[reportIndex];
-    if (!territoryInfo) return;
-
-    const allBlockIds = territoryInfo.displayableBlockNumbers.map(
-      (blockNumber) => `block-${territoryInfo.id}-${blockNumber}`
-    );
-
-    form.setValue(`reports.${reportIndex}.workedBlocksIds`, allBlockIds, {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-
-    toast({
-      title: "Manzanas Seleccionadas",
-      description: `Se marcaron todas las manzanas para ${territoryInfo.name}.`,
-    });
-  };
-
 
   async function handleSubmit(values: ReportFormValues) {
     if (!assignment) return;
@@ -285,7 +286,7 @@ export function ReportarPredicacionDialog({
               if (!currentTerritoryInfo) return null; 
 
               const isSectionOpen = openTerritorySections[currentTerritoryInfo.id] ?? true;
-              const territoryNotWorked = form.watch(`reports.${index}.territoryNotWorked`);
+              const currentMode = reportModes[currentTerritoryInfo.id] ?? 'parcial';
               const isMapVisible = visibleMaps[currentTerritoryInfo.id] ?? false;
               const displayableBlockNumbersForThisTerritory = currentTerritoryInfo.displayableBlockNumbers;
               
@@ -310,30 +311,35 @@ export function ReportarPredicacionDialog({
 
                   {isSectionOpen && (
                     <div className="p-4 space-y-4">
-                        <FormField
-                        control={form.control}
-                        name={`reports.${index}.territoryNotWorked`}
-                        render={({ field: checkboxField }) => (
-                            <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 shadow-sm bg-amber-500/10 border-amber-500/30">
-                            <FormControl>
-                                <Checkbox
-                                checked={checkboxField.value}
-                                onCheckedChange={checkboxField.onChange}
-                                id={`territoryNotWorked-${currentTerritoryInfo.id}`}
-                                />
-                            </FormControl>
-                            <div className="space-y-0.5">
-                                <FormLabel htmlFor={`territoryNotWorked-${currentTerritoryInfo.id}`} className="font-medium cursor-pointer text-amber-700 dark:text-amber-400 flex items-center">
-                                <CloudOff className="mr-2 h-4 w-4" />
-                                ¿No se pudo trabajar este territorio?
-                                </FormLabel>
-                                <FormFieldDescription className="text-xs text-amber-600 dark:text-amber-500">
-                                Marca si no se predicó en "{currentTerritoryInfo.name}".
-                                </FormFieldDescription>
+                        <div className="space-y-2">
+                            <FormLabel className="text-sm font-medium">Estado del Trabajo</FormLabel>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <Button
+                                type="button"
+                                variant={currentMode === 'no_trabajado' ? 'destructive' : 'outline'}
+                                onClick={() => handleModeChange(index, 'no_trabajado')}
+                                className="w-full text-xs h-9"
+                                >
+                                <XCircle className="mr-1.5 h-4 w-4" /> No Trabajado
+                                </Button>
+                                <Button
+                                type="button"
+                                variant={currentMode === 'parcial' ? 'default' : 'outline'}
+                                onClick={() => handleModeChange(index, 'parcial')}
+                                className="w-full text-xs h-9"
+                                >
+                                <Columns2 className="mr-1.5 h-4 w-4" /> Trabajo Parcial
+                                </Button>
+                                <Button
+                                type="button"
+                                variant={currentMode === 'completo' ? 'default' : 'outline'}
+                                onClick={() => handleModeChange(index, 'completo')}
+                                className={cn("w-full text-xs h-9", currentMode === 'completo' ? 'bg-green-600 hover:bg-green-700' : '')}
+                                >
+                                <CheckSquare className="mr-1.5 h-4 w-4" /> Trabajo Completo
+                                </Button>
                             </div>
-                            </FormItem>
-                        )}
-                        />
+                        </div>
 
                         {currentTerritoryInfo.mapImageUrl && (
                           <div className="mb-2">
@@ -342,13 +348,12 @@ export function ReportarPredicacionDialog({
                               variant="outline"
                               size="sm"
                               onClick={() => toggleMapVisibility(currentTerritoryInfo.id)}
-                              disabled={territoryNotWorked}
                               className="text-xs"
                             >
                               <Eye className="mr-1.5 h-3.5 w-3.5" />
                               {isMapVisible ? "Ocultar Mapa" : "Ver Mapa"} de {currentTerritoryInfo.name}
                             </Button>
-                            {isMapVisible && !territoryNotWorked && (
+                            {isMapVisible && (
                               <div className="mt-2 relative w-full aspect-[4/3] rounded-md overflow-hidden border shadow-sm">
                                 <Image
                                   src={currentTerritoryInfo.mapImageUrl}
@@ -361,76 +366,66 @@ export function ReportarPredicacionDialog({
                             )}
                           </div>
                         )}
-
-                        {(displayableBlockNumbersForThisTerritory.length > 0) && (
-                        <FormField
-                            control={form.control}
-                            name={`reports.${index}.workedBlocksIds`}
-                            render={({ field: blocksField }) => (
-                            <FormItem className={`${territoryNotWorked ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                <div className="mb-2 flex justify-between items-center">
-                                  <div>
-                                    <FormLabel className="text-sm font-medium">
-                                        {currentTerritoryInfo.isPartial && currentTerritoryInfo.pendingBlockNumbers?.length ? 'Manzanas Pendientes Trabajadas' : 'Manzanas Trabajadas'} en {currentTerritoryInfo.name}
-                                    </FormLabel>
-                                    <FormFieldDescription className={`${territoryNotWorked ? 'text-muted-foreground/70' : ''}`}>
-                                        Selecciona todas las manzanas predicadas. {territoryNotWorked ? "(Deshabilitado)" : ""}
-                                    </FormFieldDescription>
-                                  </div>
-                                  <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleSelectAllBlocks(index)}
-                                      disabled={territoryNotWorked || displayableBlockNumbersForThisTerritory.length === 0}
-                                      className="text-xs shrink-0"
-                                  >
-                                      <ListChecks className="mr-2 h-4 w-4" />
-                                      Marcar Todas
-                                  </Button>
-                                </div>
-                                <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-3 border rounded-md shadow-sm bg-muted/20 max-h-40 overflow-y-auto ${territoryNotWorked ? 'pointer-events-none' : ''}`}>
-                                {displayableBlockNumbersForThisTerritory.map((blockNumber) => {
-                                    const blockId = `block-${currentTerritoryInfo.id}-${blockNumber}`;
-                                    return (
-                                    <FormField
-                                        key={blockId}
-                                        control={form.control}
-                                        name={`reports.${index}.workedBlocksIds`}
-                                        render={({ field: innerField }) => ( 
-                                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 p-2 rounded-md bg-card hover:bg-card/90 transition-colors">
-                                            <FormControl>
-                                            <Checkbox
-                                                checked={innerField.value?.includes(blockId)}
-                                                onCheckedChange={(checked) => {
-                                                if (territoryNotWorked) return;
-                                                const currentSelection = innerField.value || [];
-                                                return checked
-                                                    ? innerField.onChange([...currentSelection, blockId])
-                                                    : innerField.onChange(currentSelection.filter(id => id !== blockId));
-                                                }}
-                                                id={blockId}
-                                                disabled={territoryNotWorked}
-                                            />
-                                            </FormControl>
-                                            <FormLabel htmlFor={blockId} className={`font-normal text-xs cursor-pointer select-none ${territoryNotWorked ? 'text-muted-foreground/70' : ''}`}>
-                                            Manzana {blockNumber}
+                        
+                        {currentMode === 'parcial' && (
+                            <>
+                                {(displayableBlockNumbersForThisTerritory.length > 0) ? (
+                                <FormField
+                                    control={form.control}
+                                    name={`reports.${index}.workedBlocksIds`}
+                                    render={({ field: blocksField }) => (
+                                    <FormItem>
+                                        <div className="mb-2 flex justify-between items-center">
+                                        <div>
+                                            <FormLabel className="text-sm font-medium">
+                                                Selección de Manzanas Trabajadas
                                             </FormLabel>
-                                        </FormItem>
-                                        )}
-                                    />
-                                    );
-                                })}
-                                </div>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        )}
-                         {displayableBlockNumbersForThisTerritory.length === 0 && !territoryNotWorked && (
-                            <p className="text-sm text-muted-foreground text-center py-3 border rounded-md bg-muted/30">
-                                Este territorio ({currentTerritoryInfo.name}) no tiene manzanas definidas para seleccionar o pendientes.
-                            </p>
+                                            <FormFieldDescription>
+                                                Marca solo las manzanas que se predicaron.
+                                            </FormFieldDescription>
+                                        </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-3 border rounded-md shadow-sm bg-muted/20 max-h-40 overflow-y-auto">
+                                        {displayableBlockNumbersForThisTerritory.map((blockNumber) => {
+                                            const blockId = `block-${currentTerritoryInfo.id}-${blockNumber}`;
+                                            return (
+                                            <FormField
+                                                key={blockId}
+                                                control={form.control}
+                                                name={`reports.${index}.workedBlocksIds`}
+                                                render={({ field: innerField }) => ( 
+                                                <FormItem className="flex flex-row items-center space-x-2 space-y-0 p-2 rounded-md bg-card hover:bg-card/90 transition-colors">
+                                                    <FormControl>
+                                                    <Checkbox
+                                                        checked={innerField.value?.includes(blockId)}
+                                                        onCheckedChange={(checked) => {
+                                                        const currentSelection = innerField.value || [];
+                                                        return checked
+                                                            ? innerField.onChange([...currentSelection, blockId])
+                                                            : innerField.onChange(currentSelection.filter(id => id !== blockId));
+                                                        }}
+                                                        id={blockId}
+                                                    />
+                                                    </FormControl>
+                                                    <FormLabel htmlFor={blockId} className="font-normal text-xs cursor-pointer select-none">
+                                                    Manzana {blockNumber}
+                                                    </FormLabel>
+                                                </FormItem>
+                                                )}
+                                            />
+                                            );
+                                        })}
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                                ) : (
+                                     <p className="text-sm text-muted-foreground text-center py-3 border rounded-md bg-muted/30">
+                                        Este territorio ({currentTerritoryInfo.name}) no tiene manzanas definidas para seleccionar.
+                                    </p>
+                                )}
+                            </>
                         )}
                     </div>
                   )}
