@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { Assignment, PreachingAssignedType, SettingsDoc, DayOfWeek } from "@/types";
+import type { Assignment, PreachingAssignedType, SettingsDoc, DayOfWeek, AssignmentStatus } from "@/types";
 import { format, startOfWeek, addDays, parse, isSameDay, startOfDay, subWeeks, addWeeks, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
-import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle, ChevronLeft, CalendarClockIcon, Loader2, ImageIcon, Home, User, MapPin } from "lucide-react";
+import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle, ChevronLeft, CalendarClockIcon, Loader2, ImageIcon, Home, User, MapPin, HelpCircle, CheckCircle2, XCircle, UserMinus, UserCheck2, ShieldAlert } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { collection, doc, onSnapshot, query, where, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -25,6 +25,28 @@ const PreachingTypeIcon = ({ type, className }: { type: PreachingAssignedType; c
   if (type === "zoom") return <Video className={combinedClass} />;
   return null;
 };
+
+const StatusBadge = ({ status }: { status: AssignmentStatus }) => {
+  switch (status) {
+    case "pending":
+      return <Badge variant="outline" className="border-amber-500 text-amber-600"><HelpCircle className="mr-1 h-3 w-3" />Pendiente</Badge>;
+    case "accepted":
+      return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-white"><CheckCircle2 className="mr-1 h-3 w-3" />Aceptada</Badge>;
+    case "rejected":
+      return <Badge variant="destructive"><XCircle className="mr-1 h-3 w-3" />Rechazada</Badge>;
+    case "replacement_requested":
+      return <Badge variant="outline" className="border-blue-500 text-blue-600"><UserMinus className="mr-1 h-3 w-3" />Reemplazo</Badge>;
+    case "replacement_covered":
+      return <Badge variant="secondary"><UserCheck2 className="mr-1 h-3 w-3" />Cubierta</Badge>;
+    case "cancelled_by_admin":
+      return <Badge variant="outline" className="border-slate-500 text-slate-600"><ShieldAlert className="mr-1 h-3 w-3" />Cancelada</Badge>;
+    case "needs_manual_replacement":
+      return <Badge variant="outline" className="border-red-500 text-red-600"><AlertTriangle className="mr-1 h-3 w-3" />Manual</Badge>;
+    default:
+      return <Badge variant="secondary">{status}</Badge>;
+  }
+};
+
 
 export default function ProgramaSemanalPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -223,7 +245,7 @@ export default function ProgramaSemanalPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {currentWeekDays.map(day => {
             const assignmentsForDay = assignments.filter(assign =>
-                isSameDay(parse(assign.date, "yyyy-MM-dd", new Date()), day) && assign.status === 'accepted'
+                isSameDay(parse(assign.date, "yyyy-MM-dd", new Date()), day)
             ).sort((a,b) => a.time.localeCompare(b.time));
 
             const isActualCurrentDay = isSameDay(day, today); 
@@ -244,7 +266,7 @@ export default function ProgramaSemanalPage() {
                               <PreachingTypeIcon type={assign.type} className="text-primary h-5 w-5" />
                               <span className="font-bold text-base">{assign.time}</span>
                             </div>
-                            <Badge variant="outline" className="capitalize">{assign.type}</Badge>
+                            <StatusBadge status={assign.status} />
                           </div>
                           <div className="pl-1 space-y-2 text-sm">
                             <p className="flex items-start">
@@ -266,7 +288,7 @@ export default function ProgramaSemanalPage() {
                             </p>
                           </div>
                           <div className="mt-auto pt-2">
-                            {isActualCurrentDay && assign.userId !== userProfile?.firebaseAuthUid && (
+                            {isActualCurrentDay && assign.userId !== userProfile?.firebaseAuthUid && assign.status === 'accepted' && (
                               <Button
                                 variant="outline"
                                 size="sm"
