@@ -27,7 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import type { UserAssignment, Territory, ReportedAssignmentData, SingleTerritoryReportDetails, AdditionalTerritoryInfo, PreachingAssignedType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, FileText, MapPin, CalendarDays, Clock, Edit3, CloudOff, Map as MapIcon, ChevronDown, ChevronUp, Eye, ListChecks, XCircle, CheckSquare, Columns2 } from "lucide-react";
+import { FileText, MapPin, CalendarDays, Clock, Edit3, Eye, Map as MapIcon, ChevronDown, ChevronUp, ListChecks } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import Image from 'next/image';
 import { format, parse } from "date-fns";
@@ -66,7 +66,7 @@ interface ReportarPredicacionDialogProps {
   initialReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null;
 }
 
-type ReportMode = 'completo' | 'parcial' | 'no_trabajado';
+type ReportMode = 'completo' | 'parcial' | 'no_trabajado' | undefined;
 
 
 export function ReportarPredicacionDialog({
@@ -162,8 +162,10 @@ export function ReportarPredicacionDialog({
             initialModes[terrInfo.id] = 'no_trabajado';
         } else if (existingReportForThisTerritory && terrInfo.displayableBlockNumbers.length > 0 && existingReportForThisTerritory.workedBlocksIds?.length === terrInfo.displayableBlockNumbers.length) {
             initialModes[terrInfo.id] = 'completo';
-        } else {
+        } else if (existingReportForThisTerritory) {
             initialModes[terrInfo.id] = 'parcial';
+        } else {
+            initialModes[terrInfo.id] = undefined;
         }
         
         initialOpenSections[terrInfo.id] = true; 
@@ -212,7 +214,6 @@ export function ReportarPredicacionDialog({
         form.setValue(`reports.${reportIndex}.workedBlocksIds`, allBlockIds);
     } else { // 'parcial'
         form.setValue(`reports.${reportIndex}.territoryNotWorked`, false);
-        // On purpose, we don't clear the blocks if they switch from 'completo' to 'parcial'
     }
   };
 
@@ -286,7 +287,7 @@ export function ReportarPredicacionDialog({
               if (!currentTerritoryInfo) return null; 
 
               const isSectionOpen = openTerritorySections[currentTerritoryInfo.id] ?? true;
-              const currentMode = reportModes[currentTerritoryInfo.id] ?? 'parcial';
+              const currentMode = reportModes[currentTerritoryInfo.id];
               const isMapVisible = visibleMaps[currentTerritoryInfo.id] ?? false;
               const displayableBlockNumbersForThisTerritory = currentTerritoryInfo.displayableBlockNumbers;
               
@@ -311,79 +312,76 @@ export function ReportarPredicacionDialog({
 
                   {isSectionOpen && (
                     <div className="p-4 space-y-4">
-                        <div className="space-y-2">
-                            <FormLabel className="text-sm font-medium">Estado del Trabajo</FormLabel>
-                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => handleModeChange(index, 'completo')}
-                                    className={cn(
-                                        "w-full text-xs h-9",
-                                        currentMode === 'completo'
-                                            ? 'bg-green-600 text-white hover:bg-green-700 border-transparent'
-                                            : 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
-                                    )}
-                                >
-                                    Completo
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => handleModeChange(index, 'parcial')}
-                                    className={cn(
-                                        "w-full text-xs h-9",
-                                        currentMode === 'parcial'
-                                            ? 'bg-orange-500 text-white hover:bg-orange-600 border-transparent'
-                                            : 'bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100'
-                                    )}
-                                >
-                                    Parcial
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => handleModeChange(index, 'no_trabajado')}
-                                    className={cn(
-                                        "w-full text-xs h-9",
-                                        currentMode === 'no_trabajado'
-                                            ? 'bg-red-600 text-white hover:bg-red-700 border-transparent'
-                                            : 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100'
-                                    )}
-                                >
-                                    No Trabajado
-                                </Button>
-                            </div>
-                        </div>
-
-                        {currentTerritoryInfo.mapImageUrl && (
-                          <div className="mb-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => toggleMapVisibility(currentTerritoryInfo.id)}
-                              className="text-xs"
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleModeChange(index, 'completo')}
+                                className={cn(
+                                    "w-full text-xs h-9",
+                                    currentMode === 'completo'
+                                        ? 'bg-green-600 text-white hover:bg-green-700 border-transparent'
+                                        : 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
+                                )}
                             >
-                              <Eye className="mr-1.5 h-3.5 w-3.5" />
-                              {isMapVisible ? "Ocultar Mapa" : "Ver Mapa"} de {currentTerritoryInfo.name}
+                                Completo
                             </Button>
-                            {isMapVisible && (
-                              <div className="mt-2 relative w-full aspect-[4/3] rounded-md overflow-hidden border shadow-sm">
-                                <Image
-                                  src={currentTerritoryInfo.mapImageUrl}
-                                  alt={`Mapa de ${currentTerritoryInfo.name}`}
-                                  layout="fill"
-                                  objectFit="contain"
-                                  data-ai-hint={currentTerritoryInfo.dataAiHint || "map sketch"}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleModeChange(index, 'parcial')}
+                                className={cn(
+                                    "w-full text-xs h-9",
+                                    currentMode === 'parcial'
+                                        ? 'bg-orange-500 text-white hover:bg-orange-600 border-transparent'
+                                        : 'bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100'
+                                )}
+                            >
+                                Parcial
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleModeChange(index, 'no_trabajado')}
+                                className={cn(
+                                    "w-full text-xs h-9",
+                                    currentMode === 'no_trabajado'
+                                        ? 'bg-red-600 text-white hover:bg-red-700 border-transparent'
+                                        : 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100'
+                                )}
+                            >
+                                No Trabajado
+                            </Button>
+                        </div>
                         
                         {currentMode === 'parcial' && (
                             <>
+                                {currentTerritoryInfo.mapImageUrl && (
+                                <div className="mt-4 mb-2">
+                                    <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => toggleMapVisibility(currentTerritoryInfo.id)}
+                                    className="text-xs"
+                                    >
+                                    <Eye className="mr-1.5 h-3.5 w-3.5" />
+                                    {isMapVisible ? "Ocultar Mapa" : "Ver Mapa"} de {currentTerritoryInfo.name}
+                                    </Button>
+                                    {isMapVisible && (
+                                    <div className="mt-2 relative w-full aspect-[4/3] rounded-md overflow-hidden border shadow-sm">
+                                        <Image
+                                        src={currentTerritoryInfo.mapImageUrl}
+                                        alt={`Mapa de ${currentTerritoryInfo.name}`}
+                                        layout="fill"
+                                        objectFit="contain"
+                                        data-ai-hint={currentTerritoryInfo.dataAiHint || "map sketch"}
+                                        />
+                                    </div>
+                                    )}
+                                </div>
+                                )}
+                                
                                 {(displayableBlockNumbersForThisTerritory.length > 0) ? (
                                 <FormField
                                     control={form.control}
