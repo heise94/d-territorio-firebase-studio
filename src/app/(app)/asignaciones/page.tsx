@@ -87,7 +87,7 @@ export default function MisAsignacionesPage() {
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [assignmentToReport, setAssignmentToReport] = useState<UserAssignment | null>(null);
   const [territoryForReport, setTerritoryForReport] = useState<Territory | null>(null); // Main territory for report dialog
-  const [initialReportDataForDialog, setInitialReportDataForDialog] = useState<Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null>(null);
+  const [initialReportDataForDialog, setInitialReportDataForDialog] = useState<ReportedAssignmentData | null>(null);
   
   const [isSolicitarTerritorioDialogOpen, setIsSolicitarTerritorioDialogOpen] = useState(false);
   const [assignmentForTerritorioAdicional, setAssignmentForTerritorioAdicional] = useState<UserAssignment | null>(null);
@@ -222,7 +222,7 @@ export default function MisAsignacionesPage() {
     return minutesDifference < 60; 
   };
 
-  const handleOpenReportDialog = async (assignment: UserAssignment, existingReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null) => {
+  const handleOpenReportDialog = async (assignment: UserAssignment, existingReportData?: ReportedAssignmentData | null) => {
     if ((assignment.type === 'publica' || assignment.type === 'rural') && assignment.locationId) {
         try {
             const territoryDocRef = doc(db, "territories", assignment.locationId);

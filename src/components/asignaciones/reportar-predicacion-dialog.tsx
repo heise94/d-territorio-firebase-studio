@@ -67,7 +67,7 @@ interface ReportarPredicacionDialogProps {
   assignment: UserAssignment | null;
   territory: Territory | null;
   onReportSubmit: (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> & { reportedAt?: Date }) => void;
-  initialReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null;
+  initialReportData?: ReportedAssignmentData | null;
   allowReportDateEdit?: boolean;
 }
 
@@ -291,7 +291,7 @@ export function ReportarPredicacionDialog({
             {assignment.additionalTerritorySelected && (
                  <p className="flex items-center"><MapIcon className="mr-2 h-4 w-4 text-muted-foreground"/> Lugar Adicional: <span className="font-semibold ml-1">{additionalTerritoryName}</span></p>
             )}
-            <p className="flex items-center"><CalendarDays className="mr-2 h-4 w-4 text-muted-foreground"/> Fecha: <span className="font-semibold ml-1">{format(assignmentDateTime, "EEEE, dd 'de' MMMM", { locale: es })}</span></p>
+            <p className="flex items-center"><CalendarDays className="mr-2 h-4 w-4 text-muted-foreground"/> Fecha: <span className="font-semibold ml-1">{!isNaN(assignmentDateTime.getTime()) ? format(assignmentDateTime, "EEEE, dd 'de' MMMM", { locale: es }) : 'Fecha inválida'}</span></p>
             <p className="flex items-center"><Clock className="mr-2 h-4 w-4 text-muted-foreground"/> Hora: <span className="font-semibold ml-1">{assignment.time} hrs.</span></p>
         </div>
 
@@ -337,7 +337,7 @@ export function ReportarPredicacionDialog({
                                     "w-full text-xs h-9 transition-all",
                                     currentMode === 'completo'
                                         ? 'bg-green-600 text-white hover:bg-green-700 border-transparent'
-                                        : 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 opacity-60'
+                                        : 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 opacity-70'
                                 )}
                             >
                                 Completo
@@ -350,7 +350,7 @@ export function ReportarPredicacionDialog({
                                     "w-full text-xs h-9 transition-all",
                                     currentMode === 'parcial'
                                         ? 'bg-orange-500 text-white hover:bg-orange-600 border-transparent'
-                                        : 'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200 opacity-60'
+                                        : 'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200 opacity-70'
                                 )}
                             >
                                 Parcial
@@ -363,7 +363,7 @@ export function ReportarPredicacionDialog({
                                     "w-full text-xs h-9 transition-all",
                                     currentMode === 'no_trabajado'
                                         ? 'bg-red-600 text-white hover:bg-red-700 border-transparent'
-                                        : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200 opacity-60'
+                                        : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200 opacity-70'
                                 )}
                             >
                                 No Trabajado
