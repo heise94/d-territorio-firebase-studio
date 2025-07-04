@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,7 +26,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import type { UserAssignment, Territory, ReportedAssignmentData, SingleTerritoryReportDetails, AdditionalTerritoryInfo, PreachingAssignedType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, MapPin, CalendarDays, Clock, Edit3, Eye, Map as MapIcon, ChevronDown, ChevronUp, ListChecks } from "lucide-react";
+import { FileText, MapPin, CalendarDays, Clock, Edit3, Eye, Map as MapIcon, ChevronDown, ChevronUp, ListChecks, Loader2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import Image from 'next/image';
 import { format, parse } from "date-fns";
@@ -158,6 +157,7 @@ export function ReportarPredicacionDialog({
           workedBlocksIds: existingReportForThisTerritory?.workedBlocksIds || [],
         });
 
+        // Set initial mode, but default to undefined if no report exists
         if (existingReportForThisTerritory?.territoryNotWorked) {
             initialModes[terrInfo.id] = 'no_trabajado';
         } else if (existingReportForThisTerritory && terrInfo.displayableBlockNumbers.length > 0 && existingReportForThisTerritory.workedBlocksIds?.length === terrInfo.displayableBlockNumbers.length) {
@@ -214,8 +214,10 @@ export function ReportarPredicacionDialog({
         form.setValue(`reports.${reportIndex}.workedBlocksIds`, allBlockIds);
     } else { // 'parcial'
         form.setValue(`reports.${reportIndex}.territoryNotWorked`, false);
+        // Do not reset workedBlocksIds when switching to partial, keep user selection
     }
   };
+
 
   const formatLocationName = (name: string, type: PreachingAssignedType) => {
     if (type === 'publica' && name.toLowerCase().startsWith('territorio urbano ')) {
@@ -312,16 +314,16 @@ export function ReportarPredicacionDialog({
 
                   {isSectionOpen && (
                     <div className="p-4 space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
                             <Button
                                 type="button"
                                 variant="outline"
                                 onClick={() => handleModeChange(index, 'completo')}
                                 className={cn(
-                                    "w-full text-xs h-9",
+                                    "w-full text-xs h-9 transition-all",
                                     currentMode === 'completo'
                                         ? 'bg-green-600 text-white hover:bg-green-700 border-transparent'
-                                        : 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
+                                        : 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 opacity-60'
                                 )}
                             >
                                 Completo
@@ -331,10 +333,10 @@ export function ReportarPredicacionDialog({
                                 variant="outline"
                                 onClick={() => handleModeChange(index, 'parcial')}
                                 className={cn(
-                                    "w-full text-xs h-9",
+                                    "w-full text-xs h-9 transition-all",
                                     currentMode === 'parcial'
                                         ? 'bg-orange-500 text-white hover:bg-orange-600 border-transparent'
-                                        : 'bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100'
+                                        : 'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200 opacity-60'
                                 )}
                             >
                                 Parcial
@@ -344,10 +346,10 @@ export function ReportarPredicacionDialog({
                                 variant="outline"
                                 onClick={() => handleModeChange(index, 'no_trabajado')}
                                 className={cn(
-                                    "w-full text-xs h-9",
+                                    "w-full text-xs h-9 transition-all",
                                     currentMode === 'no_trabajado'
                                         ? 'bg-red-600 text-white hover:bg-red-700 border-transparent'
-                                        : 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100'
+                                        : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200 opacity-60'
                                 )}
                             >
                                 No Trabajado
