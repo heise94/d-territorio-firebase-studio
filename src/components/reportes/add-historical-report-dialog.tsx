@@ -46,8 +46,9 @@ const historicalReportSchema = z.object({
 });
 
 export type HistoricalReportFormValues = z.infer<typeof historicalReportSchema>;
-
 export interface HistoricalReportSubmitData extends HistoricalReportFormValues {}
+
+type ReportMode = 'completo' | 'parcial' | 'no_trabajado';
 
 interface AddHistoricalReportDialogProps {
   isOpen: boolean;
@@ -66,6 +67,7 @@ export function AddHistoricalReportDialog({
 }: AddHistoricalReportDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reportMode, setReportMode] = useState<ReportMode | undefined>(undefined);
 
   const form = useForm<HistoricalReportFormValues>({
     resolver: zodResolver(historicalReportSchema),
@@ -81,18 +83,39 @@ export function AddHistoricalReportDialog({
   useEffect(() => {
     if (!isOpen) {
       form.reset();
+      setReportMode(undefined);
     }
   }, [isOpen, form]);
-  
-  const territoryNotWorked = form.watch("territoryNotWorked");
-  useEffect(() => {
-    if (territoryNotWorked) {
-        form.setValue("workedBlocksIds", []);
+
+  if (!territory) return null;
+
+  const allBlockNumbers = Array.from({ length: territory.totalBlocks || 0 }, (_, i) => i + 1);
+
+  const handleModeChange = (newMode: ReportMode) => {
+    setReportMode(newMode);
+
+    if (newMode === 'no_trabajado') {
+        form.setValue('territoryNotWorked', true);
+        form.setValue('workedBlocksIds', []);
+    } else if (newMode === 'completo') {
+        const allBlockIds = allBlockNumbers.map(
+            (blockNumber) => `block-${territory!.id}-${blockNumber}`
+        );
+        form.setValue('territoryNotWorked', false);
+        form.setValue('workedBlocksIds', allBlockIds);
+    } else { // 'parcial'
+        form.setValue('territoryNotWorked', false);
     }
-  }, [territoryNotWorked, form]);
+  };
+
 
   async function onSubmit(values: HistoricalReportFormValues) {
     if (!territory) return;
+    if (!reportMode) {
+      toast({ title: "Estado del Trabajo Requerido", description: "Por favor, selecciona si el territorio fue Completo, Parcial o No Trabajado.", variant: "destructive" });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await onAddHistoricalReport(values);
@@ -105,9 +128,6 @@ export function AddHistoricalReportDialog({
     }
   }
 
-  if (!territory) return null;
-
-  const allBlockNumbers = Array.from({ length: territory.totalBlocks || 0 }, (_, i) => i + 1);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -175,32 +195,60 @@ export function AddHistoricalReportDialog({
               )}
             />
 
-            <FormField
-                control={form.control}
-                name="territoryNotWorked"
-                render={({ field }) => (
-                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 shadow-sm">
-                    <FormControl>
-                        <Checkbox checked={field.value} onCheckedChange={field.onChange}/>
-                    </FormControl>
-                    <div className="space-y-0.5">
-                        <FormLabel className="font-medium cursor-pointer">Marcar como "No Trabajado"</FormLabel>
-                        <FormDescription>Selecciona si el territorio fue asignado pero no se pudo trabajar.</FormDescription>
-                    </div>
-                    </FormItem>
-                )}
-            />
+            <div className="space-y-2">
+               <div className="grid grid-cols-3 gap-2">
+                  <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleModeChange('completo')}
+                      className={cn(
+                          "w-full text-xs h-9 transition-all",
+                          reportMode === 'completo'
+                              ? 'bg-green-600 text-white hover:bg-green-700 border-transparent'
+                              : 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200 opacity-70'
+                      )}
+                  >
+                      Completo
+                  </Button>
+                  <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleModeChange('parcial')}
+                      className={cn(
+                          "w-full text-xs h-9 transition-all",
+                          reportMode === 'parcial'
+                              ? 'bg-orange-500 text-white hover:bg-orange-600 border-transparent'
+                              : 'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200 opacity-70'
+                      )}
+                  >
+                      Parcial
+                  </Button>
+                  <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleModeChange('no_trabajado')}
+                      className={cn(
+                          "w-full text-xs h-9 transition-all",
+                          reportMode === 'no_trabajado'
+                              ? 'bg-red-600 text-white hover:bg-red-700 border-transparent'
+                              : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200 opacity-70'
+                      )}
+                  >
+                      No Trabajado
+                  </Button>
+              </div>
+            </div>
 
-            {(allBlockNumbers.length > 0) && (
+            {reportMode === 'parcial' && (allBlockNumbers.length > 0) && (
               <FormField
                 control={form.control}
                 name="workedBlocksIds"
                 render={() => (
-                  <FormItem className={`${territoryNotWorked ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  <FormItem>
                     <div className="mb-2">
                       <FormLabel className="text-sm font-medium">Manzanas Trabajadas</FormLabel>
                     </div>
-                    <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-3 border rounded-md shadow-sm bg-muted/20 max-h-40 overflow-y-auto ${territoryNotWorked ? 'pointer-events-none' : ''}`}>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-3 border rounded-md shadow-sm bg-muted/20 max-h-40 overflow-y-auto">
                       {allBlockNumbers.map((blockNumber) => {
                         const blockId = `block-${territory.id}-${blockNumber}`;
                         return (
@@ -214,16 +262,14 @@ export function AddHistoricalReportDialog({
                                   <Checkbox
                                     checked={field.value?.includes(blockId)}
                                     onCheckedChange={(checked) => {
-                                      if (territoryNotWorked) return;
                                       const currentSelection = field.value || [];
                                       return checked
                                         ? field.onChange([...currentSelection, blockId])
                                         : field.onChange(currentSelection.filter(id => id !== blockId));
                                     }}
-                                    disabled={territoryNotWorked}
                                   />
                                 </FormControl>
-                                <FormLabel className={`font-normal text-xs cursor-pointer select-none ${territoryNotWorked ? 'text-muted-foreground/70' : ''}`}>
+                                <FormLabel className="font-normal text-xs cursor-pointer select-none">
                                   Manzana {blockNumber}
                                 </FormLabel>
                               </FormItem>
