@@ -2,19 +2,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Permite leer la información de los usuarios públicamente.
-    // Esto es necesario para que la página de invitación pueda
-    // verificar si un correo ya existe. Las escrituras siguen protegidas.
+    // REGLA PÚBLICA: Permite leer la colección 'users' para verificar
+    // el email en la página de invitación, incluso sin iniciar sesión.
+    // Las escrituras siguen protegidas.
     match /users/{userId} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
-    // Para todas las DEMÁS colecciones, se requiere que el usuario
-    // haya iniciado sesión para leer o escribir. Esta regla es segura
-    // y no se aplica a /users porque ya hay una regla más específica arriba.
-    match /{path=**} {
-      allow read, write: if request.auth != null && path[0] != 'users';
-    }
+    // REGLAS PROTEGIDAS: Para todas las demás colecciones, se requiere
+    // que el usuario haya iniciado sesión para cualquier operación.
+    match /territories/{docId} { allow read, write: if request.auth != null; }
+    match /casas/{docId} { allow read, write: if request.auth != null; }
+    match /assignments/{docId} { allow read, write: if request.auth != null; }
+    match /groupAssignments/{docId} { allow read, write: if request.auth != null; }
+    match /preachingGroups/{docId} { allow read, write: if request.auth != null; }
+    match /settings/{docId} { allow read, write: if request.auth != null; }
+    match /notifications/{docId} { allow read, write: if request.auth != null; }
   }
 }
