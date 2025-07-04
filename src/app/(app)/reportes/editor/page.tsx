@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -114,17 +115,21 @@ export default function EditorHistorialPage() {
     setIsReportDialogOpen(true);
   };
   
-  const handleReportSubmit = async (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => {
+  const handleReportSubmit = async (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> & { reportedAt?: Date }) => {
     if (!assignmentToEdit || !userProfile?.firebaseAuthUid) {
       toast({ title: "Error", description: "No se pudo enviar el reporte. Datos incompletos.", variant: "destructive" });
       return;
     }
     
+    const reportDate = data.reportedAt
+      ? Timestamp.fromDate(data.reportedAt)
+      : Timestamp.fromDate(parse(assignmentToEdit.date, "yyyy-MM-dd", new Date()));
+
     const fullReportData: ReportedAssignmentData = {
       assignmentId: assignmentToEdit.id,
       reports: data.reports,
       generalNotes: data.generalNotes,
-      reportedAt: Timestamp.now(),
+      reportedAt: reportDate,
       reportedByUserId: userProfile.firebaseAuthUid,
       additionalTerritorySelected: assignmentToEdit.additionalTerritorySelected ? true : false,
     };
@@ -417,6 +422,7 @@ export default function EditorHistorialPage() {
           territory={territoryForDialog}
           onReportSubmit={handleReportSubmit}
           initialReportData={assignmentToEdit.lastReportData}
+          allowReportDateEdit={true}
         />
       )}
 

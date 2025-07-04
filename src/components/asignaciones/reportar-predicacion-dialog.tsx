@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,13 +27,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import type { UserAssignment, Territory, ReportedAssignmentData, SingleTerritoryReportDetails, AdditionalTerritoryInfo, PreachingAssignedType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, MapPin, CalendarDays, Clock, Edit3, Eye, Map as MapIcon, ChevronDown, ChevronUp, ListChecks, Loader2 } from "lucide-react";
+import { FileText, MapPin, CalendarDays, Clock, Edit3, Eye, Map as MapIcon, ChevronDown, ChevronUp, ListChecks, Loader2, CalendarIcon as CalendarIconLucide } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import Image from 'next/image';
 import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Timestamp } from "firebase/firestore";
 
 const singleTerritoryReportSchema = z.object({
   territoryId: z.string(),
@@ -45,6 +49,7 @@ const reportFormSchema = z.object({
   reports: z.array(singleTerritoryReportSchema),
   generalNotes: z.string().max(1000, "Máximo 1000 caracteres.").optional().or(z.literal('')),
   additionalTerritorySelectedInAssignment: z.boolean().optional().default(false),
+  reportedAt: z.date().optional(),
 });
 
 type ReportFormValues = z.infer<typeof reportFormSchema>;
@@ -61,8 +66,9 @@ interface ReportarPredicacionDialogProps {
   onOpenChange: (isOpen: boolean) => void;
   assignment: UserAssignment | null;
   territory: Territory | null;
-  onReportSubmit: (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => void;
+  onReportSubmit: (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> & { reportedAt?: Date }) => void;
   initialReportData?: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> | null;
+  allowReportDateEdit?: boolean;
 }
 
 type ReportMode = 'completo' | 'parcial' | 'no_trabajado' | undefined;
@@ -75,6 +81,7 @@ export function ReportarPredicacionDialog({
   territory,
   onReportSubmit,
   initialReportData,
+  allowReportDateEdit = false,
 }: ReportarPredicacionDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,6 +96,7 @@ export function ReportarPredicacionDialog({
       reports: [],
       generalNotes: "",
       additionalTerritorySelectedInAssignment: false,
+      reportedAt: undefined,
     },
   });
   
@@ -157,12 +165,11 @@ export function ReportarPredicacionDialog({
           workedBlocksIds: existingReportForThisTerritory?.workedBlocksIds || [],
         });
 
-        // Set initial mode, but default to undefined if no report exists
         if (existingReportForThisTerritory?.territoryNotWorked) {
             initialModes[terrInfo.id] = 'no_trabajado';
         } else if (existingReportForThisTerritory && terrInfo.displayableBlockNumbers.length > 0 && existingReportForThisTerritory.workedBlocksIds?.length === terrInfo.displayableBlockNumbers.length) {
             initialModes[terrInfo.id] = 'completo';
-        } else if (existingReportForThisTerritory) {
+        } else if (existingReportForThisTerritory && existingReportForThisTerritory.workedBlocksIds?.length > 0) {
             initialModes[terrInfo.id] = 'parcial';
         } else {
             initialModes[terrInfo.id] = undefined;
@@ -171,23 +178,29 @@ export function ReportarPredicacionDialog({
         initialOpenSections[terrInfo.id] = true; 
         initialVisibleMaps[terrInfo.id] = false; 
       });
+
+      const reportDate = initialReportData?.reportedAt
+        ? (initialReportData.reportedAt as Timestamp).toDate()
+        : parse(assignment.date, 'yyyy-MM-dd', new Date());
       
-      replace(initialReportsForForm); 
-      form.setValue("generalNotes", initialReportData?.generalNotes || "");
-      form.setValue("additionalTerritorySelectedInAssignment", !!assignment?.additionalTerritorySelected);
+      form.reset({
+        reports: initialReportsForForm,
+        generalNotes: initialReportData?.generalNotes || "",
+        additionalTerritorySelectedInAssignment: !!assignment?.additionalTerritorySelected,
+        reportedAt: reportDate,
+      });
       
       setReportModes(initialModes);
       setOpenTerritorySections(initialOpenSections);
       setVisibleMaps(initialVisibleMaps);
 
     } else if (!isOpen) {
-       replace([]); 
-       form.reset({ reports: [], generalNotes: "", additionalTerritorySelectedInAssignment: false });
+       form.reset({ reports: [], generalNotes: "", additionalTerritorySelectedInAssignment: false, reportedAt: undefined });
        setReportModes({});
        setOpenTerritorySections({});
        setVisibleMaps({});
     }
-  }, [isOpen, initialReportData, form, territoriesToReportForDialog, assignment, replace]);
+  }, [isOpen, initialReportData, form, territoriesToReportForDialog, assignment]);
 
 
   const toggleTerritorySection = (territoryId: string) => {
@@ -239,6 +252,7 @@ export function ReportarPredicacionDialog({
         })),
         generalNotes: values.generalNotes,
         additionalTerritorySelected: values.additionalTerritorySelectedInAssignment,
+        reportedAt: values.reportedAt,
       });
     } catch (error) {
         toast({ title: "Error", description: "No se pudo enviar el reporte.", variant: "destructive"});
@@ -250,7 +264,7 @@ export function ReportarPredicacionDialog({
 
   if (!assignment) return null;
 
-  const assignmentDateTime = parse(`${assignment.date} ${assignment.time}`, "yyyy-MM-dd HH:mm", new Date());
+  const assignmentDateTime = parse(`${assignment.date} ${assignment.time}`, "yyyy-MM-dd", new Date());
   const dialogTitleText = isEditMode ? "Modificar Reporte de Predicación" : "Reportar Predicación";
   const submitButtonText = isEditMode ? "Guardar Cambios" : "Enviar Reporte";
   
@@ -315,7 +329,7 @@ export function ReportarPredicacionDialog({
                   {isSectionOpen && (
                     <div className="p-4 space-y-4">
                         <div className="grid grid-cols-3 gap-2">
-                            <Button
+                             <Button
                                 type="button"
                                 variant="outline"
                                 onClick={() => handleModeChange(index, 'completo')}
@@ -449,6 +463,47 @@ export function ReportarPredicacionDialog({
             })}
             
             <Separator className="my-6"/>
+
+            {allowReportDateEdit && (
+                <FormField
+                    control={form.control}
+                    name="reportedAt"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                            <FormLabel className="text-base font-medium flex items-center">
+                                <CalendarIconLucide className="mr-2 h-4 w-4 text-primary" />
+                                Fecha del Reporte (Admin)
+                            </FormLabel>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button
+                                            variant={"outline"}
+                                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                                        >
+                                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccionar fecha</span>}
+                                            <CalendarIconLucide className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={field.onChange}
+                                        disabled={(date) => date > new Date()}
+                                        initialFocus
+                                        locale={es}
+                                        weekStartsOn={1}
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                            <FormFieldDescription>Esta fecha se usará para el historial. Modifícala solo si es necesario.</FormFieldDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
 
             <FormField
               control={form.control}

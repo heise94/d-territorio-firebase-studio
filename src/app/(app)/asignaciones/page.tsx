@@ -247,7 +247,7 @@ export default function MisAsignacionesPage() {
     setIsReportDialogOpen(true);
   };
 
-  const handleReportSubmit = async (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => {
+  const handleReportSubmit = async (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> & { reportedAt?: Date }) => {
     if (!assignmentToReport || !userProfile?.firebaseAuthUid || !db || Object.keys(db).length === 0) {
         toast({ title: "Error", description: "No se pudo enviar el reporte. Datos incompletos o error de conexión.", variant: "destructive"});
         return;
@@ -258,7 +258,7 @@ export default function MisAsignacionesPage() {
         assignmentId: assignmentToReport.id,
         reports: data.reports,
         generalNotes: data.generalNotes,
-        reportedAt: Timestamp.now(), 
+        reportedAt: Timestamp.fromDate(parse(assignmentToReport.date, 'yyyy-MM-dd', new Date())),
         reportedByUserId: userProfile.firebaseAuthUid,
         additionalTerritorySelected: !!assignmentToReport.additionalTerritorySelected,
     };

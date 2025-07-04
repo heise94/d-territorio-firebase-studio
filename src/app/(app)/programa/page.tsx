@@ -258,7 +258,7 @@ export default function ProgramaMensualPage() {
     setIsReportDialogOpen(true);
   };
 
-  const handleReportSubmit = async (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => {
+  const handleReportSubmit = async (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'> & { reportedAt?: Date }) => {
     if (!assignmentToReport || !userProfile?.firebaseAuthUid) {
         toast({ title: "Error", variant: "destructive"});
         return;
@@ -268,7 +268,7 @@ export default function ProgramaMensualPage() {
         assignmentId: assignmentToReport.id,
         reports: data.reports,
         generalNotes: data.generalNotes,
-        reportedAt: Timestamp.now(), 
+        reportedAt: Timestamp.fromDate(parse(assignmentToReport.date, 'yyyy-MM-dd', new Date())),
         reportedByUserId: userProfile.firebaseAuthUid,
         additionalTerritorySelected: !!assignmentToReport.additionalTerritorySelected,
     };
@@ -695,8 +695,8 @@ export default function ProgramaMensualPage() {
             allAssignments={allAssignments}
             programScheduleSlots={programScheduleSlots}
             campaigns={campaigns}
-            summerScheduleStartDate={summerStartDate}
-            winterScheduleStartDate={winterStartDate}
+            summerScheduleStartDate={summerScheduleStartDate}
+            winterScheduleStartDate={winterScheduleStartDate}
         />
       )}
       
