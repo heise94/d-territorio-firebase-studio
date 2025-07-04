@@ -313,30 +313,45 @@ export function ReportarPredicacionDialog({
                     <div className="p-4 space-y-4">
                         <div className="space-y-2">
                             <FormLabel className="text-sm font-medium">Estado del Trabajo</FormLabel>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 <Button
-                                type="button"
-                                variant={currentMode === 'no_trabajado' ? 'destructive' : 'outline'}
-                                onClick={() => handleModeChange(index, 'no_trabajado')}
-                                className="w-full text-xs h-9"
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => handleModeChange(index, 'completo')}
+                                    className={cn(
+                                        "w-full text-xs h-9",
+                                        currentMode === 'completo'
+                                            ? 'bg-green-600 text-white hover:bg-green-700 border-transparent'
+                                            : 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
+                                    )}
                                 >
-                                <XCircle className="mr-1.5 h-4 w-4" /> No Trabajado
+                                    Completo
                                 </Button>
                                 <Button
-                                type="button"
-                                variant={currentMode === 'parcial' ? 'default' : 'outline'}
-                                onClick={() => handleModeChange(index, 'parcial')}
-                                className="w-full text-xs h-9"
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => handleModeChange(index, 'parcial')}
+                                    className={cn(
+                                        "w-full text-xs h-9",
+                                        currentMode === 'parcial'
+                                            ? 'bg-orange-500 text-white hover:bg-orange-600 border-transparent'
+                                            : 'bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100'
+                                    )}
                                 >
-                                <Columns2 className="mr-1.5 h-4 w-4" /> Trabajo Parcial
+                                    Parcial
                                 </Button>
                                 <Button
-                                type="button"
-                                variant={currentMode === 'completo' ? 'default' : 'outline'}
-                                onClick={() => handleModeChange(index, 'completo')}
-                                className={cn("w-full text-xs h-9", currentMode === 'completo' ? 'bg-green-600 hover:bg-green-700' : '')}
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => handleModeChange(index, 'no_trabajado')}
+                                    className={cn(
+                                        "w-full text-xs h-9",
+                                        currentMode === 'no_trabajado'
+                                            ? 'bg-red-600 text-white hover:bg-red-700 border-transparent'
+                                            : 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100'
+                                    )}
                                 >
-                                <CheckSquare className="mr-1.5 h-4 w-4" /> Trabajo Completo
+                                    No Trabajado
                                 </Button>
                             </div>
                         </div>
