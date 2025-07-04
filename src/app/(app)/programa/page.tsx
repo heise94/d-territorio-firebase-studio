@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, CalendarDays, Edit, Trash2, Users, MountainSnow, Video, Save, XCircle, FileText, PlusCircle, Settings as SettingsIcon, Bot, Home, Gift, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { es } from "date-fns/locale";
-import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, parseISO, addDays, isWithinInterval } from 'date-fns';
+import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, addDays, isWithinInterval } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Assignment, PreachingAssignedType, UserProfile, Casa, Territory, Campaign, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType } from "@/types";
@@ -347,7 +347,7 @@ export default function ProgramaMensualPage() {
     const combinedAssignments = [...allAssignments];
     return combinedAssignments.reduce((acc, curr) => {
         try {
-            const assignmentDate = parseISO(curr.date);
+            const assignmentDate = parse(curr.date, "yyyy-MM-dd", new Date());
             if (assignmentDate.getFullYear() === selectedYear && assignmentDate.getMonth() === selectedMonth) {
                 (acc[curr.date] = acc[curr.date] || []).push(curr);
             }
@@ -366,7 +366,7 @@ export default function ProgramaMensualPage() {
 
   const AssignmentItem = ({ assignment, onEdit, onDelete }: { assignment: Assignment, onEdit: () => void, onDelete: () => void }) => {
     const publisher = allPublishers.find(p => p.id === assignment.userId || p.firebaseAuthUid === assignment.userId);
-    const assignmentDate = parseISO(assignment.date);
+    const assignmentDate = parse(assignment.date, "yyyy-MM-dd", new Date());
     let isProblematic = assignment.status === 'rejected' || assignment.status === 'replacement_requested' || assignment.status === 'needs_manual_replacement';
     let problemReason = "";
 

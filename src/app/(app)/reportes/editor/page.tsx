@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { collection, query, where, onSnapshot, doc, getDoc, writeBatch, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Territory, Assignment, ReportedAssignmentData, UserProfile, PreachingAssignedType } from "@/types";
-import { format, parseISO } from "date-fns";
+import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
 import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
 import { AddHistoricalReportDialog, type HistoricalReportSubmitData } from "@/components/reportes/add-historical-report-dialog";
@@ -80,7 +80,7 @@ export default function EditorHistorialPage() {
     );
     const unsubscribe = onSnapshot(assignmentsQuery, (snapshot) => {
       const fetchedAssignments = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Assignment));
-      fetchedAssignments.sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
+      fetchedAssignments.sort((a, b) => parse(b.date, "yyyy-MM-dd", new Date()).getTime() - parse(a.date, "yyyy-MM-dd", new Date()).getTime());
       setAssignments(fetchedAssignments);
       setIsLoadingAssignments(false);
     }, (error) => {
@@ -354,7 +354,7 @@ export default function EditorHistorialPage() {
                         {assignments.map(assign => (
                             <TableRow key={assign.id}>
                             <TableCell>{assign.userName || "N/A"}</TableCell>
-                            <TableCell>{format(parseISO(assign.date), 'dd/MM/yyyy')}</TableCell>
+                            <TableCell>{format(parse(assign.date, "yyyy-MM-dd", new Date()), 'dd/MM/yyyy')}</TableCell>
                             <TableCell>{assign.lastReportData?.reportedAt ? format((assign.lastReportData.reportedAt as Timestamp).toDate(), "dd/MM/yyyy") : "Sin reporte"}</TableCell>
                             <TableCell className="text-xs">{getWorkedBlocksDisplay(assign.lastReportData)}</TableCell>
                             <TableCell className="text-xs italic text-muted-foreground truncate max-w-xs" title={assign.lastReportData?.generalNotes}>

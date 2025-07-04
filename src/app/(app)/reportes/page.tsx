@@ -10,7 +10,7 @@ import type { Territory, Assignment, UserAssignment } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { collection, onSnapshot, query, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { format, parse, isBefore, startOfDay, parseISO, isAfter } from "date-fns";
+import { format, parse, isBefore, startOfDay, isAfter } from "date-fns";
 
 import { ReporteActividadView, type ReporteActividadData } from "@/components/reportes/reporte-actividad-view";
 import { ReporteS13View, type ConsolidatedS13Data, type ReporteS13Data } from "@/components/reportes/reporte-s13-view";
@@ -186,17 +186,17 @@ export default function ReportesPage() {
         } else if (lastAssignmentInCycle && isAfter(parse(`${lastAssignmentInCycle.date} ${lastAssignmentInCycle.time}`, "yyyy-MM-dd HH:mm", new Date()), new Date())) {
             estado = 'En Curso';
             asignadoA = lastAssignmentInCycle.userName || 'N/A';
-            fechaAsignacion = format(parseISO(lastAssignmentInCycle.date), 'dd/MM/yyyy');
+            fechaAsignacion = format(parse(lastAssignmentInCycle.date, "yyyy-MM-dd", new Date()), 'dd/MM/yyyy');
             manzanasPendientes = allBlockNumbers.join(', ');
         } else if (lastAssignmentInCycle && isBefore(parse(`${lastAssignmentInCycle.date} ${lastAssignmentInCycle.time}`, "yyyy-MM-dd HH:mm", new Date()), startOfDay(new Date())) && !lastAssignmentInCycle.lastReportData) {
             estado = 'En Curso';
             asignadoA = lastAssignmentInCycle.userName || 'N/A';
-            fechaAsignacion = format(parseISO(lastAssignmentInCycle.date), 'dd/MM/yyyy');
+            fechaAsignacion = format(parse(lastAssignmentInCycle.date, "yyyy-MM-dd", new Date()), 'dd/MM/yyyy');
             manzanasPendientes = allBlockNumbers.join(', ');
         } else if (workedBlockNumbers.length > 0 && pendingBlockNumbers.length > 0) {
             estado = 'Parcial';
             asignadoA = lastAssignmentInCycle?.userName || 'N/A';
-            fechaAsignacion = lastAssignmentInCycle ? format(parseISO(lastAssignmentInCycle.date), 'dd/MM/yyyy') : 'N/A';
+            fechaAsignacion = lastAssignmentInCycle ? format(parse(lastAssignmentInCycle.date, "yyyy-MM-dd", new Date()), 'dd/MM/yyyy') : 'N/A';
             manzanasTrabajadas = workedBlockNumbers.join(', ');
             manzanasPendientes = pendingBlockNumbers.join(', ');
         } else {
@@ -270,7 +270,7 @@ export default function ReportesPage() {
         territoryNumber: territory.number || territory.name,
         lastCompletedHistoric: territory.lastWorked || 'N/A',
         firstAssignedTo: endAssignment._cycleStartAssignment.userName || 'N/A',
-        firstAssignedDate: format(parseISO(endAssignment._cycleStartAssignment.date), 'dd/MM/yyyy'),
+        firstAssignedDate: format(parse(endAssignment._cycleStartAssignment.date, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy'),
         completedCurrentCycle: format((endAssignment.lastReportData!.reportedAt as Timestamp).toDate(), "dd/MM/yyyy"),
         fullCampaignHistory: [],
       });
@@ -437,4 +437,3 @@ export default function ReportesPage() {
     </div>
   );
 }
-

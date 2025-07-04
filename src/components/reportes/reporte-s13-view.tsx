@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import type { CampaignAssignmentInReport, Assignment, Territory } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { format, parseISO } from "date-fns";
+import { format, parse } from "date-fns";
 import type { Timestamp } from "firebase/firestore";
 
 
@@ -143,7 +143,7 @@ export function ReporteS13View({ data, allAssignments, allTerritories }: Reporte
                 {selectedHistory.length > 0 ? selectedHistory.map((assignment) => (
                   <TableRow key={assignment.id}>
                     <TableCell>{assignment.userName}</TableCell>
-                    <TableCell>{format(parseISO(assignment.date), 'dd/MM/yyyy')}</TableCell>
+                    <TableCell>{format(parse(assignment.date, "yyyy-MM-dd", new Date()), 'dd/MM/yyyy')}</TableCell>
                     <TableCell className="font-semibold text-primary">{format((assignment.lastReportData!.reportedAt as Timestamp).toDate(), "dd/MM/yyyy")}</TableCell>
                   </TableRow>
                 )) : (

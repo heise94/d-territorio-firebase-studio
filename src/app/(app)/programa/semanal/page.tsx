@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import type { Assignment, PreachingAssignedType, SettingsDoc, DayOfWeek } from "@/types";
-import { format, startOfWeek, addDays, parseISO, isSameDay, startOfDay, subWeeks, addWeeks, endOfWeek } from "date-fns";
+import { format, startOfWeek, addDays, parse, isSameDay, startOfDay, subWeeks, addWeeks, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle, ChevronLeft, CalendarClockIcon, Loader2, ImageIcon, Home, User, MapPin } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -223,7 +223,7 @@ export default function ProgramaSemanalPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {currentWeekDays.map(day => {
             const assignmentsForDay = assignments.filter(assign =>
-                isSameDay(parseISO(assign.date), day) && assign.status === 'accepted'
+                isSameDay(parse(assign.date, "yyyy-MM-dd", new Date()), day) && assign.status === 'accepted'
             ).sort((a,b) => a.time.localeCompare(b.time));
 
             const isActualCurrentDay = isSameDay(day, today); 
@@ -305,7 +305,7 @@ export default function ProgramaSemanalPage() {
               <AlertDialogDescription className="pt-2">
                 Estás a punto de asumir la dirección de la predicación para:
                 <br />
-                <span className="font-semibold text-foreground">{selectedAssignmentToLead.locationName}</span> el <span className="font-semibold text-foreground">{format(parseISO(selectedAssignmentToLead.date), "EEEE dd/MM", { locale: es })} a las {selectedAssignmentToLead.time}</span>.
+                <span className="font-semibold text-foreground">{selectedAssignmentToLead.locationName}</span> el <span className="font-semibold text-foreground">{format(parse(selectedAssignmentToLead.date, "yyyy-MM-dd", new Date()), "EEEE dd/MM", { locale: es })} a las {selectedAssignmentToLead.time}</span>.
                 <br /><br />
                 Al aceptar, serás el encargado y responsable de enviar el reporte al finalizar.
               </AlertDialogDescription>
