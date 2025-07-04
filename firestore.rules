@@ -1,44 +1,17 @@
-
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // =================================
-    // Helper Functions
-    // =================================
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // =================================
-    // Collection Rules
-    // =================================
-
-    // The users collection needs special rules to allow the invitation flow to work for new users.
-    // Specifically, the app needs to check if an email exists before the user is authenticated.
+    // This rule allows the invitation page to check if an email exists
+    // before a user is logged in. This is the only public access.
     match /users/{userId} {
-      // Allow anyone to query the user list. This is needed to check if an email exists during sign-up.
-      // This is a trade-off for the current app design. For production, a Cloud Function 
-      // to check email existence without exposing the collection would be more secure.
-      allow list: if true;
-      
-      // Allow any authenticated user to get a specific user's document.
-      // This is used throughout the app to display user names in dropdowns, etc.
-      allow get: if isSignedIn();
-      
-      // Allow any authenticated user to create, update, or delete user documents.
-      // The UI restricts this functionality to administrators, so this rule enables that client-side logic.
-      allow write: if isSignedIn();
+      allow read: if true;
+      allow write: if request.auth != null;
     }
 
-    // For all other collections, the rule is simple: only authenticated users can access them.
-    // This prevents anonymous access and is a good baseline security measure.
-    // The specific permissions (e.g., only admins can delete territories) are currently handled by the app's UI.
-    match /{document=**} {
-        // This rule does NOT match the /users/{userId} path above, as more specific rules take precedence.
-        // It applies to territories, casas, assignments, settings, etc.
-      allow read, write: if isSignedIn();
+    // All other collections require a user to be logged in to read or write.
+    match /{path=**}/documents/{document} {
+      allow read, write: if request.auth != null;
     }
   }
 }
