@@ -9,12 +9,13 @@ import { useToast } from "@/hooks/use-toast";
 import type { Assignment, PreachingAssignedType, SettingsDoc, DayOfWeek } from "@/types";
 import { format, startOfWeek, addDays, parseISO, isSameDay, startOfDay, subWeeks, addWeeks, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
-import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle, ChevronLeft, CalendarClock as CalendarClockIcon, Loader2, Image as ImageIcon } from "lucide-react";
+import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle, ChevronLeft, CalendarClockIcon, Loader2, ImageIcon, Home, User, MapPin } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { collection, doc, onSnapshot, query, where, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toPng } from 'html-to-image';
 import { WeeklyScheduleImage } from "@/components/programa/weekly-schedule-image";
+import { Badge } from "@/components/ui/badge";
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingAssignedType; className?: string }) => {
   const defaultClass = "h-5 w-5 shrink-0";
@@ -228,42 +229,59 @@ export default function ProgramaSemanalPage() {
             const isActualCurrentDay = isSameDay(day, today); 
 
             return (
-                <Card key={day.toISOString()} className={`shadow-md hover:shadow-lg transition-shadow ${isActualCurrentDay ? 'border-primary border-2' : 'border-border'}`}>
-                <CardHeader className={`pb-3 rounded-t-md ${isActualCurrentDay ? 'bg-primary/10' : 'bg-muted/30'}`}>
+                <Card key={day.toISOString()} className={`shadow-md hover:shadow-lg transition-shadow flex flex-col ${isActualCurrentDay ? 'border-primary border-2' : 'border-border'}`}>
+                <CardHeader className={`pb-3 rounded-t-lg ${isActualCurrentDay ? 'bg-primary/10' : 'bg-muted/30'}`}>
                     <CardTitle className="text-base md:text-lg font-semibold">
                     {format(day, "EEEE, dd 'de' MMMM", { locale: es })}
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="pt-4 space-y-3 min-h-[100px]">
+                <CardContent className="pt-4 space-y-4 flex-grow">
                     {assignmentsForDay.length > 0 ? (
                     assignmentsForDay.map(assign => (
-                        <div key={assign.id} className="p-2.5 border rounded-md shadow-sm bg-card hover:bg-muted/20 transition-colors">
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="font-medium text-sm md:text-base">{assign.time}</span>
-                            <div className="flex items-center text-xs md:text-sm text-muted-foreground capitalize">
-                            <PreachingTypeIcon type={assign.type} className="mr-1.5 text-primary h-4 w-4 md:h-5 md:w-5" />
-                            {assign.type}
+                       <div key={assign.id} className="p-3 border rounded-lg shadow-sm bg-card hover:bg-muted/20 transition-colors flex flex-col gap-2">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2">
+                              <PreachingTypeIcon type={assign.type} className="text-primary h-5 w-5" />
+                              <span className="font-bold text-base">{assign.time}</span>
                             </div>
-                        </div>
-                        <p className="text-xs md:text-sm font-semibold text-primary">{assign.locationName}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Encargado: <span className="font-medium text-foreground">{assign.userName || "No asignado"}</span>
-                        </p>
-                        {isActualCurrentDay && assign.userId !== userProfile?.firebaseAuthUid && (
-                            <Button
+                            <Badge variant="outline" className="capitalize">{assign.type}</Badge>
+                          </div>
+                          <div className="pl-1 space-y-2 text-sm">
+                            <p className="flex items-start">
+                              <MapPin className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground shrink-0" />
+                              <span className="font-semibold text-primary">{assign.locationName}</span>
+                            </p>
+                            {assign.type !== 'zoom' && (
+                              <p className="flex items-start">
+                                <Home className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground shrink-0" />
+                                <span>
+                                  {assign.casaName || 'Casa no especificada'}<br/>
+                                  <span className="text-xs text-muted-foreground">{assign.casaAddress || 'Dirección no disponible'}</span>
+                                </span>
+                              </p>
+                            )}
+                            <p className="flex items-start">
+                              <User className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground shrink-0" />
+                              <span className="font-semibold">{assign.userName || 'No asignado'}</span>
+                            </p>
+                          </div>
+                          <div className="mt-auto pt-2">
+                            {isActualCurrentDay && assign.userId !== userProfile?.firebaseAuthUid && (
+                              <Button
                                 variant="outline"
                                 size="sm"
-                                className="w-full mt-2.5 text-xs hover:bg-primary/10 hover:border-primary hover:text-primary"
+                                className="w-full text-xs hover:bg-primary/10 hover:border-primary hover:text-primary"
                                 onClick={() => handleRequestToLead(assign)}
-                            >
+                              >
                                 <ChevronRight className="mr-1.5 h-3.5 w-3.5" /> Solicitar Dirigir
-                            </Button>
-                        )}
-                        {assign.userId === userProfile?.firebaseAuthUid && (
-                            <p className="mt-1.5 text-xs text-green-600 font-medium bg-green-500/10 p-1 rounded-md text-center">
+                              </Button>
+                            )}
+                            {assign.userId === userProfile?.firebaseAuthUid && (
+                              <p className="text-xs text-green-600 font-medium bg-green-500/10 p-1.5 rounded-md text-center">
                                 Tú eres el encargado actual.
-                            </p>
-                        )}
+                              </p>
+                            )}
+                          </div>
                         </div>
                     ))
                     ) : (
