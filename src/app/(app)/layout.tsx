@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, ReactNode } from 'react';
@@ -48,7 +49,7 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[auto_1fr]">
-      <div className={cn("hidden border-r bg-muted/40 md:flex md:flex-col transition-all duration-300 ease-in-out", isSidebarCollapsed ? "w-[72px]" : "w-[240px]")}>
+      <div className={cn("hidden border-r bg-muted/40 md:flex md:flex-col transition-all duration-300 ease-in-out sticky top-0 h-screen", isSidebarCollapsed ? "w-[72px]" : "w-[240px]")}>
         <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
           <AppLogo isCollapsed={isSidebarCollapsed} />
         </div>
