@@ -6,16 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { Assignment, PreachingAssignedType, SettingsDoc, DayOfWeek, AssignmentStatus } from "@/types";
-import { format, startOfWeek, addDays, parse, isSameDay, startOfDay, subWeeks, addWeeks, endOfWeek } from "date-fns";
+import type { Assignment, PreachingAssignedType, SettingsDoc, DayOfWeek, AssignmentStatus, Territory, ReportedAssignmentData } from "@/types";
+import { format, startOfWeek, addDays, parse, isSameDay, startOfDay, subWeeks, addWeeks, endOfWeek, isBefore } from "date-fns";
 import { es } from "date-fns/locale";
-import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle, ChevronLeft, CalendarClockIcon, Loader2, ImageIcon, Home, User, MapPin, HelpCircle, CheckCircle2, XCircle, UserMinus, UserCheck2, ShieldAlert } from "lucide-react";
+import { Users, MountainSnow, Video, CalendarDays, ChevronRight, AlertTriangle, ChevronLeft, CalendarClockIcon, Loader2, ImageIcon, Home, User, MapPin, HelpCircle, CheckCircle2, XCircle, UserMinus, UserCheck2, ShieldAlert, FileText } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
-import { collection, doc, onSnapshot, query, where, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where, updateDoc, serverTimestamp, writeBatch, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toPng } from 'html-to-image';
 import { WeeklyScheduleImage } from "@/components/programa/weekly-schedule-image";
 import { Badge } from "@/components/ui/badge";
+import { PERMISSIONS } from "@/lib/constants";
+import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
+
 
 const PreachingTypeIcon = ({ type, className }: { type: PreachingAssignedType; className?: string }) => {
   const defaultClass = "h-5 w-5 shrink-0";
@@ -54,7 +57,8 @@ export default function ProgramaSemanalPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedAssignmentToLead, setSelectedAssignmentToLead] = useState<Assignment | null>(null);
   const { toast } = useToast();
-  const { userProfile } = usePermissions();
+  const { userProfile, hasPermission } = usePermissions();
+  const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
 
   const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date());
   const today = startOfDay(new Date());
@@ -63,6 +67,10 @@ export default function ProgramaSemanalPage() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   
   const [groupOrganizedDays, setGroupOrganizedDays] = useState<DayOfWeek[]>([]);
+  
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [assignmentToReport, setAssignmentToReport] = useState<Assignment | null>(null);
+  const [territoryForDialog, setTerritoryForDialog] = useState<Territory | null>(null);
 
 
   const currentWeekDays = useMemo(() => {
@@ -100,6 +108,11 @@ export default function ProgramaSemanalPage() {
             const settingsData = snapshot.data() as SettingsDoc;
             setGroupOrganizedDays(settingsData.groupOrganizedDays || []);
         }
+    }));
+    
+    const territoriesQuery = query(collection(db, "territories"));
+    unsubscribers.push(onSnapshot(territoriesQuery, (snapshot) => {
+        setAllTerritories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Territory)));
     }));
 
 
@@ -200,6 +213,67 @@ export default function ProgramaSemanalPage() {
         setIsGeneratingImage(false);
     }
   }, [currentWeekDays, toast]);
+  
+  const canManageProgram = hasPermission(PERMISSIONS.MANAGE_MONTHLY_PROGRAM);
+  
+  const handleOpenReportDialog = async (assignment: Assignment) => {
+    if ((assignment.type === 'publica' || assignment.type === 'rural') && assignment.locationId) {
+        const territory = allTerritories.find(t => t.id === assignment.locationId);
+        if (territory) {
+            setTerritoryForDialog(territory);
+        } else {
+             toast({ title: "Territorio no encontrado", variant: "default" });
+             setTerritoryForDialog(null);
+        }
+    } else {
+        setTerritoryForDialog(null); 
+    }
+    setAssignmentToReport(assignment);
+    setIsReportDialogOpen(true);
+  };
+
+  const handleReportSubmit = async (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => {
+    if (!assignmentToReport || !userProfile?.firebaseAuthUid) {
+        toast({ title: "Error", variant: "destructive"});
+        return;
+    }
+    
+    const fullReportData: ReportedAssignmentData = {
+        assignmentId: assignmentToReport.id,
+        reports: data.reports,
+        generalNotes: data.generalNotes,
+        reportedAt: Timestamp.now(), 
+        reportedByUserId: userProfile.firebaseAuthUid,
+        additionalTerritorySelected: !!assignmentToReport.additionalTerritorySelected,
+    };
+    
+    const batch = writeBatch(db);
+    
+    const assignmentRef = doc(db, "assignments", assignmentToReport.id);
+    batch.update(assignmentRef, {
+        lastReportData: fullReportData,
+        updatedAt: serverTimestamp()
+    });
+
+    data.reports.forEach(report => {
+        if (report.territoryId && !report.territoryNotWorked) {
+            const territoryRef = doc(db, "territories", report.territoryId);
+            batch.update(territoryRef, {
+                lastWorked: assignmentToReport.date,
+                updatedAt: serverTimestamp()
+            });
+        }
+    });
+    
+    await batch.commit();
+    
+    toast({
+      title: "Reporte Añadido",
+      description: `Se ha guardado el reporte para "${assignmentToReport.locationName}".`,
+    });
+    
+    setIsReportDialogOpen(false);
+  };
 
   const weekTitle = `Semana del ${format(currentWeekDays[0], "d 'de' MMMM", { locale: es })} al ${format(currentWeekDays[6], "d 'de' MMMM 'de' yyyy", { locale: es })}`;
 
@@ -259,7 +333,12 @@ export default function ProgramaSemanalPage() {
                 </CardHeader>
                 <CardContent className="pt-4 space-y-4 flex-grow">
                     {assignmentsForDay.length > 0 ? (
-                    assignmentsForDay.map(assign => (
+                    assignmentsForDay.map(assign => {
+                      const isPast = isBefore(parse(assign.date, "yyyy-MM-dd", new Date()), today);
+                      const reportableType = assign.type === 'publica' || assign.type === 'rural';
+                      const showAdminReportButton = canManageProgram && isPast && !assign.lastReportData && reportableType;
+
+                      return (
                        <div key={assign.id} className="p-3 border rounded-lg shadow-sm bg-card hover:bg-muted/20 transition-colors flex flex-col gap-2">
                           <div className="flex justify-between items-start">
                             <div className="flex items-center gap-2">
@@ -287,7 +366,7 @@ export default function ProgramaSemanalPage() {
                               <span className="font-semibold">{assign.userName || 'No asignado'}</span>
                             </p>
                           </div>
-                          <div className="mt-auto pt-2">
+                          <div className="mt-auto pt-2 space-y-2">
                             {isActualCurrentDay && assign.userId !== userProfile?.firebaseAuthUid && assign.status === 'accepted' && (
                               <Button
                                 variant="outline"
@@ -303,9 +382,19 @@ export default function ProgramaSemanalPage() {
                                 Tú eres el encargado actual.
                               </p>
                             )}
+                            {showAdminReportButton && (
+                               <Button
+                                variant="secondary"
+                                size="sm"
+                                className="w-full text-xs"
+                                onClick={() => handleOpenReportDialog(assign)}
+                              >
+                                <FileText className="mr-1.5 h-3.5 w-3.5" /> Añadir Reporte (Admin)
+                              </Button>
+                            )}
                           </div>
                         </div>
-                    ))
+                    )})
                     ) : (
                     <p className="text-xs md:text-sm text-muted-foreground text-center py-4">No hay asignaciones para este día.</p>
                     )}
@@ -349,6 +438,17 @@ export default function ProgramaSemanalPage() {
         weekTitle={weekTitle}
         groupOrganizedDays={groupOrganizedDays}
       />
+      
+      {assignmentToReport && (
+        <ReportarPredicacionDialog
+          isOpen={isReportDialogOpen}
+          onOpenChange={setIsReportDialogOpen}
+          assignment={assignmentToReport}
+          territory={territoryForDialog}
+          onReportSubmit={handleReportSubmit}
+          initialReportData={assignmentToReport.lastReportData}
+        />
+      )}
     </div>
   );
 }

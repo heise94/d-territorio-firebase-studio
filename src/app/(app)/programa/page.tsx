@@ -11,7 +11,7 @@ import { es } from "date-fns/locale";
 import { format, getDaysInMonth, startOfMonth, endOfMonth, startOfDay, endOfDay, isBefore, getDay, isSameDay, parse, addDays, isWithinInterval } from 'date-fns';
 import { collection, doc, onSnapshot, query, where, getDocs, writeBatch, serverTimestamp, Timestamp, deleteDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Assignment, PreachingAssignedType, UserProfile, Casa, Territory, Campaign, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType } from "@/types";
+import type { Assignment, PreachingAssignedType, UserProfile, Casa, Territory, Campaign, CustomHoliday, ProgramScheduleSlot, SettingsDoc, DayOfWeek, PreachingType, ReportedAssignmentData } from "@/types";
 import { AlertDialog, AlertDialogTrigger, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
@@ -22,6 +22,7 @@ import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/comp
 import { MonthlyScheduleImage } from '@/components/programa/monthly-schedule-image';
 import { cn } from "@/lib/utils";
 import { toPng } from 'html-to-image';
+import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
 
 
 const currentYear = new Date().getFullYear();
@@ -74,6 +75,10 @@ export default function ProgramaMensualPage() {
   const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [assignmentToReport, setAssignmentToReport] = useState<Assignment | null>(null);
+  const [territoryForDialog, setTerritoryForDialog] = useState<Territory | null>(null);
+
   useEffect(() => {
     setIsLoading(true);
     const publishersQuery = query(collection(db, "users"));
@@ -237,6 +242,66 @@ export default function ProgramaMensualPage() {
     }
   };
   
+   const handleOpenReportDialog = async (assignment: Assignment) => {
+    if ((assignment.type === 'publica' || assignment.type === 'rural') && assignment.locationId) {
+        const territory = allTerritories.find(t => t.id === assignment.locationId);
+        if (territory) {
+            setTerritoryForDialog(territory);
+        } else {
+             toast({ title: "Territorio no encontrado", variant: "default" });
+             setTerritoryForDialog(null);
+        }
+    } else {
+        setTerritoryForDialog(null); 
+    }
+    setAssignmentToReport(assignment);
+    setIsReportDialogOpen(true);
+  };
+
+  const handleReportSubmit = async (data: Omit<ReportedAssignmentData, 'reportedAt' | 'reportedByUserId' | 'assignmentId'>) => {
+    if (!assignmentToReport || !userProfile?.firebaseAuthUid) {
+        toast({ title: "Error", variant: "destructive"});
+        return;
+    }
+    
+    const fullReportData: ReportedAssignmentData = {
+        assignmentId: assignmentToReport.id,
+        reports: data.reports,
+        generalNotes: data.generalNotes,
+        reportedAt: Timestamp.now(), 
+        reportedByUserId: userProfile.firebaseAuthUid,
+        additionalTerritorySelected: !!assignmentToReport.additionalTerritorySelected,
+    };
+    
+    const batch = writeBatch(db);
+    
+    const assignmentRef = doc(db, "assignments", assignmentToReport.id);
+    batch.update(assignmentRef, {
+        lastReportData: fullReportData,
+        updatedAt: serverTimestamp()
+    });
+
+    data.reports.forEach(report => {
+        if (report.territoryId && !report.territoryNotWorked) {
+            const territoryRef = doc(db, "territories", report.territoryId);
+            batch.update(territoryRef, {
+                lastWorked: assignmentToReport.date,
+                updatedAt: serverTimestamp()
+            });
+        }
+    });
+    
+    await batch.commit();
+    
+    toast({
+      title: "Reporte Añadido",
+      description: `Se ha guardado el reporte para "${assignmentToReport.locationName}".`,
+    });
+    
+    setIsReportDialogOpen(false);
+  };
+
+
   const handleCopyToText = async () => {
     setIsCopying(true);
     const monthName = format(new Date(selectedYear, selectedMonth), "MMMM yyyy", { locale: es });
@@ -364,7 +429,7 @@ export default function ProgramaMensualPage() {
   const dayOffset = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1;
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => addDays(firstDayOfMonth, i));
 
-  const AssignmentItem = ({ assignment, onEdit, onDelete }: { assignment: Assignment, onEdit: () => void, onDelete: () => void }) => {
+  const AssignmentItem = ({ assignment, onEdit, onDelete, onReport }: { assignment: Assignment, onEdit: () => void, onDelete: () => void, onReport: () => void }) => {
     const publisher = allPublishers.find(p => p.id === assignment.userId || p.firebaseAuthUid === assignment.userId);
     const assignmentDate = parse(assignment.date, "yyyy-MM-dd", new Date());
     let isProblematic = assignment.status === 'rejected' || assignment.status === 'replacement_requested' || assignment.status === 'needs_manual_replacement';
@@ -386,6 +451,10 @@ export default function ProgramaMensualPage() {
         }
     }
     
+    const isPast = isBefore(assignmentDate, startOfDay(new Date()));
+    const reportableType = assignment.type === 'publica' || assignment.type === 'rural';
+    const showAdminReportButton = canManageProgram && isPast && !assignment.lastReportData && reportableType;
+
     const itemClasses = cn(
         "text-sm md:text-xs group relative p-2 md:p-1.5 rounded-md shadow-sm hover:bg-muted/70 transition-colors min-h-[60px] flex flex-col justify-start",
         isProblematic ? "bg-orange-100 dark:bg-orange-900/30 border border-orange-400 dark:border-orange-700/50" : "bg-muted/30"
@@ -411,6 +480,11 @@ export default function ProgramaMensualPage() {
                             </p>
                         )}
                     </div>
+                     {showAdminReportButton && (
+                        <Button variant="secondary" size="sm" className="w-full mt-1 h-7 text-xs" onClick={onReport}>
+                            <FileText className="mr-1.5 h-3.5 w-3.5"/> Añadir Reporte
+                        </Button>
+                    )}
                     {canManageProgram && (
                         <div className="absolute top-0 right-0 flex opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-background/80 backdrop-blur-sm rounded-bl-md rounded-tr-md p-0.5">
                             <Button variant="ghost" size="icon" className="h-5 w-5" onClick={onEdit}><Edit className="h-3 w-3 text-blue-600" /></Button>
@@ -559,6 +633,7 @@ export default function ProgramaMensualPage() {
                                 assignment={assignment} 
                                 onEdit={() => handleOpenEditDialog(assignment)} 
                                 onDelete={() => handleDeleteAssignment(assignment)}
+                                onReport={() => handleOpenReportDialog(assignment)}
                               />
                            ))
                         ) : (
@@ -622,6 +697,17 @@ export default function ProgramaMensualPage() {
             campaigns={campaigns}
             summerScheduleStartDate={summerStartDate}
             winterScheduleStartDate={winterStartDate}
+        />
+      )}
+      
+      {assignmentToReport && (
+        <ReportarPredicacionDialog
+          isOpen={isReportDialogOpen}
+          onOpenChange={setIsReportDialogOpen}
+          assignment={assignmentToReport}
+          territory={territoryForDialog}
+          onReportSubmit={handleReportSubmit}
+          initialReportData={assignmentToReport.lastReportData}
         />
       )}
     </div>
