@@ -1,23 +1,22 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES, PERMISSIONS } from "@/lib/constants";
-import { AlertTriangle, Edit, Loader2, FileText, History, PlusCircle, Search } from "lucide-react";
+import { AlertTriangle, Edit, Loader2, FileText, History, PlusCircle, Search, ChevronsUpDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { collection, query, where, onSnapshot, doc, getDoc, writeBatch, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Territory, Assignment, ReportedAssignmentData, UserProfile, PreachingAssignedType } from "@/types";
-import { format, parse } from "date-fns";
+import { format, parse, isBefore } from "date-fns";
 import { es } from "date-fns/locale";
 import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
 import { AddHistoricalReportDialog, type HistoricalReportSubmitData } from "@/components/reportes/add-historical-report-dialog";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export default function EditorHistorialPage() {
   const { userProfile, isLoadingPermissions, hasPermission } = usePermissions();
@@ -38,6 +37,7 @@ export default function EditorHistorialPage() {
 
   const [isAddHistoricalDialogOpen, setIsAddHistoricalDialogOpen] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
+  const [isComboboxOpen, setIsComboboxOpen] = useState(false);
 
   useEffect(() => {
     setIsLoadingTerritories(true);
@@ -92,7 +92,7 @@ export default function EditorHistorialPage() {
     return () => unsubscribe();
   }, [selectedTerritoryId, toast]);
 
-  const filteredTerritoriesForSelect = useMemo(() => {
+  const filteredTerritories = useMemo(() => {
     if (!territorySearch) {
       return allTerritories;
     }
@@ -102,13 +102,6 @@ export default function EditorHistorialPage() {
       (t.name && t.name.toLowerCase().includes(searchTerm))
     );
   }, [allTerritories, territorySearch]);
-
-  useEffect(() => {
-    if (selectedTerritoryId && filteredTerritoriesForSelect.length > 0 && !filteredTerritoriesForSelect.some(t => t.id === selectedTerritoryId)) {
-      setSelectedTerritoryId("");
-    }
-  }, [selectedTerritoryId, filteredTerritoriesForSelect]);
-
 
   const handleOpenEditDialog = async (assignment: Assignment) => {
     const territory = allTerritories.find(t => t.id === assignment.locationId);
@@ -261,6 +254,22 @@ export default function EditorHistorialPage() {
     );
   }
 
+  const selectedTerritoryName = selectedTerritoryId
+    ? allTerritories.find(t => t.id === selectedTerritoryId)?.name
+    : "Selecciona un territorio...";
+    
+  const selectedTerritoryNumber = selectedTerritoryId
+    ? allTerritories.find(t => t.id === selectedTerritoryId)?.number
+    : "";
+    
+  const selectedTerritoryType = selectedTerritoryId
+    ? allTerritories.find(t => t.id === selectedTerritoryId)?.type
+    : "";
+
+  const selectedTerritoryDisplayText = selectedTerritoryType === 'urban' && selectedTerritoryNumber 
+    ? `U-${selectedTerritoryNumber}` 
+    : selectedTerritoryName;
+
   return (
     <div className="space-y-8">
       <div>
@@ -282,31 +291,45 @@ export default function EditorHistorialPage() {
         </CardHeader>
         <CardContent>
           {isLoadingTerritories ? <Loader2 className="h-6 w-6 animate-spin" /> : (
-            <div className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por número o nombre del territorio..."
-                  value={territorySearch}
-                  onChange={(e) => setTerritorySearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <Select onValueChange={setSelectedTerritoryId} value={selectedTerritoryId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un territorio..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredTerritoriesForSelect.length > 0 ? filteredTerritoriesForSelect.map(t => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.type === 'urban' && t.number ? `U-${t.number}` : t.name}
-                    </SelectItem>
-                  )) : (
-                    <div className="text-center text-sm text-muted-foreground p-4">No se encontraron territorios.</div>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+            <Popover open={isComboboxOpen} onOpenChange={setIsComboboxOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={isComboboxOpen} className="w-full justify-between h-10">
+                  {selectedTerritoryId ? selectedTerritoryDisplayText : "Selecciona un territorio..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <div className="p-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Buscar por número o nombre..."
+                        value={territorySearch}
+                        onChange={(e) => setTerritorySearch(e.target.value)}
+                        className="pl-9 h-9"
+                    />
+                  </div>
+                </div>
+                <div className="max-h-[300px] overflow-y-auto">
+                    {filteredTerritories.length > 0 ? filteredTerritories.map(t => (
+                        <Button
+                            key={t.id}
+                            variant="ghost"
+                            className="w-full justify-start font-normal h-9"
+                            onClick={() => {
+                                setSelectedTerritoryId(t.id);
+                                setTerritorySearch(""); // Clear search on select
+                                setIsComboboxOpen(false);
+                            }}
+                        >
+                            {t.type === 'urban' && t.number ? `U-${t.number}` : t.name}
+                        </Button>
+                    )) : (
+                        <p className="p-4 text-center text-sm text-muted-foreground">No se encontraron territorios.</p>
+                    )}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
         </CardContent>
       </Card>
@@ -351,24 +374,33 @@ export default function EditorHistorialPage() {
                         </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {assignments.map(assign => (
+                        {assignments.map(assign => {
+                          const isPast = isBefore(parse(assign.date, "yyyy-MM-dd", new Date()), new Date());
+                          return (
                             <TableRow key={assign.id}>
-                            <TableCell>{assign.userName || "N/A"}</TableCell>
-                            <TableCell>{format(parse(assign.date, "yyyy-MM-dd", new Date()), 'dd/MM/yyyy')}</TableCell>
-                            <TableCell>{assign.lastReportData?.reportedAt ? format((assign.lastReportData.reportedAt as Timestamp).toDate(), "dd/MM/yyyy") : "Sin reporte"}</TableCell>
-                            <TableCell className="text-xs">{getWorkedBlocksDisplay(assign.lastReportData)}</TableCell>
-                            <TableCell className="text-xs italic text-muted-foreground truncate max-w-xs" title={assign.lastReportData?.generalNotes}>
-                                {assign.lastReportData?.generalNotes || "Sin notas"}
-                            </TableCell>
-                            <TableCell className="text-right">
-                                {assign.lastReportData && (
-                                <Button variant="outline" size="sm" onClick={() => handleOpenEditDialog(assign)}>
+                              <TableCell>{assign.userName || "N/A"}</TableCell>
+                              <TableCell>{format(parse(assign.date, "yyyy-MM-dd", new Date()), 'dd/MM/yyyy')}</TableCell>
+                              <TableCell>{assign.lastReportData?.reportedAt ? format((assign.lastReportData.reportedAt as Timestamp).toDate(), "dd/MM/yyyy") : "Sin reporte"}</TableCell>
+                              <TableCell className="text-xs">{getWorkedBlocksDisplay(assign.lastReportData)}</TableCell>
+                              <TableCell className="text-xs italic text-muted-foreground truncate max-w-xs" title={assign.lastReportData?.generalNotes}>
+                                  {assign.lastReportData?.generalNotes || "Sin notas"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {assign.lastReportData ? (
+                                  <Button variant="outline" size="sm" onClick={() => handleOpenEditDialog(assign)}>
                                     <FileText className="mr-2 h-4 w-4" /> Editar Reporte
-                                </Button>
+                                  </Button>
+                                ) : (
+                                  isPast && (
+                                    <Button variant="secondary" size="sm" onClick={() => handleOpenEditDialog(assign)}>
+                                      <PlusCircle className="mr-2 h-4 w-4" /> Añadir Reporte
+                                    </Button>
+                                  )
                                 )}
-                            </TableCell>
+                              </TableCell>
                             </TableRow>
-                        ))}
+                          )
+                        })}
                         </TableBody>
                     </Table>
                 </div>
