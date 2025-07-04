@@ -502,6 +502,22 @@ export default function ProgramaMensualPage() {
     );
 };
 
+  const addManualDialogProps = {
+    isOpen: isAddManualDialogOpen,
+    onOpenChange: setIsAddManualDialogOpen,
+    onAssignmentSubmit: handleManualAssignmentSubmit,
+    date: dateForManualAdd,
+    assignmentToEdit: assignmentToEdit,
+    allPublishers: allPublishers,
+    allTerritories: allTerritories,
+    allCasas: allCasas,
+    allAssignments: allAssignments,
+    programScheduleSlots: programScheduleSlots,
+    campaigns: campaigns,
+    summerScheduleStartDate: summerStartDate,
+    winterScheduleStartDate: winterStartDate,
+  };
+
   return (
     <TooltipProvider>
     <div className="space-y-8">
@@ -682,23 +698,7 @@ export default function ProgramaMensualPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {canManageProgram && (
-        <AddManualAssignmentDialog
-            isOpen={isAddManualDialogOpen}
-            onOpenChange={setIsAddManualDialogOpen}
-            onAssignmentSubmit={handleManualAssignmentSubmit}
-            date={dateForManualAdd}
-            assignmentToEdit={assignmentToEdit}
-            allPublishers={allPublishers}
-            allTerritories={allTerritories}
-            allCasas={allCasas}
-            allAssignments={allAssignments}
-            programScheduleSlots={programScheduleSlots}
-            campaigns={campaigns}
-            summerScheduleStartDate={summerScheduleStartDate}
-            winterScheduleStartDate={winterScheduleStartDate}
-        />
-      )}
+      {canManageProgram && <AddManualAssignmentDialog {...addManualDialogProps} />}
       
       {assignmentToReport && (
         <ReportarPredicacionDialog
