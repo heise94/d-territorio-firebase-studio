@@ -264,7 +264,7 @@ export function ReportarPredicacionDialog({
 
   if (!assignment) return null;
 
-  const assignmentDateTime = parse(`${assignment.date} ${assignment.time}`, "yyyy-MM-dd", new Date());
+  const assignmentDateTime = parse(`${assignment.date} ${assignment.time}`, "yyyy-MM-dd HH:mm", new Date());
   const dialogTitleText = isEditMode ? "Modificar Reporte de Predicación" : "Reportar Predicación";
   const submitButtonText = isEditMode ? "Guardar Cambios" : "Enviar Reporte";
   
