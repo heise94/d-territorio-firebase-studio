@@ -27,7 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import type { UserAssignment, Territory, ReportedAssignmentData, SingleTerritoryReportDetails, AdditionalTerritoryInfo, PreachingAssignedType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, FileText, MapPin, CalendarDays, Clock, Edit3, CloudOff, Map as MapIcon, ChevronDown, ChevronUp, Eye } from "lucide-react";
+import { Loader2, FileText, MapPin, CalendarDays, Clock, Edit3, CloudOff, Map as MapIcon, ChevronDown, ChevronUp, Eye, ListChecks } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import Image from 'next/image';
 import { format, parse } from "date-fns";
@@ -201,6 +201,25 @@ export function ReportarPredicacionDialog({
     }
     return name;
   };
+  
+  const handleSelectAllBlocks = (reportIndex: number) => {
+    const territoryInfo = territoriesToReportForDialog[reportIndex];
+    if (!territoryInfo) return;
+
+    const allBlockIds = territoryInfo.displayableBlockNumbers.map(
+      (blockNumber) => `block-${territoryInfo.id}-${blockNumber}`
+    );
+
+    form.setValue(`reports.${reportIndex}.workedBlocksIds`, allBlockIds, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+
+    toast({
+      title: "Manzanas Seleccionadas",
+      description: `Se marcaron todas las manzanas para ${territoryInfo.name}.`,
+    });
+  };
 
 
   async function handleSubmit(values: ReportFormValues) {
@@ -349,13 +368,26 @@ export function ReportarPredicacionDialog({
                             name={`reports.${index}.workedBlocksIds`}
                             render={({ field: blocksField }) => (
                             <FormItem className={`${territoryNotWorked ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                <div className="mb-2">
-                                <FormLabel className="text-sm font-medium">
-                                    {currentTerritoryInfo.isPartial && currentTerritoryInfo.pendingBlockNumbers?.length ? 'Manzanas Pendientes Trabajadas' : 'Manzanas Trabajadas'} en {currentTerritoryInfo.name}
-                                </FormLabel>
-                                <FormFieldDescription className={`${territoryNotWorked ? 'text-muted-foreground/70' : ''}`}>
-                                    Selecciona todas las manzanas predicadas. {territoryNotWorked ? "(Deshabilitado)" : ""}
-                                </FormFieldDescription>
+                                <div className="mb-2 flex justify-between items-center">
+                                  <div>
+                                    <FormLabel className="text-sm font-medium">
+                                        {currentTerritoryInfo.isPartial && currentTerritoryInfo.pendingBlockNumbers?.length ? 'Manzanas Pendientes Trabajadas' : 'Manzanas Trabajadas'} en {currentTerritoryInfo.name}
+                                    </FormLabel>
+                                    <FormFieldDescription className={`${territoryNotWorked ? 'text-muted-foreground/70' : ''}`}>
+                                        Selecciona todas las manzanas predicadas. {territoryNotWorked ? "(Deshabilitado)" : ""}
+                                    </FormFieldDescription>
+                                  </div>
+                                  <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleSelectAllBlocks(index)}
+                                      disabled={territoryNotWorked || displayableBlockNumbersForThisTerritory.length === 0}
+                                      className="text-xs shrink-0"
+                                  >
+                                      <ListChecks className="mr-2 h-4 w-4" />
+                                      Marcar Todas
+                                  </Button>
                                 </div>
                                 <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-3 border rounded-md shadow-sm bg-muted/20 max-h-40 overflow-y-auto ${territoryNotWorked ? 'pointer-events-none' : ''}`}>
                                 {displayableBlockNumbersForThisTerritory.map((blockNumber) => {
