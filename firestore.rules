@@ -2,16 +2,19 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // This rule allows the invitation page to check if an email exists
-    // before a user is logged in. This is the only public access.
+    // Permite leer la información de los usuarios públicamente.
+    // Esto es necesario para que la página de invitación pueda
+    // verificar si un correo ya existe. Las escrituras siguen protegidas.
     match /users/{userId} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
-    // All other collections require a user to be logged in to read or write.
-    match /{path=**}/documents/{document} {
-      allow read, write: if request.auth != null;
+    // Para todas las DEMÁS colecciones, se requiere que el usuario
+    // haya iniciado sesión para leer o escribir. Esta regla es segura
+    // y no se aplica a /users porque ya hay una regla más específica arriba.
+    match /{path=**} {
+      allow read, write: if request.auth != null && path[0] != 'users';
     }
   }
 }
