@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -453,7 +452,7 @@ export default function EditorHistorialPage() {
                                 )}
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                      <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10">
+                                      <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10" onClick={() => handleDeleteAssignment(assign)}>
                                         <Trash2 className="mr-2 h-4 w-4" /> Borrar
                                       </Button>
                                     </AlertDialogTrigger>
@@ -461,15 +460,14 @@ export default function EditorHistorialPage() {
                                       <AlertDialogHeader>
                                         <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                          Esta acción eliminará permanentemente el reporte de {assign.userName} del {assign.date}. No se podrá deshacer.
+                                          Esta acción eliminará permanentemente el reporte de {assignmentToDelete?.userName} del {assignmentToDelete?.date}. No se podrá deshacer.
                                         </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>
                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                         <AlertDialogAction
                                           className="bg-destructive hover:bg-destructive/90"
-                                          onClick={() => confirmDeleteAssignment()}
-                                          onSelect={() => handleDeleteAssignment(assign)} // Set the item to delete before opening
+                                          onClick={confirmDeleteAssignment}
                                         >
                                           Sí, Eliminar
                                         </AlertDialogAction>
@@ -506,7 +504,7 @@ export default function EditorHistorialPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Se eliminará permanentemente la asignación de {assignmentToDelete?.userName} para el {assignmentToDelete?.date} a las {assignmentToDelete?.time}. Esta acción no se puede deshacer.
+                    Se eliminará permanentemente la asignación de {assignmentToDelete?.userName} para el {assignmentToDelete?.date}. Esta acción no se puede deshacer.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
