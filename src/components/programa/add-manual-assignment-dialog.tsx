@@ -320,9 +320,9 @@ export function AddManualAssignmentDialog({
     });
   }, [allTerritories, selectedType, lastWorkedDates, filterMode, selectedCasaId]);
   
-  const availablePublishers = useMemo(() => {
+  const publisherLists = useMemo(() => {
     if (!assignmentDate || !selectedTime || selectedTime === NO_SELECTION) {
-      return [];
+      return { available: [], other: [] };
     }
 
     const dayOfWeekKey = DAY_OF_WEEK_MAP[getDay(assignmentDate)];
@@ -334,24 +334,33 @@ export function AddManualAssignmentDialog({
     );
 
     if (!selectedSlot) {
-        return [];
+      return { available: [], other: [] };
     }
-    
-    return allPublishers.filter(p => {
-        const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable);
-        if (!isAllowedStatus) return false;
-        if (p.blockInfo?.forSystem) return false;
-        const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
-            const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
-            const end = endOfDay(period.endDate instanceof Timestamp ? period.endDate.toDate() : new Date(period.endDate));
-            return isWithinInterval(assignmentDate, { start, end });
-        });
-        if (isUnavailable) return false;
 
-        return p.availability?.availableSlotIds?.includes(selectedSlot.id);
+    const assignablePublishers = allPublishers.filter(p => {
+      const isAllowedStatus = p.status === 'Activo' || (p.status === 'Pendiente Invitación' && p.isAssignable);
+      if (!isAllowedStatus) return false;
+      if (p.blockInfo?.forSystem) return false;
+      const isUnavailable = p.availability?.unavailabilityPeriods?.some(period => {
+          const start = startOfDay(period.startDate instanceof Timestamp ? period.startDate.toDate() : new Date(period.startDate));
+          const end = endOfDay(period.endDate instanceof Timestamp ? period.endDate.toDate() : new Date(period.endDate));
+          return isWithinInterval(assignmentDate, { start, end });
+      });
+      if (isUnavailable) return false;
+      return true;
     });
+
+    const available = assignablePublishers
+        .filter(p => p.availability?.availableSlotIds?.includes(selectedSlot.id))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    
+    const other = assignablePublishers
+        .filter(p => !p.availability?.availableSlotIds?.includes(selectedSlot.id))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    return { available, other };
   }, [allPublishers, assignmentDate, selectedTime, selectedType, programScheduleSlots]);
-  
+
   const selectedCaptain = useMemo(() => {
       if (!selectedUserId) return null;
       return allPublishers.find(p => p.id === selectedUserId || p.firebaseAuthUid === selectedUserId);
@@ -518,9 +527,7 @@ export function AddManualAssignmentDialog({
                     <FormField control={form.control} name="casaId" render={({ field }) => (
                       <FormItem><FormLabel>Casa de Reunión</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value} disabled={!selectedTime || selectedTime === NO_SELECTION || availableCasasForSelectedSlot.length === 0}>
-                          <FormControl><SelectTrigger>
-                              <SelectValue placeholder={!selectedTime || selectedTime === NO_SELECTION ? "Selecciona hora primero" : (availableCasasForSelectedSlot.length > 0 ? "Seleccionar casa" : "No hay casas disponibles para este horario")} />
-                          </SelectTrigger></FormControl>
+                          <FormControl><SelectTrigger><SelectValue placeholder={!selectedTime || selectedTime === NO_SELECTION ? "Selecciona hora primero" : (availableCasasForSelectedSlot.length > 0 ? "Seleccionar casa" : "No hay casas disponibles para este horario")} /></SelectTrigger></FormControl>
                           <SelectContent>{availableCasasForSelectedSlot.map(loc => (<SelectItem key={loc.id} value={loc.id}>{loc.ownerName}</SelectItem>))}</SelectContent>
                         </Select><FormMessage />
                       </FormItem>
@@ -572,30 +579,68 @@ export function AddManualAssignmentDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Publicador Encargado</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={!selectedTime || selectedTime === NO_SELECTION}>
-                    <FormControl><SelectTrigger><SelectValue placeholder={!selectedTime || selectedTime === NO_SELECTION ? "Selecciona hora primero" : "Seleccionar publicador"} /></SelectTrigger></FormControl>
+                   <Select onValueChange={field.onChange} value={field.value} disabled={!selectedTime || selectedTime === NO_SELECTION}>
+                    <FormControl>
+                        <SelectTrigger>
+                            <SelectValue placeholder={!selectedTime || selectedTime === NO_SELECTION ? "Selecciona hora primero" : "Seleccionar publicador"} />
+                        </SelectTrigger>
+                    </FormControl>
                     <SelectContent>
-                        {availablePublishers.map(p => {
-                            const assignmentsThisMonth = allAssignments.filter(a => (a.userId === p.id || a.userId === p.firebaseAuthUid) && isWithinInterval(parseISO(a.date), { start: startOfMonth(assignmentDate!), end: endOfMonth(assignmentDate!) }) ).length;
-                           return (
-                            <Tooltip key={p.id}>
-                               <TooltipTrigger asChild>
-                                <SelectItem value={p.firebaseAuthUid || p.id}>
-                                    <div className="flex items-center justify-between w-full">
-                                      <span>{p.name}</span>
-                                      {assignmentsThisMonth > 0 && (
-                                        <span className="text-xs text-muted-foreground ml-2">({assignmentsThisMonth})</span>
-                                      )}
-                                    </div>
-                                </SelectItem>
-                               </TooltipTrigger>
-                               {assignmentsThisMonth > 0 && (
-                                <TooltipContent onPointerDown={(e) => e.preventDefault()}><p>Tiene {assignmentsThisMonth} asignacion(es) este mes.</p></TooltipContent>
-                               )}
-                            </Tooltip>
-                        )})}
-                        {selectedTime && selectedTime !== NO_SELECTION && availablePublishers.length === 0 && (
-                             <div className="text-center text-xs text-muted-foreground p-2">No hay publicadores disponibles para este horario.</div>
+                        {(!publisherLists.available.length && !publisherLists.other.length) ? (
+                            <div className="text-center text-xs text-muted-foreground p-2">No hay publicadores disponibles.</div>
+                        ) : (
+                            <>
+                                {publisherLists.available.length > 0 && (
+                                    <SelectGroup>
+                                        <SelectLabel>Disponibles para este Horario</SelectLabel>
+                                        {publisherLists.available.map(p => {
+                                            const assignmentsThisMonth = allAssignments.filter(a => (a.userId === p.id || a.userId === p.firebaseAuthUid) && isWithinInterval(parseISO(a.date), { start: startOfMonth(assignmentDate!), end: endOfMonth(assignmentDate!) }) ).length;
+                                            return (
+                                                <Tooltip key={p.id}>
+                                                <TooltipTrigger asChild>
+                                                    <SelectItem value={p.firebaseAuthUid || p.id}>
+                                                        <div className="flex items-center justify-between w-full">
+                                                        <span>{p.name}</span>
+                                                        {assignmentsThisMonth > 0 && (
+                                                            <span className="text-xs text-muted-foreground ml-2">({assignmentsThisMonth})</span>
+                                                        )}
+                                                        </div>
+                                                    </SelectItem>
+                                                </TooltipTrigger>
+                                                {assignmentsThisMonth > 0 && (
+                                                    <TooltipContent onPointerDown={(e) => e.preventDefault()}><p>Tiene {assignmentsThisMonth} asignacion(es) este mes.</p></TooltipContent>
+                                                )}
+                                                </Tooltip>
+                                            )
+                                        })}
+                                    </SelectGroup>
+                                )}
+                                {publisherLists.other.length > 0 && (
+                                    <SelectGroup>
+                                        <SelectLabel>Otros Publicadores</SelectLabel>
+                                        {publisherLists.other.map(p => {
+                                             const assignmentsThisMonth = allAssignments.filter(a => (a.userId === p.id || a.userId === p.firebaseAuthUid) && isWithinInterval(parseISO(a.date), { start: startOfMonth(assignmentDate!), end: endOfMonth(assignmentDate!) }) ).length;
+                                             return (
+                                                <Tooltip key={p.id}>
+                                                <TooltipTrigger asChild>
+                                                    <SelectItem value={p.firebaseAuthUid || p.id}>
+                                                        <div className="flex items-center justify-between w-full">
+                                                        <span>{p.name}</span>
+                                                        {assignmentsThisMonth > 0 && (
+                                                            <span className="text-xs text-muted-foreground ml-2">({assignmentsThisMonth})</span>
+                                                        )}
+                                                        </div>
+                                                    </SelectItem>
+                                                </TooltipTrigger>
+                                                {assignmentsThisMonth > 0 && (
+                                                    <TooltipContent onPointerDown={(e) => e.preventDefault()}><p>Tiene {assignmentsThisMonth} asignacion(es) este mes.</p></TooltipContent>
+                                                )}
+                                                </Tooltip>
+                                            )
+                                        })}
+                                    </SelectGroup>
+                                )}
+                            </>
                         )}
                     </SelectContent>
                   </Select>
