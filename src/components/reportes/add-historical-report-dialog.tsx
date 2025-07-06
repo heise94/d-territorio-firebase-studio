@@ -29,12 +29,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CalendarIcon, History } from "lucide-react";
+import { Loader2, CalendarIcon, History, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import type { Territory, UserProfile } from "@/types";
+import type { Territory, UserProfile, Assignment } from "@/types";
+import { Alert, AlertTitle, AlertDescription as AlertDescriptionComponent } from "@/components/ui/alert";
+
 
 // Schema for the form inside the dialog
 const historicalReportSchema = z.object({
@@ -56,6 +58,7 @@ interface AddHistoricalReportDialogProps {
   onAddHistoricalReport: (data: HistoricalReportSubmitData) => void;
   territory: Territory | null;
   allPublishers: UserProfile[];
+  existingAssignments: Assignment[];
 }
 
 export function AddHistoricalReportDialog({
@@ -64,10 +67,12 @@ export function AddHistoricalReportDialog({
   onAddHistoricalReport,
   territory,
   allPublishers,
+  existingAssignments,
 }: AddHistoricalReportDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reportMode, setReportMode] = useState<ReportMode | undefined>(undefined);
+  const [isDuplicateWarning, setIsDuplicateWarning] = useState(false);
 
   const form = useForm<HistoricalReportFormValues>({
     resolver: zodResolver(historicalReportSchema),
@@ -80,10 +85,26 @@ export function AddHistoricalReportDialog({
     },
   });
   
+  const publisherId = form.watch("publisherId");
+  const assignmentDate = form.watch("assignmentDate");
+
+  useEffect(() => {
+    if (!publisherId || !assignmentDate || !existingAssignments) {
+        setIsDuplicateWarning(false);
+        return;
+    }
+    const dateString = format(assignmentDate, "yyyy-MM-dd");
+    const isDuplicate = existingAssignments.some(
+        assign => (assign.userId === publisherId || assign.userName === allPublishers.find(p => p.id === publisherId)?.name) && assign.date === dateString
+    );
+    setIsDuplicateWarning(isDuplicate);
+  }, [publisherId, assignmentDate, existingAssignments, allPublishers]);
+
   useEffect(() => {
     if (!isOpen) {
       form.reset();
       setReportMode(undefined);
+      setIsDuplicateWarning(false);
     }
   }, [isOpen, form]);
 
@@ -194,6 +215,16 @@ export function AddHistoricalReportDialog({
                 </FormItem>
               )}
             />
+
+            {isDuplicateWarning && (
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Advertencia de Duplicado</AlertTitle>
+                    <AlertDescriptionComponent>
+                        Ya existe un reporte para este publicador en la fecha seleccionada.
+                    </AlertDescriptionComponent>
+                </Alert>
+            )}
 
             <div className="space-y-2">
                <div className="grid grid-cols-3 gap-2">

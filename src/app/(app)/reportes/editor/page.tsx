@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/use-permissions";
 import { USER_ROLES, PERMISSIONS } from "@/lib/constants";
-import { AlertTriangle, Edit, Loader2, FileText, History, PlusCircle, Search, ChevronsUpDown } from "lucide-react";
+import { AlertTriangle, Edit, Loader2, FileText, History, PlusCircle, Search, ChevronsUpDown, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { collection, query, where, onSnapshot, doc, getDoc, writeBatch, serverTimestamp, Timestamp } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, getDoc, writeBatch, serverTimestamp, Timestamp, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Territory, Assignment, ReportedAssignmentData, UserProfile, PreachingAssignedType } from "@/types";
 import { format, parse, isBefore } from "date-fns";
@@ -18,6 +18,8 @@ import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-pr
 import { AddHistoricalReportDialog, type HistoricalReportSubmitData } from "@/components/reportes/add-historical-report-dialog";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 
 export default function EditorHistorialPage() {
   const { userProfile, isLoadingPermissions, hasPermission } = usePermissions();
@@ -35,6 +37,9 @@ export default function EditorHistorialPage() {
   const [assignmentToEdit, setAssignmentToEdit] = useState<Assignment | null>(null);
   const [territoryForDialog, setTerritoryForDialog] = useState<Territory | null>(null);
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  
+  const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const [isAddHistoricalDialogOpen, setIsAddHistoricalDialogOpen] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
@@ -241,6 +246,44 @@ export default function EditorHistorialPage() {
     if (!report.workedBlocksIds || report.workedBlocksIds.length === 0) return "Ninguna";
     return report.workedBlocksIds.map(id => id.split('-').pop()).join(', ');
   };
+  
+  const handleDeleteAssignment = (assignment: Assignment) => {
+    setAssignmentToDelete(assignment);
+    setIsDeleteConfirmOpen(true);
+  };
+  
+  const confirmDeleteAssignment = async () => {
+    if (!assignmentToDelete) return;
+    try {
+      await deleteDoc(doc(db, "assignments", assignmentToDelete.id));
+      toast({
+        title: "Reporte Eliminado",
+        description: `El reporte de ${assignmentToDelete.userName} ha sido eliminado.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el reporte.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleteConfirmOpen(false);
+      setAssignmentToDelete(null);
+    }
+  };
+
+  const processedAssignments = useMemo(() => {
+    const seen = new Set<string>();
+    return assignments.map(assign => {
+      const key = `${assign.userId}-${assign.date}`;
+      if (seen.has(key)) {
+        return { ...assign, isDuplicate: true };
+      }
+      seen.add(key);
+      return { ...assign, isDuplicate: false };
+    });
+  }, [assignments]);
+
 
   if (isLoadingPermissions) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
@@ -379,29 +422,61 @@ export default function EditorHistorialPage() {
                         </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {assignments.map(assign => {
+                        {processedAssignments.map(assign => {
                           const isPast = isBefore(parse(assign.date, "yyyy-MM-dd", new Date()), new Date());
                           return (
-                            <TableRow key={assign.id}>
-                              <TableCell>{assign.userName || "N/A"}</TableCell>
+                            <TableRow key={assign.id} className={assign.isDuplicate ? "bg-destructive/10" : ""}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {assign.userName || "N/A"}
+                                  {assign.isDuplicate && <Badge variant="destructive">Duplicado</Badge>}
+                                </div>
+                              </TableCell>
                               <TableCell>{format(parse(assign.date, "yyyy-MM-dd", new Date()), 'dd/MM/yyyy')}</TableCell>
                               <TableCell>{assign.lastReportData?.reportedAt ? format((assign.lastReportData.reportedAt as Timestamp).toDate(), "dd/MM/yyyy") : "Sin reporte"}</TableCell>
                               <TableCell className="text-xs">{getWorkedBlocksDisplay(assign.lastReportData)}</TableCell>
                               <TableCell className="text-xs italic text-muted-foreground truncate max-w-xs" title={assign.lastReportData?.generalNotes}>
                                   {assign.lastReportData?.generalNotes || "Sin notas"}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell>
+                                <div className="flex justify-end items-center gap-2">
                                 {assign.lastReportData ? (
                                   <Button variant="outline" size="sm" onClick={() => handleOpenEditDialog(assign)}>
-                                    <FileText className="mr-2 h-4 w-4" /> Editar Reporte
+                                    <FileText className="mr-2 h-4 w-4" /> Editar
                                   </Button>
                                 ) : (
                                   isPast && (
                                     <Button variant="secondary" size="sm" onClick={() => handleOpenEditDialog(assign)}>
-                                      <PlusCircle className="mr-2 h-4 w-4" /> Añadir Reporte
+                                      <PlusCircle className="mr-2 h-4 w-4" /> Añadir
                                     </Button>
                                   )
                                 )}
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10">
+                                        <Trash2 className="mr-2 h-4 w-4" /> Borrar
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Esta acción eliminará permanentemente el reporte de {assign.userName} del {assign.date}. No se podrá deshacer.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          className="bg-destructive hover:bg-destructive/90"
+                                          onClick={() => confirmDeleteAssignment()}
+                                          onSelect={() => handleDeleteAssignment(assign)} // Set the item to delete before opening
+                                        >
+                                          Sí, Eliminar
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
                               </TableCell>
                             </TableRow>
                           )
@@ -425,6 +500,21 @@ export default function EditorHistorialPage() {
           allowReportDateEdit={true}
         />
       )}
+      
+      <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Se eliminará permanentemente la asignación de {assignmentToDelete?.userName} para el {assignmentToDelete?.date} a las {assignmentToDelete?.time}. Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setAssignmentToDelete(null)}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDeleteAssignment} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Sí, eliminar</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {isAddHistoricalDialogOpen && (
         <AddHistoricalReportDialog 
@@ -433,6 +523,7 @@ export default function EditorHistorialPage() {
           onAddHistoricalReport={handleAddHistoricalReport}
           territory={allTerritories.find(t => t.id === selectedTerritoryId) || null}
           allPublishers={allPublishers}
+          existingAssignments={assignments}
         />
       )}
 
