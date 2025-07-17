@@ -9,6 +9,7 @@ import { AppLogo } from '@/components/layout/app-logo';
 import { Button } from '@/components/ui/button';
 import { PermissionsProvider, usePermissions } from '@/hooks/use-permissions';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
+import { UserNav } from '@/components/layout/user-nav';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; 
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav';
