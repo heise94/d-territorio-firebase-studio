@@ -2,11 +2,9 @@
 "use client";
 
 import { useEffect, useState, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Menu, XCircle, ChevronLeft } from 'lucide-react'; 
-import { SidebarNav } from '@/components/layout/sidebar-nav';
-import { UserNav } from '@/components/layout/user-nav';
+import { Loader2, Menu, XCircle, ChevronLeft, Map, Trash2 as CleaningIcon, Home } from 'lucide-react';
 import { AppLogo } from '@/components/layout/app-logo';
 import { Button } from '@/components/ui/button';
 import { PermissionsProvider, usePermissions } from '@/hooks/use-permissions';
@@ -16,6 +14,21 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav';
 import { Notifications } from '@/components/layout/notifications';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
+import { PERMISSIONS } from '@/lib/constants';
+
+interface ModuleNavItem {
+  title: string;
+  href: string;
+  icon: React.ElementType;
+  permission?: string;
+}
+
+const mainModules: ModuleNavItem[] = [
+  { title: "Dashboard", href: "/dashboard", icon: Home },
+  { title: "Territorios", href: "/territorios", icon: Map, permission: PERMISSIONS.VIEW_TERRITORIES },
+  { title: "Aseo", href: "/cleaning/program", icon: CleaningIcon, permission: PERMISSIONS.VIEW_CLEANING_PROGRAM },
+];
 
 function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -23,9 +36,11 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
     userProfile, 
     isLoadingPermissions, 
     isImpersonating, 
-    stopImpersonation 
+    stopImpersonation,
+    hasPermission
   } = usePermissions(); 
   const router = useRouter();
+  const pathname = usePathname();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
@@ -46,6 +61,31 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
     stopImpersonation();
     router.push('/usuarios'); 
   };
+  
+  const visibleModules = mainModules.filter(module => 
+    !module.permission || hasPermission(module.permission as any)
+  );
+
+  const MainNav = ({ isCollapsed }: { isCollapsed: boolean }) => (
+    <nav className="grid items-start gap-1 px-2 py-4 text-sm font-medium lg:px-4">
+      {visibleModules.map((item) => {
+        const isActive = (item.href === "/dashboard" && pathname === "/dashboard") || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+        return (
+          isCollapsed ? (
+            <Link key={item.href} href={item.href} className={cn("flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-primary hover:bg-muted", isActive && "bg-muted text-primary")}>
+              <item.icon className="h-5 w-5" />
+              <span className="sr-only">{item.title}</span>
+            </Link>
+          ) : (
+            <Link key={item.href} href={item.href} className={cn("flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary", isActive && "bg-muted text-primary")}>
+              <item.icon className="h-4 w-4" />
+              {item.title}
+            </Link>
+          )
+        );
+      })}
+    </nav>
+  );
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[auto_1fr]">
@@ -54,9 +94,8 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
           <AppLogo isCollapsed={isSidebarCollapsed} />
         </div>
         <div className="flex-1 overflow-y-auto no-scrollbar">
-          <SidebarNav isCollapsed={isSidebarCollapsed} />
+          <MainNav isCollapsed={isSidebarCollapsed} />
         </div>
-        {/* The collapse button has been moved to the main header */}
       </div>
       <div className="flex flex-col">
         {isImpersonating && userProfile && (
@@ -98,12 +137,11 @@ function AuthenticatedLayoutContent({ children }: { children: ReactNode }) {
                     <SheetTitle className="sr-only">Navegación</SheetTitle>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                    <SidebarNav isCollapsed={false} />
+                    <MainNav isCollapsed={false} />
                 </div>
             </SheetContent>
           </Sheet>
           
-          {/* New Sidebar Toggle Button for Desktop */}
           <Button
             variant="ghost"
             size="icon"

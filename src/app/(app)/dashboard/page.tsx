@@ -1,270 +1,74 @@
 
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileCheck, Map as MapIcon, Users, Loader2, ShieldOff, Hourglass, AlertCircle, Building, FileWarning } from "lucide-react";
-import { collection, onSnapshot, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { startOfMonth, endOfMonth, isFuture, format, isBefore, parse } from "date-fns";
-import { es } from "date-fns/locale";
-import type { Territory, UserProfile, Assignment, Casa } from "@/types";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ArrowRight, Trash2 as CleaningIcon, Map as TerritoryIcon } from "lucide-react";
 import Link from 'next/link';
+import { usePermissions } from "@/hooks/use-permissions";
+import { PERMISSIONS } from "@/lib/constants";
 
-const currentFilterYear = new Date().getFullYear();
+interface ModuleCardProps {
+  title: string;
+  description: string;
+  href: string;
+  icon: React.ElementType;
+  permission?: string;
+}
+
+const modules: ModuleCardProps[] = [
+  {
+    title: "Gestión de Territorios",
+    description: "Administra territorios, grupos, casas, asignaciones y reportes.",
+    href: "/territorios",
+    icon: TerritoryIcon,
+    permission: PERMISSIONS.VIEW_TERRITORIES,
+  },
+  {
+    title: "Programa de Aseo",
+    description: "Organiza los grupos y el calendario semanal de aseo.",
+    href: "/cleaning/program",
+    icon: CleaningIcon,
+    permission: PERMISSIONS.VIEW_CLEANING_PROGRAM,
+  },
+  // Add new modules here
+];
 
 export default function DashboardPage() {
-  const [loading, setLoading] = useState(true);
-  
-  const [allTerritories, setAllTerritories] = useState<Territory[]>([]);
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
-  const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
-  const [allCasas, setAllCasas] = useState<Casa[]>([]);
+  const { hasPermission } = usePermissions();
 
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState<number>(currentFilterYear);
+  const visibleModules = modules.filter(module => 
+    !module.permission || hasPermission(module.permission as any)
+  );
 
-  const monthsForFilter = useMemo(() => Array.from({ length: 12 }, (_, i) => ({ value: i, label: format(new Date(2000, i), "MMMM", { locale: es }) })), []);
-  const yearsForFilter = useMemo(() => Array.from({ length: 5 }, (_, i) => currentFilterYear - 2 + i).sort((a,b) => b - a), [currentFilterYear]);
-
-  useEffect(() => {
-    if (!db || Object.keys(db).length === 0) {
-      console.warn("Firestore not available");
-      setLoading(false);
-      return;
-    }
-
-    const unsubscribers = [
-      onSnapshot(collection(db, "territories"), (snapshot) => {
-        setAllTerritories(snapshot.docs.map(doc => doc.data() as Territory));
-      }, (error) => console.error("Error fetching territories:", error)),
-      
-      onSnapshot(collection(db, "users"), (snapshot) => {
-        setAllUsers(snapshot.docs.map(doc => doc.data() as UserProfile));
-      }, (error) => console.error("Error fetching users:", error)),
-      
-      onSnapshot(collection(db, "assignments"), (snapshot) => {
-        setAllAssignments(snapshot.docs.map(doc => ({...doc.data(), id: doc.id} as Assignment)));
-      }, (error) => console.error("Error fetching assignments:", error)),
-
-      onSnapshot(collection(db, "casas"), (snapshot) => {
-        setAllCasas(snapshot.docs.map(doc => doc.data() as Casa));
-      }, (error) => console.error("Error fetching casas:", error)),
-    ];
-
-    const timer = setTimeout(() => setLoading(false), 1500); 
-    
-    return () => {
-      clearTimeout(timer);
-      unsubscribers.forEach(unsub => unsub());
-    };
-  }, []);
-
-  const stats = useMemo(() => {
-    const activeTerritories = allTerritories.filter(t => !t.isBlocked).length;
-    const totalTerritories = allTerritories.length;
-    const blockedTerritories = totalTerritories - activeTerritories;
-
-    const activePublishers = allUsers.filter(u => u.status === 'Activo').length;
-    const totalPublishers = allUsers.length;
-    const blockedForSystem = allUsers.filter(u => u.blockInfo?.forSystem).length;
-    const blockedForGroup = allUsers.filter(u => u.blockInfo?.forGroup).length;
-    
-    const totalCasas = allCasas.length;
-    const availableCasasForSystem = allCasas.filter(c => !c.blockInfo?.forSystem).length;
-    const blockedCasasSystem = allCasas.filter(c => c.blockInfo?.forSystem).length;
-    const blockedCasasGroup = allCasas.filter(c => c.blockInfo?.forGroup).length;
-    
-    const filterStartDate = startOfMonth(new Date(selectedYear, selectedMonth));
-    const filterEndDate = endOfMonth(new Date(selectedYear, selectedMonth));
-    
-    const workedTerritoryIds = new Set<string>();
-    allAssignments.forEach(a => {
-      if (a.lastReportData?.reportedAt) {
-        const reportedDate = a.lastReportData.reportedAt instanceof Timestamp ? a.lastReportData.reportedAt.toDate() : new Date(a.lastReportData.reportedAt);
-        if (reportedDate >= filterStartDate && reportedDate <= filterEndDate) {
-          // Iterate through the sub-reports within the assignment's report data
-          a.lastReportData.reports?.forEach(report => {
-            // Only count the territory if it was actually worked (not marked as 'not worked')
-            if (report.territoryId && !report.territoryNotWorked) {
-              workedTerritoryIds.add(report.territoryId);
-            }
-          });
-        }
-      }
-    });
-
-    const pendingAssignments = allAssignments.filter(a => {
-        try {
-            const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
-            return (a.status === 'pending' || a.status === 'replacement_requested') && isFuture(assignmentDateTime);
-        } catch (e) {
-            return false;
-        }
-    }).length;
-
-    const pendingReports = allAssignments.filter(a => {
-        try {
-            const assignmentDateTime = parse(`${a.date} ${a.time}`, "yyyy-MM-dd HH:mm", new Date());
-            const isPastAssignment = isBefore(assignmentDateTime, new Date());
-            const isReportableType = a.type === 'publica' || a.type === 'rural';
-            return isPastAssignment && isReportableType && a.status === 'accepted' && !a.lastReportData;
-        } catch (e) {
-            return false;
-        }
-    }).length;
-
-    return {
-        activeTerritories,
-        totalTerritories,
-        blockedTerritories,
-        activePublishers,
-        totalPublishers,
-        blockedForSystem,
-        blockedForGroup,
-        availableCasasForSystem,
-        totalCasas,
-        blockedCasasSystem,
-        blockedCasasGroup,
-        workedTerritoriesThisMonth: workedTerritoryIds.size,
-        pendingAssignments,
-        pendingReports
-    };
-  }, [allTerritories, allUsers, allAssignments, allCasas, selectedMonth, selectedYear]);
-
-  const renderStat = (
-    numerator: number, 
-    denominator?: number,
-    subValues?: {label: string, value: number}[]
-  ) => {
-    if (loading) {
-      return <Loader2 className="h-8 w-8 animate-spin text-primary" />;
-    }
-    return (
-        <div>
-            <div className="text-4xl font-bold">
-              {numerator}
-              {denominator !== undefined && <span className="text-2xl text-muted-foreground">/{denominator}</span>}
-            </div>
-            {subValues && subValues.length > 0 && (
-                <div className="pt-1">
-                    {subValues.map((sub, index) => (
-                         sub.value > 0 && (
-                            <p key={index} className="text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-1">
-                               <AlertCircle className="h-3 w-3"/> {sub.value} {sub.label}
-                            </p>
-                         )
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-  };
-  
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-headline font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-3xl font-headline font-bold tracking-tight">Panel de Módulos</h1>
         <p className="text-muted-foreground mt-1">
-          Bienvenido a D-TERRITORIO. Aquí encontrarás un resumen general y accesos rápidos.
+          Selecciona el módulo con el que deseas trabajar.
         </p>
       </div>
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="hover:shadow-lg transition-shadow duration-300">
-          <Link href="/territorios" className="h-full w-full block">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Territorios Activos</CardTitle>
-              <MapIcon className="h-5 w-5 text-primary" />
-            </CardHeader>
-            <CardContent>
-              {renderStat(stats.activeTerritories, stats.totalTerritories, [{label: 'bloqueado(s)', value: stats.blockedTerritories}])}
-              <p className="text-xs text-muted-foreground pt-1">Total de territorios no bloqueados.</p>
-            </CardContent>
-          </Link>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow duration-300">
-          <Link href="/casas" className="h-full w-full block">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Casas Disponibles</CardTitle>
-              <Building className="h-5 w-5 text-primary" />
-            </CardHeader>
-            <CardContent>
-               {renderStat(stats.availableCasasForSystem, stats.totalCasas, [
-                  {label: 'bloq. p/ sistema', value: stats.blockedCasasSystem},
-                  {label: 'bloq. p/ grupo', value: stats.blockedCasasGroup}
-               ])}
-              <p className="text-xs text-muted-foreground pt-1">Casas disponibles para la generación automática.</p>
-            </CardContent>
-          </Link>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow duration-300">
-          <Link href="/usuarios" className="h-full w-full block">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Publicadores Activos</CardTitle>
-              <Users className="h-5 w-5 text-primary" />
-            </CardHeader>
-            <CardContent>
-               {renderStat(stats.activePublishers, stats.totalPublishers, [
-                  {label: 'bloq. p/ sistema', value: stats.blockedForSystem},
-                  {label: 'bloq. p/ grupo', value: stats.blockedForGroup}
-               ])}
-              <p className="text-xs text-muted-foreground pt-1">Total de usuarios con estado "Activo".</p>
-            </CardContent>
-          </Link>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow duration-300">
-          <Link href="/reportes" className="h-full w-full block">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Territorios Trabajados</CardTitle>
-              <FileCheck className="h-5 w-5 text-primary" />
-            </CardHeader>
-            <CardContent>
-              {renderStat(stats.workedTerritoriesThisMonth)}
-              <div className="flex gap-2 items-center mt-2" onClick={(e) => e.stopPropagation()}>
-                  <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
-                      <SelectTrigger className="h-8 text-xs w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent>{monthsForFilter.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-                       <SelectTrigger className="h-8 text-xs w-[100px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>{yearsForFilter.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
-                  </Select>
-              </div>
-            </CardContent>
-          </Link>
-        </Card>
-        
-        <Card className="hover:shadow-lg transition-shadow duration-300 bg-amber-50 border-amber-300 dark:bg-amber-900/20 dark:border-amber-700/40">
-           <Link href="/gestion-asignaciones" className="h-full w-full block">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-amber-800 dark:text-amber-300">Asignaciones Pendientes</CardTitle>
-                <Hourglass className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+        {visibleModules.map((module) => (
+          <Link key={module.href} href={module.href} passHref>
+            <Card className="group flex h-full transform flex-col justify-between overflow-hidden rounded-lg shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <module.icon className="mb-4 h-10 w-10 text-primary" />
+                </div>
+                <CardTitle className="text-xl">{module.title}</CardTitle>
+                <CardDescription>{module.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                 <div className="text-4xl font-bold text-amber-900 dark:text-amber-200">{loading ? <Loader2 className="h-8 w-8 animate-spin"/> : stats.pendingAssignments}</div>
-                <p className="text-xs text-amber-700 dark:text-amber-400/80 pt-1">Asignaciones por aceptar o que necesitan reemplazo.</p>
+                <div className="flex items-center text-sm font-semibold text-primary transition-transform duration-300 group-hover:translate-x-1">
+                  <span>Acceder al Módulo</span>
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
               </CardContent>
-            </Link>
-        </Card>
-        
-        <Card className="hover:shadow-lg transition-shadow duration-300 bg-orange-50 border-orange-300 dark:bg-orange-900/20 dark:border-orange-700/40">
-           <Link href="/asignaciones" className="h-full w-full block">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-orange-800 dark:text-orange-300">Reportes Pendientes</CardTitle>
-                <FileWarning className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </CardHeader>
-              <CardContent>
-                 <div className="text-4xl font-bold text-orange-900 dark:text-orange-200">{loading ? <Loader2 className="h-8 w-8 animate-spin"/> : stats.pendingReports}</div>
-                <p className="text-xs text-orange-700 dark:text-orange-400/80 pt-1">Asignaciones pasadas que no han sido reportadas.</p>
-              </CardContent>
-            </Link>
-        </Card>
-
+            </Card>
+          </Link>
+        ))}
       </div>
     </div>
   );
