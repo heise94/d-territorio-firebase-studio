@@ -1,3 +1,6 @@
+// This file is the new location for the Programa page, moved from /app/(app)/programa/page.tsx
+// It's a placeholder that will be filled in a subsequent step.
+// For now, this is being populated with the content from the original /app/(app)/programa/page.tsx
 
 "use client";
 
@@ -60,9 +63,9 @@ export default function ProgramaMensualPage() {
   const [programScheduleSlots, setProgramScheduleSlots] = useState<ProgramScheduleSlot[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
-  const [summerStartDate, setSummerStartDate] = useState<string>('');
-  const [winterStartDate, setWinterStartDate] = useState<string>('');
   const [groupOrganizedDays, setGroupOrganizedDays] = useState<DayOfWeek[]>([]);
+  const [summerScheduleStartDate, setSummerScheduleStartDate] = useState<string>('');
+  const [winterScheduleStartDate, setWinterScheduleStartDate] = useState<string>('');
   
   // Loading States
   const [isLoading, setIsLoading] = useState(true);
@@ -103,14 +106,14 @@ export default function ProgramaMensualPage() {
       if (docSnap.exists()) {
         const settingsData = docSnap.data() as SettingsDoc;
         setProgramScheduleSlots(settingsData.programScheduleSlots || []);
-        setSummerStartDate(settingsData.summerScheduleStartDate || '');
-        setWinterStartDate(settingsData.winterScheduleStartDate || '');
         setGroupOrganizedDays(settingsData.groupOrganizedDays || []);
+        setSummerScheduleStartDate(settingsData.summerScheduleStartDate || '');
+        setWinterScheduleStartDate(settingsData.winterScheduleStartDate || '');
       } else {
         setProgramScheduleSlots([]);
-        setSummerStartDate('');
-        setWinterStartDate('');
         setGroupOrganizedDays([]);
+        setSummerScheduleStartDate('');
+        setWinterScheduleStartDate('');
       }
     });
 
@@ -514,8 +517,8 @@ export default function ProgramaMensualPage() {
     allAssignments: allAssignments,
     programScheduleSlots: programScheduleSlots,
     campaigns: campaigns,
-    summerScheduleStartDate: summerStartDate,
-    winterScheduleStartDate: winterStartDate,
+    summerScheduleStartDate: summerScheduleStartDate,
+    winterScheduleStartDate: winterScheduleStartDate,
   };
 
   return (
@@ -587,7 +590,7 @@ export default function ProgramaMensualPage() {
                       }
                   };
                   
-                  const currentSeason = isSummer(day, summerStartDate, winterStartDate) ? 'summer' : 'winter';
+                  const currentSeason = isSummer(day, summerScheduleStartDate, winterScheduleStartDate) ? 'summer' : 'winter';
                   
                   const expectedSlots = programScheduleSlots.filter(slot => 
                       slot.dayOfWeek === dayOfWeekKey && (slot.season === 'all_year' || slot.season === currentSeason)

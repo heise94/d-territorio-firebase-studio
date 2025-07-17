@@ -1,3 +1,4 @@
+// This file is the new location for the Asignaciones page, moved from /app/(app)/asignaciones/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";

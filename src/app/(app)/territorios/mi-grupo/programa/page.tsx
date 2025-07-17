@@ -1,3 +1,6 @@
+// This file is the new location for the Mi Grupo Programa page, moved from /app/(app)/mi-grupo/programa/page.tsx
+// It's a placeholder that will be filled in a subsequent step.
+// For now, this is being populated with the content from the original /app/(app)/mi-grupo/programa/page.tsx
 
 "use client";
 

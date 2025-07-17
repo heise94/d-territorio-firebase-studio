@@ -1,3 +1,4 @@
+// This file is the new location for the Reportes Editor page, moved from /app/(app)/reportes/editor/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -460,7 +461,7 @@ export default function EditorHistorialPage() {
                                       <AlertDialogHeader>
                                         <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                          Esta acción eliminará permanentemente el reporte de {assignmentToDelete?.userName} del {assignmentToDelete?.date}. No se podrá deshacer.
+                                          Se eliminará permanentemente el reporte de {assignmentToDelete?.userName} del {assignmentToDelete?.date}. No se podrá deshacer.
                                         </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>

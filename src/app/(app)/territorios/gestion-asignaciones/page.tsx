@@ -1,4 +1,4 @@
-
+// This file is the new location for the Gestion Asignaciones page, moved from /app/(app)/gestion-asignaciones/page.tsx
 "use client";
 
 import { useState, useMemo, useEffect } from "react";

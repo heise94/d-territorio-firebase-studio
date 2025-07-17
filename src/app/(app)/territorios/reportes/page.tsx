@@ -1,4 +1,4 @@
-
+// This file is the new location for the Reportes page, moved from /app/(app)/reportes/page.tsx
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";

@@ -1,3 +1,6 @@
+// This file is the new location for the Casas page, moved from /app/(app)/casas/page.tsx
+// It's a placeholder that will be filled in a subsequent step.
+// For now, this is being populated with the content from the original /app/(app)/casas/page.tsx
 
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -7,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AddCasaDialog } from "@/components/casas/add-casa-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, Filter, X as XIcon, LayoutGrid, List, ChevronLeft, ChevronRight, Copy } from "lucide-react";
+import { Building, PlusCircle, Pencil, Trash2, Ban, CheckCircle2, Search, Phone, MapPin, CalendarClock, Users, ShieldCheck, ShieldAlert, Loader2, Users2 as GroupIcon, CalendarX2, Info, Users as UsersTypeIcon, MountainSnow, Video, MessageSquareWarning, Filter, X as XIcon, LayoutGrid, List, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Casa, UnavailabilityPeriod, PreachingGroup, ProgramScheduleSlot, DayOfWeek, SettingsDoc, PreachingType, Territory } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -307,18 +310,6 @@ export default function CasasPage() {
     setCasaToEdit(casa);
     setIsCasaDialogOpen(true);
   };
-  
-  const handleOpenDuplicateDialog = (casa: Casa) => {
-    const duplicatedCasaData = {
-      ...casa,
-      // Pass the original ID so the dialog can find associated territories
-      ownerName: `Copia de ${casa.ownerName}`,
-      address: "", // Force user to enter new address
-      blockInfo: undefined, // Do not copy block info
-    };
-    setCasaToEdit(duplicatedCasaData as Casa);
-    setIsCasaDialogOpen(true);
-  };
 
   const handleCasaSubmit = async (
     submittedCasaData: Partial<Casa> & Pick<Casa, 'id' | 'ownerName' | 'address' | 'createdAt' | 'updatedAt'> & { selectedNearbyTerritoryIds?: string[] }
@@ -328,7 +319,7 @@ export default function CasasPage() {
       return;
     }
     
-    const isActualEditOperation = !!casas.find(c => c.id === submittedCasaData.id);
+    const isActualEditOperation = !!casaToEdit; 
     const casaIdToUse = submittedCasaData.id; 
 
     const dataForCasaDoc: { [key: string]: any } = {
@@ -336,7 +327,7 @@ export default function CasasPage() {
         ownerName: submittedCasaData.ownerName,
         address: submittedCasaData.address,
         updatedAt: Timestamp.now(),
-        createdAt: isActualEditOperation ? submittedCasaData.createdAt : Timestamp.now(),
+        createdAt: submittedCasaData.createdAt,
     };
     
     const optionalFields: (keyof Casa)[] = ['phoneNumber', 'notes', 'notesForSS', 'addedByGroupId', 'isSuitableForRural', 'lastVisitedAt'];
@@ -486,11 +477,6 @@ export default function CasasPage() {
     }
   };
 
-  const getGroupNameById = useCallback((groupId?: string) => {
-    if (!groupId) return 'N/A';
-    const group = availableGroups.find(g => g.id === groupId);
-    return group ? group.name : groupId;
-  }, [availableGroups]);
 
   const filteredCasas = useMemo(() => {
     return casas.filter(casa => {
@@ -525,7 +511,7 @@ export default function CasasPage() {
         }
         return true;
     });
-  }, [casas, searchTerm, availableGroups, filterGroupId, filterStatus, filterAvailabilityDay, filterAvailabilitySlotId, filterSuitableForRural, programScheduleSlots, getGroupNameById]);
+  }, [casas, searchTerm, availableGroups, filterGroupId, filterStatus, filterAvailabilityDay, filterAvailabilitySlotId, filterSuitableForRural, programScheduleSlots]);
   
   const totalPages = useMemo(() => {
     return Math.ceil(filteredCasas.length / itemsPerPage);
@@ -535,6 +521,13 @@ export default function CasasPage() {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredCasas.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredCasas, currentPage, itemsPerPage]);
+
+
+  const getGroupNameById = useCallback((groupId?: string) => {
+    if (!groupId) return 'N/A';
+    const group = availableGroups.find(g => g.id === groupId);
+    return group ? group.name : groupId;
+  }, [availableGroups]);
 
   const handleClearFilters = () => {
     setSearchTerm("");
@@ -555,7 +548,6 @@ export default function CasasPage() {
   const renderCasaActions = (casa: Casa) => (
     <div className="flex items-center justify-center gap-0.5">
       {canManageCasas && (
-        <>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(casa)} aria-label="Editar casa" className="h-8 w-8">
@@ -564,16 +556,6 @@ export default function CasasPage() {
           </TooltipTrigger>
           <TooltipContent><p>Editar</p></TooltipContent>
         </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" onClick={() => handleOpenDuplicateDialog(casa)} aria-label="Duplicar casa" className="h-8 w-8">
-                <Copy className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent><p>Duplicar</p></TooltipContent>
-        </Tooltip>
-        </>
       )}
 
       {canManageCasas && (

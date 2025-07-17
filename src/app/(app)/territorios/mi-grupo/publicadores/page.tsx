@@ -1,3 +1,4 @@
+// This file is the new location for the Mi Grupo Publicadores page, moved from /app/(app)/mi-grupo/publicadores/page.tsx
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

@@ -1,4 +1,4 @@
-
+// This file is the new location for the Grupos page, moved from /app/(app)/grupos/page.tsx
 "use client";
 
 import { useState, useMemo, useEffect } from "react";

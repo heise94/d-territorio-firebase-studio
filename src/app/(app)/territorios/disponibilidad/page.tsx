@@ -1,4 +1,4 @@
-
+// This file is the new location for the Disponibilidad page, moved from /app/(app)/disponibilidad/page.tsx
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";

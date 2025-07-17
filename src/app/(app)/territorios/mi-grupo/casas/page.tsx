@@ -1,4 +1,4 @@
-
+// This file is the new location for the Mi Grupo Casas page, moved from /app/(app)/mi-grupo/casas/page.tsx
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -161,5 +161,3 @@ export default function MiGrupoCasasPage() {
     </div>
   );
 }
-
-    
