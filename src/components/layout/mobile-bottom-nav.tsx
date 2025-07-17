@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  LayoutDashboard, Users, MapIcon as Map, Building, Users2 as GroupIcon, CalendarDays, CheckSquare, ListChecks, UserCog, UserCheck, FileText, Settings, BarChartHorizontal, Database, Pencil, Bot
+  LayoutDashboard, Users, MapIcon as Map, Building, Users2 as GroupIcon, CalendarDays, CheckSquare, ListChecks, FileText, Settings, BarChartHorizontal, Database, Pencil, Bot, Trash2 as CleaningIcon
 } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS, PermissionId, USER_ROLES } from "@/lib/constants";
@@ -24,6 +24,7 @@ const bottomNavItems: BottomNavItemConfig[] = [
   { title: "Mis Asig.", href: "/asignaciones", icon: CheckSquare, permission: PERMISSIONS.VIEW_OWN_ASSIGNMENTS },
   { title: "Territorios", href: "/territorios", icon: Map, permission: PERMISSIONS.VIEW_TERRITORIES },
   { title: "Programa", href: "/programa", icon: CalendarDays, permission: PERMISSIONS.VIEW_MONTHLY_PROGRAM },
+  { title: "Aseo", href: "/cleaning/program", icon: CleaningIcon, permission: PERMISSIONS.VIEW_CLEANING_PROGRAM },
   { title: "Casas", href: "/casas", icon: Building, permission: PERMISSIONS.VIEW_CASAS },
   { title: "Grupos", href: "/grupos", icon: GroupIcon, permission: PERMISSIONS.VIEW_GROUPS },
   { title: "Usuarios", href: "/usuarios", icon: Users, permission: PERMISSIONS.VIEW_USERS },

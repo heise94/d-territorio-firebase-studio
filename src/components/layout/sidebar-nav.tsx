@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  Home, Users, MapIcon as Map, Building, Users2 as GroupIcon, LayoutDashboard, Settings, FileText, CalendarDays, CheckSquare, UserCog, CircleDot, GanttChartSquare, UserCheck, ListChecks, BarChartHorizontal, Database, Pencil, Bot
+  Home, Users, MapIcon as Map, Building, Users2 as GroupIcon, LayoutDashboard, Settings, FileText, CalendarDays, CheckSquare, UserCog, CircleDot, GanttChartSquare, UserCheck, ListChecks, BarChartHorizontal, Database, Pencil, Bot, Trash2 as CleaningIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -45,6 +45,7 @@ const navItems: NavItemConfig[] = [
       { title: "Programa Semanal", href: "/programa/semanal", icon: GanttChartSquare, permission: PERMISSIONS.VIEW_WEEKLY_PROGRAM, segment: "semanal" },
     ]
   },
+  { title: "Programa de Aseo", href: "/cleaning/program", icon: CleaningIcon, permission: PERMISSIONS.VIEW_CLEANING_PROGRAM, segment: "cleaning" },
   { title: "Gestión Asignaciones", href: "/gestion-asignaciones", icon: ListChecks, permission: PERMISSIONS.VIEW_ALL_ASSIGNMENTS, segment: "gestion-asignaciones" },
   {
     title: "Reportes",

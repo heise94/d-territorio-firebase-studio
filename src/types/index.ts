@@ -1,5 +1,4 @@
 
-
 import type { Timestamp, FieldValue } from 'firebase/firestore';
 import type { UserRole as RoleType, PermissionId } from '@/lib/constants';
 
@@ -287,6 +286,30 @@ export interface Notification {
   link?: string; // e.g., /asignaciones#A123
   recipientUserId: string; // The user
 }
+
+// --- Cleaning Program Types ---
+export interface CleaningGroup {
+  id: string;
+  name: string;
+  captainId?: string;
+  members: string[]; // array of user IDs
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface CleaningAssignment {
+  id: string; // e.g., "2024-W28"
+  year: number;
+  weekNumber: number;
+  startDate: string; // ISO date string
+  endDate: string; // ISO date string
+  groupId: string;
+  groupName?: string;
+  isConfirmed?: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 
 // --- Report Page Specific Types ---
 

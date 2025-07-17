@@ -1,5 +1,4 @@
 
-
 export const USER_ROLES = {
   ENCARGADO_TERRITORIO: "Encargado Territorio",
   PUBLICADOR: "Publicador",
@@ -61,6 +60,10 @@ export const PERMISSIONS = {
   
   // Admin Tools
   MANAGE_DATA_IMPORT: "manage_data_import",
+
+  // Cleaning Program
+  VIEW_CLEANING_PROGRAM: "view_cleaning_program",
+  MANAGE_CLEANING_PROGRAM: "manage_cleaning_program",
   
 } as const;
 
@@ -74,6 +77,7 @@ export const PERMISSION_MODULES = {
   CASAS: "Casas",
   GROUPS: "Grupos de Predicación",
   PROGRAM: "Programa General",
+  CLEANING: "Programa de Aseo",
   ASSIGNMENTS: "Asignaciones",
   MY_GROUP: "Mi Grupo",
   REPORTS: "Reportes",
@@ -148,6 +152,14 @@ export const PERMISSIONS_BY_MODULE: ModulePermissions[] = [
     ],
   },
   {
+    moduleName: PERMISSION_MODULES.CLEANING,
+    moduleDescription: "Gestión y visualización del programa de aseo.",
+    permissions: [
+      { id: PERMISSIONS.VIEW_CLEANING_PROGRAM, description: "Ver el programa de aseo" },
+      { id: PERMISSIONS.MANAGE_CLEANING_PROGRAM, description: "Gestionar grupos y asignaciones de aseo" },
+    ],
+  },
+  {
     moduleName: PERMISSION_MODULES.ASSIGNMENTS,
     moduleDescription: "Gestión y visualización de asignaciones individuales y generales.",
     permissions: [
@@ -208,6 +220,7 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
     PERMISSIONS.VIEW_REPORTS,
     PERMISSIONS.EDIT_REPORTS,
+    PERMISSIONS.VIEW_CLEANING_PROGRAM,
   ],
   [USER_ROLES.SS]: [ 
     PERMISSIONS.VIEW_DASHBOARD,
@@ -219,6 +232,7 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.VIEW_ALL_ASSIGNMENTS, PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
     PERMISSIONS.VIEW_REPORTS,
+    PERMISSIONS.VIEW_CLEANING_PROGRAM,
   ],
   [USER_ROLES.SG]: [ 
     PERMISSIONS.VIEW_DASHBOARD,
@@ -232,11 +246,13 @@ export const DEFAULT_ROLE_PERMISSIONS: { [key in UserRole]?: PermissionId[] } = 
     PERMISSIONS.MANAGE_OWN_GROUP_PUBLISHERS,
     PERMISSIONS.ASSIGN_TERRITORIES_GROUP,
     PERMISSIONS.VIEW_REPORTS,
+    PERMISSIONS.VIEW_CLEANING_PROGRAM,
   ],
   [USER_ROLES.PUBLICADOR]: [
     PERMISSIONS.VIEW_DASHBOARD, 
     PERMISSIONS.VIEW_WEEKLY_PROGRAM, 
     PERMISSIONS.ACCEPT_REJECT_ASSIGNMENTS, PERMISSIONS.VIEW_OWN_ASSIGNMENTS,
     PERMISSIONS.MANAGE_OWN_AVAILABILITY,
+    PERMISSIONS.VIEW_CLEANING_PROGRAM,
   ],
 };
