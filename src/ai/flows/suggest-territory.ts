@@ -1,7 +1,6 @@
-
 'use server';
 
-import {ai} from '@/ai/genkit';
+import {ai} from '@/modules/territories/ai/genkit';
 import {z} from 'genkit';
 
 const SuggestTerritoryInputSchema = z.object({

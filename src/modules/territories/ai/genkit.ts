@@ -1,5 +1,3 @@
-// This file is being moved to src/modules/territories/ai/genkit.ts
-// This file will be removed in a future step to avoid breaking existing imports.
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 

@@ -1,7 +1,6 @@
-
 'use server';
 
-import {ai} from '@/ai/genkit';
+import {ai} from '@/modules/territories/ai/genkit';
 import {z} from 'genkit';
 import type { Assignment, PublisherDetail as TypePublisherDetail, ProgramScheduleSlot as TypeProgramScheduleSlot } from '@/types';
 
@@ -127,4 +126,3 @@ const findReplacementCaptainFlow = ai.defineFlow(
     return output!;
   }
 );
-
