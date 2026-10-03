@@ -4,31 +4,56 @@ Módulo complementario de D-Territorio para organizar campañas especiales de pr
 
 ## Propósito de esta carpeta
 
-Esta documentación es la fuente funcional principal para desarrollar el módulo previsto para:
+Esta documentación es la fuente funcional y técnica principal para desarrollar el módulo previsto para:
 
 `campanas.d-territorio.cl`
 
 Puede ser utilizada como contexto por una IA de desarrollo o por un desarrollador humano.
 
-## Orden de lectura recomendado
+## Jerarquía documental
 
-### 1. Producto y reglas
-1. `MASTER_SPEC.md` — visión, alcance y reglas funcionales.
-2. `UX_FLOWS.md` — experiencia funcional del participante y del panel organizador.
-3. `SCREEN_MAP.md` — mapa completo de pantallas y navegación.
+### Documentos normativos
+Si existe una contradicción, estos documentos tienen prioridad:
 
-### 2. Diseño de interfaz
-4. `ADMIN_DASHBOARD.md` — estructura del panel web y del planificador manual.
-5. `PWA_UI_SPEC.md` — interfaz móvil, instalación PWA, sesión y notificaciones.
-6. `DESIGN_SYSTEM.md` — identidad visual, tipografía, colores, estados, accesibilidad y reglas de diseño.
-7. `UI_COMPONENTS.md` — biblioteca de componentes reutilizables.
-8. `WIREFRAMES.md` — wireframes funcionales de las pantallas principales.
-9. `PROGRAM_OUTPUT.md` — generación del programa general, impresión y PDF.
+1. `MASTER_SPEC.md` — reglas funcionales del producto.
+2. `TECH_ARCHITECTURE.md` — arquitectura técnica elegida para V1.
+3. `AUTH_SECURITY.md` — autenticación, sesiones, privacidad y seguridad.
+4. `PERMISSIONS_AND_WORKFLOW.md` — roles y flujo operativo.
+5. `DATA_MODEL.md` — entidades y restricciones del dominio.
 
-### 3. Arquitectura e implementación
-10. `DATA_MODEL.md` — entidades, relaciones y restricciones propuestas.
-11. `IMPLEMENTATION_NOTES.md` — arquitectura, seguridad, PWA, publicación y testing.
-12. `AI_HANDOFF.md` — instrucciones específicas para una IA que implemente el módulo.
+### Documentos de experiencia y diseño
+Deben respetar los documentos normativos:
+
+6. `UX_FLOWS.md` — experiencia funcional.
+7. `SCREEN_MAP.md` — mapa de pantallas.
+8. `ADMIN_DASHBOARD.md` — panel web y planificación.
+9. `PWA_UI_SPEC.md` — interfaz móvil.
+10. `NOTIFICATIONS_PWA.md` — instalación PWA, push y centro de notificaciones.
+11. `DESIGN_SYSTEM.md` — identidad visual.
+12. `UI_COMPONENTS.md` — componentes reutilizables.
+13. `WIREFRAMES.md` — wireframes principales.
+14. `PROGRAM_OUTPUT.md` — programa general, impresión y PDF.
+
+### Documentos de apoyo a implementación
+
+15. `IMPLEMENTATION_NOTES.md` — notas técnicas, validaciones y testing.
+16. `AI_HANDOFF.md` — instrucciones para una IA de desarrollo.
+
+## Stack V1 decidido
+
+Reutilizar la pila actual del repositorio:
+
+- Next.js 15
+- React + TypeScript
+- Firebase / Firestore
+- Tailwind CSS
+- Radix UI
+- Lucide React
+- Zod
+- React Hook Form
+- soporte PWA existente
+
+Campañas será un dominio separado dentro del mismo repositorio, preparado para `campanas.d-territorio.cl`.
 
 ## Primera campaña objetivo
 
@@ -41,7 +66,7 @@ Participan actualmente cuatro congregaciones:
 - Huichahue
 - Mapudungun
 
-Sin embargo, la solución no debe quedar amarrada a estas congregaciones, fechas, bloques horarios ni cantidad de puntos.
+La solución no debe quedar amarrada a estas congregaciones, fechas, bloques horarios ni cantidad de puntos.
 
 ## Principio rector
 
@@ -57,10 +82,10 @@ Las parejas y asignaciones finales son realizadas manualmente por los hermanos e
 - PWA instalable y con notificaciones push.
 - Bloques horarios configurables.
 - Máximo de turnos configurable por participante.
-- Capacidad orientativa por bloque; actualmente hasta 8 puntos / 16 participantes.
+- Capacidad orientativa por bloque; inicialmente hasta 8 puntos / 16 participantes.
 - Los bloques completos siguen aceptando disponibilidad como reserva.
 - Solicitud para participar junto a otra persona requiere confirmación del segundo participante.
-- Si se acepta, la pareja debe ser asignada junta.
+- Si se acepta, ambos deben ser asignados juntos.
 - El sistema no arma parejas automáticamente.
 - Al planificar un bloque, se muestran solo los disponibles aún no asignados en ese bloque.
 - Al asignarlos, desaparecen de la lista de disponibles; al retirarlos, vuelven.
@@ -68,13 +93,28 @@ Las parejas y asignaciones finales son realizadas manualmente por los hermanos e
 - El programa general se genera automáticamente desde las asignaciones.
 - La congregación es un dato secundario y no una regla de asignación.
 - No se implementará en V1 administración permanente de dos participantes desde una misma cuenta.
+- Los organizadores pueden colaborar simultáneamente.
+- El máximo de turnos es una advertencia operativa que puede ser sobrepasada mediante confirmación explícita.
+- Los datos sensibles de salud o similares no se recopilan en la plataforma.
 
 ## Regla para IA/desarrollo
 
-Antes de implementar una funcionalidad, revisar primero estos documentos.
+Antes de implementar una funcionalidad, revisar estos documentos en el orden indicado.
 
-Si el código contradice una regla documentada, la IA no debe “inventar” un comportamiento nuevo. Debe conservar la regla documentada o dejar explícita la discrepancia para revisión humana.
+Una IA no debe inventar reglas de negocio cuando ya existe una regla documentada.
 
-## Regla para futuras modificaciones
+Si el código existente contradice esta documentación, debe señalar la discrepancia antes de cambiar el comportamiento funcional.
 
-Cuando una nueva decisión cambie el comportamiento del producto, actualizar primero o junto con el código los documentos de esta carpeta. La documentación debe mantenerse como fuente de verdad del módulo.
+Cuando una nueva decisión del usuario cambie el producto, actualizar la documentación correspondiente junto con el código.
+
+## Estrategia V1
+
+Construir un **monolito modular**, no microservicios.
+
+Prioridades:
+1. usabilidad;
+2. seguridad básica correcta;
+3. consistencia de datos;
+4. planificación colaborativa rápida;
+5. mantenibilidad;
+6. posibilidad de evolucionar posteriormente.
