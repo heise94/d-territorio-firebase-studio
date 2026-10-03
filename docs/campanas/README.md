@@ -20,12 +20,15 @@ Puede ser utilizada como contexto por una IA de desarrollo o por un desarrollado
 ### 2. Diseño de interfaz
 4. `ADMIN_DASHBOARD.md` — estructura del panel web y del planificador manual.
 5. `PWA_UI_SPEC.md` — interfaz móvil, instalación PWA, sesión y notificaciones.
-6. `PROGRAM_OUTPUT.md` — generación del programa general, impresión y PDF.
+6. `DESIGN_SYSTEM.md` — identidad visual, tipografía, colores, estados, accesibilidad y reglas de diseño.
+7. `UI_COMPONENTS.md` — biblioteca de componentes reutilizables.
+8. `WIREFRAMES.md` — wireframes funcionales de las pantallas principales.
+9. `PROGRAM_OUTPUT.md` — generación del programa general, impresión y PDF.
 
 ### 3. Arquitectura e implementación
-7. `DATA_MODEL.md` — entidades, relaciones y restricciones propuestas.
-8. `IMPLEMENTATION_NOTES.md` — arquitectura, seguridad, PWA, publicación y testing.
-9. `AI_HANDOFF.md` — instrucciones específicas para una IA que implemente el módulo.
+10. `DATA_MODEL.md` — entidades, relaciones y restricciones propuestas.
+11. `IMPLEMENTATION_NOTES.md` — arquitectura, seguridad, PWA, publicación y testing.
+12. `AI_HANDOFF.md` — instrucciones específicas para una IA que implemente el módulo.
 
 ## Primera campaña objetivo
 
