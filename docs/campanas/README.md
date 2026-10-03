@@ -10,13 +10,22 @@ Esta documentación es la fuente funcional principal para desarrollar el módulo
 
 Puede ser utilizada como contexto por una IA de desarrollo o por un desarrollador humano.
 
-## Orden de lectura
+## Orden de lectura recomendado
 
+### 1. Producto y reglas
 1. `MASTER_SPEC.md` — visión, alcance y reglas funcionales.
-2. `UX_FLOWS.md` — experiencia del participante y del panel organizador.
-3. `DATA_MODEL.md` — entidades, relaciones y restricciones propuestas.
-4. `IMPLEMENTATION_NOTES.md` — arquitectura, seguridad, PWA, publicación y testing.
-5. `AI_HANDOFF.md` — instrucciones específicas para una IA que implemente el módulo.
+2. `UX_FLOWS.md` — experiencia funcional del participante y del panel organizador.
+3. `SCREEN_MAP.md` — mapa completo de pantallas y navegación.
+
+### 2. Diseño de interfaz
+4. `ADMIN_DASHBOARD.md` — estructura del panel web y del planificador manual.
+5. `PWA_UI_SPEC.md` — interfaz móvil, instalación PWA, sesión y notificaciones.
+6. `PROGRAM_OUTPUT.md` — generación del programa general, impresión y PDF.
+
+### 3. Arquitectura e implementación
+7. `DATA_MODEL.md` — entidades, relaciones y restricciones propuestas.
+8. `IMPLEMENTATION_NOTES.md` — arquitectura, seguridad, PWA, publicación y testing.
+9. `AI_HANDOFF.md` — instrucciones específicas para una IA que implemente el módulo.
 
 ## Primera campaña objetivo
 
@@ -56,6 +65,12 @@ Las parejas y asignaciones finales son realizadas manualmente por los hermanos e
 - El programa general se genera automáticamente desde las asignaciones.
 - La congregación es un dato secundario y no una regla de asignación.
 - No se implementará en V1 administración permanente de dos participantes desde una misma cuenta.
+
+## Regla para IA/desarrollo
+
+Antes de implementar una funcionalidad, revisar primero estos documentos.
+
+Si el código contradice una regla documentada, la IA no debe “inventar” un comportamiento nuevo. Debe conservar la regla documentada o dejar explícita la discrepancia para revisión humana.
 
 ## Regla para futuras modificaciones
 
