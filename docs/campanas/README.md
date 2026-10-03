@@ -38,6 +38,7 @@ Deben respetar los documentos normativos:
 
 15. `IMPLEMENTATION_NOTES.md` — notas técnicas, validaciones y testing.
 16. `AI_HANDOFF.md` — instrucciones para una IA de desarrollo.
+17. `DEVELOPMENT_PLAN.md` — plan de construcción por fases, dependencias y criterios para avanzar.
 
 ## Stack V1 decidido
 
@@ -106,6 +107,8 @@ Una IA no debe inventar reglas de negocio cuando ya existe una regla documentada
 Si el código existente contradice esta documentación, debe señalar la discrepancia antes de cambiar el comportamiento funcional.
 
 Cuando una nueva decisión del usuario cambie el producto, actualizar la documentación correspondiente junto con el código.
+
+Para ejecutar el desarrollo, avanzar por fases según `DEVELOPMENT_PLAN.md` y no saltar a la fase siguiente hasta cumplir los criterios de cierre de la actual.
 
 ## Estrategia V1
 
