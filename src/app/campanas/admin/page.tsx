@@ -1,4 +1,4 @@
-import { CampaignAdmin } from '@/modules/campaigns/components/campaign-admin';
+import { CampaignAdminV2 } from '@/modules/campaigns/components/campaign-admin-v2';
 /*
 import {
   Bell,
@@ -132,5 +132,5 @@ export default function CampaignAdminShellPage() {
 */
 
 export default function CampaignAdminPage() {
-  return <main className="min-h-screen bg-[#F7F9FC] p-5 lg:p-8"><div className="mx-auto max-w-6xl"><CampaignAdmin /></div></main>;
+  return <CampaignAdminV2 />;
 }
