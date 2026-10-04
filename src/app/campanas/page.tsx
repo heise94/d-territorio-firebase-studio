@@ -17,6 +17,7 @@ const navItems = [
   { label: 'Disponibilidad', icon: CalendarDays },
   { label: 'Mi programa', icon: ListChecks },
   { label: 'Avisos', icon: Bell },
+  { label: 'Información', icon: Info },
 ];
 
 export default function CampaignParticipantShellPage() {
@@ -96,7 +97,7 @@ export default function CampaignParticipantShellPage() {
         className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-md border-t border-[#E2E8F0] bg-white/95 px-2 pb-[max(12px,env(safe-area-inset-bottom))] pt-2 backdrop-blur"
         aria-label="Navegación principal de Campañas"
       >
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-5 gap-1">
           {navItems.map(({ label, icon: Icon, active }) => (
             <div
               key={label}
