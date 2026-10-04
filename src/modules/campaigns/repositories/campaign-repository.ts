@@ -14,9 +14,9 @@ export const campaignRepository = {
 
   subscribeDays(campaignId: string, callback: (items: CampaignDay[]) => void) { return onSnapshot(query(ref(campaignCollections.campaignDays), where('campaignId', '==', campaignId), orderBy('sortOrder')), (snapshot) => callback(snapshot.docs.map((entry) => item<CampaignDay>(entry)))); },
   async saveDay(campaignId: string, input: CampaignDayInput, existing?: CampaignDay) {
-    if (existing) return updateDoc(doc(db, campaignCollections.campaignDays, existing.id), input);
     const current = await getDocs(query(ref(campaignCollections.campaignDays), where('campaignId', '==', campaignId)));
-    if (current.docs.some((entry) => entry.data().date === input.date)) throw new Error('Ya existe un día con esa fecha.');
+    if (current.docs.some((entry) => entry.id !== existing?.id && entry.data().date === input.date)) throw new Error('Ya existe un día con esa fecha.');
+    if (existing) return updateDoc(doc(db, campaignCollections.campaignDays, existing.id), input);
     return addDoc(ref(campaignCollections.campaignDays), { ...input, campaignId, sortOrder: current.size });
   },
   async deleteDay(id: string) {
@@ -29,9 +29,9 @@ export const campaignRepository = {
 
   subscribeBlocks(campaignId: string, callback: (items: TimeBlock[]) => void) { return onSnapshot(query(ref(campaignCollections.timeBlocks), where('campaignId', '==', campaignId), orderBy('sortOrder')), (snapshot) => callback(snapshot.docs.map((entry) => item<TimeBlock>(entry)))); },
   async saveBlock(campaignId: string, campaignDayId: string, input: TimeBlockInput, existing?: TimeBlock) {
-    if (existing) return updateDoc(doc(db, campaignCollections.timeBlocks, existing.id), input);
     const current = await getDocs(query(ref(campaignCollections.timeBlocks), where('campaignDayId', '==', campaignDayId)));
-    if (current.docs.some((entry) => entry.data().startTime === input.startTime && entry.data().endTime === input.endTime)) throw new Error('Ese bloque ya existe para este día.');
+    if (current.docs.some((entry) => entry.id !== existing?.id && entry.data().startTime === input.startTime && entry.data().endTime === input.endTime)) throw new Error('Ese bloque ya existe para este día.');
+    if (existing) return updateDoc(doc(db, campaignCollections.timeBlocks, existing.id), input);
     return addDoc(ref(campaignCollections.timeBlocks), { ...input, campaignId, campaignDayId, sortOrder: current.size });
   },
   deleteBlock(id: string) { return deleteDoc(doc(db, campaignCollections.timeBlocks, id)); },

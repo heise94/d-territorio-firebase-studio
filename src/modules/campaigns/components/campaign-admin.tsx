@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, X } from 'lucide-react';
 import { campaignRepository } from '../repositories/campaign-repository';
 import { campaignDaySchema, campaignSchema, congregationSchema, pointSchema, timeBlockSchema } from '../schemas/campaign-schemas';
 import type { Campaign, CampaignCongregation, CampaignDay, Congregation, Point, TimeBlock } from '../domain/types';
+import { useAuth } from '@/hooks/use-auth';
 
 const statusLabels: Record<Campaign['status'], string> = { draft: 'Borrador', registration_open: 'Inscripciones abiertas', planning: 'Planificación', published: 'Publicado', active: 'En curso', completed: 'Finalizada' };
 const emptyCampaign = { name: '', description: '', locationName: '', locationDetails: '', defaultCapacityPerBlock: '', maxPointsDefault: '', status: 'draft' };
@@ -16,9 +17,10 @@ const buttonClass = 'inline-flex min-h-11 items-center justify-center gap-2 roun
 
 export function CampaignAdmin() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]); const [selected, setSelected] = useState<Campaign | null>(null); const [creating, setCreating] = useState(false); const [error, setError] = useState('');
+  const { user } = useAuth();
   useEffect(() => campaignRepository.subscribeCampaigns(setCampaigns), []);
   useEffect(() => { if (selected) setSelected(campaigns.find((item) => item.id === selected.id) || null); }, [campaigns, selected?.id]);
-  async function create(formData: FormData) { const values = Object.fromEntries(formData); const parsed = campaignSchema.safeParse(values); if (!parsed.success) return setError(parsed.error.issues[0].message); try { const id = await campaignRepository.createCampaign(parsed.data); setSelected({ id, ...parsed.data }); setCreating(false); setError(''); } catch { setError('No se pudo crear la campaña. Revisa tu conexión e inténtalo nuevamente.'); } }
+  async function create(formData: FormData) { const values = Object.fromEntries(formData); const parsed = campaignSchema.safeParse(values); if (!parsed.success) return setError(parsed.error.issues[0].message); try { const id = await campaignRepository.createCampaign(parsed.data, user?.uid); setSelected({ id, ...parsed.data, createdBy: user?.uid }); setCreating(false); setError(''); } catch { setError('No se pudo crear la campaña. Revisa tu conexión e inténtalo nuevamente.'); } }
   if (selected) return <CampaignEditor campaign={selected} onBack={() => setSelected(null)} />;
   return <div className="space-y-6"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-sm font-semibold text-teal-700">Configuración</p><h1 className="mt-1 text-3xl font-bold text-slate-900">Campañas</h1><p className="mt-2 text-slate-600">Crea y prepara campañas antes de abrir inscripciones.</p></div><button onClick={() => { setCreating(true); setError(''); }} className={`${buttonClass} bg-teal-700 text-white hover:bg-teal-800`}><Plus className="h-5 w-5" />Nueva campaña</button></div>
     {creating && <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-xl font-bold">Nueva campaña</h2><p className="mt-1 text-sm text-slate-600">Comienza como borrador; podrás completar días, bloques y puntos después.</p></div><button aria-label="Cerrar" onClick={() => setCreating(false)}><X /></button></div><CampaignForm initial={emptyCampaign} submitLabel="Crear campaña" onSubmit={create} error={error} /></section>}
