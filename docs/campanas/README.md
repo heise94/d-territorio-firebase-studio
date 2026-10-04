@@ -34,11 +34,33 @@ Deben respetar los documentos normativos:
 13. `WIREFRAMES.md` — wireframes principales.
 14. `PROGRAM_OUTPUT.md` — programa general, impresión y PDF.
 
-### Documentos de apoyo a implementación
+### Documentos de construcción y calidad
 
-15. `IMPLEMENTATION_NOTES.md` — notas técnicas, validaciones y testing.
+15. `IMPLEMENTATION_NOTES.md` — notas técnicas y validaciones.
 16. `AI_HANDOFF.md` — instrucciones para una IA de desarrollo.
 17. `DEVELOPMENT_PLAN.md` — plan de construcción por fases, dependencias y criterios para avanzar.
+18. `ACCEPTANCE_CRITERIA.md` — definición verificable de cuándo cada capacidad está terminada.
+19. `EDGE_CASES.md` — casos límite y comportamiento esperado.
+20. `TEST_PLAN.md` — estrategia de pruebas unitarias, integración, E2E, PWA y seguridad.
+21. `SEED_AND_DEMO_DATA.md` — datos ficticios, fixtures y escenarios para desarrollo/pruebas.
+22. `DEPLOYMENT_GUIDE.md` — entornos, subdominio, Firebase, PWA y checklist de producción.
+23. `DECISIONS_LOG.md` — registro de decisiones ya acordadas y plantilla para futuras decisiones.
+
+## Orden mínimo recomendado para una IA antes de programar
+
+Leer primero:
+1. `MASTER_SPEC.md`
+2. `TECH_ARCHITECTURE.md`
+3. `DATA_MODEL.md`
+4. `AUTH_SECURITY.md`
+5. `PERMISSIONS_AND_WORKFLOW.md`
+6. `DEVELOPMENT_PLAN.md`
+7. los documentos UX/UI relacionados con la fase que vaya a implementar
+8. `ACCEPTANCE_CRITERIA.md`
+9. `EDGE_CASES.md`
+10. `TEST_PLAN.md`
+
+No es necesario cargar todos los documentos visuales en cada tarea, pero las reglas normativas sí deben conservarse.
 
 ## Stack V1 decidido
 
@@ -106,9 +128,9 @@ Una IA no debe inventar reglas de negocio cuando ya existe una regla documentada
 
 Si el código existente contradice esta documentación, debe señalar la discrepancia antes de cambiar el comportamiento funcional.
 
-Cuando una nueva decisión del usuario cambie el producto, actualizar la documentación correspondiente junto con el código.
+Cuando una nueva decisión cambie el producto, actualizar la documentación correspondiente y registrar la decisión en `DECISIONS_LOG.md`.
 
-Para ejecutar el desarrollo, avanzar por fases según `DEVELOPMENT_PLAN.md` y no saltar a la fase siguiente hasta cumplir los criterios de cierre de la actual.
+Para ejecutar el desarrollo, avanzar por fases según `DEVELOPMENT_PLAN.md` y no saltar a la fase siguiente hasta cumplir los criterios de cierre de la actual y los criterios relacionados de `ACCEPTANCE_CRITERIA.md`.
 
 ## Estrategia V1
 
@@ -121,3 +143,7 @@ Prioridades:
 4. planificación colaborativa rápida;
 5. mantenibilidad;
 6. posibilidad de evolucionar posteriormente.
+
+## Estado documental
+
+Con estos 23 documentos, la definición de producto, UX, arquitectura, implementación, calidad y despliegue de V1 se considera prácticamente cerrada. Las nuevas decisiones deben ser incrementales y registrarse sin reabrir reglas ya aceptadas salvo necesidad real.
