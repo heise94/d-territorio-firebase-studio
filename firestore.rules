@@ -29,5 +29,13 @@ service cloud.firestore {
     match /congregations/{docId} { allow read, write: if isCampaignAdmin(); }
     match /campaignCongregations/{docId} { allow read, write: if isCampaignAdmin(); }
     match /points/{docId} { allow read, write: if isCampaignAdmin(); }
+
+    // Participant authentication is exclusively server-side (Firebase Admin).
+    // Even authenticated organizers cannot directly retrieve credential/session documents.
+    match /participants/{docId} { allow read, write: if false; }
+    match /deviceSessions/{docId} { allow read, write: if false; }
+    match /campaignParticipantPhones/{docId} { allow read, write: if false; }
+    match /campaignAuthLimits/{docId} { allow read, write: if false; }
+    match /auditLogs/{docId} { allow read, write: if false; }
   }
 }

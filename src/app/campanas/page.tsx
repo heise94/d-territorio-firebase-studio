@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { requireParticipantSession } from '@/modules/campaigns/server/auth/session';
+import { ParticipantSessionControls } from '@/modules/campaigns/components/participant-session';
 import {
   Bell,
   CalendarDays,
@@ -20,7 +22,10 @@ const navItems = [
   { label: 'Información', icon: Info },
 ];
 
-export default function CampaignParticipantShellPage() {
+export const dynamic = 'force-dynamic';
+
+export default async function CampaignParticipantShellPage() {
+  const participant = await requireParticipantSession();
   return (
     <main className="mx-auto min-h-screen w-full max-w-md bg-[#F7F9FC] pb-28">
       <header className="border-b border-[#E2E8F0] bg-white px-5 pb-5 pt-8">
@@ -53,6 +58,7 @@ export default function CampaignParticipantShellPage() {
       </header>
 
       <section className="space-y-5 px-5 py-6">
+        <ParticipantSessionControls fullName={participant.fullName} />
         <div className="rounded-[20px] border border-[#E2E8F0] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#CCFBF1] text-[#0F766E]">

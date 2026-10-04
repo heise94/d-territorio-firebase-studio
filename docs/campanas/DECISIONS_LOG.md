@@ -163,3 +163,16 @@ Antes de abrir a las cuatro congregaciones, probar internamente y con un grupo p
 
 **Documentos afectados:**
 - `...`
+
+## D-025 — Implementación Fase 2: identidad participante
+
+**Fecha:** 2026-10-04
+**Estado:** Aceptada para revisión en PR Draft
+
+Se utiliza Firebase Admin server-only y Route Handlers Next.js, bcrypt con costo 12 y
+pepper servidor, sesiones de 30 días en cookie HttpOnly y unicidad mediante índice HMAC
+transaccional. Congregación opcional validada contra congregaciones activas; no implica
+inscripción en campaña. Cambio/reset invalidan todas las sesiones mediante versión atómica.
+Recuperación administrativa queda como servicio que verifica ID token y `campaign_admin`,
+sin nuevo panel ni provisioning del claim. Diseño, configuración y pruebas:
+[PHASE_2_AUTH.md](./PHASE_2_AUTH.md).

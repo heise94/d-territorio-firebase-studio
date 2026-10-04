@@ -9,6 +9,16 @@ const withPWA = require('@ducanh2912/next-pwa').default({
   register: true,
   skipWaiting: true,
   disable: isDev,
+  cacheOnFrontEndNav: false,
+  extendDefaultRuntimeCaching: true,
+  workboxOptions: {
+    runtimeCaching: [{
+      // Never cache participant pages, RSC responses or identity/session API responses.
+      urlPattern: ({ url }: { url: URL }) =>
+        url.pathname === '/campanas' || url.pathname.startsWith('/campanas/') || url.pathname.startsWith('/api/campanas/auth/'),
+      handler: 'NetworkOnly',
+    }],
+  },
 });
 
 const nextConfig: NextConfig = {
