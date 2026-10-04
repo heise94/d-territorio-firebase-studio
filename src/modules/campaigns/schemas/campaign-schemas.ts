@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 export const campaignStatuses = ['draft', 'registration_open', 'planning', 'published', 'active', 'completed'] as const;
 const optionalText = z.string().trim().max(500).optional().transform((value) => value || undefined);
-const optionalNonNegativeInt = z.coerce.number().int().min(0).optional();
+const optionalNonNegativeInt = z.preprocess(
+  (value) => value === '' || value === null ? undefined : value,
+  z.coerce.number().int().min(0).optional(),
+);
 
 export const campaignSchema = z.object({
   name: z.string().trim().min(1, 'El nombre es obligatorio.').max(120), description: optionalText,

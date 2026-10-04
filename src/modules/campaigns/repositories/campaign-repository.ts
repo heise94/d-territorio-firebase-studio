@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { campaignCollections } from '../lib/paths';
 import type { Campaign, CampaignCongregation, CampaignDay, Congregation, Point, TimeBlock } from '../domain/types';
@@ -19,7 +19,13 @@ export const campaignRepository = {
     if (current.docs.some((entry) => entry.data().date === input.date)) throw new Error('Ya existe un día con esa fecha.');
     return addDoc(ref(campaignCollections.campaignDays), { ...input, campaignId, sortOrder: current.size });
   },
-  deleteDay(id: string) { return deleteDoc(doc(db, campaignCollections.campaignDays, id)); },
+  async deleteDay(id: string) {
+    const blocks = await getDocs(query(ref(campaignCollections.timeBlocks), where('campaignDayId', '==', id)));
+    const batch = writeBatch(db);
+    blocks.docs.forEach((block) => batch.delete(block.ref));
+    batch.delete(doc(db, campaignCollections.campaignDays, id));
+    return batch.commit();
+  },
 
   subscribeBlocks(campaignId: string, callback: (items: TimeBlock[]) => void) { return onSnapshot(query(ref(campaignCollections.timeBlocks), where('campaignId', '==', campaignId), orderBy('sortOrder')), (snapshot) => callback(snapshot.docs.map((entry) => item<TimeBlock>(entry)))); },
   async saveBlock(campaignId: string, campaignDayId: string, input: TimeBlockInput, existing?: TimeBlock) {
