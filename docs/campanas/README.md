@@ -45,6 +45,7 @@ Deben respetar los documentos normativos:
 21. `SEED_AND_DEMO_DATA.md` — datos ficticios, fixtures y escenarios para desarrollo/pruebas.
 22. `DEPLOYMENT_GUIDE.md` — entornos, subdominio, Firebase, PWA y checklist de producción.
 23. `DECISIONS_LOG.md` — registro de decisiones ya acordadas y plantilla para futuras decisiones.
+24. `PHASE_0_PROMPT.md` — prompt operativo para iniciar el desarrollo de la Fase 0 en `feature/campanas-v1`.
 
 ## Orden mínimo recomendado para una IA antes de programar
 
@@ -59,6 +60,8 @@ Leer primero:
 8. `ACCEPTANCE_CRITERIA.md`
 9. `EDGE_CASES.md`
 10. `TEST_PLAN.md`
+
+Para iniciar la Fase 0, utilizar además `PHASE_0_PROMPT.md` como instrucción operativa.
 
 No es necesario cargar todos los documentos visuales en cada tarea, pero las reglas normativas sí deben conservarse.
 
@@ -146,4 +149,4 @@ Prioridades:
 
 ## Estado documental
 
-Con estos 23 documentos, la definición de producto, UX, arquitectura, implementación, calidad y despliegue de V1 se considera prácticamente cerrada. Las nuevas decisiones deben ser incrementales y registrarse sin reabrir reglas ya aceptadas salvo necesidad real.
+Con estos 24 documentos, la definición de producto, UX, arquitectura, implementación, calidad, despliegue y arranque de desarrollo de V1 se considera prácticamente cerrada. Las nuevas decisiones deben ser incrementales y registrarse sin reabrir reglas ya aceptadas salvo necesidad real.
