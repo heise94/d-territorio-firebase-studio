@@ -1,0 +1,165 @@
+# D-Territorio Campañas — Registro de Decisiones
+
+Este documento resume decisiones de producto y arquitectura ya acordadas. Su objetivo es evitar que futuras iteraciones o una IA de desarrollo reabran temas ya definidos sin una razón clara.
+
+## Cómo usar este registro
+- No reemplaza a `MASTER_SPEC.md` ni a los documentos normativos.
+- Si una decisión cambia, actualizar aquí y también el documento normativo correspondiente.
+- Cada nueva decisión relevante debe registrar fecha aproximada, decisión y motivo.
+
+---
+
+## D-001 — Módulo separado dentro del ecosistema D-Territorio
+**Estado:** Aceptada
+
+Campañas será un dominio independiente, previsto para `campanas.d-territorio.cl`, aunque inicialmente viva en el mismo repositorio.
+
+**Motivo:** mantener coherencia con D-Territorio sin mezclar lógica de territorios y campañas.
+
+## D-002 — PWA para participantes + panel web para organizadores
+**Estado:** Aceptada
+
+La experiencia de participantes será mobile-first/PWA. La planificación será web-first.
+
+**Motivo:** los hermanos participarán principalmente desde teléfono; los organizadores necesitan más espacio y productividad.
+
+## D-003 — Acceso mediante teléfono + PIN
+**Estado:** Aceptada
+
+No se exigirá correo electrónico al participante.
+
+**Motivo:** facilitar el acceso a hermanos mayores o con poco manejo tecnológico.
+
+## D-004 — Dispositivo de confianza
+**Estado:** Aceptada
+
+Después del primer acceso correcto, la PWA podrá mantener sesión y no pedir PIN en cada apertura.
+
+## D-005 — Un participante por sesión/perfil en V1
+**Estado:** Aceptada
+
+Se descartó administrar permanentemente dos participantes desde una misma cuenta.
+
+**Motivo:** mantener la experiencia simple y reducir errores de identidad/notificaciones.
+
+## D-006 — Horarios configurables
+**Estado:** Aceptada
+
+Los bloques no quedan fijos en código y pueden variar por campaña/día.
+
+## D-007 — Máximo de turnos declarado por participante
+**Estado:** Aceptada
+
+El participante puede indicar 1, 2, 3 o sin límite específico.
+
+El máximo genera advertencia, pero un organizador puede confirmar una excepción.
+
+## D-008 — Capacidad orientativa, no puntos predefinidos
+**Estado:** Aceptada
+
+La campaña puede llegar hasta 8 puntos por bloque en el caso inicial (16 participantes), pero los puntos finales se definen según apoyo real.
+
+## D-009 — Bloque lleno sigue aceptando disponibilidad
+**Estado:** Aceptada
+
+Al alcanzar capacidad principal, el bloque se muestra completo pero todavía puede seleccionarse. Los nuevos interesados son reserva potencial.
+
+**Motivo:** contar con reemplazos y no perder disponibilidad útil.
+
+## D-010 — El sistema no arma parejas automáticamente
+**Estado:** Aceptada y crítica
+
+Las parejas serán creadas manualmente por los hermanos encargados.
+
+**Motivo:** existen criterios humanos de edad, situación personal, salud y otras consideraciones que no se recopilarán en la aplicación.
+
+## D-011 — Congregación como dato secundario
+**Estado:** Aceptada
+
+No es obligatorio mezclar congregaciones. Los organizadores pueden hacerlo manualmente cuando sea conveniente.
+
+## D-012 — Solicitud para trabajar juntos es obligatoria si se acepta
+**Estado:** Aceptada
+
+No existe modalidad de mera preferencia.
+
+Si A solicita trabajar con B, B debe aceptar. Una vez aceptado, deben ser asignados juntos.
+
+## D-013 — Solicitud pendiente debe destacarse
+**Estado:** Aceptada
+
+Debe aparecer de forma prioritaria al entrar a la PWA y puede generar push.
+
+## D-014 — Lista de disponibles dinámica
+**Estado:** Aceptada
+
+Al abrir un bloque se muestran quienes tienen disponibilidad y no están asignados allí. Al asignarlos desaparecen; al liberarlos vuelven.
+
+## D-015 — Programa general automático
+**Estado:** Aceptada
+
+El sistema generará una tabla general por fecha, bloques, puntos y parejas, reemplazando la elaboración manual histórica.
+
+Debe admitir impresión y PDF.
+
+## D-016 — Borrador separado de programa publicado
+**Estado:** Aceptada
+
+Las asignaciones pueden cambiar durante planificación sin ser visibles como definitivas para participantes.
+
+## D-017 — Cambios posteriores mediante solicitud
+**Estado:** Aceptada
+
+Una vez publicado el programa, un participante no modifica unilateralmente una asignación; solicita cambio.
+
+## D-018 — Notificaciones push con fallback interno
+**Estado:** Aceptada
+
+Push es una mejora, no un requisito para usar la app. Todas las notificaciones importantes deben quedar también en el historial interno.
+
+## D-019 — No recopilar información sensible para formar parejas
+**Estado:** Aceptada y crítica
+
+No se crearán perfiles de salud, diagnóstico u otros datos sensibles para decidir compatibilidad.
+
+## D-020 — Stack técnico V1
+**Estado:** Aceptada
+
+Reutilizar el stack actual del repositorio: Next.js 15, React, TypeScript, Firebase/Firestore, Tailwind, Radix, Lucide, Zod, React Hook Form y soporte PWA.
+
+## D-021 — Monolito modular
+**Estado:** Aceptada
+
+No usar microservicios para V1.
+
+**Motivo:** volumen moderado, simplicidad, mantenibilidad y desarrollo rápido.
+
+## D-022 — Colaboración de organizadores
+**Estado:** Aceptada
+
+Habrá responsables/encargados que pueden colaborar en la planificación. El sistema debe tolerar edición concurrente y evitar dobles asignaciones.
+
+## D-023 — Una campaña debe ser reutilizable
+**Estado:** Aceptada
+
+Aunque la primera implementación sea Cementerio Padre Las Casas, fechas, congregaciones, horarios, puntos y capacidades no deben quedar rígidos.
+
+## D-024 — Piloto antes de producción general
+**Estado:** Aceptada
+
+Antes de abrir a las cuatro congregaciones, probar internamente y con un grupo pequeño de usuarios reales.
+
+---
+
+## Plantilla para futuras decisiones
+
+### D-XXX — Título
+**Fecha:** YYYY-MM-DD
+**Estado:** Propuesta / Aceptada / Reemplazada / Rechazada
+
+**Decisión:**
+
+**Motivo:**
+
+**Documentos afectados:**
+- `...`
