@@ -338,3 +338,245 @@ con build, ningún dato real eliminado. Rules e índices no modificados.
 - `src/app/(app)/cleaning/program/page.tsx`, `src/app/(app)/territorios/asignaciones/page.tsx`: seis reparaciones mínimas autorizadas.
 - `tests/campaign-deployment/deployment.test.ts`, `tests/campaign-pilot/fixture.ts`: guard local reforzado, aserciones F2–F10 intactas.
 - `docs/campanas/PHASE_11_DEPLOYMENT_LAUNCH.md`, `LAUNCH_CHECKLIST.md`, `DEPLOYMENT_GUIDE.md`, `DECISIONS_LOG.md`.
+
+## F11B — Cloud readiness verification
+
+Verificación de solo lectura, 2026-10-05, base exacta
+`f03dd99c6db021d386a408721889e8b62cbe13d6`. **F11 continúa INCOMPLETA**.
+No cambios de código/dependencias, APIs, facturación, DNS, proyectos, Rules,
+secretos cloud, cuentas reales, campañas reales ni recursos de producción.
+No merge, no F12; Issues #8/#11/#12 permanecen abiertas.
+
+### Autenticación y método seguro
+
+Firebase CLI autenticada: `projects:list` respondió correctamente. Solo se emitieron
+IDs/nombres/números/estado; NO se repitió `login:list`, que devuelve tokens.
+La consulta ordinaria `apphosting:backends:list` del CLI 14.17.0 incorpora
+`ensureApiEnabled`; por eso no se utilizó para inventariar F11B.
+Se usaron endpoints oficiales GET con la sesión legítima del CLI en memoria,
+sin imprimir/persistir tokens, respuestas crudas ni headers. Se filtró únicamente
+metadata solicitada. No se ejecutaron métodos de habilitación de servicios.
+
+**Reautenticación Firebase CLI requerida.** La renovación OAuth interactiva necesita
+navegador/consentimiento humano. No se revocó silenciosamente la cuenta ni se
+confundió un access token aún válido con revocación de la sesión anteriormente
+expuesta. El usuario debe renovar de forma privada (`firebase login --reauth`,
+sin `--debug`, sin compartir salida/códigos/tokens) y revisar/revocar la sesión
+anterior desde seguridad de su cuenta Google. Este paso no bloquea las consultas
+de metadata ya efectuadas; sí queda pendiente para volver a operar con confianza.
+
+### Inventario Firebase y evidencia de entorno
+
+Todos ACTIVE; Cloud Billing devolvió HTTP 200 con `billingEnabled=false` en los ocho.
+Esto verifica que no hay facturación habilitada en el momento de la consulta,
+no su historial ni el plan pasado. `API enabled` tampoco implica despliegue viable.
+
+| Proyecto / display name / número | Posible rol | Blaze/App Hosting | Evidencia |
+| --- | --- | --- | --- |
+| app-trans-heise-2026 / app Trans Heise 2026 / 22675968899 | Sin vínculo D-Territorio acreditado | Billing off, API DISABLED | Backend list 403 SERVICE_DISABLED |
+| boxplanner / Agenda Neuro / 326759877717 | Sin vínculo D-Territorio acreditado | Billing off, API ENABLED | Lista backend studio/us-central1; detalle 403, URL hosted.app 404 |
+| d-territorio-v2 / D-territorio-V2 / 196689422029 | Candidato por nombre, rol NO confirmado | Billing off, API DISABLED | WebApps sin entradas; Hosting default site, web.app 404 |
+| edutrack-lite-gzmzy / EduTrackLite / 732365288083 | Sin vínculo D-Territorio acreditado | Billing off, API DISABLED | Sin WebApps registradas; ningún rol Campañas confirmado |
+| studio-1631504953-985c2 / Firebase app / 838678055961 | Rol desconocido | Billing off, API DISABLED | WebApp registrada; Hosting web.app 404 |
+| studio-2080457768-80bac / Firebase app / 435990920417 | Rol desconocido | Billing off, API DISABLED | WebApp registrada; Hosting web.app 404 |
+| studio-4254178211-20e43 / Firebase app / 769493333492 | **Sitio principal D-Territorio acreditado**; Campañas por confirmar | Billing off, API ENABLED | Hosting web.app 200/title D-TERRITORIO; dominio d-territorio.cl HOST_ACTIVE/OWNERSHIP_ACTIVE |
+| studio-7963169270-96256 / Firebase app / 878967730806 | Rol desconocido | Billing off, API DISABLED | WebApp registrada; Hosting web.app 404 |
+
+Evidencia especialmente relevante: `studio-4254178211-20e43` está vinculado al
+dominio principal **d-territorio.cl**, según GET de customDomains de Firebase Hosting.
+Eso identifica el sistema existente, NO autoriza adoptarlo como producción Campañas
+ni publicar Rules que puedan afectarlo. No usarlo como staging por inferencia.
+Un 404 y/o ausencia de WebApp NO demuestran que Firestore esté vacío o no tenga
+datos reales; no se enumeraron documentos de participantes para deducir ese rol.
+
+```text
+DEVELOPMENT: demo-campaign-auth + Auth/Firestore localhost (confirmado).
+STAGING: REQUIERE CONFIRMACIÓN HUMANA; ningún proyecto aislado acreditado.
+PRODUCTION (Campañas): REQUIERE CONFIRMACIÓN HUMANA.
+Sistema principal existente: studio-4254178211-20e43, dominio d-territorio.cl activo.
+```
+
+Hay proyectos accesibles adicionales, pero no evidencia de un par separado
+staging/production de Campañas. Si ninguno es autorizado para staging, se necesita
+crear un proyecto separado, solo con autorización explícita. No se crea ni se
+elige arbitrariamente. Validator existente sigue rechazando staging === production.
+
+### Blaze y App Hosting
+
+Los dos backends listables se llaman `studio`, región `us-central1`:
+
+- `boxplanner`: `studio--boxplanner.us-central1.hosted.app` → 404.
+- `studio-4254178211-20e43`: `studio--studio-4254178211-20e43.us-central1.hosted.app` → 404.
+
+GET backend individual/builds/rollouts devuelve 403 PERMISSION_DENIED; sus errores
+mencionan billing deshabilitado. No se puede acreditar estado saludable, repository,
+branch, environment, rollout SHA, runtime service account ni configuración env.
+No se confunden esos endpoints con el sitio **Firebase Hosting** principal, que sí
+responde 200. No se disparó build/release ni rollout automático.
+
+Para cualquiera de los candidatos, la intervención requerida es:
+
+```text
+Proyecto: el ID staging que confirme el usuario (ninguno elegido aún).
+Acción necesaria: autorizar/habilitar Blaze y asociar billing legítimo SOLO allí.
+Consola: https://console.firebase.google.com/project/PROJECT_ID/usage/details
+Motivo: App Hosting requiere Blaze; billingEnabled=false, endpoints bloqueados.
+Impacto/costo esperado: pago por consumo por encima de cuotas gratuitas;
+Cloud Run, builds, bandwidth, Artifact Registry, Secret Manager y otros servicios.
+No es promesa de gratuidad; configurar presupuesto/alertas y revisar costos antes.
+```
+
+Accesos de consola verificables para los candidatos más relevantes:
+[sitio principal](https://console.firebase.google.com/project/studio-4254178211-20e43/usage/details),
+[d-territorio-v2](https://console.firebase.google.com/project/d-territorio-v2/usage/details).
+No se pide habilitar Blaze en producción en F11B ni reutilizar backend principal.
+[Firebase: costos y requisito Blaze](https://firebase.google.com/docs/app-hosting/costs).
+
+### Secrets / ADC / Rules / staging
+
+Secret Manager API DISABLED en d-territorio-v2, studio-1631504953-985c2,
+studio-2080457768-80bac y studio-7963169270-96256. En studio-4254178211-20e43 está
+ENABLED, pero listar metadata devuelve 403 y el error menciona billing.
+No se accedió a ninguna versión/valor secreto. **No verificado no significa ausente**.
+
+Nombres requeridos que deben verificarse/provisionarse en el staging elegido:
+
+- CAMPAIGNS_AUTH_SECRET
+- CAMPAIGNS_NOTIFICATION_JOB_SECRET
+- FIREBASE_ADMIN_PROJECT_ID
+- CAMPAIGNS_STAGING_PROJECT_ID
+- CAMPAIGNS_PRODUCTION_PROJECT_ID
+- CAMPAIGNS_APP_ORIGIN
+- NEXT_PUBLIC_FIREBASE_API_KEY
+- NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+- NEXT_PUBLIC_FIREBASE_PROJECT_ID
+- NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+- NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+- NEXT_PUBLIC_FIREBASE_APP_ID
+- NEXT_PUBLIC_FIREBASE_VAPID_KEY (FCM; no bloquea el resto si se decide usar Avisos)
+
+CAMPAIGNS_ENV usa overlay staging/production; origen y Firebase público deben salir
+del backend/web app confirmados, NO valores inventados. Timezone server/client
+America/Santiago y auth 160/240 están en la configuración versionada. Secretos
+random no generados: falta confirmar destino. Después de confirmación y permisos,
+pueden generarse CSPRNG y guardarse directamente, sin mostrar valores.
+ADC runtime preferido, sin JSON descargado; identidad/IAM runtime **PENDING** hasta
+backend staging verificable. Sesión CLI no demuestra ADC runtime ni autorización
+Firebase Admin funcional de un proyecto aún no elegido.
+
+Preflight local `check:campaign-deployment`: exit 1 esperado, ready=false por
+variables/proyectos/secretos ausentes en este entorno. Solo nombres emitidos.
+No se usaron fixtures para convertir readiness real a PASS.
+Rules/indexes locales presentes e intactos. No se descargaron Rules reales a Git,
+no hay copia de rollback verificada del staging aún desconocido, no se desplegaron
+Rules/indexes. Orden posterior: confirmar destino → Blaze/permisos → snapshot privado
+Rules anterior → secretos/ADC → preflight PASS → deploy explícito solo staging →
+smoke permisos → backend/rollout staging con SHA explícito y sin automatic rollout.
+
+**STAGING DEPLOY PENDING EXTERNAL**. Sin URL staging verificada, smoke HTTPS,
+FCM ni Scheduler staging. No usar `d-territorio.cl` como URL de smoke Campañas.
+FCM PENDING EXTERNAL; Scheduler producción prohibido, staging pendiente con job
+cada 15 min conforme runbook previo. DNS/facturación no modificados.
+
+### Security audit — causas raíz, no conteo de paquetes propagados
+
+`npm audit --json`: 66 (6 LOW, 32 MODERATE, 28 HIGH, 0 CRITICAL), exit 1.
+`npm audit --omit=dev --json`: 51 (3 LOW, 27 MODERATE, 21 HIGH, 0 CRITICAL), exit 1.
+`npm ls --json`: exit 0, problems=[]; árbol consistente.
+Los 21 HIGH omit-dev se agrupan en **7 causas raíz** (PostCSS contiene dos HIGH
+advisories). Paquetes como Firebase/Genkit/PWA tienen severidad propagada por esas
+dependencias; no son 21 endpoints explotables ni 21 causas distintas.
+
+| Causa / advisory | Ruta, instalada → corregida | Clasificación y evidencia / recomendación |
+| --- | --- | --- |
+| gRPC auth context GHSA-m9gg-hp2v-232j | firebase → @firebase/firestore → grpc-js 1.9.16 → 1.13.6 o 1.14.5 | **NOT_REACHABLE_IN_CAMPAIGNS**: advisory requiere servidor gRPC y autorización con getAuthContext/client cert opcional. Campañas no crea servidor ni usa esa función; Admin/google-gax usa raíz 1.14.5 corregida. Firebase fija ~1.9.0, cuyo último es 1.9.16; Firebase 11.10 también fija ese rango. No override fuera del rango ni upgrade major ciego. |
+| Jaeger malformed header GHSA-45rx-2jwx-cxfr | Genkit → sdk-node 0.52.1 → sdk-trace-node 1.25.1 → propagator-jaeger 1.25.1 → 2.9.0 | **UNKNOWN (configuración runtime cloud)**: configuración de repo no activa Jaeger; default instalado tracecontext+baggage, mitigación aceptable SOLO bajo ese default. NodeSDK puede cambiar por OTEL_PROPAGATORS; cloud no inspeccionable. Verificar/no habilitar jaeger-only antes de deploy. Corrección 2.9 fuera del SDK fijado; no migrar OpenTelemetry mayor improvisadamente. |
+| Prometheus HTTP malformed URI GHSA-q7rr-3cgh-j5r3 | Genkit → sdk-node 0.52.1 → 0.217.0+ | **NOT_REACHABLE_IN_CAMPAIGNS** en código/árbol inspeccionado: no exporter-prometheus ni auto-instrumentations-node instalados, no metricReader configurado ni servidor/puerto métricas expuesto. No habilitar exporter público en cloud; revisar configuración real al crear backend. SDK 0.217 fuera ^0.52.0. |
+| braces stack exhaustion GHSA-vfj7-8cjw-p6xm | PWA/Workbox + Tailwind → micromatch/chokidar → braces 3.0.3 → sin versión publicada corregida | **BUILD_ONLY**: patterns de archivos/config del repo, no datos participantes como glob. Registry sigue ofreciendo 3.0.3; no downgrade PWA 10→6 ni quitar pruebas. Build solo código revisado, sin archivos/patrones ajenos. |
+| PostCSS source maps GHSA-6g55-p6wh-862q y GHSA-r28c-9q8g-f849 | Next 15.5.27 → postcss 8.4.31 fijado; corregida >8.5.17 para esos HIGH; 8.5.29 instalada raíz | **BUILD_ONLY**: CSS/config confiables, no conversión server-side de CSS participante. Next fija versión; parchear motor fuera del contrato no se improvisa. Mantener CSS de terceros revisado, no ejecutar builds arbitrarios con secretos. |
+| serialize-javascript RCE GHSA-5c6j-r48x-rmvq | PWA/Workbox → plugin-terser y terser-webpack-plugin → serialize-javascript 6.0.2 → 7.0.3+ (7.1.2 disponible) | **BUILD_ONLY**: serializer de opciones del minificador/workers durante build; sin import en API Campañas ni input participante. Padres fijan ^6, corrección major 7 requiere actualizar tooling validado, no force. No procesar opciones JS no confiables. |
+| tmp traversal GHSA-ph9p-34f9-6g65 | patch-package/external-editor → tmp 0.0.33 → 0.2.6+ | **BUILD_ONLY** en omit-dev (también tooling dev): no uso en API, sin prefijo/postfijo/dir controlado por participante. Padre ^0.0.33 no permite parche 0.2.6. No exponer CLI/editors ni aplicar patches no revisados. |
+
+Grupos adicionales HIGH solo en audit total: **DEV_ONLY** tRPC experimental caller
+10.45.2 (Genkit tools-common; fix 10.45.3), adm-zip 0.5.18 (Genkit tools-common;
+DoS/extracción, fix 0.6.1) y extract-zip 2.0.1 (Genkit CLI; symlink traversal,
+sin fix publicado compatible identificado). No hay import ni endpoints Campañas
+que ejecuten esos callers/extractores; no publicar servidor Genkit CLI.
+Se incluyen en el riesgo del entorno de desarrollo, no se esconden por ser dev.
+
+Comprobación de actualización compatible para UNKNOWN/HIGH: `npm explain`,
+`npm outdated` y `npm view` verificaron que SDK ^0.52.0 termina en 0.52.1.
+Incluso **@genkit-ai/core 1.42.0** sigue fijando SDK ^0.52.0 y core/traces ~1.25.0:
+actualizar Genkit dentro de major 1 NO elimina esas causas. No se actualiza un
+paquete ajeno solo para aparentar cierre ni se usa `audit fix --force`.
+No cambio de dependencias/código en F11B; no se afirma que alertas fueron parcheadas.
+
+**Seguridad dependencies para deploy cloud: NO-GO**, no por el número 21, sino
+por Jaeger UNKNOWN respecto de configuración runtime cloud sin evidencia real.
+0 CRITICAL runtime, 0 HIGH runtime demostrado explotable en las rutas Campañas
+inspeccionadas; UNKNOWN queda delimitado y con acción concreta: verificar que
+no se active Jaeger-only (mantener W3C/baggage o deshabilitar telemetry) en el backend
+staging, sin aceptar esos headers por un propagador vulnerable. Esa mitigación
+no se declara aplicada en una nube aún no configurada. Build/dev riesgos requieren
+inputs confiables; no ejecutar builds arbitrarios con permisos sobre secretos.
+
+Fuentes primarias:
+[gRPC](https://github.com/grpc/grpc-node/security/advisories/GHSA-m9gg-hp2v-232j),
+[Jaeger](https://github.com/open-telemetry/opentelemetry-js/security/advisories/GHSA-45rx-2jwx-cxfr),
+[Prometheus](https://github.com/open-telemetry/opentelemetry-js/security/advisories/GHSA-q7rr-3cgh-j5r3),
+[serialize-javascript](https://github.com/yahoo/serialize-javascript/security/advisories/GHSA-5c6j-r48x-rmvq),
+[PostCSS](https://github.com/postcss/postcss/security/advisories/GHSA-6g55-p6wh-862q).
+
+### Regresión ejecutada en F11B
+
+Aunque solo cambió este documento, se ejecutaron `npm ci`, las diez suites,
+`npm run typecheck` y `npm run build`. npm ci PASS; typecheck PASS; build PASS
+con los warnings de bundling AI/Genkit ya documentados, sin errores nuevos.
+No se editaron dependencias, código, Rules ni pruebas; los service workers
+regenerados por build se restauraron al estado inicial antes de publicar.
+
+| Suite | Resultado final |
+| --- | --- |
+| F2 auth | 12/12 |
+| F3 registration | 13/13 |
+| F4 pair-requests | 20/20 |
+| F5 admin-dashboard | 25/25 |
+| F6 planner | 51/51 tras repetir sin cambios |
+| F7 program | 64/64 |
+| F8 changes | 64/64 |
+| F9 notifications-pwa | 56/56 |
+| F10 pilot | 12/12 |
+| F11 deployment | 15/15 |
+
+Resultado agregado final: **332/332, cero omitidas**. No se afirma una corrida
+única limpia: en la primera ejecución F6 pasó 50/51, fallando la expectativa
+PlannerWarnings de `maxTurns concurrente entre bloques`; al repetir la suite
+completa con los mismos servicios de emulador y sin relajar pruebas pasó 51/51.
+Se conserva esta intermitencia como evidencia, no como reparación implementada
+ni como demostración de readiness cloud. Las otras nueve suites pasaron al primer
+intento. Emuladores aislados demo-campaign-auth, no datos reales/cloud.
+
+### Readiness y siguientes pasos
+
+Listo: configuración versionada, emuladores aislados, validators, runbooks y
+clasificación audit con evidencia; no es infraestructura desplegada.
+Automatizable después de confirmación/Blaze/reauth: leer metadata pendiente,
+generar secretos random directamente en destino autorizado, comprobar ADC/permisos,
+guardar Rules previas privadamente, configurar y desplegar SOLO staging, smoke
+sintético, FCM de prueba y scheduler staging si sus prerrequisitos permiten.
+Nada de eso requiere DNS final, merge ni tocar producción.
+
+Acciones humanas (máximo cinco):
+1. Confirmar proyecto producción Campañas; decidir explícitamente si corresponde
+   al sitio principal `studio-4254178211-20e43` o debe ser otro independiente.
+2. Confirmar un proyecto staging distinto y sin datos reales, o autorizar creación
+   de uno nuevo. Los nombres/404 no prueban ausencia de datos.
+3. Autorizar/habilitar Blaze SOLO en ese staging, cuenta de facturación legítima,
+   presupuesto/alertas; no cambiar producción todavía.
+4. Reautenticar Firebase CLI privadamente y revisar/revocar la sesión anterior.
+5. Solo si persiste 403 tras Blaze: conceder al operador permisos mínimos App
+   Hosting/Secret Manager/IAM del staging elegido. No compartir JSON ni tokens.
+
+No se pide acceso DNS ahora: F11B lo prohíbe y no hace falta para hosted.app staging.
+Android/iOS físicos, FCM real, tres perfiles e impresión nativa F7 siguen pendientes.
+No se declaran completados por inspección de metadata ni por tests de emulador.
