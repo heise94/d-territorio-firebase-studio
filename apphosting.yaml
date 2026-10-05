@@ -6,6 +6,10 @@ runConfig:
   # more instances in response to increased traffic.
   maxInstances: 1
 env:
+  # Do not activate the vulnerable optional Jaeger propagator.
+  - variable: OTEL_PROPAGATORS
+    value: tracecontext,baggage
+    availability: [BUILD, RUNTIME]
   - variable: CAMPAIGNS_ENV
     value: unconfigured
     availability: [BUILD, RUNTIME]
@@ -60,6 +64,6 @@ env:
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     secret: NEXT_PUBLIC_FIREBASE_APP_ID
     availability: [BUILD, RUNTIME]
-  - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
-    secret: NEXT_PUBLIC_FIREBASE_VAPID_KEY
-    availability: [BUILD, RUNTIME]
+  # Add NEXT_PUBLIC_FIREBASE_VAPID_KEY in the environment overlay after
+  # its genuine Firebase Web Push certificate has been provisioned.
+  # Without it, the existing internal-notifications fallback remains active.
