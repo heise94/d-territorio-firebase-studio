@@ -39,5 +39,7 @@ service cloud.firestore {
     match /auditLogs/{docId} { allow read, write: if false; }
     match /campaignRegistrations/{docId} { allow read, write: if false; }
     match /availabilities/{docId} { allow read, write: if false; }
+    match /pairRequests/{docId} { allow read, write: if false; }
+    match /campaignPairRequestLocks/{docId} { allow read, write: if false; }
   }
 }

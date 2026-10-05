@@ -190,3 +190,17 @@ registration_open permite edición. Históricos inactivos conservados. Capacidad
 agregada sin Assignment. No se alteran los rate limits de Fase 2; revisión humana antes
 del piloto obligatoria. APIs, UX, seguridad y pruebas en
 [PHASE_3_REGISTRATION.md](./PHASE_3_REGISTRATION.md).
+
+## D-027 — Fase 4: vínculo obligatorio y concurrencia de solicitudes
+
+**Fecha:** 2026-10-04
+**Estado:** Implementada para revisión en PR Draft
+
+PairRequest accepted es una restricción obligatoria futura, nunca preferencia ni asignación.
+Solicitud por inscripción/campaña con búsqueda privada por nombre, sin teléfono. Sentinels
+transaccionales de relación simétrica y exclusividad por inscripción impiden duplicados y
+aceptaciones incompatibles concurrentes. Reenvíos crean documentos nuevos preservando historia.
+Disponibilidad común/conflictos se calculan desde Availability actual sin cambiar el vínculo.
+Inicio prioritario y sección de solicitudes implementan notificación interna sin push.
+Límites individuales nuevos, globales auth intactos. Diseño, APIs y pruebas:
+[PHASE_4_PAIR_REQUESTS.md](./PHASE_4_PAIR_REQUESTS.md).

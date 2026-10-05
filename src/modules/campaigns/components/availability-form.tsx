@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type {
@@ -161,6 +162,15 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
     <form onSubmit={save} className="space-y-6" aria-busy={saving}>
       <header className="space-y-3">
         <h1 className="text-2xl font-bold">{view.campaign.name}</h1>
+        {view.campaign.registration && (
+          <Link
+            prefetch={false}
+            href={`/campanas/participar-juntos/${campaignId}`}
+            className="inline-flex min-h-12 items-center text-teal-800 underline"
+          >
+            Participar con otro hermano
+          </Link>
+        )}
         {view.campaign.description && (
           <p className="leading-7">{view.campaign.description}</p>
         )}

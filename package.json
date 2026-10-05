@@ -12,7 +12,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:campaign-auth": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-auth/*.test.ts",
-    "test:campaign-registration": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-registration/*.test.ts"
+    "test:campaign-registration": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-registration/*.test.ts",
+    "test:campaign-pair-requests": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-pair-requests/*.test.ts"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.7",
