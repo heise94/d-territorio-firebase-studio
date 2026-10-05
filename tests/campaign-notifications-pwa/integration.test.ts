@@ -853,7 +853,7 @@ test("Manifest real y PNG locales 192/512/maskable; offline sin información pri
   assert.doesNotMatch(html, /participantId|fcmToken|Juan|registrationId/);
 });
 test("Worker único, NetworkOnly privado; actualización manual y ningún permiso push al cargar", async () => {
-  const config = await readFile("next.config.ts", "utf8"),
+  const config = await readFile("next.config.mjs", "utf8"),
     worker = await readFile("worker/index.js", "utf8"),
     ui = await readFile(
       "src/modules/campaigns/components/campaign-pwa.tsx",

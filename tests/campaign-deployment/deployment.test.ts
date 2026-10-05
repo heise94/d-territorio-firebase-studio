@@ -235,7 +235,7 @@ test("Manifest, Rules/indexes and deploy configuration present without new permi
     assert.ok(rules.includes(name));
 });
 test("Host routing opt-in preserves admin login and existing permissions", () => {
-  const next = read("next.config.ts");
+  const next = read("next.config.mjs");
   assert.match(next, /CAMPAIGNS_HOST_ROUTING !== "true"/);
   assert.match(next, /type: "host"/);
   assert.match(next, /key: "adminLogin"/);

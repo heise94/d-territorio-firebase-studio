@@ -1,6 +1,6 @@
 // QA-only app: uses the real next-pwa configuration and actual Campañas components.
 // It isolates the worker from the two pre-existing Territorios import blockers.
-import official from "../../../next.config";
+import official from "../../../next.config.mjs";
 export default {
   ...official,
   experimental: { externalDir: true, cpus: 2 },

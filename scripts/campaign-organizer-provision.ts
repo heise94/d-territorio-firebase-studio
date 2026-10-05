@@ -2,6 +2,7 @@ import {
   applicationDefault,
   initializeApp,
   deleteApp,
+  type Credential,
 } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 
@@ -40,15 +41,20 @@ export function provisioningArguments(args: string[]) {
   return { project, uid, apply };
 }
 
-async function main() {
-  const { project, uid, apply } = provisioningArguments(process.argv.slice(2));
+/** Allows an authenticated operator to inject an in-memory credential, without
+ * downloading a service-account key. Runtime defaults remain ADC. */
+export async function provisionCampaignOrganizer(
+  args: string[],
+  credential: Credential = applicationDefault(),
+) {
+  const { project, uid, apply } = provisioningArguments(args);
   if (
     process.env.FIREBASE_AUTH_EMULATOR_HOST ||
     process.env.FIRESTORE_EMULATOR_HOST
   )
     throw new Error("Provisioning requires real Auth, not an emulator");
   const app = initializeApp(
-    { projectId: project, credential: applicationDefault() },
+    { projectId: project, credential },
     "organizer-provisioning",
   );
   try {
@@ -88,7 +94,7 @@ async function main() {
   }
 }
 if (process.argv[1]?.endsWith("campaign-organizer-provision.ts"))
-  main().catch(() => {
+  provisionCampaignOrganizer(process.argv.slice(2)).catch(() => {
     console.error(
       "Organizer provisioning failed; inspect access, project, UID and confirmation privately.",
     );

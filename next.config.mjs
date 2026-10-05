@@ -1,4 +1,6 @@
-import type { NextConfig } from "next";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -17,7 +19,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
     runtimeCaching: [
       {
         // Never cache participant pages, RSC responses or identity/session API responses.
-        urlPattern: ({ url }: { url: URL }) =>
+        urlPattern: ({ url }) =>
           url.pathname === "/campanas" ||
           url.pathname.startsWith("/campanas/") ||
           url.pathname.startsWith("/api/campanas/") ||
@@ -27,7 +29,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
           plugins: [
             {
               // Keep this self-contained: Workbox serializes callbacks into the worker.
-              handlerDidError: ({ request }: { request: Request }) =>
+              handlerDidError: ({ request }) =>
                 request.mode === "navigate"
                   ? caches
                       .match("/campanas-offline.html", { ignoreSearch: true })
@@ -41,7 +43,8 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   },
 });
 
-const nextConfig: NextConfig = {
+/** @type {import("next").NextConfig} */
+const nextConfig = {
   async redirects() {
     if (process.env.CAMPAIGNS_HOST_ROUTING !== "true") return [];
     const origin = new URL(process.env.CAMPAIGNS_APP_ORIGIN ?? "");
@@ -55,11 +58,11 @@ const nextConfig: NextConfig = {
         source: "/",
         has: [
           {
-            type: "host" as const,
+            type: "host",
             value: origin.hostname.replace(/\./g, "\\."),
           },
         ],
-        missing: [{ type: "query" as const, key: "adminLogin" }],
+        missing: [{ type: "query", key: "adminLogin" }],
         destination: "/campanas",
         permanent: false,
       },
