@@ -295,3 +295,31 @@ listo, scheduler productivo NO activo. Auth global 30/120 por 15 minutos intacto
 QA impresión nativa F7 pendiente; dispositivos reales/FCM HTTPS documentados sin
 inventar evidencia. No F10, deploy productivo, merge ni cierre de Issues #8/#10.
 Detalle: [PHASE_9_PWA_NOTIFICATIONS.md](./PHASE_9_PWA_NOTIFICATIONS.md).
+
+## D-033 — Fase 10: piloto técnico reproducible, límites auth y QA externo separado
+
+**Fecha:** 2026-10-05
+**Estado:** Técnicamente validada; piloto final productivo NO aprobado
+
+Base exacta 1d640d89fd07288787a8005663c081e6953ddc86; seeds demo aislados 80/150,
+flujo crítico por repositorio cliente/HTTP/servicios reales y QA de navegador
+pending → approved sin cambio → reserva manual → v2. V1/v2/PDF inmutables y v3
+probados. F2–F9 305/305 intactos; suite piloto 12/12. Solo errores históricos
+Limpieza/Territorios en typecheck/build; no errores nuevos de Campañas.
+
+Auth 30 registros/120 logins rechazaba 10/40 y 50/80 altas legítimas: se reemplaza
+el checkpoint de D-032 por 160/240 globales cada 15 minutos, server-configurable
+con límites finitos y configuración inválida fail-closed. Budgets individuales
+no cambian. Cola por clave evita contención local sin reemplazar transacciones
+distribuidas; todas las ráfagas finales legítimas pasan. Active/completed conservan
+programa oficial de lectura, completed bloquea configuración por UI/Rules; no
+transiciones productivas nuevas. Labels/admin wrap corregidos. Carrera de token
+push con transacción cerrada devuelve 409 sin transferir ownership ni ocultar
+INVALID_ARGUMENT ajenos.
+
+Matriz completa: 79 PASS, 4 PENDING EXTERNAL, 1 FAIL MEDIUM (reordenación manual
+de puntos, F12); además presentación de warnings LOW F12. Cero blocker/high
+abiertos del flujo probado. GO TÉCNICO PARA F11 no es despliegue ni permiso de
+producción. Android/iOS físicos, FCM real, tres perfiles y preview nativo Mac
+siguen pendientes; Issue #8/#11 abiertas, PR #15 OPEN Draft. Sin merge/deploy/F11.
+Detalles, métricas y checklists: [PHASE_10_PILOT_VALIDATION.md](./PHASE_10_PILOT_VALIDATION.md).

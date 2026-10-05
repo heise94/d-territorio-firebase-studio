@@ -50,6 +50,7 @@ const registrationFailure = () =>
 
 /** All writes use server credentials. A caller never selects the identity of a session. */
 export class ParticipantAuthService {
+  private readonly limitQueues = new Map<string, Promise<void>>();
   constructor(
     private readonly db: Firestore,
     private readonly secret: string,
@@ -82,23 +83,41 @@ export class ParticipantAuthService {
     const ref = this.db
       .collection(authCollections.limits)
       .doc(privateKey(this.secret, action, identity));
-    await this.db.runTransaction(async (tx) => {
-      const data = (await tx.get(ref)).data();
-      const now = this.now();
-      const current = data && data.expiresAt.toMillis() > now;
-      const count = current ? data.count : 0;
-      if (count >= maximum)
-        throw new AuthError(
-          429,
-          "Has realizado varios intentos. Intenta nuevamente más tarde.",
-        );
-      tx.set(ref, {
-        count: count + 1,
-        expiresAt: current
-          ? data.expiresAt
-          : Timestamp.fromMillis(now + 15 * 60_000),
-      });
-    });
+    // Avoid contending with this process's own requests on the shared ceiling.
+    // Firestore still serializes other instances; no local counter grants access.
+    const previous = this.limitQueues.get(ref.id) ?? Promise.resolve();
+    const operation = previous
+      .catch(() => {})
+      .then(() =>
+        this.db.runTransaction(async (tx) => {
+          const data = (await tx.get(ref)).data();
+          const now = this.now();
+          const current = data && data.expiresAt.toMillis() > now;
+          const count = current ? data.count : 0;
+          if (count >= maximum)
+            throw new AuthError(
+              429,
+              "Has realizado varios intentos. Intenta nuevamente más tarde.",
+            );
+          tx.set(ref, {
+            count: count + 1,
+            expiresAt: current
+              ? data.expiresAt
+              : Timestamp.fromMillis(now + 15 * 60_000),
+          });
+        }),
+      );
+    const queued = operation.then(
+      () => {},
+      () => {},
+    );
+    this.limitQueues.set(ref.id, queued);
+    try {
+      await operation;
+    } finally {
+      if (this.limitQueues.get(ref.id) === queued)
+        this.limitQueues.delete(ref.id);
+    }
   }
 
   private newSession(participant: Participant, token: string): DeviceSession {
@@ -164,7 +183,8 @@ export class ParticipantAuthService {
     const index = (await this.phoneRef(parsed.data.phone).get()).data();
     const participant = index
       ? ((await this.participants().doc(index.participantId).get()).data() as
-          Participant | undefined)
+          | Participant
+          | undefined)
       : undefined;
     const correct = await verifyPin(
       this.secret,

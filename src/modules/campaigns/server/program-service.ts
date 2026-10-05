@@ -100,10 +100,13 @@ export async function getProgram(
           ),
         );
       }
-      if (campaign.status === "published")
-        return publishedView(
-          await readVersion(tx, campaign.currentProgramVersionId, campaignId),
-        );
+      if (["published", "active", "completed"].includes(campaign.status))
+        return {
+          ...publishedView(
+            await readVersion(tx, campaign.currentProgramVersionId, campaignId),
+          ),
+          campaignStatus: campaign.status,
+        };
       return projectProgram(await draftSource(tx, campaignId));
     },
     { readOnly: true },
@@ -267,7 +270,9 @@ export async function getPersonalProgram(
         ...ids.map((id) => db.collection(names.campaigns).doc(id)),
       );
       const published = campaigns.filter(
-        (doc) => doc.exists && doc.data()?.status === "published",
+        (doc) =>
+          doc.exists &&
+          ["published", "active", "completed"].includes(doc.data()?.status),
       );
       const versions = published.length
         ? await tx.getAll(
@@ -281,7 +286,7 @@ export async function getPersonalProgram(
       const result: PersonalProgram = { campaigns: [] };
       for (const campaign of campaigns.filter((doc) => doc.exists)) {
         const data = campaign.data()!;
-        if (data.status !== "published") {
+        if (!["published", "active", "completed"].includes(data.status)) {
           result.campaigns.push({
             name: data.name,
             published: false,
@@ -326,6 +331,7 @@ export async function getPersonalProgram(
                       );
                       return {
                         canRequestChange:
+                          data.status === "published" &&
                           !request &&
                           registrations.some(
                             (reg) =>
@@ -335,7 +341,8 @@ export async function getPersonalProgram(
                         ...(request
                           ? {
                               changeRequestStatus: request.status as
-                                "pending" | "approved",
+                                | "pending"
+                                | "approved",
                             }
                           : {}),
                       };

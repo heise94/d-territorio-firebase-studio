@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthError } from "@/modules/campaigns/server/auth/service";
+import { globalAuthLimit } from "@/modules/campaigns/server/auth/rate-limits";
 import {
   cookieOptions,
   participantAuth,
@@ -77,11 +78,7 @@ export async function POST(
     if (action === "register" || action === "login") {
       // A shared ceiling cannot be bypassed with invented X-Forwarded-For headers.
       // Phone-specific limits below protect each account across all instances/devices.
-      await auth.limit(
-        `public-${action}`,
-        "shared",
-        action === "login" ? 120 : 30,
-      );
+      await auth.limit(`public-${action}`, "shared", globalAuthLimit(action));
       const result =
         action === "register"
           ? await auth.register(input)

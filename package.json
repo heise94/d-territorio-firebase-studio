@@ -20,7 +20,8 @@
     "test:campaign-planner": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-planner/*.test.ts",
     "test:campaign-program": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-program/*.test.ts",
     "test:campaign-changes": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-changes/*.test.ts",
-    "test:campaign-notifications-pwa": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-notifications-pwa/*.test.ts"
+    "test:campaign-notifications-pwa": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-notifications-pwa/*.test.ts",
+    "test:campaign-pilot": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test --test-concurrency=1 tests/campaign-pilot/*.test.ts"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.7",

@@ -12,7 +12,7 @@ import {
 } from "../schemas/campaign-schemas";
 import { CampaignStatusControls } from "./campaign-status-controls";
 import type { Campaign, CampaignDay, Point, TimeBlock } from "../domain/types";
-const input = "h-10 rounded border border-slate-300 px-3";
+const input = "h-10 w-full min-w-0 rounded border border-slate-300 px-3";
 const button = "rounded bg-teal-700 px-3 py-2 text-sm font-semibold text-white";
 function values(data: FormData) {
   return Object.fromEntries(data);
@@ -37,12 +37,13 @@ export function CampaignAdminV2() {
           const id = await repo.createCampaign(p.data, user?.uid);
           setSelected({ id, ...p.data, createdBy: user?.uid });
         }}
-        className="mt-6 flex gap-2"
+        className="mt-6 flex flex-wrap gap-2"
       >
         <input
           className={input}
           required
           name="name"
+          aria-label="Nombre de campaña"
           placeholder="Nombre de campaña"
         />
         <button className={button}>Nueva campaña</button>
@@ -106,222 +107,237 @@ function Editor({
         Participantes y cobertura
       </Link>
       {err && <p className="text-red-700">{err}</p>}
-      <Section title="Información general">
-        <CampaignGeneralForm campaign={campaign} onSaved={setCampaign} />
-      </Section>
-      <Section title="Congregaciones participantes">
-        <CongregationSettings campaignId={campaign.id} />
-      </Section>
-      <CampaignStatusControls
-        campaignId={campaign.id}
-        status={campaign.status}
-        onChanged={(status) => setCampaign({ ...campaign, status })}
-      />
-      <Section title="Días">
-        <EntityForm
-          initial={
-            editDay
-              ? {
-                  date: editDay.date,
-                  label: editDay.label || "",
-                  active: String(editDay.active),
-                }
-              : { date: "", label: "", active: "true" }
-          }
-          fields={["date", "label", "active"]}
-          submit="Guardar día"
-          cancel={() => setEditDay(undefined)}
-          onSubmit={(f) => {
-            const p = campaignDaySchema.safeParse({
-              ...values(f),
-              active: values(f).active === "true",
-            });
-            if (!p.success) return setErr(p.error.issues[0].message);
-            return save(() => repo.saveDay(campaign.id, p.data, editDay));
-          }}
+      {campaign.status === "completed" && (
+        <p role="status">Campaña finalizada — solo lectura.</p>
+      )}
+      <fieldset
+        disabled={campaign.status === "completed"}
+        className="min-w-0 space-y-8"
+      >
+        <Section title="Información general">
+          <CampaignGeneralForm campaign={campaign} onSaved={setCampaign} />
+        </Section>
+        <Section title="Congregaciones participantes">
+          <CongregationSettings campaignId={campaign.id} />
+        </Section>
+        <CampaignStatusControls
+          campaignId={campaign.id}
+          status={campaign.status}
+          onChanged={(status) => setCampaign({ ...campaign, status })}
         />
-        {days.map((d) => (
-          <div className="mt-2 flex items-center gap-3" key={d.id}>
-            <span>
-              {d.date} · {d.label || "Sin etiqueta"} ·{" "}
-              {d.active ? "Activo" : "Inactivo"}
-            </span>
-            <button onClick={() => setEditDay(d)}>Editar</button>
-            <button
-              onClick={() =>
-                save(() =>
-                  repo.saveDay(
-                    campaign.id,
-                    { date: d.date, label: d.label, active: !d.active },
-                    d,
-                  ),
-                )
-              }
-            >
-              {d.active ? "Inactivar" : "Activar"}
-            </button>
-            <button
-              onClick={() =>
-                confirm("¿Eliminar día y sus bloques?") &&
-                save(() => repo.deleteDay(d.id))
-              }
-            >
-              Eliminar
-            </button>
-          </div>
-        ))}
-      </Section>
-      <Section title="Bloques horarios">
-        {days.map((day) => (
-          <div className="mt-4" key={day.id}>
-            <b>{day.label || day.date}</b>
-            <EntityForm
-              initial={
-                editBlock?.campaignDayId === day.id
-                  ? {
-                      startTime: editBlock.startTime,
-                      endTime: editBlock.endTime,
-                      label: editBlock.label || "",
-                      capacityOverride:
-                        editBlock.capacityOverride?.toString() || "",
-                      active: String(editBlock.active),
-                    }
-                  : {
-                      startTime: "",
-                      endTime: "",
-                      label: "",
-                      capacityOverride: "",
-                      active: "true",
-                    }
-              }
-              fields={[
-                "startTime",
-                "endTime",
-                "label",
-                "capacityOverride",
-                "active",
-              ]}
-              submit="Guardar bloque"
-              cancel={() => setEditBlock(undefined)}
-              onSubmit={(f) => {
-                const p = timeBlockSchema.safeParse({
-                  ...values(f),
-                  active: values(f).active === "true",
-                });
-                if (!p.success) return setErr(p.error.issues[0].message);
-                return save(() =>
-                  repo.saveBlock(
-                    campaign.id,
-                    day.id,
-                    p.data,
-                    editBlock?.campaignDayId === day.id ? editBlock : undefined,
-                  ),
-                );
-              }}
-            />
-            {blocks
-              .filter((b) => b.campaignDayId === day.id)
-              .sort((a, b) => a.startTime.localeCompare(b.startTime))
-              .map((b) => (
-                <div className="mt-2 flex gap-3" key={b.id}>
-                  <span>
-                    {b.startTime}–{b.endTime} ·{" "}
-                    {b.capacityOverride ?? "sin capacidad"} ·{" "}
-                    {b.active ? "Activo" : "Inactivo"}
-                  </span>
-                  <button onClick={() => setEditBlock(b)}>Editar</button>
-                  <button
-                    onClick={() =>
-                      save(() =>
-                        repo.saveBlock(
-                          campaign.id,
-                          day.id,
-                          {
-                            startTime: b.startTime,
-                            endTime: b.endTime,
-                            label: b.label,
-                            capacityOverride: b.capacityOverride,
-                            active: !b.active,
-                          },
-                          b,
-                        ),
-                      )
-                    }
-                  >
-                    {b.active ? "Inactivar" : "Activar"}
-                  </button>
-                  <button
-                    onClick={() =>
-                      confirm("¿Eliminar bloque?") &&
-                      save(() => repo.deleteBlock(b.id))
-                    }
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              ))}
-          </div>
-        ))}
-      </Section>
-      <Section title="Puntos">
-        <EntityForm
-          initial={
-            editPoint
-              ? {
-                  name: editPoint.name,
-                  locationText: editPoint.locationText || "",
-                  description: editPoint.description || "",
-                  active: String(editPoint.active),
+        <Section title="Días">
+          <EntityForm
+            initial={
+              editDay
+                ? {
+                    date: editDay.date,
+                    label: editDay.label || "",
+                    active: String(editDay.active),
+                  }
+                : { date: "", label: "", active: "true" }
+            }
+            fields={["date", "label", "active"]}
+            submit="Guardar día"
+            cancel={() => setEditDay(undefined)}
+            onSubmit={(f) => {
+              const p = campaignDaySchema.safeParse({
+                ...values(f),
+                active: values(f).active === "true",
+              });
+              if (!p.success) return setErr(p.error.issues[0].message);
+              return save(() => repo.saveDay(campaign.id, p.data, editDay));
+            }}
+          />
+          {days.map((d) => (
+            <div className="mt-2 flex items-center gap-3" key={d.id}>
+              <span>
+                {d.date} · {d.label || "Sin etiqueta"} ·{" "}
+                {d.active ? "Activo" : "Inactivo"}
+              </span>
+              <button onClick={() => setEditDay(d)}>Editar</button>
+              <button
+                onClick={() =>
+                  save(() =>
+                    repo.saveDay(
+                      campaign.id,
+                      { date: d.date, label: d.label, active: !d.active },
+                      d,
+                    ),
+                  )
                 }
-              : { name: "", locationText: "", description: "", active: "true" }
-          }
-          fields={["name", "locationText", "description", "active"]}
-          submit="Guardar punto"
-          cancel={() => setEditPoint(undefined)}
-          onSubmit={(f) => {
-            const p = pointSchema.safeParse({
-              ...values(f),
-              active: values(f).active === "true",
-            });
-            if (!p.success) return setErr(p.error.issues[0].message);
-            return save(() => repo.savePoint(campaign.id, p.data, editPoint));
-          }}
-        />
-        {points.map((p) => (
-          <div className="mt-2 flex gap-3" key={p.id}>
-            <span>
-              {p.name} · {p.active ? "Activo" : "Inactivo"}
-            </span>
-            <button onClick={() => setEditPoint(p)}>Editar</button>
-            <button
-              onClick={() =>
-                save(() =>
-                  repo.savePoint(
-                    campaign.id,
-                    {
-                      name: p.name,
-                      locationText: p.locationText,
-                      description: p.description,
-                      active: !p.active,
-                    },
-                    p,
-                  ),
-                )
-              }
-            >
-              {p.active ? "Inactivar" : "Activar"}
-            </button>
-            <button
-              onClick={() =>
-                confirm("¿Eliminar punto?") &&
-                save(() => repo.deletePoint(p.id))
-              }
-            >
-              Eliminar
-            </button>
-          </div>
-        ))}
-      </Section>
+              >
+                {d.active ? "Inactivar" : "Activar"}
+              </button>
+              <button
+                onClick={() =>
+                  confirm("¿Eliminar día y sus bloques?") &&
+                  save(() => repo.deleteDay(d.id))
+                }
+              >
+                Eliminar
+              </button>
+            </div>
+          ))}
+        </Section>
+        <Section title="Bloques horarios">
+          {days.map((day) => (
+            <div className="mt-4" key={day.id}>
+              <b>{day.label || day.date}</b>
+              <EntityForm
+                initial={
+                  editBlock?.campaignDayId === day.id
+                    ? {
+                        startTime: editBlock.startTime,
+                        endTime: editBlock.endTime,
+                        label: editBlock.label || "",
+                        capacityOverride:
+                          editBlock.capacityOverride?.toString() || "",
+                        active: String(editBlock.active),
+                      }
+                    : {
+                        startTime: "",
+                        endTime: "",
+                        label: "",
+                        capacityOverride: "",
+                        active: "true",
+                      }
+                }
+                fields={[
+                  "startTime",
+                  "endTime",
+                  "label",
+                  "capacityOverride",
+                  "active",
+                ]}
+                submit="Guardar bloque"
+                cancel={() => setEditBlock(undefined)}
+                onSubmit={(f) => {
+                  const p = timeBlockSchema.safeParse({
+                    ...values(f),
+                    active: values(f).active === "true",
+                  });
+                  if (!p.success) return setErr(p.error.issues[0].message);
+                  return save(() =>
+                    repo.saveBlock(
+                      campaign.id,
+                      day.id,
+                      p.data,
+                      editBlock?.campaignDayId === day.id
+                        ? editBlock
+                        : undefined,
+                    ),
+                  );
+                }}
+              />
+              {blocks
+                .filter((b) => b.campaignDayId === day.id)
+                .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                .map((b) => (
+                  <div className="mt-2 flex gap-3" key={b.id}>
+                    <span>
+                      {b.startTime}–{b.endTime} ·{" "}
+                      {b.capacityOverride ?? "sin capacidad"} ·{" "}
+                      {b.active ? "Activo" : "Inactivo"}
+                    </span>
+                    <button onClick={() => setEditBlock(b)}>Editar</button>
+                    <button
+                      onClick={() =>
+                        save(() =>
+                          repo.saveBlock(
+                            campaign.id,
+                            day.id,
+                            {
+                              startTime: b.startTime,
+                              endTime: b.endTime,
+                              label: b.label,
+                              capacityOverride: b.capacityOverride,
+                              active: !b.active,
+                            },
+                            b,
+                          ),
+                        )
+                      }
+                    >
+                      {b.active ? "Inactivar" : "Activar"}
+                    </button>
+                    <button
+                      onClick={() =>
+                        confirm("¿Eliminar bloque?") &&
+                        save(() => repo.deleteBlock(b.id))
+                      }
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                ))}
+            </div>
+          ))}
+        </Section>
+        <Section title="Puntos">
+          <EntityForm
+            initial={
+              editPoint
+                ? {
+                    name: editPoint.name,
+                    locationText: editPoint.locationText || "",
+                    description: editPoint.description || "",
+                    active: String(editPoint.active),
+                  }
+                : {
+                    name: "",
+                    locationText: "",
+                    description: "",
+                    active: "true",
+                  }
+            }
+            fields={["name", "locationText", "description", "active"]}
+            submit="Guardar punto"
+            cancel={() => setEditPoint(undefined)}
+            onSubmit={(f) => {
+              const p = pointSchema.safeParse({
+                ...values(f),
+                active: values(f).active === "true",
+              });
+              if (!p.success) return setErr(p.error.issues[0].message);
+              return save(() => repo.savePoint(campaign.id, p.data, editPoint));
+            }}
+          />
+          {points.map((p) => (
+            <div className="mt-2 flex gap-3" key={p.id}>
+              <span>
+                {p.name} · {p.active ? "Activo" : "Inactivo"}
+              </span>
+              <button onClick={() => setEditPoint(p)}>Editar</button>
+              <button
+                onClick={() =>
+                  save(() =>
+                    repo.savePoint(
+                      campaign.id,
+                      {
+                        name: p.name,
+                        locationText: p.locationText,
+                        description: p.description,
+                        active: !p.active,
+                      },
+                      p,
+                    ),
+                  )
+                }
+              >
+                {p.active ? "Inactivar" : "Activar"}
+              </button>
+              <button
+                onClick={() =>
+                  confirm("¿Eliminar punto?") &&
+                  save(() => repo.deletePoint(p.id))
+                }
+              >
+                Eliminar
+              </button>
+            </div>
+          ))}
+        </Section>
+      </fieldset>
     </main>
   );
 }
@@ -346,6 +362,17 @@ function EntityForm({
   onSubmit: (f: FormData) => void | Promise<void>;
   cancel: () => void;
 }) {
+  const fieldLabels: Record<string, string> = {
+    date: "Fecha",
+    label: "Etiqueta (opcional)",
+    active: "Estado",
+    startTime: "Hora de inicio",
+    endTime: "Hora de término",
+    capacityOverride: "Capacidad del bloque (opcional)",
+    name: "Nombre",
+    description: "Descripción (opcional)",
+    locationText: "Ubicación (opcional)",
+  };
   return (
     <form
       key={JSON.stringify(initial)}
@@ -355,41 +382,44 @@ function EntityForm({
       }}
       className="mt-3 flex flex-wrap gap-2"
     >
-      {fields.map((k) =>
-        k === "active" ? (
-          <select
-            className={input}
-            name="active"
-            defaultValue={initial.active}
-            key={k}
-          >
-            <option value="true">Activo</option>
-            <option value="false">Inactivo</option>
-          </select>
-        ) : (
-          <input
-            className={input}
-            key={k}
-            name={k}
-            required={
-              k === "date" ||
-              k === "startTime" ||
-              k === "endTime" ||
-              k === "name"
-            }
-            type={
-              k === "date"
-                ? "date"
-                : k.includes("Time")
-                  ? "time"
-                  : k === "capacityOverride"
-                    ? "number"
-                    : "text"
-            }
-            defaultValue={initial[k]}
-          />
-        ),
-      )}
+      {fields.map((k) => (
+        <label key={k} className="grid min-w-0 gap-1 text-sm font-semibold">
+          {fieldLabels[k] ?? k}
+          {k === "active" ? (
+            <select
+              className={input}
+              name="active"
+              defaultValue={initial.active}
+              key={k}
+            >
+              <option value="true">Activo</option>
+              <option value="false">Inactivo</option>
+            </select>
+          ) : (
+            <input
+              className={input}
+              key={k}
+              name={k}
+              required={
+                k === "date" ||
+                k === "startTime" ||
+                k === "endTime" ||
+                k === "name"
+              }
+              type={
+                k === "date"
+                  ? "date"
+                  : k.includes("Time")
+                    ? "time"
+                    : k === "capacityOverride"
+                      ? "number"
+                      : "text"
+              }
+              defaultValue={initial[k]}
+            />
+          )}
+        </label>
+      ))}
       <button className={button}>{submit}</button>
       <button type="button" onClick={cancel}>
         Cancelar

@@ -191,7 +191,9 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
         <h1 className="my-3 text-2xl font-bold">Programa general</h1>
         {view?.mode === "published" && (
           <div className="my-4 space-y-3">
-            <ChangeRequestsLink campaignId={campaignId} />
+            {view.campaignStatus === "published" && (
+              <ChangeRequestsLink campaignId={campaignId} />
+            )}
             <p className="font-semibold">
               Versión actual: v{history?.currentVersion ?? view.version}
             </p>

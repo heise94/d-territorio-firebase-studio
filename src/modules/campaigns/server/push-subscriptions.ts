@@ -47,58 +47,74 @@ export async function subscribePush(token: string, input: unknown) {
   if (!current)
     throw new AuthError(401, "Tu sesión venció. Ingresa nuevamente.");
   await auth.limit("push-subscribe", current.participant.id, 30);
-  return auth.withParticipantTransaction(token, async (tx, person) => {
-    const db = campaignsAdminDb(),
-      sid = tokenHash(token),
-      now = Timestamp.now();
-    const hash = createHash("sha256")
-      .update(parsed.data.fcmToken)
-      .digest("hex");
-    const ref = db.collection(names.pushSubscriptions).doc(hash),
-      prior = await tx.get(ref);
-    const previous = await tx.get(
-      db.collection(names.pushSubscriptions).where("sessionRef", "==", sid),
-    );
-    if (prior.exists && prior.data()?.participantId !== person.id) {
-      const oldSession = await tx.get(
-        db.collection(names.deviceSessions).doc(prior.data()!.sessionRef),
+  try {
+    return await auth.withParticipantTransaction(token, async (tx, person) => {
+      const db = campaignsAdminDb(),
+        sid = tokenHash(token),
+        now = Timestamp.now();
+      const hash = createHash("sha256")
+        .update(parsed.data.fcmToken)
+        .digest("hex");
+      const ref = db.collection(names.pushSubscriptions).doc(hash),
+        prior = await tx.get(ref);
+      const previous = await tx.get(
+        db.collection(names.pushSubscriptions).where("sessionRef", "==", sid),
       );
-      const oldParticipant = await tx.get(
-        db.collection(names.participants).doc(prior.data()!.participantId),
-      );
-      if (
-        prior.data()?.enabled &&
-        oldSession.exists &&
-        oldParticipant.data()?.active === true &&
-        oldSession.data()?.sessionVersion ===
-          (oldParticipant.data()?.sessionVersion ?? 0) &&
-        !oldSession.data()?.revokedAt &&
-        oldSession.data()!.expiresAt.toMillis() > Date.now()
-      )
-        throw new AuthError(
-          409,
-          "Este dispositivo está vinculado a otra sesión. Cierra esa sesión primero.",
+      if (prior.exists && prior.data()?.participantId !== person.id) {
+        const oldSession = await tx.get(
+          db.collection(names.deviceSessions).doc(prior.data()!.sessionRef),
         );
-    }
-    previous.docs
-      .filter((d) => d.id !== hash && d.data().participantId === person.id)
-      .forEach((d) =>
-        tx.update(d.ref, { enabled: false, disabledAt: now, updatedAt: now }),
-      );
-    tx.set(ref, {
-      id: hash,
-      participantId: person.id,
-      sessionRef: sid,
-      fcmToken: parsed.data.fcmToken,
-      tokenHash: hash,
-      platform: parsed.data.platform,
-      enabled: true,
-      createdAt: prior.data()?.createdAt ?? now,
-      updatedAt: now,
-      lastSeenAt: now,
+        const oldParticipant = await tx.get(
+          db.collection(names.participants).doc(prior.data()!.participantId),
+        );
+        if (
+          prior.data()?.enabled &&
+          oldSession.exists &&
+          oldParticipant.data()?.active === true &&
+          oldSession.data()?.sessionVersion ===
+            (oldParticipant.data()?.sessionVersion ?? 0) &&
+          !oldSession.data()?.revokedAt &&
+          oldSession.data()!.expiresAt.toMillis() > Date.now()
+        )
+          throw new AuthError(
+            409,
+            "Este dispositivo está vinculado a otra sesión. Cierra esa sesión primero.",
+          );
+      }
+      previous.docs
+        .filter((d) => d.id !== hash && d.data().participantId === person.id)
+        .forEach((d) =>
+          tx.update(d.ref, { enabled: false, disabledAt: now, updatedAt: now }),
+        );
+      tx.set(ref, {
+        id: hash,
+        participantId: person.id,
+        sessionRef: sid,
+        fcmToken: parsed.data.fcmToken,
+        tokenHash: hash,
+        platform: parsed.data.platform,
+        enabled: true,
+        createdAt: prior.data()?.createdAt ?? now,
+        updatedAt: now,
+        lastSeenAt: now,
+      });
+      return { enabled: true };
     });
-    return { enabled: true };
-  });
+  } catch (error) {
+    // A transaction closed by a competing claimant must fail as a conflict,
+    // never an ownership transfer. Do not mask unrelated INVALID_ARGUMENT errors.
+    const failure = error as { code?: number | string; message?: string };
+    if (
+      [10, "aborted", "ABORTED"].includes(failure?.code ?? "") ||
+      (failure?.code === 3 &&
+        /Transaction is invalid or closed\.?$/.test(failure.message ?? ""))
+    )
+      throw new AuthError(
+        409,
+        "La vinculación cambió mientras trabajabas. Intenta nuevamente.",
+      );
+    throw error;
+  }
 }
 export async function unsubscribePush(token: string, input: unknown) {
   if (!emptySchema.safeParse(input).success)
