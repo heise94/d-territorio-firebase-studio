@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getPersonalProgram } from "@/modules/campaigns/server/program-service";
+import { participantNotifications } from "@/modules/campaigns/server/change-notifications";
 import {
   participantToken,
   privateResponse,
@@ -10,11 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     return privateResponse(
-      await getPersonalProgram(
-        participantToken(request),
-        request.nextUrl.searchParams.size > 0,
-        true,
-      ),
+      await participantNotifications(participantToken(request)),
     );
   } catch (error) {
     return participantFailure(error);

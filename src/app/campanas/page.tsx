@@ -5,6 +5,7 @@ import { ParticipantSessionControls } from "@/modules/campaigns/components/parti
 import { ParticipantCampaigns } from "@/modules/campaigns/components/participant-campaigns";
 import { ParticipantNavigation } from "@/modules/campaigns/components/participant-navigation";
 import { PairInbox } from "@/modules/campaigns/components/pair-inbox";
+import { ChangeAlerts } from "@/modules/campaigns/components/participant-change-requests";
 
 export const dynamic = "force-dynamic";
 export default async function CampaignParticipantPage() {
@@ -19,6 +20,7 @@ export default async function CampaignParticipantPage() {
         </div>
       </header>
       <PairInbox />
+      <ChangeAlerts />
       <ParticipantSessionControls fullName={participant.fullName} />
       <p className="leading-7">
         Elige una campaña, indica cuántos turnos deseas realizar y marca los

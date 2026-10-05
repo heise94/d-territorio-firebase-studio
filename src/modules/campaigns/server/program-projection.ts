@@ -8,7 +8,10 @@ import type {
 import type { PlannerSource } from "./planner-source";
 
 /** Deterministic, minimal projection. No credentials, phones or raw availabilities. */
-export function projectProgram(source: PlannerSource): ProgramView {
+export function projectProgram(
+  source: PlannerSource,
+  options: { published?: boolean; allowEmpty?: boolean } = {},
+): ProgramView {
   const { campaignId, campaign } = source;
   const assignments = source.assignments.filter(
     (a) => a.status !== "cancelled",
@@ -53,7 +56,7 @@ export function projectProgram(source: PlannerSource): ProgramView {
   for (const a of assignments) {
     const reg = source.registrations.get(a.registrationId);
     const invalid =
-      a.status !== "draft" ||
+      a.status !== (options.published ? "published" : "draft") ||
       a.campaignId !== campaignId ||
       !validDestination(a.timeBlockId, a.pointId) ||
       reg?.campaignId !== campaignId ||
@@ -300,7 +303,7 @@ export function projectProgram(source: PlannerSource): ProgramView {
     issue("no_blocks", "No hay bloques activos.");
   if (!snapshot.days.some((d) => d.points.length))
     issue("no_points", "No hay puntos activos por bloque.");
-  if (!assignments.length)
+  if (!assignments.length && !options.allowEmpty)
     issue("no_assignments", "No hay asignaciones para publicar.");
   const sortIssues = (items: ProgramIssue[]) =>
     items.sort(

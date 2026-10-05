@@ -17,6 +17,7 @@ import { authorizeCampaignDashboard } from "./admin-dashboard-authorization";
 import { campaignsAdminDb } from "./firebase-admin";
 import { readPlannerSource } from "./planner-source";
 import { projectProgram } from "./program-projection";
+import { turnId } from "./program-turn-locator";
 
 const conflict = () => new AuthError(409, publicationConflictMessage);
 export class ProgramValidationError extends AuthError {
@@ -35,8 +36,9 @@ const publishSchema = z
     confirmWarnings: z.boolean().default(false),
   })
   .strict();
-export const programVersionId = (campaignId: string) => `${campaignId}__v1`;
-async function draftSource(tx: Transaction, campaignId: string) {
+export const programVersionId = (campaignId: string, version = 1) =>
+  `${campaignId}__v${version}`;
+export async function draftSource(tx: Transaction, campaignId: string) {
   const db = campaignsAdminDb();
   const source = await readPlannerSource(db, tx, campaignId);
   // Dashboard intentionally filters invalid references. Publication must not hide them.
@@ -48,7 +50,7 @@ async function draftSource(tx: Transaction, campaignId: string) {
   );
   return source;
 }
-function publishedView(version: ProgramVersion): ProgramView {
+export function publishedView(version: ProgramVersion): ProgramView {
   return {
     mode: "published",
     campaignStatus: "published",
@@ -61,7 +63,11 @@ function publishedView(version: ProgramVersion): ProgramView {
     assignmentCount: version.assignmentCount,
   };
 }
-async function readVersion(tx: Transaction, id: string, campaignId: string) {
+export async function readVersion(
+  tx: Transaction,
+  id: string,
+  campaignId: string,
+) {
   const doc = await tx.get(
     campaignsAdminDb().collection(names.programVersions).doc(id),
   );
@@ -70,7 +76,11 @@ async function readVersion(tx: Transaction, id: string, campaignId: string) {
     throw new AuthError(503, "El programa publicado no está disponible.");
   return data;
 }
-export async function getProgram(token: string, campaignId: string) {
+export async function getProgram(
+  token: string,
+  campaignId: string,
+  selectedVersion?: number,
+) {
   await authorizeCampaignDashboard(token);
   const db = campaignsAdminDb();
   return db.runTransaction(
@@ -78,6 +88,17 @@ export async function getProgram(token: string, campaignId: string) {
       const doc = await tx.get(db.collection(names.campaigns).doc(campaignId));
       if (!doc.exists) throw new AuthError(404, "Campaña no disponible.");
       const campaign = doc.data()!;
+      if (selectedVersion !== undefined) {
+        if (!Number.isSafeInteger(selectedVersion) || selectedVersion < 1)
+          throw new AuthError(400, "Versión inválida.");
+        return publishedView(
+          await readVersion(
+            tx,
+            programVersionId(campaignId, selectedVersion),
+            campaignId,
+          ),
+        );
+      }
       if (campaign.status === "published")
         return publishedView(
           await readVersion(tx, campaign.currentProgramVersionId, campaignId),
@@ -187,6 +208,7 @@ export async function publishProgram(
 export async function getPersonalProgram(
   token: string,
   hasIdentityParameters = false,
+  includeChangeContext = false,
 ): Promise<PersonalProgram> {
   return participantAuth().withParticipantTransaction(
     token,
@@ -205,6 +227,19 @@ export async function getPersonalProgram(
       const registrations = rows.docs.map(
         (doc) => ({ ...doc.data(), id: doc.id }) as CampaignRegistration,
       );
+      const openChanges = includeChangeContext
+        ? (
+            await tx.get(
+              db
+                .collection(names.changeRequests)
+                .where("participantId", "==", participant.id),
+            )
+          ).docs
+            .map((doc) => doc.data())
+            .filter(
+              (row) => row.status === "pending" || row.status === "approved",
+            )
+        : [];
       const ids = [...new Set(registrations.map((r) => r.campaignId))].sort();
       if (!ids.length) return { campaigns: [] };
       const campaigns = await tx.getAll(
@@ -258,6 +293,33 @@ export async function getPersonalProgram(
               if (index < 0) continue;
               const point = day.points.find((p) => p.id === cell.pointId)!;
               turns.push({
+                turnId: turnId(version, cell.slots[index]!.assignmentId),
+                ...(includeChangeContext
+                  ? (() => {
+                      const request = openChanges.find(
+                        (row) =>
+                          row.assignmentId ===
+                            cell.slots[index]!.assignmentId &&
+                          row.registrationId ===
+                            cell.slots[index]!.registrationId,
+                      );
+                      return {
+                        canRequestChange:
+                          !request &&
+                          registrations.some(
+                            (reg) =>
+                              reg.id === cell.slots[index]!.registrationId &&
+                              reg.registrationStatus === "active",
+                          ),
+                        ...(request
+                          ? {
+                              changeRequestStatus: request.status as
+                                "pending" | "approved",
+                            }
+                          : {}),
+                      };
+                    })()
+                  : {}),
                 date: day.date,
                 dayLabel: day.label,
                 startTime: block.startTime,

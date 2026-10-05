@@ -1,7 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { PersonalProgram } from "../domain/program";
+import { changeStatusLabels } from "../domain/change-request";
+import {
+  ChangeAlerts,
+  ParticipantChangeHistory,
+  RequestChange,
+} from "./participant-change-requests";
 export function PersonalProgramView() {
+  const [refreshKey, setRefreshKey] = useState(0);
   const [view, setView] = useState<PersonalProgram | null>(null),
     [error, setError] = useState("");
   useEffect(() => {
@@ -33,13 +40,16 @@ export function PersonalProgramView() {
       if (document.visibilityState === "visible") void load();
     };
     document.addEventListener("visibilitychange", visible);
+    const timer = setInterval(visible, 12000);
     return () => {
       controller.abort();
+      clearInterval(timer);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, []);
+  }, [refreshKey]);
   return (
     <div className="space-y-5">
+      <ChangeAlerts />
       {error && (
         <p role="alert" className="text-red-800">
           {error}
@@ -81,12 +91,20 @@ export function PersonalProgramView() {
                   {turn.locationText && <p>{turn.locationText}</p>}
                   {turn.description && <p>{turn.description}</p>}
                   <p>Compañero: {turn.companionName ?? "Pendiente"}</p>
+                  {turn.changeRequestStatus && <p className="font-semibold">{changeStatusLabels[turn.changeRequestStatus]}</p>}
+                  {turn.turnId && turn.canRequestChange !== false && (
+                    <RequestChange
+                      turnId={turn.turnId}
+                      onSent={() => setRefreshKey((key) => key + 1)}
+                    />
+                  )}
                 </article>
               ))}
             </>
           )}
         </section>
       ))}
+      <ParticipantChangeHistory refreshKey={refreshKey} />
     </div>
   );
 }

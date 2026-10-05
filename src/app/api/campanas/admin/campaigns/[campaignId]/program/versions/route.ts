@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import { getProgram } from "@/modules/campaigns/server/program-service";
+import { programHistory } from "@/modules/campaigns/server/program-history";
 import { programFailure } from "@/modules/campaigns/server/program-http";
 import {
-  dashboardResponse,
   organizerToken,
+  dashboardResponse,
 } from "@/modules/campaigns/server/admin-dashboard-http";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,12 +13,9 @@ export async function GET(
 ) {
   try {
     return dashboardResponse(
-      await getProgram(
+      await programHistory(
         organizerToken(request),
         (await context.params).campaignId,
-        request.nextUrl.searchParams.has("version")
-          ? Number(request.nextUrl.searchParams.get("version"))
-          : undefined,
       ),
     );
   } catch (error) {

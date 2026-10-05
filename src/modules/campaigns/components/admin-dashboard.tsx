@@ -15,6 +15,7 @@ import {
 } from "./admin-dashboard-participants";
 import { DashboardDetail } from "./admin-dashboard-detail";
 import { CampaignStatusControls } from "./campaign-status-controls";
+import { ChangeRequestsLink } from "./campaign-changes";
 
 class DashboardError extends Error {
   constructor(
@@ -222,6 +223,7 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
         </Link>
       )}
       <p className="text-sm text-slate-600" role="status">
+        {overview?.campaign.status === "published" && <ChangeRequestsLink campaignId={campaignId} />}
         {loading
           ? "Actualizando panel…"
           : overview

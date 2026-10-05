@@ -60,7 +60,7 @@ export interface ProgramView {
 export interface ProgramVersion {
   id: string;
   campaignId: string;
-  version: 1;
+  version: number;
   status: "published";
   sourcePlannerRevision: string;
   publishedAt: FirebaseFirestore.Timestamp;
@@ -77,6 +77,9 @@ export interface PersonalProgram {
     version: number | null;
     publishedAt: string | null;
     turns: {
+      turnId?: string;
+      canRequestChange?: boolean;
+      changeRequestStatus?: "pending" | "approved";
       date: string;
       dayLabel: string;
       startTime: string;

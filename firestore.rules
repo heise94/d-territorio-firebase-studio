@@ -45,5 +45,8 @@ service cloud.firestore {
     match /campaignAssignments/{docId} { allow read, write: if false; }
     match /campaignPlannerLocks/{docId} { allow read, write: if false; }
     match /campaignProgramVersions/{docId} { allow read, write: if false; }
+    match /changeRequests/{docId} { allow read, write: if false; }
+    match /campaignNotifications/{docId} { allow read, write: if false; }
+    match /campaignChangeRequestLocks/{docId} { allow read, write: if false; }
   }
 }

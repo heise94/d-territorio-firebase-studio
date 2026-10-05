@@ -16,6 +16,9 @@ export async function GET(
     const view = await getProgram(
       organizerToken(request),
       (await context.params).campaignId,
+      request.nextUrl.searchParams.has("version")
+        ? Number(request.nextUrl.searchParams.get("version"))
+        : undefined,
     );
     const pdf = await renderProgramPdf(view);
     return new NextResponse(new Uint8Array(pdf), {

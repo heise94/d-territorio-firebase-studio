@@ -13,6 +13,8 @@ import type { ProgramIssue, ProgramView } from "../domain/program";
 import { ProgramMatrix } from "./program-matrix";
 import styles from "./program.module.css";
 import "./program-print.css";
+import { ChangeRequestsLink } from "./campaign-changes";
+import type { programHistory } from "../server/program-history";
 const button =
   "rounded-xl border border-teal-800 px-4 py-3 font-semibold text-teal-900 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-teal-700";
 function Issues({ title, items }: { title: string; items: ProgramIssue[] }) {
@@ -39,6 +41,11 @@ function Issues({ title, items }: { title: string; items: ProgramIssue[] }) {
 export function CampaignProgram({ campaignId }: { campaignId: string }) {
   const { user } = useAuth();
   const [view, setView] = useState<ProgramView | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState("");
+  const [history, setHistory] = useState<Awaited<
+    ReturnType<typeof programHistory>
+  > | null>(null);
+  const versionQuery = selectedVersion ? `?version=${selectedVersion}` : "";
   const [error, setError] = useState(""),
     [loading, setLoading] = useState(false);
   const [dialog, setDialog] = useState(false),
@@ -59,7 +66,7 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
     setLoading(true);
     try {
       const token = await user.getIdToken(true);
-      const response = await fetch(`${base}/program`, {
+      const response = await fetch(`${base}/program${versionQuery}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
         signal: controller.signal,
@@ -74,6 +81,14 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
           setConfirmed(false);
         previewRevision.current = data.plannerRevision;
         setView(data);
+        if (data.mode === "published") {
+          const response = await fetch(`${base}/program/versions`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          if (response.ok) setHistory(await response.json());
+        }
         setError("");
       }
     } catch (e) {
@@ -82,7 +97,7 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [user, base]);
+  }, [user, base, versionQuery]);
   useEffect(() => {
     void refresh();
     const update = () => {
@@ -139,7 +154,7 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
     setBusy(true);
     try {
       const token = await user.getIdToken(true);
-      const response = await fetch(`${base}/program/pdf`, {
+      const response = await fetch(`${base}/program/pdf${versionQuery}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
       });
@@ -170,6 +185,42 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
           ← Planificador manual
         </Link>
         <h1 className="my-3 text-2xl font-bold">Programa general</h1>
+        {view?.mode === "published" && (
+          <div className="my-4 space-y-3">
+            <ChangeRequestsLink campaignId={campaignId} />
+            <p className="font-semibold">
+              Versión actual: v{history?.currentVersion ?? view.version}
+            </p>
+            <label>
+              Consultar versión
+              <select
+                className="ml-3 min-h-12 rounded-lg border p-2"
+                value={selectedVersion}
+                disabled={busy}
+                onChange={(e) => {
+                  setLoading(true);
+                  setSelectedVersion(e.target.value);
+                }}
+              >
+                <option value="">Actual</option>
+                {history?.versions.map((v) => (
+                  <option key={v.version} value={v.version}>
+                    v{v.version}
+                    {v.current ? " — actual" : " — histórica"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedVersion &&
+              Number(selectedVersion) !== history?.currentVersion && (
+                <p className="font-bold text-amber-900">
+                  {loading
+                    ? "Cargando versión histórica…"
+                    : `VERSIÓN HISTÓRICA — v${view.version} · Solo lectura`}
+                </p>
+              )}
+          </div>
+        )}
         <div className="flex flex-wrap gap-3">
           <button
             className={button}
@@ -181,14 +232,14 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
           <button
             className={button}
             onClick={() => window.print()}
-            disabled={!view || busy}
+            disabled={!view || busy || loading}
           >
             Imprimir
           </button>
           <button
             className={button}
             onClick={() => void download()}
-            disabled={!view || busy}
+            disabled={!view || busy || loading}
           >
             Descargar PDF
           </button>

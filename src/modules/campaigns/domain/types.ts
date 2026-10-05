@@ -31,6 +31,7 @@ export interface Campaign {
   currentProgramVersionId?: string;
   programVersion?: number;
   publishedAt?: Timestamp;
+  updatedProgramAt?: Timestamp;
 }
 
 export interface CampaignDay {

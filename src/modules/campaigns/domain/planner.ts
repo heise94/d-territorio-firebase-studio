@@ -16,6 +16,10 @@ export interface Assignment {
   version: number;
   maxTurnsOverride: boolean;
   availabilityOverride: boolean;
+  sourceChangeRequestId?: string;
+  publishedInVersion?: number;
+  cancelledInVersion?: number;
+  cancellationChangeRequestId?: string;
 }
 export interface PlannerPerson {
   registrationId: string;

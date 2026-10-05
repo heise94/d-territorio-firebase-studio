@@ -260,3 +260,19 @@ servicios externos/navegador en producción. Rules deny, no-store/NetworkOnly y 
 se conservan. Sin republicación, cambios post-publicación ni Fase 8.
 Modelo, validaciones, APIs, impresión/PDF y evidencia:
 [PHASE_7_PROGRAM_PUBLICATION.md](./PHASE_7_PROGRAM_PUBLICATION.md).
+
+## D-031 — Fase 8: aprobación separada y resolución oficial versionada
+
+**Fecha:** 2026-10-05
+**Estado:** Implementada y verificada técnicamente; revisión humana pendiente en PR Draft
+
+ChangeRequest deriva propiedad desde sesión y snapshot actual; sentinel transaccional evita
+pending/approved duplicadas. Aprobar nunca modifica programa. Resolver selecciona reserva
+manualmente, conserva accepted como unidad, cancela Assignment anterior y crea nueva oficial.
+Motor de validación F7 reutilizado; snapshots anteriores intactos y nueva versión N+1 completa,
+con campos de celdas no afectadas congelados. Campaign sigue published, publishedAt inicial
+y updatedProgramAt última versión. Expected version/pointer/revisión y lock protegen concurrencia;
+stale requiere revisión explícita. Avisos internos idempotentes solo a afectados, sin push/F9.
+Históricos administrativos/PDF y Mi programa actual mantienen privacidad. QA impresión nativa
+F7 permanece pendiente no bloqueante; límites auth no se modifican. Detalles:
+[PHASE_8_CHANGES_RESERVES.md](./PHASE_8_CHANGES_RESERVES.md).

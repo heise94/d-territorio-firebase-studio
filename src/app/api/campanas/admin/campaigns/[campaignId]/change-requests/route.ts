@@ -1,25 +1,20 @@
 import { NextRequest } from "next/server";
-import { getProgram } from "@/modules/campaigns/server/program-service";
+import { adminChanges } from "@/modules/campaigns/server/change-request-admin";
 import { programFailure } from "@/modules/campaigns/server/program-http";
 import {
-  dashboardResponse,
   organizerToken,
+  dashboardResponse,
 } from "@/modules/campaigns/server/admin-dashboard-http";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ campaignId: string }> },
+  context: { params: Promise<{ campaignId: string; id?: string }> },
 ) {
   try {
+    const { campaignId, id } = await context.params;
     return dashboardResponse(
-      await getProgram(
-        organizerToken(request),
-        (await context.params).campaignId,
-        request.nextUrl.searchParams.has("version")
-          ? Number(request.nextUrl.searchParams.get("version"))
-          : undefined,
-      ),
+      await adminChanges(organizerToken(request), campaignId, id),
     );
   } catch (error) {
     return programFailure(error);
