@@ -4,7 +4,11 @@ import {
   type Firestore,
   type Transaction,
 } from "firebase-admin/firestore";
-import type { DeviceSession, Participant } from "../../domain/participant";
+import type {
+  DeviceSession,
+  Participant,
+  ParticipantDTO,
+} from "../../domain/participant";
 import { participantDTO } from "../../domain/participant";
 import { campaignCollections } from "../../lib/paths";
 import {
@@ -239,6 +243,18 @@ export class ParticipantAuthService {
         participant: participantDTO(current.participant),
         expiresAt: current.session.expiresAt.toMillis(),
       };
+    });
+  }
+  /** New participant operations reuse session validation inside their own atomic transaction. */
+  async withParticipantTransaction<T>(
+    token: string,
+    operation: (tx: Transaction, participant: ParticipantDTO) => Promise<T>,
+  ) {
+    return this.db.runTransaction(async (tx) => {
+      const current = await this.readSession(tx, token);
+      if (!current)
+        throw new AuthError(401, "Tu sesión venció. Ingresa nuevamente.");
+      return operation(tx, participantDTO(current.participant));
     });
   }
   async logout(token: string) {

@@ -176,3 +176,17 @@ inscripción en campaña. Cambio/reset invalidan todas las sesiones mediante ver
 Recuperación administrativa queda como servicio que verifica ID token y `campaign_admin`,
 sin nuevo panel ni provisioning del claim. Diseño, configuración y pruebas:
 [PHASE_2_AUTH.md](./PHASE_2_AUTH.md).
+
+## D-026 — Fase 3: inscripción, disponibilidad y cobertura derivada
+
+**Fecha:** 2026-10-04
+**Estado:** Implementada para revisión en PR Draft
+
+Inscripción única por campaign+participant y disponibilidad única por registration+block
+mediante IDs derivados y transacciones servidor con sesión revalidada. maxTurns 1/2/3/null;
+congregación global del Participant activa/asociada, sin snapshot duplicado. Solo
+registration_open permite edición. Históricos inactivos conservados. Capacidad override
+→ default → Por definir; completo sigue aceptando disponibilidad. Reserva potencial
+agregada sin Assignment. No se alteran los rate limits de Fase 2; revisión humana antes
+del piloto obligatoria. APIs, UX, seguridad y pruebas en
+[PHASE_3_REGISTRATION.md](./PHASE_3_REGISTRATION.md).

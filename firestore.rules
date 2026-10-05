@@ -37,5 +37,7 @@ service cloud.firestore {
     match /campaignParticipantPhones/{docId} { allow read, write: if false; }
     match /campaignAuthLimits/{docId} { allow read, write: if false; }
     match /auditLogs/{docId} { allow read, write: if false; }
+    match /campaignRegistrations/{docId} { allow read, write: if false; }
+    match /availabilities/{docId} { allow read, write: if false; }
   }
 }
