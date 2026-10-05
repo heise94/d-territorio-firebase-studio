@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { CampaignGeneralForm, CongregationSettings } from "./campaign-settings";
 import { useAuth } from "@/hooks/use-auth";
 import { campaignRepository as repo } from "../repositories/campaign-repository";
@@ -98,6 +99,9 @@ function Editor({
     <main className="mx-auto max-w-5xl space-y-8 p-6">
       <button onClick={back}>← Campañas</button>
       <h1 className="text-3xl font-bold">{campaign.name}</h1>
+      <Link className="inline-block rounded bg-teal-700 px-4 py-2 font-semibold text-white" href={`/campanas/admin/participantes/${campaign.id}`}>
+        Participantes y cobertura
+      </Link>
       {err && <p className="text-red-700">{err}</p>}
       <Section title="Información general">
         <CampaignGeneralForm campaign={campaign} onSaved={setCampaign} />

@@ -204,3 +204,21 @@ Disponibilidad común/conflictos se calculan desde Availability actual sin cambi
 Inicio prioritario y sección de solicitudes implementan notificación interna sin push.
 Límites individuales nuevos, globales auth intactos. Diseño, APIs y pruebas:
 [PHASE_4_PAIR_REQUESTS.md](./PHASE_4_PAIR_REQUESTS.md).
+
+## D-028 — Fase 5: lectura operativa administrativa sin Assignment
+
+**Fecha:** 2026-10-04
+**Estado:** Implementada para revisión en PR Draft
+
+Panel de participantes/cobertura enlazado desde el editor vigente, sin editor alternativo.
+Cada consulta usa Firebase Auth existente, requireCampaignOrganizer y claim actual del
+usuario servidor, no cookie participante. DTOs permitidos, field masks y lecturas bulk
+impiden divulgar hashes/sesiones o descargar teléfonos innecesarios. Búsqueda administrativa
+de móvil completo en encabezado privado, no URL; filtros/paginación servidor. Cobertura y
+reserva conservan cálculo de Fase 3, sin elegir personas de reserva. Accepted sigue siendo
+obligatorio y sus conflictos no modifican vínculos. Polling visible de 30 segundos y
+actualización manual, sin listeners cliente privados. Carga del perfil y permisos completa
+antes de decidir acceso, sin cambiar guard, roles ni autorización. Fixture V1 de 80 y
+Auth/Firestore Emulator real; rate limits auth intactos con checkpoint humano previo al
+piloto. Detalles, límites y validación:
+[PHASE_5_ADMIN_DASHBOARD.md](./PHASE_5_ADMIN_DASHBOARD.md).
