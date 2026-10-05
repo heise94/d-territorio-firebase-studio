@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 import { useCallback, useEffect, useState } from "react";
 import {
   changeReasonLabels,
@@ -35,7 +36,7 @@ export function RequestChange({
             setBusy(true);
             setError("");
             try {
-              const response = await fetch(
+              const response = await campaignFetch(
                 "/api/campanas/participant/change-requests",
                 {
                   method: "POST",
@@ -121,7 +122,7 @@ export function ParticipantChangeHistory({
     const load = async () => {
       if (document.visibilityState !== "visible") return;
       try {
-        const response = await fetch(
+        const response = await campaignFetch(
           "/api/campanas/participant/change-requests",
           { cache: "no-store", signal: controller.signal },
         );
@@ -182,7 +183,7 @@ export function ChangeAlerts() {
   const load = useCallback(async () => {
     if (document.visibilityState !== "visible") return;
     try {
-      const response = await fetch(
+      const response = await campaignFetch(
         "/api/campanas/participant/change-notifications",
         { cache: "no-store" },
       );

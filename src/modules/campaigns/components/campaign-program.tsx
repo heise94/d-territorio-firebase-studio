@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -66,7 +67,7 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
     setLoading(true);
     try {
       const token = await user.getIdToken(true);
-      const response = await fetch(`${base}/program${versionQuery}`, {
+      const response = await campaignFetch(`${base}/program${versionQuery}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
         signal: controller.signal,
@@ -82,7 +83,7 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
         previewRevision.current = data.plannerRevision;
         setView(data);
         if (data.mode === "published") {
-          const response = await fetch(`${base}/program/versions`, {
+          const response = await campaignFetch(`${base}/program/versions`, {
             headers: { Authorization: `Bearer ${token}` },
             cache: "no-store",
             signal: controller.signal,
@@ -118,7 +119,7 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
     setError("");
     try {
       const token = await user.getIdToken(true);
-      const response = await fetch(`${base}/publish`, {
+      const response = await campaignFetch(`${base}/publish`, {
         method: "POST",
         cache: "no-store",
         headers: {
@@ -154,10 +155,13 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
     setBusy(true);
     try {
       const token = await user.getIdToken(true);
-      const response = await fetch(`${base}/program/pdf${versionQuery}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
+      const response = await campaignFetch(
+        `${base}/program/pdf${versionQuery}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        },
+      );
       if (!response.ok) throw new Error((await response.json()).error);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob),

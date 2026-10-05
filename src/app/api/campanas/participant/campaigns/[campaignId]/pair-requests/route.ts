@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { schedulePushDelivery } from "@/modules/campaigns/server/push-dispatch-after";
 import {
   participantFailure,
   participantToken,
@@ -23,13 +24,15 @@ export async function GET(request: NextRequest, context: Context) {
 }
 export async function POST(request: NextRequest, context: Context) {
   try {
-    return privateResponse(
+    const response = privateResponse(
       await pairRequestService().mutate(
         participantToken(request),
         (await context.params).campaignId,
         await registrationBody(request),
       ),
     );
+    schedulePushDelivery();
+    return response;
   } catch (error) {
     return participantFailure(error);
   }

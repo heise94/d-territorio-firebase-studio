@@ -276,3 +276,22 @@ stale requiere revisión explícita. Avisos internos idempotentes solo a afectad
 Históricos administrativos/PDF y Mi programa actual mantienen privacidad. QA impresión nativa
 F7 permanece pendiente no bloqueante; límites auth no se modifican. Detalles:
 [PHASE_8_CHANGES_RESERVES.md](./PHASE_8_CHANGES_RESERVES.md).
+
+## D-032 — Fase 9: aviso interno primero, push best-effort y PWA privada NetworkOnly
+
+**Fecha:** 2026-10-05
+**Estado:** Implementada técnicamente; revisión humana y entrega FCM real pendientes
+
+Se consolida campaignNotifications de F8: aviso interno/outbox atómicos; FCM fuera
+de transacciones, adapter inyectable, entrega por dispositivo con lease/backoff,
+IDs determinísticos y tokens inválidos desactivados. Suscripción deriva identidad
+de cookie; múltiples dispositivos, rotación y logout no cruzan identidades.
+Permiso push solo tras acción contextual. Manifest/iconos locales y worker único
+next-pwa; páginas/APIs privadas NetworkOnly, fallback público seguro y actualización
+manual confirmada. Sin cola offline ni datos privados persistidos en browser.
+Centro Avisos con readAt, historial/paginación y resumen Inicio/próximo turno.
+Recordatorio usa reloj inyectado, zona IANA y Assignment vigente; job protegido
+listo, scheduler productivo NO activo. Auth global 30/120 por 15 minutos intacto.
+QA impresión nativa F7 pendiente; dispositivos reales/FCM HTTPS documentados sin
+inventar evidencia. No F10, deploy productivo, merge ni cierre de Issues #8/#10.
+Detalle: [PHASE_9_PWA_NOTIFICATIONS.md](./PHASE_9_PWA_NOTIFICATIONS.md).

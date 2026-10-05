@@ -164,8 +164,7 @@ export class ParticipantAuthService {
     const index = (await this.phoneRef(parsed.data.phone).get()).data();
     const participant = index
       ? ((await this.participants().doc(index.participantId).get()).data() as
-          | Participant
-          | undefined)
+          Participant | undefined)
       : undefined;
     const correct = await verifyPin(
       this.secret,
@@ -261,6 +260,17 @@ export class ParticipantAuthService {
     await this.db.runTransaction(async (tx) => {
       const current = await this.readSession(tx, token);
       if (!current) return;
+      const subscriptions = await tx.get(
+        this.db
+          .collection(campaignCollections.pushSubscriptions)
+          .where("sessionRef", "==", tokenHash(token)),
+      );
+      const now = Timestamp.fromMillis(this.now());
+      subscriptions.docs
+        .filter((d) => d.data().participantId === current.participant.id)
+        .forEach((d) =>
+          tx.update(d.ref, { enabled: false, disabledAt: now, updatedAt: now }),
+        );
       tx.update(current.ref, { revokedAt: Timestamp.fromMillis(this.now()) });
       this.audit(tx, "session_revoked", current.participant.id);
     });

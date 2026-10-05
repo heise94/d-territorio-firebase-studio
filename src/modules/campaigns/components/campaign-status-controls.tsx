@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import type { CampaignStatus } from "../domain/types";
@@ -20,7 +21,7 @@ export function CampaignStatusControls({
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await campaignFetch(
         `/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/status`,
         {
           method: "POST",

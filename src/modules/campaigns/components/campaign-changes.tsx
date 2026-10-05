@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -21,7 +22,7 @@ export function ChangeRequestsLink({ campaignId }: { campaignId: string }) {
     const load = async () => {
       if (!user || document.visibilityState !== "visible") return;
       try {
-        const response = await fetch(
+        const response = await campaignFetch(
           `/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/change-requests`,
           {
             cache: "no-store",
@@ -74,7 +75,7 @@ export function CampaignChanges({ campaignId }: { campaignId: string }) {
     async (suffix = "", body?: unknown): Promise<any> => {
       if (!user)
         throw new Error("Ingresa con una cuenta administrativa autorizada.");
-      const result = await fetch(`${base}${suffix}`, {
+      const result = await campaignFetch(`${base}${suffix}`, {
         cache: "no-store",
         method: body === undefined ? "GET" : "POST",
         headers: {

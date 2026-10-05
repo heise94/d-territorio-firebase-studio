@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -39,7 +40,7 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const load = useCallback(async () => {
-    const reply = await fetch(
+    const reply = await campaignFetch(
       `/api/campanas/participant/campaigns/${campaignId}`,
       { cache: "no-store" },
     );
@@ -107,7 +108,7 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
     }
     setSaving(true);
     try {
-      const reply = await fetch(
+      const reply = await campaignFetch(
         `/api/campanas/participant/campaigns/${campaignId}`,
         {
           method: "PUT",

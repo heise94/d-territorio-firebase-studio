@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { schedulePushDelivery } from "@/modules/campaigns/server/push-dispatch-after";
 import { publishProgram } from "@/modules/campaigns/server/program-service";
 import { programFailure } from "@/modules/campaigns/server/program-http";
 import { plannerBody } from "@/modules/campaigns/server/planner-http";
@@ -14,13 +15,15 @@ export async function POST(
 ) {
   try {
     const body = await plannerBody(request);
-    return dashboardResponse(
+    const response = dashboardResponse(
       await publishProgram(
         organizerToken(request),
         (await context.params).campaignId,
         body,
       ),
     );
+    schedulePushDelivery();
+    return response;
   } catch (error) {
     return programFailure(error);
   }

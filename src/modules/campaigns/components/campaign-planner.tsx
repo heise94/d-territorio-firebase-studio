@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -51,7 +52,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
     try {
       const token = await user.getIdToken(true);
       if (controller.signal.aborted) return;
-      const response = await fetch(
+      const response = await campaignFetch(
         `${base}/planner${blockId ? `?blockId=${encodeURIComponent(blockId)}` : ""}`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -107,7 +108,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
     setSaving(true);
     setSaved("");
     try {
-      const response = await fetch(base + path, {
+      const response = await campaignFetch(base + path, {
         method,
         headers: {
           Authorization: `Bearer ${await user.getIdToken(true)}`,

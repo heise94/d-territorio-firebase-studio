@@ -1,0 +1,17 @@
+{
+  "id": "/campanas",
+  "name": "D-Territorio Campañas",
+  "short_name": "Campañas",
+  "description": "Tu disponibilidad, programa y avisos de campañas en un solo lugar.",
+  "lang": "es-CL",
+  "start_url": "/campanas",
+  "scope": "/campanas",
+  "display": "standalone",
+  "theme_color": "#0f766e",
+  "background_color": "#F7F9FC",
+  "icons": [
+    { "src": "/campanas-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/campanas-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/campanas-icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

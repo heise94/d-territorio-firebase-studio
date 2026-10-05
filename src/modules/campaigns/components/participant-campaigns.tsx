@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -14,7 +15,7 @@ export function ParticipantCampaigns() {
     let disposed = false;
     setLoading(true);
     setError("");
-    fetch("/api/campanas/participant/campaigns", { cache: "no-store" })
+    campaignFetch("/api/campanas/participant/campaigns", { cache: "no-store" })
       .then(async (reply) => {
         if (reply.status === 401) {
           router.replace("/campanas/ingresar");

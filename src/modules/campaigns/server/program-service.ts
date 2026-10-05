@@ -18,6 +18,7 @@ import { campaignsAdminDb } from "./firebase-admin";
 import { readPlannerSource } from "./planner-source";
 import { projectProgram } from "./program-projection";
 import { turnId } from "./program-turn-locator";
+import { writeDomainNotification } from "./notification-events";
 
 const conflict = () => new AuthError(409, publicationConflictMessage);
 export class ProgramValidationError extends AuthError {
@@ -158,6 +159,26 @@ export async function publishProgram(
         assignmentCount: view.assignmentCount,
       };
       tx.create(versionRef, version);
+      const publishedParticipants = new Set(
+        source.assignments
+          .filter((a) => a.status === "draft")
+          .map((a) => source.registrations.get(a.registrationId)?.participantId)
+          .filter((id): id is string => !!id),
+      );
+      for (const participantId of publishedParticipants)
+        writeDomainNotification(
+          tx,
+          db,
+          versionRef.id,
+          participantId,
+          campaignId,
+          "program_published",
+          "El programa fue publicado. Revisa tus turnos.",
+          { version: 1 },
+          now,
+          "/campanas/mi-programa",
+          "Programa publicado",
+        );
       for (const a of source.assignments.filter((a) => a.status === "draft"))
         tx.update(db.collection(names.assignments).doc(a.id), {
           status: "published",

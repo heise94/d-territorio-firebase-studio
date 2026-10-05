@@ -28,6 +28,7 @@ import {
 import { campaignDocumentIdSchema } from "../schemas/registration-schemas";
 import { AuthError, ParticipantAuthService } from "./auth/service";
 import { registrationId } from "./registration-service";
+import { writeDomainNotification } from "./notification-events";
 
 /** Internal sentinels, not a second PairRequest model or a participant-facing collection. */
 export const pairLockCollection = "campaignPairRequestLocks";
@@ -371,6 +372,7 @@ export class PairRequestService {
         const now = Timestamp.now();
         let request: PairRequest;
         let ref;
+        let notificationRecipient: string | undefined;
         if (data.action === "create") {
           if (data.recipientRegistrationId === ownId)
             throw new AuthError(400, "No puedes enviarte una solicitud.");
@@ -419,6 +421,7 @@ export class PairRequestService {
               "Uno de ustedes ya tiene un vínculo aceptado en esta campaña.",
             );
           ref = this.requests().doc();
+          notificationRecipient = recipient.participantId;
           request = {
             id: ref.id,
             campaignId,
@@ -458,6 +461,12 @@ export class PairRequestService {
               409,
               "La solicitud ya fue respondida o cancelada. Recarga para ver su estado.",
             );
+          if (data.action === "accept" || data.action === "reject") {
+            const requester = await tx.get(
+              this.registrations().doc(stored.requesterRegistrationId),
+            );
+            notificationRecipient = requester.data()?.participantId;
+          }
           if (data.action === "accept") {
             const requester = (
               await tx.get(
@@ -527,6 +536,33 @@ export class PairRequestService {
           entityId: request.id,
           createdAt: now,
         });
+        if (notificationRecipient) {
+          const type =
+            data.action === "create"
+              ? "pair_request_created"
+              : data.action === "accept"
+                ? "pair_request_accepted"
+                : "pair_request_rejected";
+          writeDomainNotification(
+            tx,
+            this.db,
+            request.id,
+            notificationRecipient,
+            campaignId,
+            type,
+            data.action === "create"
+              ? "Tienes una solicitud para participar juntos. Revisa la aplicación."
+              : data.action === "accept"
+                ? "Tu solicitud para participar juntos fue aceptada."
+                : "Tu solicitud para participar juntos fue rechazada.",
+            { requestId: request.id },
+            now,
+            "/campanas/participar-juntos",
+            data.action === "create"
+              ? "Solicitud para participar juntos"
+              : "Respuesta a tu solicitud",
+          );
+        }
         return { id: request.id, status: request.status };
       },
     );

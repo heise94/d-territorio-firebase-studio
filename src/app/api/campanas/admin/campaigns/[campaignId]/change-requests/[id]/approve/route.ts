@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { schedulePushDelivery } from "@/modules/campaigns/server/push-dispatch-after";
 import { decideChange } from "@/modules/campaigns/server/change-request-admin";
 import { programFailure } from "@/modules/campaigns/server/program-http";
 import { plannerBody } from "@/modules/campaigns/server/planner-http";
@@ -14,7 +15,7 @@ export async function POST(
 ) {
   try {
     const { campaignId, id } = await context.params;
-    return dashboardResponse(
+    const response = dashboardResponse(
       await decideChange(
         organizerToken(request),
         campaignId,
@@ -23,6 +24,8 @@ export async function POST(
         await plannerBody(request),
       ),
     );
+    schedulePushDelivery();
+    return response;
   } catch (error) {
     return programFailure(error);
   }

@@ -1,20 +1,18 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { changePinSchema } from "../schemas/participant-auth";
 
 export function ParticipantSessionControls({ fullName }: { fullName: string }) {
-  const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     const refresh = () => {
-      fetch("/api/campanas/auth/session", { cache: "no-store" })
+      campaignFetch("/api/campanas/auth/session", { cache: "no-store" })
         .then((reply) => {
           if (reply.status === 401) {
-            router.replace("/campanas/ingresar");
-            router.refresh();
+            window.location.replace("/campanas/ingresar");
           }
         })
         .catch(() => {
@@ -28,13 +26,13 @@ export function ParticipantSessionControls({ fullName }: { fullName: string }) {
       window.removeEventListener("focus", refresh);
       window.removeEventListener("pageshow", refresh);
     };
-  }, [router]);
+  }, []);
 
   async function perform(action: string, input: unknown) {
     setBusy(true);
     setError("");
     try {
-      const reply = await fetch(`/api/campanas/auth/${action}`, {
+      const reply = await campaignFetch(`/api/campanas/auth/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -42,8 +40,16 @@ export function ParticipantSessionControls({ fullName }: { fullName: string }) {
       });
       const result = await reply.json();
       if (!reply.ok) throw new Error(result.error);
-      router.replace("/campanas/ingresar");
-      router.refresh();
+      navigator.serviceWorker?.controller?.postMessage({
+        type: "CAMPAIGNS_LOGOUT",
+      });
+      if ("BroadcastChannel" in window) {
+        const channel = new BroadcastChannel("campanas-session");
+        channel.postMessage({ type: "CAMPAIGNS_SESSION_CLEARED" });
+        channel.close();
+      }
+      // A full navigation drops all in-memory private state from the previous identity.
+      window.location.replace("/campanas/ingresar");
     } catch (failure) {
       setError(
         failure instanceof Error ? failure.message : "No pudimos conectar.",

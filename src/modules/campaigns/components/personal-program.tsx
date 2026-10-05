@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 import { useEffect, useState } from "react";
 import type { PersonalProgram } from "../domain/program";
 import { changeStatusLabels } from "../domain/change-request";
@@ -15,10 +16,13 @@ export function PersonalProgramView() {
     const controller = new AbortController();
     const load = async () => {
       try {
-        const response = await fetch("/api/campanas/participant/my-program", {
-          cache: "no-store",
-          signal: controller.signal,
-        });
+        const response = await campaignFetch(
+          "/api/campanas/participant/my-program",
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          },
+        );
         const data = await response.json();
         if (!response.ok) {
           setView(null);
@@ -40,11 +44,13 @@ export function PersonalProgramView() {
       if (document.visibilityState === "visible") void load();
     };
     document.addEventListener("visibilitychange", visible);
+    window.addEventListener("campanas-notification", visible);
     const timer = setInterval(visible, 12000);
     return () => {
       controller.abort();
       clearInterval(timer);
       document.removeEventListener("visibilitychange", visible);
+      window.removeEventListener("campanas-notification", visible);
     };
   }, [refreshKey]);
   return (
@@ -91,7 +97,11 @@ export function PersonalProgramView() {
                   {turn.locationText && <p>{turn.locationText}</p>}
                   {turn.description && <p>{turn.description}</p>}
                   <p>Compañero: {turn.companionName ?? "Pendiente"}</p>
-                  {turn.changeRequestStatus && <p className="font-semibold">{changeStatusLabels[turn.changeRequestStatus]}</p>}
+                  {turn.changeRequestStatus && (
+                    <p className="font-semibold">
+                      {changeStatusLabels[turn.changeRequestStatus]}
+                    </p>
+                  )}
                   {turn.turnId && turn.canRequestChange !== false && (
                     <RequestChange
                       turnId={turn.turnId}

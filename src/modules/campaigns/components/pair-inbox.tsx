@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { PairInboxGroup } from "../domain/pair-request";
@@ -11,9 +12,12 @@ export function PairInbox({ expanded = false }: { expanded?: boolean }) {
     let disposed = false;
     const load = async () => {
       try {
-        const reply = await fetch("/api/campanas/participant/pair-inbox", {
-          cache: "no-store",
-        });
+        const reply = await campaignFetch(
+          "/api/campanas/participant/pair-inbox",
+          {
+            cache: "no-store",
+          },
+        );
         const data = await reply.json();
         if (!reply.ok) throw new Error(data.error);
         if (!disposed) {

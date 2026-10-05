@@ -4,7 +4,7 @@ import { Bell, CalendarDays, Home, Info, ListChecks } from "lucide-react";
 export function ParticipantNavigation({
   active,
 }: {
-  active: "Inicio" | "Disponibilidad" | "Mi programa";
+  active: "Inicio" | "Disponibilidad" | "Mi programa" | "Avisos";
 }) {
   const items = [
     { label: "Inicio", icon: Home, href: "/campanas" },
@@ -14,7 +14,7 @@ export function ParticipantNavigation({
       href: "/campanas/disponibilidad",
     },
     { label: "Mi programa", icon: ListChecks, href: "/campanas/mi-programa" },
-    { label: "Avisos", icon: Bell },
+    { label: "Avisos", icon: Bell, href: "/campanas/avisos" },
     { label: "Información", icon: Info },
   ];
   return (

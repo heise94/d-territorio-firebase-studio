@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -32,7 +33,7 @@ async function consult<T>(
   search = "",
 ): Promise<T> {
   // Keep names/phones out of URLs and normal HTTP access logs.
-  const response = await fetch(url, {
+  const response = await campaignFetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
       ...(search ? { "X-Campaign-Search": encodeURIComponent(search) } : {}),
@@ -223,7 +224,9 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
         </Link>
       )}
       <p className="text-sm text-slate-600" role="status">
-        {overview?.campaign.status === "published" && <ChangeRequestsLink campaignId={campaignId} />}
+        {overview?.campaign.status === "published" && (
+          <ChangeRequestsLink campaignId={campaignId} />
+        )}
         {loading
           ? "Actualizando panel…"
           : overview

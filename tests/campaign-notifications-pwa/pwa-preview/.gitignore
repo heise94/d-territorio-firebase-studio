@@ -1,0 +1,4 @@
+/.next/
+/public/
+/worker
+/next-env.d.ts

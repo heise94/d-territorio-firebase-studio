@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import {
   useCallback,
@@ -61,7 +62,7 @@ export function PairRequests({ campaignId }: { campaignId: string }) {
   );
   const load = useCallback(async () => {
     return (await read(
-      await fetch(`${url}/pair-requests`, { cache: "no-store" }),
+      await campaignFetch(`${url}/pair-requests`, { cache: "no-store" }),
     )) as PairRequestView;
   }, [read, url]);
   useEffect(() => {
@@ -120,9 +121,12 @@ export function PairRequests({ campaignId }: { campaignId: string }) {
     setCandidate(null);
     try {
       const data = await read(
-        await fetch(`${url}/pair-candidates?q=${encodeURIComponent(query)}`, {
-          cache: "no-store",
-        }),
+        await campaignFetch(
+          `${url}/pair-candidates?q=${encodeURIComponent(query)}`,
+          {
+            cache: "no-store",
+          },
+        ),
       );
       if (version === searchVersion.current) {
         setResults(data.candidates);
@@ -146,7 +150,7 @@ export function PairRequests({ campaignId }: { campaignId: string }) {
     setMessage("");
     try {
       await read(
-        await fetch(`${url}/pair-requests`, {
+        await campaignFetch(`${url}/pair-requests`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(input),

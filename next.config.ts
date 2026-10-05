@@ -6,19 +6,36 @@ const isDev = process.env.NODE_ENV !== "production";
 const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
   register: true,
-  skipWaiting: true,
+  cacheStartUrl: false,
+  dynamicStartUrl: false,
+  reloadOnOnline: false,
   disable: isDev,
   cacheOnFrontEndNav: false,
   extendDefaultRuntimeCaching: true,
   workboxOptions: {
+    skipWaiting: false,
     runtimeCaching: [
       {
         // Never cache participant pages, RSC responses or identity/session API responses.
         urlPattern: ({ url }: { url: URL }) =>
           url.pathname === "/campanas" ||
           url.pathname.startsWith("/campanas/") ||
-          url.pathname.startsWith("/api/campanas/"),
+          url.pathname.startsWith("/api/campanas/") ||
+          url.pathname.startsWith("/api/internal/campanas/"),
         handler: "NetworkOnly",
+        options: {
+          plugins: [
+            {
+              // Keep this self-contained: Workbox serializes callbacks into the worker.
+              handlerDidError: ({ request }: { request: Request }) =>
+                request.mode === "navigate"
+                  ? caches
+                      .match("/campanas-offline.html", { ignoreSearch: true })
+                      .then((response) => response ?? Response.error())
+                  : Promise.resolve(Response.error()),
+            },
+          ],
+        },
       },
     ],
   },

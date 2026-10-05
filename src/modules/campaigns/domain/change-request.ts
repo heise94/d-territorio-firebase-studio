@@ -19,22 +19,7 @@ export interface ChangeRequest {
   resolvedBy?: string;
   resolvedProgramVersionId?: string;
 }
-export interface InternalNotification {
-  id: string;
-  participantId: string;
-  campaignId: string;
-  type:
-    | "change_request_approved"
-    | "change_request_rejected"
-    | "change_request_resolved"
-    | "assignment_changed";
-  title: string;
-  body: string;
-  targetRoute: string;
-  metadata: { version?: number; requestId?: string };
-  createdAt: Timestamp;
-  readAt: Timestamp | null;
-}
+export type { InternalNotification } from "./notification";
 export const changeConflictMessage =
   "El programa cambió mientras trabajabas. Actualiza antes de continuar.";
 export const changeStatusLabels: Record<ChangeStatus, string> = {

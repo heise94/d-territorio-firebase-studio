@@ -1,4 +1,5 @@
 "use client";
+import { campaignFetch } from "../lib/campaign-fetch";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -22,7 +23,7 @@ export function ParticipantAuthForm({
   useEffect(() => {
     if (!register) return;
     let disposed = false;
-    fetch("/api/campanas/auth/congregations", { cache: "no-store" })
+    campaignFetch("/api/campanas/auth/congregations", { cache: "no-store" })
       .then(async (reply) => {
         if (!reply.ok)
           throw new Error(
@@ -69,7 +70,7 @@ export function ParticipantAuthForm({
     }
     setBusy(true);
     try {
-      const reply = await fetch(
+      const reply = await campaignFetch(
         `/api/campanas/auth/${register ? "register" : "login"}`,
         {
           method: "POST",

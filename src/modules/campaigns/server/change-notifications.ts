@@ -1,5 +1,4 @@
 import "server-only";
-import { createHash } from "node:crypto";
 import { Timestamp, type Transaction } from "firebase-admin/firestore";
 import type { InternalNotification } from "../domain/change-request";
 import type { ProgramSnapshot } from "../domain/program";
@@ -7,6 +6,7 @@ import { campaignCollections as names } from "../lib/paths";
 import { campaignsAdminDb } from "./firebase-admin";
 import { participantAuth } from "./auth/session";
 import { snapshotTurns } from "./change-request-context";
+import { writeDomainNotification } from "./notification-events";
 
 export function writeNotification(
   tx: Transaction,
@@ -18,25 +18,21 @@ export function writeNotification(
   metadata: InternalNotification["metadata"],
   now: Timestamp,
 ) {
-  const id = createHash("sha256")
-    .update(JSON.stringify([eventKey, type, participantId]))
-    .digest("hex");
-  const value: InternalNotification = {
-    id,
+  writeDomainNotification(
+    tx,
+    campaignsAdminDb(),
+    eventKey,
     participantId,
     campaignId,
     type,
-    title:
-      type === "assignment_changed"
-        ? "Tu programa fue actualizado"
-        : "Solicitud de cambio",
     body,
-    targetRoute: "/campanas/mi-programa",
     metadata,
-    createdAt: now,
-    readAt: null,
-  };
-  tx.create(campaignsAdminDb().collection(names.notifications).doc(id), value);
+    now,
+    "/campanas/mi-programa",
+    type === "assignment_changed"
+      ? "Tu programa fue actualizado"
+      : "Solicitud de cambio",
+  );
 }
 /** Compare each person's entire presentation, including their companion, never notify the campaign wholesale. */
 export function affectedRegistrations(
@@ -79,7 +75,18 @@ export async function participantNotifications(token: string) {
           .collection(names.notifications)
           .where("participantId", "==", participant.id),
       );
-      const notices = rows.docs.map((d) => d.data() as InternalNotification);
+      // This existing endpoint remains the focused F8 change-alert projection.
+      // The complete center reads the same collection, including new F9 events.
+      const notices = rows.docs
+        .map((d) => d.data() as InternalNotification)
+        .filter((n) =>
+          [
+            "assignment_changed",
+            "change_request_approved",
+            "change_request_rejected",
+            "change_request_resolved",
+          ].includes(n.type),
+        );
       const terminalRequests = new Set(
         notices
           .filter(
