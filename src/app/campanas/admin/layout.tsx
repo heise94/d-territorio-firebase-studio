@@ -12,7 +12,7 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { isLoadingPermissions, hasPermission } = usePermissions();
   const allowed = hasPermission(PERMISSIONS.MANAGE_CAMPAIGNS);
-  useEffect(() => { if (!loading && !isLoadingPermissions && (!user || !allowed)) router.replace('/'); }, [allowed, isLoadingPermissions, loading, router, user]);
+  useEffect(() => { if (!loading && !isLoadingPermissions && (!user || !allowed)) router.replace('/?adminLogin=1'); }, [allowed, isLoadingPermissions, loading, router, user]);
   if (loading || isLoadingPermissions || !user || !allowed) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-teal-700" /></div>;
   return <>{children}</>;
 }

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { campaignsAdminDb } from "./firebase-admin";
 import { CampaignAdminDashboardService } from "./admin-dashboard-service";
 import { AuthError } from "./auth/service";
+import { operationalLog } from "./operational-log";
 
 export const dashboardService = () =>
   new CampaignAdminDashboardService(campaignsAdminDb());
@@ -22,6 +23,7 @@ export function dashboardSearch(request: NextRequest) {
   }
 }
 export function dashboardResponse(data: unknown, status = 200) {
+  operationalLog("admin", status);
   return NextResponse.json(data, {
     status,
     headers: {

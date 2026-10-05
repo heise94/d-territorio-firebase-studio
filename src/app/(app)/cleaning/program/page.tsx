@@ -45,7 +45,7 @@ import { es } from "date-fns/locale";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/lib/constants";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, writeBatch, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, writeBatch, deleteDoc, Timestamp } from "firebase/firestore";
 import type {
   UserProfile,
   CleaningGroup,
@@ -198,8 +198,8 @@ export default function CleaningProgramPage() {
             endDate: endOfWeek(new Date(parseInt(year, 10), 0, 1 + (weekNumber - 1) * 7), { weekStartsOn: 1 }).toISOString(),
             groupId: group.id,
             groupName: group.name,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
         };
         batch.set(doc(db, 'cleaningAssignments', weekId), assignment);
     });
@@ -331,8 +331,8 @@ function ManageGroupDialog({ isOpen, onOpenChange, group, users, onSubmit }: { i
             name,
             captainId,
             members,
-            createdAt: group?.createdAt || new Date(),
-            updatedAt: new Date(),
+            createdAt: group?.createdAt || Timestamp.now(),
+            updatedAt: Timestamp.now(),
         };
         onSubmit(newGroup);
     };

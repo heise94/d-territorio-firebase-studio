@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthError } from "@/modules/campaigns/server/auth/service";
 import { globalAuthLimit } from "@/modules/campaigns/server/auth/rate-limits";
+import { operationalLog } from "@/modules/campaigns/server/operational-log";
 import {
   cookieOptions,
   participantAuth,
@@ -10,11 +11,13 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const actions = new Set(["register", "login", "logout", "change-pin"]);
-const response = (body: unknown, status = 200) =>
-  NextResponse.json(body, {
+const response = (body: unknown, status = 200) => {
+  operationalLog("participant", status);
+  return NextResponse.json(body, {
     status,
     headers: { "Cache-Control": "private, no-store", Vary: "Cookie" },
   });
+};
 const failure = (error: unknown) =>
   error instanceof AuthError
     ? response({ error: error.message }, error.status)

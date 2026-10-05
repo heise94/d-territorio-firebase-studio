@@ -3,6 +3,11 @@
 ## 1. Objetivo
 Definir cómo preparar, probar y publicar el módulo Campañas sin mezclar datos de desarrollo con producción.
 
+Preparación F11 y procedimientos vigentes: [PHASE_11_DEPLOYMENT_LAUNCH.md](./PHASE_11_DEPLOYMENT_LAUNCH.md).
+Checklist humano: [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md).
+Staging/proyectos/DNS no están verificados: **NO-GO DEPLOY PRODUCTIVO**.
+Auth vigente: 160 registros / 240 logins / 15 minutos; no usar 30/120.
+
 ## 2. Dominio
 Destino previsto:
 

@@ -5,3 +5,61 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+env:
+  - variable: CAMPAIGNS_ENV
+    value: unconfigured
+    availability: [BUILD, RUNTIME]
+  - variable: CAMPAIGNS_STAGING_PROJECT_ID
+    secret: CAMPAIGNS_STAGING_PROJECT_ID
+    availability: [RUNTIME]
+  - variable: CAMPAIGNS_PRODUCTION_PROJECT_ID
+    secret: CAMPAIGNS_PRODUCTION_PROJECT_ID
+    availability: [RUNTIME]
+  - variable: FIREBASE_ADMIN_PROJECT_ID
+    secret: FIREBASE_ADMIN_PROJECT_ID
+    availability: [RUNTIME]
+  - variable: CAMPAIGNS_APP_ORIGIN
+    secret: CAMPAIGNS_APP_ORIGIN
+    availability: [BUILD, RUNTIME]
+  - variable: CAMPAIGNS_HOST_ROUTING
+    value: "true"
+    availability: [BUILD, RUNTIME]
+  - variable: CAMPAIGNS_AUTH_SECRET
+    secret: CAMPAIGNS_AUTH_SECRET
+    availability: [RUNTIME]
+  - variable: CAMPAIGNS_NOTIFICATION_JOB_SECRET
+    secret: CAMPAIGNS_NOTIFICATION_JOB_SECRET
+    availability: [RUNTIME]
+  - variable: CAMPAIGNS_AUTH_REGISTER_GLOBAL_LIMIT
+    value: "160"
+    availability: [RUNTIME]
+  - variable: CAMPAIGNS_AUTH_LOGIN_GLOBAL_LIMIT
+    value: "240"
+    availability: [RUNTIME]
+  - variable: CAMPAIGNS_TIME_ZONE
+    value: America/Santiago
+    availability: [RUNTIME]
+  - variable: NEXT_PUBLIC_CAMPAIGNS_TIME_ZONE
+    value: America/Santiago
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: NEXT_PUBLIC_FIREBASE_API_KEY
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    secret: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    secret: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    secret: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    secret: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    secret: NEXT_PUBLIC_FIREBASE_APP_ID
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    secret: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    availability: [BUILD, RUNTIME]

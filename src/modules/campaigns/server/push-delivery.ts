@@ -10,6 +10,7 @@ import type {
   InternalNotification,
 } from "../domain/notification";
 import { safeNotificationRoute } from "../domain/notification";
+import { operationalLog } from "./operational-log";
 
 export interface PushDeliveryService {
   send(
@@ -250,5 +251,6 @@ export async function dispatchPushOutbox(
       deliveredAt: outstanding ? null : stamp,
     });
   }
+  operationalLog("push", failed ? 503 : 200, { delivered, failed, skipped });
   return { delivered, failed, skipped, processed: pending.length };
 }

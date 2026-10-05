@@ -7,8 +7,11 @@ import {
 } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { requireDeploymentEnvironment } from "../lib/deployment";
 
 export function campaignsAdminApp() {
+  if (process.env.NODE_ENV === "production" || process.env.CAMPAIGNS_ENV)
+    requireDeploymentEnvironment(process.env);
   const existing = getApps().find((app) => app.name === "campaigns-server");
   if (existing) return existing;
   const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;

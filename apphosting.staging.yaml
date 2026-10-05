@@ -1,0 +1,4 @@
+env:
+  - variable: CAMPAIGNS_ENV
+    value: staging
+    availability: [BUILD, RUNTIME]

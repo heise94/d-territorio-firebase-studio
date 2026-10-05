@@ -323,3 +323,18 @@ abiertos del flujo probado. GO TÉCNICO PARA F11 no es despliegue ni permiso de
 producción. Android/iOS físicos, FCM real, tres perfiles y preview nativo Mac
 siguen pendientes; Issue #8/#11 abiertas, PR #15 OPEN Draft. Sin merge/deploy/F11.
 Detalles, métricas y checklists: [PHASE_10_PILOT_VALIDATION.md](./PHASE_10_PILOT_VALIDATION.md).
+
+## D-034 — F11: preparación aislada, sin despliegue inferido
+
+App Hosting conservado (maxInstances 1); configuración por proyectos distintos,
+Secret Manager/ADC, validación runtime fail-closed, readiness sin datos personales,
+logs de campos fijos, provisioning con dry-run/confirmación/readback, seeds solo
+demo+localhost. Correcciones mínimas autorizadas de seis errores históricos y
+actualización de dependencias de seguridad sin force. Rules/índices no abiertos
+ni añadidos especulativamente. Backup/restore/rollback y checklist preparados.
+
+IDs de proyectos aún no confirmados; d-territorio-v2 requiere Blaze para App Hosting.
+No cambiar facturación, DNS, hacer merge ni desplegar por inferencia. Staging HTTPS,
+FCM, backup/restore, Android/iOS/tres perfiles e impresión nativa F7 pendientes;
+Issues #8/#11/#12 abiertas. **F11 INCOMPLETA, NO-GO DEPLOY PRODUCTIVO / LANZAMIENTO**.
+No inscripciones reales, push real ni F12. Ver [PHASE_11_DEPLOYMENT_LAUNCH.md](./PHASE_11_DEPLOYMENT_LAUNCH.md).

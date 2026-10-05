@@ -42,6 +42,29 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 });
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    if (process.env.CAMPAIGNS_HOST_ROUTING !== "true") return [];
+    const origin = new URL(process.env.CAMPAIGNS_APP_ORIGIN ?? "");
+    if (
+      origin.protocol !== "https:" ||
+      origin.origin !== process.env.CAMPAIGNS_APP_ORIGIN
+    )
+      throw new Error("CAMPAIGNS_APP_ORIGIN must be an explicit HTTPS origin");
+    return [
+      {
+        source: "/",
+        has: [
+          {
+            type: "host" as const,
+            value: origin.hostname.replace(/\./g, "\\."),
+          },
+        ],
+        missing: [{ type: "query" as const, key: "adminLogin" }],
+        destination: "/campanas",
+        permanent: false,
+      },
+    ];
+  },
   outputFileTracingIncludes: {
     "/api/campanas/admin/campaigns/*/program/pdf": [
       "./src/modules/campaigns/assets/fonts/*",

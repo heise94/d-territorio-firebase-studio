@@ -1,4 +1,5 @@
 import { Timestamp } from "firebase-admin/firestore";
+import { requireLocalCampaignDemo } from "../../src/modules/campaigns/lib/demo-environment";
 import {
   seedProgramFixture,
   fixtureCampaign,
@@ -21,6 +22,7 @@ export { fixtureCampaign, fixtureRegistration, fixtureSecret };
 
 /** Explicit synthetic seed only, inherits local/demo guard and never edits real data. */
 export async function seedPilotFixture(size: 80 | 150) {
+  requireLocalCampaignDemo(process.env);
   const credentials = await seedProgramFixture(),
     db = campaignsAdminDb();
   for (const name of [

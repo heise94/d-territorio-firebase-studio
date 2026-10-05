@@ -4,13 +4,16 @@ import { Timestamp } from "firebase-admin/firestore";
 import { z } from "zod";
 import { campaignsAdminDb } from "@/modules/campaigns/server/firebase-admin";
 import { dispatchTurnReminders } from "@/modules/campaigns/server/turn-reminders";
+import { operationalLog } from "@/modules/campaigns/server/operational-log";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const reply = (body: unknown, status = 200) =>
-  NextResponse.json(body, {
+const reply = (body: unknown, status = 200) => {
+  operationalLog("scheduler", status);
+  return NextResponse.json(body, {
     status,
     headers: { "Cache-Control": "private, no-store" },
   });
+};
 export async function POST(request: NextRequest) {
   const expected = process.env.CAMPAIGNS_NOTIFICATION_JOB_SECRET;
   if (!expected || expected.length < 32)

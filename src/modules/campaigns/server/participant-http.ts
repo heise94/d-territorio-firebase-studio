@@ -4,16 +4,19 @@ import { AuthError } from "./auth/service";
 import { SESSION_COOKIE, participantAuth } from "./auth/session";
 import { campaignsAdminDb } from "./firebase-admin";
 import { CampaignRegistrationService } from "./registration-service";
+import { operationalLog } from "./operational-log";
 
 export const registrationService = () =>
   new CampaignRegistrationService(campaignsAdminDb(), participantAuth());
 export const participantToken = (request: NextRequest) =>
   request.cookies.get(SESSION_COOKIE)?.value ?? "";
-export const privateResponse = (body: unknown, status = 200) =>
-  NextResponse.json(body, {
+export const privateResponse = (body: unknown, status = 200) => {
+  operationalLog("participant", status);
+  return NextResponse.json(body, {
     status,
     headers: { "Cache-Control": "private, no-store", Vary: "Cookie" },
   });
+};
 export const participantFailure = (error: unknown) =>
   error instanceof AuthError
     ? privateResponse({ error: error.message }, error.status)

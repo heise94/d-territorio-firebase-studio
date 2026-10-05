@@ -21,7 +21,10 @@
     "test:campaign-program": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-program/*.test.ts",
     "test:campaign-changes": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-changes/*.test.ts",
     "test:campaign-notifications-pwa": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-notifications-pwa/*.test.ts",
-    "test:campaign-pilot": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test --test-concurrency=1 tests/campaign-pilot/*.test.ts"
+    "test:campaign-pilot": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test --test-concurrency=1 tests/campaign-pilot/*.test.ts",
+    "test:campaign-deployment": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-deployment/*.test.ts",
+    "check:campaign-deployment": "tsx scripts/campaign-deployment-check.ts",
+    "provision:campaign-organizer": "tsx scripts/campaign-organizer-provision.ts"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.7",
@@ -60,7 +63,7 @@
     "genkit": "^1.8.0",
     "html-to-image": "^1.11.11",
     "lucide-react": "^0.475.0",
-    "next": "15.2.3",
+    "next": "15.5.27",
     "papaparse": "^5.4.1",
     "patch-package": "^8.0.0",
     "pdfkit": "0.20.2",

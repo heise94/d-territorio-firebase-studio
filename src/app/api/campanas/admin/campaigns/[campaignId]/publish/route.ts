@@ -3,6 +3,7 @@ import { schedulePushDelivery } from "@/modules/campaigns/server/push-dispatch-a
 import { publishProgram } from "@/modules/campaigns/server/program-service";
 import { programFailure } from "@/modules/campaigns/server/program-http";
 import { plannerBody } from "@/modules/campaigns/server/planner-http";
+import { operationalLog } from "@/modules/campaigns/server/operational-log";
 import {
   dashboardResponse,
   organizerToken,
@@ -25,6 +26,8 @@ export async function POST(
     schedulePushDelivery();
     return response;
   } catch (error) {
-    return programFailure(error);
+    const response = programFailure(error);
+    operationalLog("publication", response.status);
+    return response;
   }
 }
