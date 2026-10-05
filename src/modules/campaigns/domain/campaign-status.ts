@@ -1,7 +1,13 @@
-import type { CampaignStatus } from './types';
+import type { CampaignStatus } from "./types";
 
-// Fase 1 solo permite preparar una campaña y abrir inscripciones.
-// Planificación, publicación y cierre quedan reservados a sus fases.
-export function canTransitionCampaignStatus(from: CampaignStatus, to: CampaignStatus) {
-  return from === to || (from === 'draft' && to === 'registration_open');
+// Solo apertura y comienzo de planificación. Publicación y retrocesos quedan fuera.
+export function canTransitionCampaignStatus(
+  from: CampaignStatus,
+  to: CampaignStatus,
+) {
+  return (
+    from === to ||
+    (from === "draft" && to === "registration_open") ||
+    (from === "registration_open" && to === "planning")
+  );
 }

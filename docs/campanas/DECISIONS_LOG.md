@@ -222,3 +222,22 @@ antes de decidir acceso, sin cambiar guard, roles ni autorización. Fixture V1 d
 Auth/Firestore Emulator real; rate limits auth intactos con checkpoint humano previo al
 piloto. Detalles, límites y validación:
 [PHASE_5_ADMIN_DASHBOARD.md](./PHASE_5_ADMIN_DASHBOARD.md).
+
+## D-029 — Fase 6: decisiones manuales y unidad accepted transaccional
+
+**Fecha:** 2026-10-05
+**Estado:** Implementada para revisión en PR Draft
+
+BlockPoint determinístico abre exactamente dos slots por punto/bloque. Assignment
+draft/cancelled, unicidad slot/persona y maxTurns entre bloques se validan servidor
+con revisión transaccional común por campaña. Vínculos accepted se crean, mueven y
+liberan atómicamente; legacy incompleto se completa en origen o se libera. Sin
+auto-pair/ranking. Overrides individuales de disponibilidad/maxTurns confirmados y
+auditados nunca modifican preferencias. Mover entre bloques requiere cancelar y
+reasignar explícitamente. Capacidad objetivo y slots activos siguen siendo medidas
+separadas; reserva es derivada, no colección. Solo draft→registration_open→planning,
+sin retrocesos/publicación. Estado sale del formulario general para impedir rollback
+por datos antiguos. Token Firebase y claim actual, DTO mínimo, Rules deny y lectura
+bulk; polling visible 12 segundos y refresh confirmado. Rate limits intactos y
+checkpoint humano obligatorio antes del piloto. Diseño, límites y pruebas en
+[PHASE_6_PLANNER.md](./PHASE_6_PLANNER.md).

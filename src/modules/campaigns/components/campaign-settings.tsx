@@ -47,7 +47,7 @@ export function CampaignGeneralForm({
         setMessage("Guardando…");
         try {
           await repo.updateCampaign(campaign.id, parsed.data);
-          onSaved({ ...campaign, ...parsed.data });
+          onSaved({ ...campaign, ...parsed.data, status: campaign.status });
           setMessage("Información guardada.");
         } catch {
           setMessage(

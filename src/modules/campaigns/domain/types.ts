@@ -79,7 +79,10 @@ export interface Point {
 
 export interface BlockPoint {
   id: BlockPointId;
+  campaignId: CampaignId;
   timeBlockId: TimeBlockId;
   pointId: PointId;
   active: boolean;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }

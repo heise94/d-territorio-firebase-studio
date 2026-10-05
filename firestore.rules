@@ -41,5 +41,8 @@ service cloud.firestore {
     match /availabilities/{docId} { allow read, write: if false; }
     match /pairRequests/{docId} { allow read, write: if false; }
     match /campaignPairRequestLocks/{docId} { allow read, write: if false; }
+    match /blockPoints/{docId} { allow read, write: if false; }
+    match /campaignAssignments/{docId} { allow read, write: if false; }
+    match /campaignPlannerLocks/{docId} { allow read, write: if false; }
   }
 }

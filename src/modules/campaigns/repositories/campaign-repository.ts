@@ -61,6 +61,9 @@ export const campaignRepository = {
   },
   updateCampaign(id: string, input: CampaignInput) {
     const payload = clean(input);
+    // Status is changed only by the authorized transactional status endpoint.
+    // A stale general-information form must never roll planning back to open.
+    const { status: _status, ...editable } = payload;
     // Clearing an optional field must also clear its previously persisted value.
     // The sanitizer still removes only undefined; deletion is explicit here.
     for (const field of [
@@ -71,10 +74,10 @@ export const campaignRepository = {
       "maxPointsDefault",
     ] as const) {
       if (input[field] === undefined)
-        Object.assign(payload, { [field]: deleteField() });
+        Object.assign(editable, { [field]: deleteField() });
     }
     return updateDoc(doc(db, campaignCollections.campaigns, id), {
-      ...payload,
+      ...editable,
       updatedAt: serverTimestamp(),
     });
   },

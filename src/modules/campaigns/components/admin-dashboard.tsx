@@ -14,6 +14,7 @@ import {
   dashboardButton,
 } from "./admin-dashboard-participants";
 import { DashboardDetail } from "./admin-dashboard-detail";
+import { CampaignStatusControls } from "./campaign-status-controls";
 
 class DashboardError extends Error {
   constructor(
@@ -205,6 +206,21 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
           Actualizar
         </button>
       </header>
+      {overview && (
+        <CampaignStatusControls
+          campaignId={campaignId}
+          status={overview.campaign.status}
+          onChanged={() => void refresh()}
+        />
+      )}
+      {overview?.campaign.status === "planning" && (
+        <Link
+          className={dashboardButton}
+          href={`/campanas/admin/planificar/${campaignId}`}
+        >
+          Planificar campaña
+        </Link>
+      )}
       <p className="text-sm text-slate-600" role="status">
         {loading
           ? "Actualizando panel…"

@@ -10,7 +10,7 @@ import {
   pointSchema,
   timeBlockSchema,
 } from "../schemas/campaign-schemas";
-import { canTransitionCampaignStatus } from "../domain/campaign-status";
+import { CampaignStatusControls } from "./campaign-status-controls";
 import type { Campaign, CampaignDay, Point, TimeBlock } from "../domain/types";
 const input = "h-10 rounded border border-slate-300 px-3";
 const button = "rounded bg-teal-700 px-3 py-2 text-sm font-semibold text-white";
@@ -99,7 +99,10 @@ function Editor({
     <main className="mx-auto max-w-5xl space-y-8 p-6">
       <button onClick={back}>← Campañas</button>
       <h1 className="text-3xl font-bold">{campaign.name}</h1>
-      <Link className="inline-block rounded bg-teal-700 px-4 py-2 font-semibold text-white" href={`/campanas/admin/participantes/${campaign.id}`}>
+      <Link
+        className="inline-block rounded bg-teal-700 px-4 py-2 font-semibold text-white"
+        href={`/campanas/admin/participantes/${campaign.id}`}
+      >
         Participantes y cobertura
       </Link>
       {err && <p className="text-red-700">{err}</p>}
@@ -109,39 +112,11 @@ function Editor({
       <Section title="Congregaciones participantes">
         <CongregationSettings campaignId={campaign.id} />
       </Section>
-      <section>
-        <h2 className="text-xl font-bold">Estado</h2>
-        <p className="mb-2">Actual: {campaign.status}</p>
-        {campaign.status === "draft" &&
-          canTransitionCampaignStatus("draft", "registration_open") && (
-            <button
-              className={button}
-              onClick={() =>
-                save(() =>
-                  repo
-                    .updateCampaign(campaign.id, {
-                      name: campaign.name,
-                      description: campaign.description,
-                      locationName: campaign.locationName,
-                      locationDetails: campaign.locationDetails,
-                      defaultCapacityPerBlock: campaign.defaultCapacityPerBlock,
-                      maxPointsDefault: campaign.maxPointsDefault,
-                      status: "registration_open",
-                    })
-                    .then(() =>
-                      setCampaign({ ...campaign, status: "registration_open" }),
-                    ),
-                )
-              }
-            >
-              Abrir inscripciones
-            </button>
-          )}
-        <p className="mt-2 text-sm text-slate-600">
-          Los estados de publicación, ejecución y cierre no se pueden elegir
-          manualmente en esta fase.
-        </p>
-      </section>
+      <CampaignStatusControls
+        campaignId={campaign.id}
+        status={campaign.status}
+        onChanged={(status) => setCampaign({ ...campaign, status })}
+      />
       <Section title="Días">
         <EntityForm
           initial={
