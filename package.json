@@ -2,7 +2,9 @@
   "name": "nextn",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
@@ -15,7 +17,8 @@
     "test:campaign-registration": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-registration/*.test.ts",
     "test:campaign-pair-requests": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-pair-requests/*.test.ts",
     "test:campaign-admin-dashboard": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-admin-dashboard/*.test.ts",
-    "test:campaign-planner": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-planner/*.test.ts"
+    "test:campaign-planner": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-planner/*.test.ts",
+    "test:campaign-program": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-program/*.test.ts"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.7",
@@ -57,6 +60,7 @@
     "next": "15.2.3",
     "papaparse": "^5.4.1",
     "patch-package": "^8.0.0",
+    "pdfkit": "0.20.2",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",

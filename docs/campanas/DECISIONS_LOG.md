@@ -241,3 +241,22 @@ por datos antiguos. Token Firebase y claim actual, DTO mínimo, Rules deny y lec
 bulk; polling visible 12 segundos y refresh confirmado. Rate limits intactos y
 checkpoint humano obligatorio antes del piloto. Diseño, límites y pruebas en
 [PHASE_6_PLANNER.md](./PHASE_6_PLANNER.md).
+
+## D-030 — Fase 7: publicación única, snapshot inmutable y programa privado
+
+**Fecha:** 2026-10-05
+**Estado:** Implementada para revisión en PR Draft; inspección nativa de impresión pendiente
+
+El programa no se edita manualmente: borrador desde datos estructurados y publicado exclusivamente
+desde campaignProgramVersions. La única publicación v1 compara una revisión determinística que
+incluye lock, configuración y perfiles, valida blockers/warnings y crea snapshot, Assignment
+published, estado/timestamps y auditoría en una transacción. El contexto publication habilita
+planning→published sin permitir el bypass del endpoint de estados anterior. Accepted sigue siendo
+una restricción obligatoria; overrides de turnos extra conservan la semántica de Fase 6.
+La vista personal deriva su identidad de cookie y filtra el snapshot en servidor, mostrando solo
+turnos propios y nombre del compañero, nunca el programa general. PDFKit Node con Noto Sans
+embebida, A4 horizontal y grupos de cuatro puntos mantiene legibilidad con ocho puntos y evita
+servicios externos/navegador en producción. Rules deny, no-store/NetworkOnly y seguridad existentes
+se conservan. Sin republicación, cambios post-publicación ni Fase 8.
+Modelo, validaciones, APIs, impresión/PDF y evidencia:
+[PHASE_7_PROGRAM_PUBLICATION.md](./PHASE_7_PROGRAM_PUBLICATION.md).

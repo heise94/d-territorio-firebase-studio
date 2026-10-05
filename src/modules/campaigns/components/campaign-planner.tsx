@@ -268,6 +268,12 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
         ← Participantes y cobertura
       </Link>
       <header className="space-y-3">
+        <Link
+          href={`/campanas/admin/programa/${campaignId}`}
+          className="inline-block rounded-xl border border-teal-800 px-4 py-3 text-teal-800"
+        >
+          Ver programa
+        </Link>
         <h1 className="text-3xl font-bold">Planificador manual</h1>
         {view && (
           <>

@@ -9,7 +9,7 @@ export interface Assignment {
   pointId: string;
   registrationId: string;
   slotNumber: 1 | 2;
-  status: "draft" | "cancelled";
+  status: "draft" | "published" | "cancelled";
   createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;

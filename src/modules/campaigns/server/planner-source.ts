@@ -49,7 +49,10 @@ export async function readPlannerSource(
 }
 export type PlannerSource = Awaited<ReturnType<typeof readPlannerSource>>;
 export const activeAssignments = (source: PlannerSource) =>
-  source.assignments.filter((assignment) => assignment.status === "draft");
+  source.assignments.filter(
+    (assignment) =>
+      assignment.status === "draft" || assignment.status === "published",
+  );
 export function acceptedUnit(source: PlannerSource, registrationId: string) {
   const pairs = source.pairs.filter(
     (pair) =>

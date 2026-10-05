@@ -1,4 +1,4 @@
-import type { Timestamp } from 'firebase/firestore';
+import type { Timestamp } from "firebase/firestore";
 
 export type CampaignId = string;
 export type CampaignDayId = string;
@@ -9,12 +9,12 @@ export type PointId = string;
 export type BlockPointId = string;
 
 export type CampaignStatus =
-  | 'draft'
-  | 'registration_open'
-  | 'planning'
-  | 'published'
-  | 'active'
-  | 'completed';
+  | "draft"
+  | "registration_open"
+  | "planning"
+  | "published"
+  | "active"
+  | "completed";
 
 export interface Campaign {
   id: CampaignId;
@@ -28,6 +28,9 @@ export interface Campaign {
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
   createdBy?: string;
+  currentProgramVersionId?: string;
+  programVersion?: number;
+  publishedAt?: Timestamp;
 }
 
 export interface CampaignDay {
