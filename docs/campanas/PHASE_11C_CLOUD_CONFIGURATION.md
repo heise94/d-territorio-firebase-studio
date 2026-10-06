@@ -151,9 +151,9 @@ Scheduler OAuth y service account dedicado SIN JSON. Rol custom solo
 sin carpeta produce timestamp único por export, [según Firestore](https://docs.cloud.google.com/firestore/native/docs/manage-data/export-import).
 Primer ensayo staging dio 403 durante propagación IAM y retry obtuvo 200, status
 final 0; no se amplió el rol para ocultar el fallo. Job productivo ENABLED,
-solicitudes `:run` aceptadas 200, pero todavía sin lastAttemptTime (status -1):
-automatización productiva configurada, **primera ejecución aún NO validada**.
-Export manual productivo sí completado, backup gestionado diario creado.
+primera ejecución verificada status 0, `2026-10-06T00:15:50.951596Z`, tras demora
+inicial de aprovisionamiento. Export automático y manual productivos completados,
+backup gestionado diario creado. No se ejecutaron recordatorios productivos.
 [Google documenta demora inicial del primer job](https://docs.cloud.google.com/scheduler/docs/schedule-run-cron-job).
 
 Cuatro métricas y cuatro políticas por entorno: 5xx sostenidos, auth429 anormal,
@@ -188,7 +188,9 @@ del emulador; corrida completa posterior F6 50/51 en carrera accepted, repetici�
 final F6 51/51 sin cambiar aserciones. No se declara una corrida única limpia.
 Smoke de concurrencia contra Firestore REAL pasó. No nuevos errores Campañas.
 
-DNS previo: NS Cloudflare kirk/tessa, sin A/CNAME de campanas. Cloudflare login
+DNS previo: NS Cloudflare kirk/tessa, sin A/CNAME de campanas; inventario real y
+plan de Firebase respaldados en `gs://d-territorio-campanas-prod-backups/dns/f11c-before-changes.json`.
+Cloudflare login
 pendiente; no se editó registro alguno. Firebase entregó A/TXT exactos y CNAME ACME
 para certificado: conservar inventario al poder acceder y tocar SOLO lo requerido
 para campanas, nunca MX/SPF/DKIM/DMARC/root/otros destinos. No hay HTTPS custom listo.
