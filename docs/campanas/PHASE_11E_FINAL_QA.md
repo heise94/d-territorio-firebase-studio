@@ -4,7 +4,7 @@ Fecha: 2026-10-06. Rama exclusiva `feature/campanas-v1`.
 Inicio local/remoto verificado: `62adaf1c271e6d1b76fa6b5198e6c3d4f37abaab`.
 Reanudación: HEAD local/remoto `792f86991b696452dc7ce6109868923418c2bd37`,
 fetch/pull ff-only y árbol limpio antes del QA interactivo.
-Estado: **INCOMPLETA**. No piloto ni lanzamiento general autorizados.
+Estado: **F11 TÉCNICAMENTE COMPLETA**. No piloto ni lanzamiento general autorizados.
 No merge, main, F12, inscripciones reales ni campaña real.
 
 ## PASS TÉCNICO
@@ -74,7 +74,7 @@ No merge, main, F12, inscripciones reales ni campaña real.
   y mostró «Los cambios no se enviaron». Navegaciones Mi programa/Inicio
   mostraron fallback Sin conexión sin datos privados ni éxito ficticio.
   Checkbox restaurado a 0; Reintentar recuperó la misma sesión y avisos.
-  Comprobación directa adicional de cada API privada/mutación offline pendiente.
+  La continuación descrita abajo completa API privada y escritura offline.
 - Cache Storage: precache con 150 entradas exclusivamente públicas/estáticas,
   sin API privada, HTML privado ni `_rsc`; otras cachés: Google Fonts.
 - DevTools: un registro `/sw.js`, scope `/`, worker productivo #6988 activo,
@@ -90,6 +90,59 @@ No merge, main, F12, inscripciones reales ni campaña real.
   Sin modificar campañas/snapshots del fixture staging.
 - Dispatcher: un intento cercano recibió HTTP 429 esperado; reintento
   posterior entregó una vez el evento idempotente. No fue auth429.
+- Continuación con Mac libre: API privada `participant/my-program` staging
+  respondió online `{"campaigns":[]}` con la sesión ficticia existente.
+  DevTools Offline=1 + reload mostró únicamente el fallback público
+  «Sin conexión»; no reprodujo el JSON privado. Offline=0 + reload recuperó
+  la respuesta actual sin limpiar datos. Caché HTTP inhabilitada restaurada
+  a 0; bypass/force-update permanecieron en 0.
+- **PRINT NATIVE F7 PASS**: Vista Previa de macOS y su diálogo de impresión
+  real, no un render sustituto. `long-names.pdf`: ocho puntos divididos en
+  dos grupos de cuatro, seis páginas. Fixture local adicional
+  `four-points.pdf`: campaña ficticia de cuatro puntos, tres días y seis
+  páginas, generado con `renderProgramPdf` sin Firebase. En ambos se
+  seleccionó A4 horizontal, color desactivado, ajustar dimensiones/imprimir
+  toda la imagen (97%). Inspección visual del inicio y final del listado
+  cubrió páginas 1–6: encabezados/pies repetidos, nombres largos envueltos,
+  tablas completas y sin filas cortadas visibles. Ambos diálogos se
+  cancelaron; no se envió trabajo a la impresora ni se cambió su preset.
+  La skill PDF guio la preparación del fixture, no sustituyó el QA nativo.
+  Issue #8 candidata a revisión/cierre humano, todavía OPEN.
+- **UPDATE FLOW PASS**, staging: variante reproducible de QA en
+  `build-2026-10-06-005`, health 200/SHA base `607a88fa...`, timestamp
+  `2026-10-06T19:45:45.320Z`. Overlay temporal de fuente:
+  `public/campanas-qa-update-f11e.txt`, contenido público ficticio de 81 bytes,
+  sin funcionalidad/datos operativos. Incluido en precache para distinguir
+  manifiestos; eliminado del checkout tras upload, no se publica en Git ni
+  producción. El runtime staging conserva ese fixture público de QA.
+  Desde worker #6987 activo apareció «Hay una actualización disponible».
+  Cancelar confirmación conservó sesión/worker anterior y el banner.
+  Aceptar activó worker #6996 recibido 16:51:50 local y produjo recarga
+  controlada. Avisos volvió con la misma sesión y tres avisos; sin banner
+  repetido ni loop observado. No force-update ni skipWaiting automático.
+  El CLI volvió a conceder SDK Admin amplio; retirado al terminar y roles
+  runtime releídos. Producción sigue en build 003, sin deploy de QA.
+- **OS DISPLAY / CLICK PASS**, producción, nuevo único perfil F11E después
+  de confirmar colecciones vacías. Tres eventos nuevos delivered=1/failed=0.
+  Los primeros dos con pestaña abierta no aportaron display; el tercero con
+  todas las pestañas productivas cerradas mostró aviso nativo real:
+  «D-Territorio Campañas», origen `campanas.d-territorio.cl`,
+  «Tienes un aviso nuevo. Revisa la aplicación.» Sin PII.
+  Click abrió la PWA instalada en `/campanas/avisos`, autenticada y con los
+  tres avisos propios. El worker revalida ownership antes de mostrar y de
+  navegar; no URL externa. macOS tenía ambas entradas Chrome desactivadas:
+  usuario autorizó habilitarlas temporalmente, sin cambiar otras opciones;
+  al terminar se verificaron ambas nuevamente «Desactivadas».
+- **ESCRITURA OFFLINE PASS**, producción: Avisos tenía tres sin leer.
+  DevTools Offline=1 ocultó controles privados; intentar «Marcar todos como
+  leídos» no pudo ejecutarse porque el control ya no existía. Ningún éxito
+  ficticio ni envío diferido. Readback Firestore: tres seguían sin leer.
+  Offline=0 recuperó controles/sesión sin limpiar datos. Solo un nuevo clic
+  explícito online los marcó: UI y readback pasaron a cero sin leer.
+  Se comprobó bloqueo antes del envío, no un POST enviado exitosamente offline.
+  API productiva `participant/my-program`: JSON actual online, fallback público
+  Sin conexión tras Offline+reload, JSON actual de nuevo al volver online.
+  Logout final llevó a Ingresar y se descartó el PIN temporal.
 
 ### Regresión final
 
@@ -139,6 +192,25 @@ managed backup productivo presente, staging reminders ENABLED y producción
 PAUSED. Logs desde 16:40 UTC: staging sin señales; producción únicamente el
 429 esperado del dispatcher, sin 5xx ni errores scheduler/push persistentes.
 
+Continuación final: otro único perfil desechable, nunca simultáneo al anterior.
+Cleanup dry-run ownership/nombre/teléfono exactos y luego commit atómico con
+`updateTime`: **20 documentos propios** (audit 2, límites 4, lock 1, outbox 3,
+notifications 3, índice teléfono 1, deliveries 3, sesión 1, participante 1,
+subscription 1). Readback `listCollectionIds` vacío: todos los diez conteos
+  anteriores otra vez cero, sin datos reales tocados ni colecciones técnicas
+remanentes. No se alteraron fixtures F11D de staging.
+
+Revalidación final tras build 005: ambas revisiones health 200/ready y
+`tracecontext,baggage`; ninguna conserva Owner/Editor/SDK Admin/Auth Admin
+amplios en runtime. Exports diarios ENABLED en ambos; staging reminders
+ENABLED, producción PAUSED. Backup privado/PAP/lifecycle/managed backup del
+baseline permanecen sin modificación ni restore. Primera consulta de logs
+posterior recibió 429 de cuota de Cloud Logging; reintento acotado pasó.
+Logs desde 19:45 UTC: sin señales ERROR/HTTP>=429 en backend; cuatro GET 200
+a `notifications/push-event` productivo acreditan revalidación server-side de
+los avisos, incluida interacción OS. No auth429, 5xx ni error persistente de
+scheduler/push observado. No se afirma entrega de correo de monitoring.
+
 ## PENDING EXTERNAL
 
 ### Android físico — PENDING EXTERNAL
@@ -166,9 +238,9 @@ ayuda requerida y problemas observados; no simular personas con IA.
 
 ## FAIL
 
-**Cierre técnico F11E no alcanzado**: QA browser no concluido. No existe bug
-funcional nuevo demostrado. Los fallos iniciales de regresión y su repetición
-final PASS se describen arriba; no se ocultan ni se relajan las comprobaciones.
+**Ningún FAIL funcional nuevo demostrado al cierre.** Los fallos iniciales de
+regresión y su repetición final PASS se describen arriba; no se ocultan ni se
+relajan las comprobaciones.
 
 Primer intento: bloqueo por uso simultáneo de Chrome. Reanudación: ventanas
 propias identificadas; no se cerraron las otras pestañas. Acceso nativo Mac
@@ -176,25 +248,24 @@ intermitente: bloqueos informados repetidamente y, durante impresión, cambio
 externo de Vista Previa. No se eludieron bloqueos ni se alteraron extensiones
 o permisos globales. No es un fallo de entrega FCM.
 
-Pendientes técnicos de Codex (no reclasificar como QA físico externo): display
-OS y click real; completar APIs privadas/mutación offline; update A→B,
-waiting, posposición, confirmación/activación y ausencia de loop.
-Staging B desplegado, pero browser conserva worker #6987 recibido 11:06 sin
+Intento inicial de update: staging B desplegado, pero browser conservaba
+worker #6987 recibido 11:06 sin
 banner/waiting observable después de reload y comprobación manual.
-**No se afirma PASS de update ni un bug de producto demostrado.** Se observó
+Ese intento no constituyó PASS ni demostró un bug de producto. Se observó
 ETag débil/Last-Modified fijo en el recurso servido: posible interferencia de
 validación HTTP pendiente de diagnóstico reproducible, sin cambiar globalmente
 la caché por una hipótesis. No hubo ningún rollout productivo.
 No se convierte evidencia F11D en evidencia nueva F11E.
 
-Impresión F7 nativa: **PENDIENTE**. Se abrió Vista Previa y su diálogo macOS
-para `long-names.pdf`, fixture ficticio de seis páginas con grupos de cuatro
-columnas que cubren ocho puntos y nombres largos. El diálogo mostró seis
-páginas y controles de orientación/color; comprobación horizontal/monocroma
-interrumpida por cambio externo de la app. No se inspeccionaron todas las
-páginas/filas ni una campaña de cuatro puntos. No es PRINT NATIVE F7 PASS.
-La skill PDF ayudó a identificar el fixture; ningún render sustituyó al preview
-nativo. Issue #8 permanece abierta.
+Continuación posterior: impresión nativa completada (PASS arriba). El centro
+nativo de notificaciones inicialmente no respondía; usuario lo abrió y se
+diagnosticó permiso OS desactivado. Display/click luego PASS (arriba).
+Durante diagnóstico staging el registro apareció «Se borró»,
+manteniendo worker #6987 activo; se cerraron exclusivamente las pestañas
+propias y se reabrió staging. El registro reapareció con el mismo worker
+antiguo, todavía sin banner. Esa recuperación no constituye PASS A→B;
+el caso con fixture de manifest distinto sí lo completó después (arriba).
+El Mac volvió a bloquearse y se solicitó desbloqueo; no se eludió ese bloqueo.
 
 ## Publicación y decisión
 
@@ -202,7 +273,8 @@ Solo documentación F11E en Git; sin bugfix. Rollout no funcional e IAM de
 staging descritos arriba. DECISIONS_LOG
 no recibe entradas: no hubo una decisión nueva de producto/arquitectura que
 justifique repetir F11D. Infraestructura cloud: GO en comprobaciones descritas.
-F11 técnica: INCOMPLETA por QA browser. Piloto humano/lanzamiento general: NO-GO.
+F11 técnica: **COMPLETA**. Piloto humano/lanzamiento general: **NO-GO** hasta
+QA Android/iOS físico y tres perfiles humanos conforme al prompt vigente.
 
 F10-M01 reordenación manual permanece MEDIUM/F12, fuera de este QA.
 Rate limits vigentes 160 registros / 240 logins por 15 minutos, sin modificación.
