@@ -9,6 +9,10 @@ import { operationalLog } from "../../src/modules/campaigns/server/operational-l
 import { GET } from "../../src/app/api/campanas/health/route";
 import { campaignsRootDestination } from "../../src/modules/campaigns/lib/host-routing";
 const read = (file: string) => readFileSync(file, "utf8");
+test("Patched proxy-addr removes the newly disclosed critical development dependency", () => {
+  const lock = JSON.parse(read("package-lock.json"));
+  assert.equal(lock.packages["node_modules/proxy-addr"].version, "2.0.8");
+});
 test("Canonical root routing supports only exact public/backend hosts and preserves other routes", () => {
   const env = { CAMPAIGNS_HOST_ROUTING: "true", CAMPAIGNS_APP_ORIGIN: "https://campanas.example.test", CAMPAIGNS_ROUTING_BACKEND_HOSTS: "backend.example.run.app" };
   const request = { pathname: "/", search: "", host: "backend.example.run.app", forwardedHost: "campanas.example.test" };
