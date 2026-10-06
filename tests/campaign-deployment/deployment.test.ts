@@ -7,7 +7,25 @@ import { requireLocalCampaignDemo } from "../../src/modules/campaigns/lib/demo-e
 import { provisioningArguments } from "../../scripts/campaign-organizer-provision";
 import { operationalLog } from "../../src/modules/campaigns/server/operational-log";
 import { GET } from "../../src/app/api/campanas/health/route";
+import { campaignsRootDestination } from "../../src/modules/campaigns/lib/host-routing";
 const read = (file: string) => readFileSync(file, "utf8");
+test("Canonical root routing supports only exact public/backend hosts and preserves other routes", () => {
+  const env = { CAMPAIGNS_HOST_ROUTING: "true", CAMPAIGNS_APP_ORIGIN: "https://campanas.example.test", CAMPAIGNS_ROUTING_BACKEND_HOSTS: "backend.example.run.app" };
+  const request = { pathname: "/", search: "", host: "backend.example.run.app", forwardedHost: "campanas.example.test" };
+  assert.equal(campaignsRootDestination(request, env), "https://campanas.example.test/campanas");
+  assert.equal(campaignsRootDestination({ ...request, host: "campanas.example.test", forwardedHost: "evil.test" }, env), "https://campanas.example.test/campanas");
+  for (const pathname of ["/campanas", "/campanas/admin", "/api/campanas/health", "/api/internal/campanas/turn-reminders", "/dashboard", "/territorios"]) assert.equal(campaignsRootDestination({ ...request, pathname }, env), null);
+  for (const search of ["?adminLogin=1", "?adminLogin=", "?adminLogin"]) assert.equal(campaignsRootDestination({ ...request, search }, env), null);
+  for (const host of ["d-territorio.cl", "evil.test", "backend.example.run.app.evil.test", "backend.example.run.app:443", null]) assert.equal(campaignsRootDestination({ ...request, host }, env), null);
+  for (const forwardedHost of ["evil.test", "campanas.example.test.evil.test", "campanas.example.test, evil.test", " campanas.example.test", "campanas.example.test:443", null]) assert.equal(campaignsRootDestination({ ...request, forwardedHost }, env), null);
+  assert.equal(campaignsRootDestination(request, { ...env, CAMPAIGNS_HOST_ROUTING: "false" }), null);
+  assert.equal(campaignsRootDestination(request, { ...env, CAMPAIGNS_APP_ORIGIN: "http://campanas.example.test" }), null);
+  assert.equal(campaignsRootDestination(request, { ...env, CAMPAIGNS_APP_ORIGIN: "https://campanas.example.test/path" }), null);
+  const staging = { ...env, CAMPAIGNS_APP_ORIGIN: "https://stage.example.test" };
+  assert.equal(campaignsRootDestination({ ...request, forwardedHost: "stage.example.test" }, staging), "https://stage.example.test/campanas");
+  assert.equal(campaignsRootDestination(request, staging), null);
+  assert.match(read("src/middleware.ts"), /matcher: \["\/"\]/);
+});
 // Synthetic validation values; no real project, credentials or deployment.
 const valid: Record<string, string | undefined> = {
   CAMPAIGNS_ENV: "staging",
