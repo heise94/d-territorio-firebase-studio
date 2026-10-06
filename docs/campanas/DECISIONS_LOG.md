@@ -351,3 +351,23 @@ y provisioning conserva confirmaciones y claims. Jaeger se mitiga con propagador
 W3C/baggage y evidencia de revisión REAL, no por configuración local inferida.
 DNS/VAPID y QA físicos/humano siguen pendientes. Detalle vigente:
 [PHASE_11C_CLOUD_CONFIGURATION.md](./PHASE_11C_CLOUD_CONFIGURATION.md).
+
+## D-036 — F11D: dominio canónico y VAPID sin inferir QA externo
+
+VAPID distintas y legítimas por proyecto, refs Secret Manager BUILD/RUNTIME sin
+valores en Git. Cloudflare añade solo A/TXT Campañas y CNAME ACME requerido;
+inventario privado antes/después, raíz intacta. Origen productivo cambia únicamente
+después de HOST/OWNERSHIP/CERT ACTIVE y HTTPS válido. Diagnóstico autenticado real
+demostró Host interno frente a X-Forwarded-Host canónico; middleware root-only
+usa allowlists exactas y destino configurado, no headers como autoridad CSRF.
+Acceso adminLogin, guards, Rules y host-only cookies se conservan.
+
+Push foreground staging acreditado con delivery y actualización UI sin recarga;
+aceptación background no se confunde con display OS. Mac bloqueado impide concluir
+QA browser de producción/offline/update; no se declara F11D completa ni piloto GO
+por inferencia. Parche puntual proxy-addr 2.0.8 elimina un nuevo CRITICAL; cero
+CRITICAL en audit final, sin force ni majors. F2–F11: 334 tests PASS, sin relajar
+suites. Producción conserva Scheduler PAUSED; permisos runtime amplios añadidos
+por CLI se retiran después de cada deploy. F7 impresión y QA humanos permanecen
+pendientes; sin F12, campañas reales, invitaciones ni merge. Evidencia vigente:
+[PHASE_11D_DOMAIN_PUSH.md](./PHASE_11D_DOMAIN_PUSH.md).

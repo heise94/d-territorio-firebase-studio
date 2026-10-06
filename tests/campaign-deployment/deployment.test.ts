@@ -9,7 +9,7 @@ import { operationalLog } from "../../src/modules/campaigns/server/operational-l
 import { GET } from "../../src/app/api/campanas/health/route";
 import { campaignsRootDestination } from "../../src/modules/campaigns/lib/host-routing";
 const read = (file: string) => readFileSync(file, "utf8");
-test("Patched proxy-addr removes the newly disclosed critical development dependency", () => {
+test("Patched proxy-addr removes the newly disclosed critical transitive dependency", () => {
   const lock = JSON.parse(read("package-lock.json"));
   assert.equal(lock.packages["node_modules/proxy-addr"].version, "2.0.8");
 });
