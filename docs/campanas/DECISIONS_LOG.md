@@ -338,3 +338,16 @@ No cambiar facturación, DNS, hacer merge ni desplegar por inferencia. Staging H
 FCM, backup/restore, Android/iOS/tres perfiles e impresión nativa F7 pendientes;
 Issues #8/#11/#12 abiertas. **F11 INCOMPLETA, NO-GO DEPLOY PRODUCTIVO / LANZAMIENTO**.
 No inscripciones reales, push real ni F12. Ver [PHASE_11_DEPLOYMENT_LAUNCH.md](./PHASE_11_DEPLOYMENT_LAUNCH.md).
+
+## D-035 — F11C: cloud aislada y evidencia real, sin apertura de campaña
+
+Autorización explícita para crear staging/prod nuevos y asociar billing activo.
+Staging real PASS mediante APIs/Rules con perfiles ficticios, concurrency 200/409,
+v1/v2/PDF/avisos. Producción se configura únicamente tras ese PASS y permanece
+vacía. Runtime ADC sin claves JSON; secretos CSPRNG distintos; copias privadas de
+Rules y export/restore en recovery, no encima de producción. App Hosting controlado
+desde feature/campanas-v1, sin auto-rollout ni merge. Next config ESM conserva PWA
+y provisioning conserva confirmaciones y claims. Jaeger se mitiga con propagadores
+W3C/baggage y evidencia de revisión REAL, no por configuración local inferida.
+DNS/VAPID y QA físicos/humano siguen pendientes. Detalle vigente:
+[PHASE_11C_CLOUD_CONFIGURATION.md](./PHASE_11C_CLOUD_CONFIGURATION.md).

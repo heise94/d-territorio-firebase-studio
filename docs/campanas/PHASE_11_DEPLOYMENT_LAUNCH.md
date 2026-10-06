@@ -1,5 +1,14 @@
 # Fase 11 — Preparación de infraestructura y lanzamiento
 
+## Actualización vigente — F11C
+
+Las secciones F11/F11B siguientes son evidencia histórica. La configuración cloud
+autorizada y comprobada posteriormente está en
+[PHASE_11C_CLOUD_CONFIGURATION.md](./PHASE_11C_CLOUD_CONFIGURATION.md): proyectos
+Campañas dedicados, staging HTTPS real PASS y producción aislada HTTPS PASS.
+DNS/VAPID y QA físicos siguen pendientes; no hay lanzamiento general aprobado.
+No se tocó el Firebase principal, no se abrió campaña real ni se avanzó a F12.
+
 ## Estado y evidencia
 
 Base verificada: `f725e41f55972cd45238c32ccbf3e109dc196df0`, rama `feature/campanas-v1`.
