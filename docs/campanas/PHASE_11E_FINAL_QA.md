@@ -2,6 +2,8 @@
 
 Fecha: 2026-10-06. Rama exclusiva `feature/campanas-v1`.
 Inicio local/remoto verificado: `62adaf1c271e6d1b76fa6b5198e6c3d4f37abaab`.
+Reanudación: HEAD local/remoto `792f86991b696452dc7ce6109868923418c2bd37`,
+fetch/pull ff-only y árbol limpio antes del QA interactivo.
 Estado: **INCOMPLETA**. No piloto ni lanzamiento general autorizados.
 No merge, main, F12, inscripciones reales ni campaña real.
 
@@ -24,10 +26,14 @@ No merge, main, F12, inscripciones reales ni campaña real.
 - `?adminLogin=1` conserva HTTP 200. Forwarded host `evil.test` devuelve 200
   sin redirect externo. API real conserva guard. Tres POST con Origin externo,
   hosted.app productivo y Origin ausente rechazados 403. No se debilita CSRF.
-- Ambas revisiones activas `*-build-2026-10-06-003`: OTEL real
+- Producción conserva `*-build-2026-10-06-003` / SHA `fe80aff...`.
+  Staging B: rollout no funcional autorizado `*-build-2026-10-06-004`,
+  SUCCEEDED; health reporta SHA `792f869...`. Sin rollout productivo. OTEL real
   `tracecontext,baggage`, sin Jaeger/exporter público; maxInstances 1.
   Runtime sin Owner, Editor, Firebase SDK Admin amplio ni Auth Admin;
-  Auth viewer conservado. No hubo modificación IAM ni rollout en este QA.
+  Auth viewer conservado. El CLI volvió a conceder SDK Admin amplio al runtime
+  staging; se retiró únicamente ese binding tras terminar el deploy y se
+  verificó nuevamente least privilege.
 - Scheduler staging ENABLED; recordatorios producción PAUSED.
   Exports diarios ENABLED: última ejecución 06:15 UTC, status 0, ambos proyectos.
   Buckets uniform/PAP enforced, sin miembros públicos y lifecycle configurado.
@@ -46,6 +52,44 @@ No merge, main, F12, inscripciones reales ni campaña real.
   nuevo ni HIGH runtime relevante sin mitigación identificado. No force.
 - npm ci, typecheck y build PASS. Ninguna modificación funcional.
   Assets generados del build restaurados al baseline, no publicados como cambios.
+
+### Reanudación interactiva — evidencia nueva
+
+- Un único perfil productivo ficticio F11E. Registro, Inicio, refresh,
+  cierre/reapertura de pestaña, persistencia, logout y relogin PASS.
+- Cookie observada en DevTools: HttpOnly/Secure marcadas, SameSite=Lax,
+  dominio `campanas.d-territorio.cl` sin dominio padre y path `/`.
+  Después del logout la tabla mostró cero cookies. Sin documentar valores.
+- Suscripción real SDK Firebase con worker existente y registro server-side.
+  Dos eventos propios recorrieron Notification → outbox → delivery → FCM,
+  delivered=1/failed=0 cada uno. Badge de Inicio 0→1 sin reload; Avisos
+  incorporó el segundo evento y pasó 1→2 sin reload ni Actualizar avisos.
+- Background: ventanas productivas browser/standalone minimizadas; evento
+  real delivered=1/failed=0. **No** equivale a display OS ni click comprobado.
+- Unsubscribe mostró «Notificaciones desactivadas» conservando sesión.
+  Login dentro de standalone y nueva activación PASS. Logout con suscripción
+  activa llevó ambas ventanas a Ingresar; intento posterior delivered=0,
+  processed=1 y sin deliveryRecords. No quedó contenido privado visible.
+- Offline real desde DevTools: Avisos ocultó datos y controles de escritura
+  y mostró «Los cambios no se enviaron». Navegaciones Mi programa/Inicio
+  mostraron fallback Sin conexión sin datos privados ni éxito ficticio.
+  Checkbox restaurado a 0; Reintentar recuperó la misma sesión y avisos.
+  Comprobación directa adicional de cada API privada/mutación offline pendiente.
+- Cache Storage: precache con 150 entradas exclusivamente públicas/estáticas,
+  sin API privada, HTML privado ni `_rsc`; otras cachés: Google Fonts.
+- DevTools: un registro `/sw.js`, scope `/`, worker productivo #6988 activo,
+  sin waiting observado; push reutiliza ese mismo registro.
+- PWA instalada realmente como app macOS «D-Territorio Campañas», bundle
+  `com.google.Chrome.app.gmcngniacamfhoogdlpinpnckggdcoee`. Ventana standalone
+  sin barra de direcciones, sesión conservada; Inicio, Avisos, Mi programa,
+  logout y login dentro de standalone PASS. Se conserva la app instalada,
+  pero se elimina el perfil ficticio productivo.
+- Admin UI staging: login organizador ficticio, guard, configuración,
+  dashboard/cobertura, planner publicado readonly y programa v2 actual.
+  Selector v1 muestra «VERSIÓN HISTÓRICA — v1 · Solo lectura».
+  Sin modificar campañas/snapshots del fixture staging.
+- Dispatcher: un intento cercano recibió HTTP 429 esperado; reintento
+  posterior entregó una vez el evento idempotente. No fue auth429.
 
 ### Regresión final
 
@@ -69,14 +113,17 @@ runtime estable 24.19.0 dio 48/51 y después 49/51, con fallos de carreras y
 los emuladores propios de QA produjo 51/51 en la suite completa intacta.
 No hay regresión de código demostrada ni se cambió el servicio para ocultar
 esa intermitencia. Los demás resultados finales corresponden a suites completas.
+Reanudación sin cambios de código: se conserva este baseline aprobado, sin
+repetir innecesariamente la regresión, conforme al prompt de continuación.
 
 ### Limpieza y readback final
 
-Se cerró únicamente la pestaña productiva F11E y se descartó su PIN en memoria.
-Se verificó nombre/teléfono exactos y ownership de cada documento; IDs de rate
-limit contrastados mediante HMAC esperado. Commit atómico de borrado con
-precondición `updateTime`: seis documentos propios (un participante, un índice
-de teléfono, una sesión, una auditoría y dos límites auth). Ningún dato ajeno.
+Primer intento: seis documentos propios eliminados. Reanudación: nombre/teléfono
+exactos y ownership de cada documento verificados; IDs de límites contrastados
+por HMAC esperado. Borrado atómico con precondición `updateTime`: **30 documentos
+propios** (participante 1, índice teléfono 1, sesiones 3, auditorías 6, límites 5,
+subscriptions 2, notifications 4, outbox 4, deliveries 3, lock dispatch 1).
+Ningún dato ajeno. Se descartan los secretos temporales en memoria.
 No se conservan tokens/cookies/PIN en archivos. La cuenta Firebase auxiliar
 sin claim pertenecía solo a staging y también fue eliminada.
 
@@ -84,9 +131,13 @@ Agregaciones Firestore productivas posteriores: campaigns 0, participants 0,
 campaignRegistrations 0, availabilities 0, pairRequests 0, campaignAssignments 0,
 campaignNotifications 0, pushSubscriptions 0, deviceSessions 0, congregations 0.
 `listCollectionIds` final vacío: ninguna colección técnica global con documentos
-remanentes del test. La revisión final de logs tampoco encontró 5xx, auth429,
-errores scheduler ni push persistentes durante el QA. No se enviaron eventos FCM
-productivos porque no se completó suscripción; no se afirma su entrega.
+remanentes del test. Primer intento sin eventos FCM. Reanudación: tres eventos
+FCM ficticios con entrega confirmada; cuarto evento tras logout sin entrega.
+Revalidación posterior: staging B y producción A health 200, OTEL correcto,
+IAM sin roles amplios, exports ENABLED, buckets privados/PAP/lifecycle,
+managed backup productivo presente, staging reminders ENABLED y producción
+PAUSED. Logs desde 16:40 UTC: staging sin señales; producción únicamente el
+429 esperado del dispatcher, sin 5xx ni errores scheduler/push persistentes.
 
 ## PENDING EXTERNAL
 
@@ -119,28 +170,36 @@ ayuda requerida y problemas observados; no simular personas con IA.
 funcional nuevo demostrado. Los fallos iniciales de regresión y su repetición
 final PASS se describen arriba; no se ocultan ni se relajan las comprobaciones.
 
-La ventana Chrome fue utilizada simultáneamente por el usuario durante la
-prueba. Se solicitó dejarla libre; no se toman sus otras pestañas ni se altera
-su trabajo. Esto es un bloqueo de coordinación de UI, **no un fallo de FCM**.
-El Mac inicialmente permitió acceso nativo; no se lo declara bloqueado.
+Primer intento: bloqueo por uso simultáneo de Chrome. Reanudación: ventanas
+propias identificadas; no se cerraron las otras pestañas. Acceso nativo Mac
+intermitente: bloqueos informados repetidamente y, durante impresión, cambio
+externo de Vista Previa. No se eludieron bloqueos ni se alteraron extensiones
+o permisos globales. No es un fallo de entrega FCM.
 
-Pendientes técnicos browser, que debe retomar Codex cuando la ventana esté libre
-(no se reclasifican como QA físico externo): sesión completa refresh/cierre/
-reapertura/logout/login, inspección de cookie, permiso/suscripción FCM productiva,
-foreground sin reload, background delivery, display/click OS, unsubscribe/logout
-push, offline real/recuperación/cache, worker único/scope/waiting, update A→B y
-posposición, instalación/standalone, login y navegación administrativa UI.
-No se hizo rollout staging solo para QA porque no se podía completar la
-observación interactiva A→B. No hubo ningún nuevo rollout productivo.
+Pendientes técnicos de Codex (no reclasificar como QA físico externo): display
+OS y click real; completar APIs privadas/mutación offline; update A→B,
+waiting, posposición, confirmación/activación y ausencia de loop.
+Staging B desplegado, pero browser conserva worker #6987 recibido 11:06 sin
+banner/waiting observable después de reload y comprobación manual.
+**No se afirma PASS de update ni un bug de producto demostrado.** Se observó
+ETag débil/Last-Modified fijo en el recurso servido: posible interferencia de
+validación HTTP pendiente de diagnóstico reproducible, sin cambiar globalmente
+la caché por una hipótesis. No hubo ningún rollout productivo.
 No se convierte evidencia F11D en evidencia nueva F11E.
 
-Impresión F7 nativa: **PENDIENTE**, no ejecutada en este intento. Retomar preview
-Mac horizontal, encabezados, 4/8 puntos, nombres largos, varias páginas,
-blanco/negro y ausencia de cortes. No se sustituye por tests PDF; Issue #8 abierta.
+Impresión F7 nativa: **PENDIENTE**. Se abrió Vista Previa y su diálogo macOS
+para `long-names.pdf`, fixture ficticio de seis páginas con grupos de cuatro
+columnas que cubren ocho puntos y nombres largos. El diálogo mostró seis
+páginas y controles de orientación/color; comprobación horizontal/monocroma
+interrumpida por cambio externo de la app. No se inspeccionaron todas las
+páginas/filas ni una campaña de cuatro puntos. No es PRINT NATIVE F7 PASS.
+La skill PDF ayudó a identificar el fixture; ningún render sustituyó al preview
+nativo. Issue #8 permanece abierta.
 
 ## Publicación y decisión
 
-Solo documentación F11E; no bugfix ni cambio de configuración. DECISIONS_LOG
+Solo documentación F11E en Git; sin bugfix. Rollout no funcional e IAM de
+staging descritos arriba. DECISIONS_LOG
 no recibe entradas: no hubo una decisión nueva de producto/arquitectura que
 justifique repetir F11D. Infraestructura cloud: GO en comprobaciones descritas.
 F11 técnica: INCOMPLETA por QA browser. Piloto humano/lanzamiento general: NO-GO.
