@@ -1,0 +1,10 @@
+env:
+  - variable: CAMPAIGNS_ROUTING_BACKEND_HOSTS
+    value: campanas-staging-3ebbceiefa-uc.a.run.app,campanas-staging-901434652021.us-central1.run.app
+    availability: [BUILD, RUNTIME]
+  - variable: CAMPAIGNS_ENV
+    value: staging
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    secret: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    availability: [BUILD, RUNTIME]

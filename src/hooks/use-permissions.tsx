@@ -33,6 +33,8 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
 
   const [rolePermissionsConfig, setRolePermissionsConfig] = useState<RoleConfiguration | null>(null);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
+  // Settings may arrive before the user query. Guards must await both sources.
+  const [isLoadingUserProfile, setIsLoadingUserProfile] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -42,11 +44,13 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     async function fetchInitialData() {
       // If impersonation is active, don't re-fetch based on authUser, keep impersonated profile
       if (isImpersonating) {
+        setIsLoadingUserProfile(false);
         setIsLoadingPermissions(false);
         return;
       }
 
       setIsLoadingPermissions(true);
+      setIsLoadingUserProfile(true);
 
       if (authLoading) {
         setIsLoadingPermissions(false); // Ensure loading is false if auth is still loading
@@ -54,6 +58,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       }
 
       if (!authUser || !authUser.uid) {
+        setIsLoadingUserProfile(false);
         setActualUserProfile(null);
         setRolePermissionsConfig(null);
         setIsLoadingPermissions(false);
@@ -61,6 +66,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       }
       
       if (!db || Object.keys(db).length === 0) {
+        setIsLoadingUserProfile(false);
         console.error("Firestore is not initialized. Cannot fetch permissions.");
         toast({ title: "Error de Configuración", description: "La base de datos no está disponible.", variant: "destructive" });
         setIsLoadingPermissions(false);
@@ -75,6 +81,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
             phoneNumber: '+10000000000', role: USER_ROLES.ENCARGADO_TERRITORIO, status: 'Activo' as const, firebaseAuthUid: authUser.uid, adminApprovalStatus: 'approved',
           };
           setActualUserProfile(devAdminProfile);
+          setIsLoadingUserProfile(false);
           // Fetch role permissions for admin, then set loading to false
           const rolePermissionsDocRefAdmin = doc(db, "settings", "rolePermissions");
           unsubscribeRolePermissions = onSnapshot(rolePermissionsDocRefAdmin, (docSnap) => {
@@ -97,6 +104,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
             phoneNumber: '+10000000001', role: USER_ROLES.SG, status: 'Activo' as const, firebaseAuthUid: authUser.uid, assignedGroupId: 'G1', adminApprovalStatus: 'approved',
           };
           setActualUserProfile(devSgProfile);
+          setIsLoadingUserProfile(false);
           const rolePermissionsDocRefSG = doc(db, "settings", "rolePermissions");
           unsubscribeRolePermissions = onSnapshot(rolePermissionsDocRefSG, (docSnap) => {
               if (docSnap.exists()) {
@@ -129,15 +137,18 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
             setActualUserProfile(null);
             // Consider calling signOut from useAuth here if profile is mandatory
           }
+          setIsLoadingUserProfile(false);
         }, (error) => {
           console.error("Error fetching user profile:", error);
           setActualUserProfile(null);
+          setIsLoadingUserProfile(false);
           toast({ title: "Error de Perfil", description: "No se pudo cargar tu perfil de usuario.", variant: "destructive" });
         });
 
       } catch (error) {
           console.error("Error setting up user profile listener:", error);
           setActualUserProfile(null);
+          setIsLoadingUserProfile(false);
       }
 
       try {
@@ -211,7 +222,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     <PermissionsContext.Provider value={{ 
         userProfile: effectiveUserProfile, 
         rolePermissionsConfig, 
-        isLoadingPermissions, 
+        isLoadingPermissions: isLoadingPermissions || isLoadingUserProfile,
         hasPermission,
         isImpersonating,
         startImpersonation,

@@ -19,5 +19,65 @@ service cloud.firestore {
     match /preachingGroups/{docId} { allow read, write: if request.auth != null; }
     match /settings/{docId} { allow read, write: if request.auth != null; }
     match /notifications/{docId} { allow read, write: if request.auth != null; }
+
+    // Configuración de campañas: requiere una claim administrativa explícita.
+    // La UI además exige el permiso existente MANAGE_CAMPAIGNS.
+    function isCampaignAdmin() { return request.auth != null && request.auth.token.campaign_admin == true; }
+    function editableCampaign(id) {
+      return exists(/databases/$(database)/documents/campaigns/$(id)) &&
+        get(/databases/$(database)/documents/campaigns/$(id)).data.get('status', 'draft') != 'completed';
+    }
+    match /campaigns/{docId} {
+      allow read, create: if isCampaignAdmin();
+      allow update, delete: if isCampaignAdmin() && resource.data.get('status', 'draft') != 'completed';
+    }
+    match /campaignDays/{docId} {
+      allow read: if isCampaignAdmin();
+      allow create: if isCampaignAdmin() && editableCampaign(request.resource.data.campaignId);
+      allow update: if isCampaignAdmin() && editableCampaign(resource.data.campaignId) && editableCampaign(request.resource.data.campaignId);
+      allow delete: if isCampaignAdmin() && editableCampaign(resource.data.campaignId);
+    }
+    match /timeBlocks/{docId} {
+      allow read: if isCampaignAdmin();
+      allow create: if isCampaignAdmin() && editableCampaign(request.resource.data.campaignId);
+      allow update: if isCampaignAdmin() && editableCampaign(resource.data.campaignId) && editableCampaign(request.resource.data.campaignId);
+      allow delete: if isCampaignAdmin() && editableCampaign(resource.data.campaignId);
+    }
+    match /congregations/{docId} { allow read, write: if isCampaignAdmin(); }
+    match /campaignCongregations/{docId} {
+      allow read: if isCampaignAdmin();
+      allow create: if isCampaignAdmin() && editableCampaign(request.resource.data.campaignId);
+      allow update: if isCampaignAdmin() && editableCampaign(resource.data.campaignId) && editableCampaign(request.resource.data.campaignId);
+      allow delete: if isCampaignAdmin() && editableCampaign(resource.data.campaignId);
+    }
+    match /points/{docId} {
+      allow read: if isCampaignAdmin();
+      allow create: if isCampaignAdmin() && editableCampaign(request.resource.data.campaignId);
+      allow update: if isCampaignAdmin() && editableCampaign(resource.data.campaignId) && editableCampaign(request.resource.data.campaignId);
+      allow delete: if isCampaignAdmin() && editableCampaign(resource.data.campaignId);
+    }
+
+    // Participant authentication is exclusively server-side (Firebase Admin).
+    // Even authenticated organizers cannot directly retrieve credential/session documents.
+    match /participants/{docId} { allow read, write: if false; }
+    match /deviceSessions/{docId} { allow read, write: if false; }
+    match /campaignParticipantPhones/{docId} { allow read, write: if false; }
+    match /campaignAuthLimits/{docId} { allow read, write: if false; }
+    match /auditLogs/{docId} { allow read, write: if false; }
+    match /campaignRegistrations/{docId} { allow read, write: if false; }
+    match /availabilities/{docId} { allow read, write: if false; }
+    match /pairRequests/{docId} { allow read, write: if false; }
+    match /campaignPairRequestLocks/{docId} { allow read, write: if false; }
+    match /blockPoints/{docId} { allow read, write: if false; }
+    match /campaignAssignments/{docId} { allow read, write: if false; }
+    match /campaignPlannerLocks/{docId} { allow read, write: if false; }
+    match /campaignProgramVersions/{docId} { allow read, write: if false; }
+    match /changeRequests/{docId} { allow read, write: if false; }
+    match /campaignNotifications/{docId} { allow read, write: if false; }
+    match /campaignChangeRequestLocks/{docId} { allow read, write: if false; }
+    match /pushSubscriptions/{docId} { allow read, write: if false; }
+    match /campaignNotificationOutbox/{docId} { allow read, write: if false; }
+    match /campaignPushDeliveries/{docId} { allow read, write: if false; }
+    match /campaignNotificationJobLocks/{docId} { allow read, write: if false; }
   }
 }
