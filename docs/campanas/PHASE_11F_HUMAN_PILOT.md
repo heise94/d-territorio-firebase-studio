@@ -286,6 +286,9 @@ Como C, el operador creó una ChangeRequest `cannot_attend` sin comentario desde
 su turno publicado; quedó `pending` sin modificar Assignment. Un organizador la
 pasó a `approved`. Readback: Campaign continúa en v1, ambos Assignments siguen
 `published`. **PASS funcional: aprobar no autoasigna ni altera programa.**
+El operador confirmó visualmente en C que la solicitud aparece «Aprobada» y el
+aviso superior indica que está siendo gestionada, mientras el turno permanece
+igual. **PASS físico: estado y microcopy de aprobación visibles.**
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
