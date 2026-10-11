@@ -251,6 +251,12 @@ El usuario reingresó con el perfil A sin error y confirmó que recuperó Inicio
 su disponibilidad previa. **PASS reportado por usuario: reingreso posterior y
 restauración de estado propio.**
 
+### Android — orientación en Inicio
+
+Desde Inicio, el usuario confirmó que identifica fácilmente el nombre de la
+campaña, el acceso a su disponibilidad y la información de estado/cobertura sin
+ayuda. **PASS reportado por usuario: orientación básica de Inicio para perfil A.**
+
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
 si soportados en la versión y desde instalación → offline/recovery → logout.
