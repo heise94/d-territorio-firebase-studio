@@ -293,6 +293,10 @@ El operador marcó y guardó los tres bloques de la mañana del primer día para
 Readback técnico confirmó los tres Availability y su coincidencia con bloques ya
 marcados por A. Es preparación funcional para un vínculo de prueba, no evidencia
 humana independiente C.
+En «Participar con otro hermano», el operador vio A como vínculo aceptado y los
+tres horarios compartidos; el texto dejó claro que deben ser asignados juntos,
+sin presentar un turno como confirmado. **PASS funcional A–C: vínculo accepted
+con bloques comunes visibles.**
 
 Registrar por tarea: PASS sin ayuda / PASS con ayuda / FAIL, confusión concreta,
 ayuda requerida y comentario textual breve real. Tiempo/clics/errores solo si
@@ -349,6 +353,11 @@ suficientemente que la solicitud no está ligada a un turno y que los horarios
 compartidos solo se muestran después de que ambos indiquen disponibilidad. No es
 fallo de datos ni de seguridad; revisar el microcopy y su enlace de disponibilidad
 con evidencia adicional de perfiles humanos antes de priorizarlo.
+
+F11F-U02, observación UX: el operador no encontró inicialmente «Participar con
+otro hermano» porque no está en la navegación inferior; la ruta es
+Disponibilidad → campaña → enlace bajo el título. La función operó correctamente
+una vez localizada. Evaluar descubribilidad de la entrada sin alterar F11F.
 
 No bugs funcionales corregidos ni código de aplicación modificado. Si aparece un
 bug real: reproducir/clasificar, test, fix mínimo, regresión requerida, deploy solo
