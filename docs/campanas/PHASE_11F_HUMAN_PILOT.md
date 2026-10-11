@@ -301,6 +301,9 @@ del aviso interno de resolución.
 El operador, como C, confirmó físicamente que el turno del lunes dejó de aparecer
 en Mi programa y recibió el mensaje destacado «Tu programa fue actualizado».
 **PASS físico: participante afectado consulta v2 actual y ve aviso de cambio.**
+En Avisos, C vio dos mensajes recientes: «Solicitud de cambio» y «Tu programa fue
+actualizado». **PASS físico: avisos internos de resolución y actualización
+visibles para participante afectado.**
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
