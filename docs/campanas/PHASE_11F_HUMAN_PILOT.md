@@ -266,6 +266,18 @@ reportado por usuario: estado vacío pre-publicación y ausencia de ChangeReques
 claros.** Esto no acredita Mi programa con asignaciones: para ello hace falta
 publicar un programa de piloto válido tras disponibilidad humana B/C.
 
+### Programa ficticio v1 — publicación controlada
+
+Después de que el operador guardara Availability para B y C, se verificaron tres
+inscripciones activas. Se cerraron inscripciones **solo** para la campaña staging
+`Piloto humano F11F — NO REAL` y se creó manualmente una unidad A–C en Punto
+ficticio 1, lunes 08:00–09:00. El motor respetó el vínculo accepted, disponibilidad
+y máximo de turnos, sin override ni blocker. Se revisaron y confirmaron de forma
+explícita los warnings de puntos ficticios vacíos. Publicación 200: campaña
+`published`, ProgramVersion v1 única, dos Assignments `published`; no producción
+ni campaña real afectada. Pendiente la observación física de Mi programa y Avisos
+para A/C; B queda sin turno publicado.
+
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
 si soportados en la versión y desde instalación → offline/recovery → logout.
