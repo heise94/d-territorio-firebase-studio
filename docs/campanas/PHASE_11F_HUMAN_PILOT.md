@@ -298,6 +298,9 @@ snapshot) y v2 (sin ellas), ambas con snapshot completo de dos días. **PASS
 funcional: resolución de pareja accepted sin ruptura automática y versionado
 inmutable v1 → v2.** Pendiente observación física de Mi programa actualizado y
 del aviso interno de resolución.
+El operador, como C, confirmó físicamente que el turno del lunes dejó de aparecer
+en Mi programa y recibió el mensaje destacado «Tu programa fue actualizado».
+**PASS físico: participante afectado consulta v2 actual y ve aviso de cambio.**
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
