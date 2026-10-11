@@ -5,7 +5,8 @@ Producción ya desplegada, vacía y estable; no autoriza apertura real.
 Cada casilla necesita responsable, fecha y evidencia real. Un test local no sustituye QA HTTPS/dispositivo.
 
 Evidencia técnica: F11C/F11D/F11E; readback de preparación F11F 2026-10-10.
-Detalle: `PHASE_11F_HUMAN_PILOT.md`. El piloto físico/humano sigue NOT EXECUTED.
+Detalle: `PHASE_11F_HUMAN_PILOT.md`. QA Android físico en curso: instalación y
+persistencia de sesión PASS reportados por usuario; no acredita el flujo completo.
 
 ## Antes de abrir inscripciones
 
@@ -58,8 +59,10 @@ criterio de pausar apertura antes de iniciar C. No abrir automáticamente desde 
 
 ## Pendientes externos
 
-- Android: **PENDING EXTERNAL — BLOCKS GENERAL LAUNCH**.
-- iOS físico y push físico Android/iOS: **PENDING EXTERNAL**. FCM/display/click Mac ya PASS; no extrapolar.
+- Android: **EN CURSO — BLOCKS GENERAL LAUNCH** hasta completar flujo crítico.
+  Xiaomi 21081111RG/Android 14: instalación y persistencia confirmadas por usuario.
+- iOS físico: NOT EXECUTED, fuera de esta continuación a petición del usuario.
+  Push Android aún pendiente. FCM/display/click Mac ya PASS; no extrapolar.
 - Tres perfiles humanos: **PENDING EXTERNAL**.
 - Impresión nativa F7: **PASS**; Issue #8 cerrada (verificado F11F).
 - F10-M01 reordenación manual de puntos: MEDIUM/F12, no implementado en F11.

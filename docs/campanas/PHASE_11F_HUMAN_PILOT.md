@@ -3,7 +3,7 @@
 Fecha local: 2026-10-10 (America/Santiago). Lecturas cloud: 2026-10-11 UTC.
 SHA inicial local/remoto/PR verificado: `67806c82841c8ebe09e43c6a32be507a4c1c6de0`.
 Rama exclusiva: `feature/campanas-v1`. Estado: **PREPARACIÓN TÉCNICA LISTA;
-EJECUCIÓN HUMANA/FÍSICA PENDING EXTERNAL; F11F INCOMPLETA**.
+QA ANDROID FÍSICO EN CURSO; F11F INCOMPLETA**.
 
 ## Alcance y límites
 
@@ -100,16 +100,27 @@ Concurrencia previa con dos organizadores: PASS F11C; no repetida innecesariamen
 Ambos organizadores accedieron al contexto del nuevo piloto sin error visible de API.
 La comprobación visible durante el piloto queda pendiente, no se infiere del API.
 
-## Dispositivos físicos — PENDING EXTERNAL
+## Dispositivos físicos — Android en curso
 
-Ningún Android/iPhone/iPad conectado o aportado para este piloto. Modelo/OS: no
-informados. No usar emulación, Chrome desktop o macOS como sustitutos.
+El usuario pidió continuar **solo con Android**. iOS/iPadOS queda fuera de esta
+continuación, sin atribuirle PASS ni exigir un dispositivo Apple para avanzar aquí.
+Dispositivo físico aportado: Xiaomi, modelo **21081111RG**, **Android 14**,
+versión de sistema **1.0.17.0.UKWMIXM**, según captura de especificaciones.
+No se deduce un nombre comercial del código ni se registran identificadores privados.
+No usar emulación, Chrome desktop o macOS como sustitutos.
+
+Evidencia humana con perfil A: el usuario confirmó instalación y, después de
+cerrar/reabrir la aplicación, permanencia dentro sin solicitar teléfono ni PIN.
+**PASS reportado por el usuario** para instalación y persistencia, no observación
+remota directa de Codex. La captura adjunta acredita especificaciones, no la UI de
+la app. Ausencia de barra de direcciones/standalone todavía no confirmada.
+Esta prueba de un dispositivo no acredita los tres perfiles humanos de usabilidad.
 
 | Comprobación | Android | iOS/iPadOS |
 | --- | --- | --- |
-| Instalación real | NOT EXECUTED | NOT EXECUTED |
+| Instalación real | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
 | Standalone | NOT EXECUTED | NOT EXECUTED |
-| Login/persistencia/cierre/reapertura | NOT EXECUTED | NOT EXECUTED |
+| Login/persistencia/cierre/reapertura | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
 | Availability/Avisos/Mi programa | NOT EXECUTED | NOT EXECUTED |
 | Permiso push contextual | NOT EXECUTED | NOT EXECUTED |
 | Foreground | NOT EXECUTED | NOT EXECUTED |
@@ -242,13 +253,14 @@ cuentas y no se deshabilitaron antes del piloto.
 
 ## Decisión y siguientes acciones
 
-**PILOTO CONTROLADO: NO ACREDITADO / NOT EXECUTED**. No un FAIL funcional
-demostrado; en informe PASS/FAIL debe indicarse FAIL de cierre por no ejecución,
-sin atribuirlo al producto. **LAUNCH READINESS = NO-GO**.
+**PILOTO CONTROLADO: EN CURSO / NO ACREDITADO**. Instalación y persistencia Android
+confirmadas por el usuario; resto del flujo crítico aún no completado. No un FAIL
+funcional demostrado ni un PASS del piloto completo. **LAUNCH READINESS = NO-GO**.
 No nueva decisión de arquitectura/producto: DECISIONS_LOG sin entrada repetida.
 Issues #11/#12: mantener abiertas, sin recomendación de cierre todavía.
 PR #15 OPEN/Draft, sin merge ni main.
 
-Pendientes reales (máximo cinco): Android físico; iOS/iPadOS físico; tres humanos
-A/B/C; completar eventos/observación durante esas sesiones; cleanup/análisis y
-recomendación final tras evidencia. No pedir configuraciones cloud al usuario.
+Pendientes reales de esta continuación (máximo cinco): resto de QA Android físico;
+tres humanos A/B/C; completar eventos/observación durante esas sesiones;
+cleanup/análisis y recomendación final tras evidencia. iOS no ejecutado y fuera
+de esta continuación a petición del usuario. No pedir configuraciones cloud.
