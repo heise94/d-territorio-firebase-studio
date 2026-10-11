@@ -34,6 +34,11 @@ reportados por usuario; no acredita el flujo completo.
 - [x] Smoke HTTPS completo y carreras con dos organizadores PASS (F11C; contexto nuevo F11F 200).
 - [x] Auditoría runtime HIGH/CRITICAL bloqueante resuelta y build/typecheck verdes (baseline F11E).
 - [ ] Piloto humano con tres perfiles: tecnológico, básico y adulto mayor/WhatsApp.
+- [ ] Actualización real de PWA Android: detectar, posponer, aceptar y conservar sesión.
+- [ ] Recordatorio staging real dentro de la ventana 23–24 h e idempotencia confirmada.
+- [ ] Cleanup exacto del piloto staging y readback de ausencia de sus datos.
+- [ ] Readback final de producción: cero datos de negocio, sin escrituras durante piloto.
+- [ ] Decisión humana GO/NO-GO registrada después de revisar los HIGH y la evidencia física.
 
 ## Antes de publicar programa
 
@@ -63,10 +68,15 @@ criterio de pausar apertura antes de iniciar C. No abrir automáticamente desde 
 - Android: **FAIL PUSH BACKGROUND — BLOCKS GENERAL LAUNCH**. Xiaomi
   21081111RG/Android 14: instalación, standalone, persistencia y guardar/editar
   Availability tras reapertura confirmados por usuario; la entrega nativa en
-  segundo plano no apareció en dos controles aislados, tampoco al abrir Chrome.
+  segundo plano no apareció en controles aislados, incluso con un reenvío FCM
+  de prioridad alta a la suscripción vigente. La PWA no revalidó el evento en el
+  worker al estar minimizada. No se atribuye la causa al Xiaomi ni se exige una
+  configuración manual por usuario; F11F-A01 queda HIGH/OPEN y click nativo no
+  está acreditado.
 - iOS físico: NOT EXECUTED, fuera de esta continuación a petición del usuario.
-  Push Android requiere diagnóstico y nueva prueba física tras un arreglo basado
-  en evidencia. FCM/display/click Mac ya PASS; no extrapolar.
+  Push Android requiere diagnóstico en otra familia/dispositivo y nueva prueba
+  física tras un arreglo basado en evidencia. FCM/display/click Mac ya PASS; no
+  extrapolar.
 - Tres perfiles humanos: **PENDING EXTERNAL**.
 - Impresión nativa F7: **PASS**; Issue #8 cerrada (verificado F11F).
 - F10-M01 reordenación manual de puntos: MEDIUM/F12, no implementado en F11.

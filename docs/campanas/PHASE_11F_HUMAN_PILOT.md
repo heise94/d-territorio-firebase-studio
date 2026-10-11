@@ -388,6 +388,36 @@ bug de código ni limitación de plataforma causalmente confirmados todavía. No
 cerrar como PASS ni aplicar un fix especulativo: investigar el recorrido Android
 real y permisos/worker con evidencia antes de cambiar producto.
 
+### Diagnóstico adicional F11F-A01 — 2026-10-11
+
+Se repitió el diagnóstico **sin cambiar ajustes del Xiaomi** ni el código
+desplegado. En el dispositivo físico Xiaomi 21081111RG / Android 14 se comprobó:
+
+- permiso Android `POST_NOTIFICATIONS` de Chrome concedido, paquete no suspendido
+  ni detenido y bucket activo;
+- PWA de staging abierta: un único registro de Service Worker, scope `/`,
+  `/sw.js` activo, sin worker esperando/instalando y `Notification.permission =
+  granted`;
+- una sola suscripción Android enabled, asociada al perfil A y a su sesión vigente;
+  el logout anterior dejó correctamente el token anterior sin vigencia;
+- FCM aceptó dos reenvíos técnicos controlados de avisos internos ya existentes,
+  uno de prioridad normal y uno de prioridad alta. No se creó Notification,
+  PairRequest, Assignment, ProgramVersion ni snapshot nuevo.
+
+Con la PWA minimizada, el backend no recibió la revalidación `push-event` del
+Service Worker para ninguno de ambos reenvíos. Por lo tanto, en esta reproducción
+no hay evidencia de `onBackgroundMessage`, de llamada a `showNotification()` ni
+de presentación por Android; el fallo ocurre antes de esas etapas observables.
+El usuario confirmó que no hubo notificación nativa en los dos casos.
+
+Esto **no permite atribuir causalidad al Xiaomi ni generalizar a todos los
+Android**: falta al menos otra familia/dispositivo y una corrección verificable.
+Tampoco es aceptable exigir configuración manual de fabricante a cada usuario.
+Por decisión explícita del usuario se suspenden nuevos intentos y ajustes de
+notificaciones en este teléfono. `F11F-A01` queda **HIGH / OPEN**, Android
+background y click nativo quedan **FAIL / NOT EXECUTED**, y lanzamiento general
+sigue en **NO-GO**.
+
 ### MEDIUM
 
 F10-M01: reordenación manual de puntos, backlog previo F12. No implementada ni
