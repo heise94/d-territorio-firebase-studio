@@ -307,6 +307,9 @@ visibles para participante afectado.**
 El operador comprobó Avisos como B, sin turno ni afectación por la resolución, y
 no encontró «Solicitud de cambio» ni «Tu programa fue actualizado». **PASS
 funcional: no se muestran avisos de la resolución a participante no afectado.**
+Como B, el operador abrió Mi programa y confirmó que no muestra turnos ni el
+turno histórico A–C. **PASS funcional: participante no afectado mantiene su
+vista personal sin asignaciones ajenas.**
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
