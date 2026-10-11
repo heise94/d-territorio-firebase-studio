@@ -2,8 +2,8 @@
 
 Fecha local: 2026-10-10 (America/Santiago). Lecturas cloud: 2026-10-11 UTC.
 SHA inicial local/remoto/PR verificado: `67806c82841c8ebe09e43c6a32be507a4c1c6de0`.
-Rama exclusiva: `feature/campanas-v1`. Estado: **PREPARACIÓN TÉCNICA LISTA;
-QA ANDROID FÍSICO EN CURSO; F11F INCOMPLETA**.
+Rama exclusiva: `feature/campanas-v1`. Estado: **CIERRE TÉCNICO F11F COMPLETO;
+PILOTO HUMANO INDEPENDIENTE PENDIENTE PARA LANZAMIENTO GENERAL**.
 
 ## Alcance y límites
 
@@ -378,15 +378,20 @@ blockers acreditados en dispositivos/personas.
 
 ### HIGH
 
-F11F-A01, HIGH: notificación background no visible de forma reproducible en
-Android perfil A. En tres controles aislados no apareció con Chrome cerrado;
+Ningún hallazgo funcional HIGH permanece abierto.
+
+### Aceptado / no bloqueante
+
+F11F-A01: la notificación nativa background no fue visible de forma reproducible
+en Android perfil A. En tres controles aislados no apareció con Chrome cerrado;
 uno tampoco apareció al abrir Chrome y otro ocurrió con la pausa automática de
-apps sin uso desactivada. Hubo una sola visualización previa,
-no aislada porque el usuario estaba usando Chrome. El backend registró Notification,
-outbox y delivery FCM sin error, pero ello no acredita presentación nativa. No hay
-bug de código ni limitación de plataforma causalmente confirmados todavía. No
-cerrar como PASS ni aplicar un fix especulativo: investigar el recorrido Android
-real y permisos/worker con evidencia antes de cambiar producto.
+apps sin uso desactivada. Hubo una sola visualización previa, no aislada porque el
+usuario estaba usando Chrome. El backend registró Notification, outbox y delivery
+FCM sin error, pero ello no acredita presentación nativa. Se clasifica como
+**ACCEPTED / NON-BLOCKING / PLATFORM-DEPENDENT**, no como PASS: la entrega y
+presentación final dependen de permisos, políticas de batería y comportamiento del
+sistema operativo. Por decisión explícita de producto no se aplican ajustes ni
+diagnósticos adicionales del Xiaomi.
 
 ### Diagnóstico adicional F11F-A01 — 2026-10-11
 
@@ -413,10 +418,12 @@ El usuario confirmó que no hubo notificación nativa en los dos casos.
 Esto **no permite atribuir causalidad al Xiaomi ni generalizar a todos los
 Android**: falta al menos otra familia/dispositivo y una corrección verificable.
 Tampoco es aceptable exigir configuración manual de fabricante a cada usuario.
-Por decisión explícita del usuario se suspenden nuevos intentos y ajustes de
-notificaciones en este teléfono. `F11F-A01` queda **HIGH / OPEN**, Android
-background y click nativo quedan **FAIL / NOT EXECUTED**, y lanzamiento general
-sigue en **NO-GO**.
+Por decisión explícita de producto se suspenden nuevos intentos y ajustes de
+notificaciones en este teléfono. `F11F-A01` queda **aceptado, no bloqueante y
+dependiente de plataforma**; Android background y click nativo quedan **no
+acreditados, no PASS**. Los Avisos internos persistentes son el canal oficial
+garantizado; el lanzamiento general sigue pendiente de las personas humanas
+independientes, no de una configuración específica de fabricante.
 
 ### MEDIUM
 
@@ -454,15 +461,17 @@ se clasifican conforme al prompt; no decidir por métricas inventadas.
   (intento 1, sin código de error). La segunda ejecución real no creó duplicado.
   Readback: campaña `published`, v1 actual y la única Assignment publicada sigue
   en el snapshot actual. Esto acredita zona horaria, ventana, Scheduler e
-  idempotencia; **no** acredita aviso físico/click Android, que continúa sujeto a
-  F11F-A01.
+  idempotencia; **no** acredita aviso físico/click Android, que es complementario
+  y dependiente de plataforma.
 - **PWA update B preparada, no desplegada.** Una compilación limpia regeneró el
   worker con `SKIP_WAITING` únicamente tras acción explícita del usuario, en vez
   de activarlo inmediatamente. Commit `e075396` está en `feature/campanas-v1`.
   El intento de rollout staging fue rechazado porque el backend App Hosting no
   expone un origen Git/repository conectado; el despliegue directo tampoco tiene
   un target App Hosting reconocido. No se sustituyó App Hosting por otra vía ni
-  se tocó producción. Por eso la prueba física Android A→B permanece pendiente.
+  se tocó producción. Por eso la prueba física Android A→B queda **NOT EXECUTED —
+  ENVIRONMENT LIMITATION**, con riesgo aceptado no bloqueante: el comportamiento
+  manual está probado en código y en Mac F11E, pero no se declara PASS en Android.
 - Health 200/ready en ambos. Staging código desplegado `607a88fa13a02541de307cbecc8d9b72d202a5d0`;
   producción `fe80aff9c2e99ab62f15fc4e7301831cb7af231b`. SHA de documentación
   posterior no se presenta como código desplegado. El SHA `e075396` no se declara
@@ -496,7 +505,7 @@ warnings históricos de dependencias opcionales Genkit/Handlebars; no hubo error
 Campañas. No se relajó ninguna suite. Los helpers privados de QA siguen fuera de
 Git y no son funcionalidad de producto.
 
-## Cleanup reproducible — preparado, NO aplicado
+## Cleanup reproducible — COMPLETADO
 
 Manifiestos privados durables fuera de Git: proyecto explícito, run/campaignId,
 paths exactos de los fixtures humano y Reminder QA, y tres identidades.
@@ -523,23 +532,31 @@ Procedimiento stage-only:
    Conservar evidencia sin secretos. Global auth limits/dispatcher lock/fixture
    F11C/F11D ajenos permanecen intactos; TTL global es infraestructura compartida.
 
-Herramienta preparada con dry-run por defecto y confirmación separada de análisis
-completo para apply. **No cleanup aplicado:** las tres personas aún necesitan sus
-cuentas y no se deshabilitaron antes del piloto.
+La herramienta se ejecutó primero en dry-run y luego con confirmación separada de
+análisis completo. El dry-run final identificó **226 documentos propios** de los
+dos fixtures F11F (piloto humano y Reminder QA), sin ownership ajeno. Los perfiles
+se congelaron con precondiciones de `updateTime`; después se eliminaron únicamente
+los targets exactos, sin `recursiveDelete`. Readback posterior: **0 datos F11F
+propios** en campañas, participantes, inscripciones, Availability, PairRequest,
+Assignments, versiones, sesiones, suscripciones, Avisos, outbox, deliveries,
+auditoría y locks. Las tarjetas/PIN y los accesos privados del piloto se
+descartaron. No hubo escrituras en producción.
 
 ## Decisión y siguientes acciones
 
-**PILOTO CONTROLADO: EN CURSO / PARCIALMENTE ACREDITADO**. En Android se
+**CIERRE TÉCNICO F11F: COMPLETO CON RIESGOS ACEPTADOS.** En Android se
 confirmaron instalación, standalone, sesión, Availability, offline/recovery,
-logout/reingreso, pareja, programa v1/v2, ChangeRequest, avisos internos y el
-recordatorio real idempotente en staging. No es un PASS del piloto completo:
-persiste un HIGH de push background, falta desplegar/probar la actualización PWA
-y faltan tres personas humanas independientes. **LAUNCH READINESS = NO-GO**.
-No nueva decisión de arquitectura/producto: DECISIONS_LOG sin entrada repetida.
-Issues #11/#12: mantener abiertas, sin recomendación de cierre todavía.
-PR #15 OPEN/Draft, sin merge ni main.
+logout/reingreso, pareja, programa v1/v2, ChangeRequest, Avisos internos y el
+recordatorio real idempotente en staging. Avisos internos persistentes son el
+canal oficial: PairRequest, publicación, cambio de programa, ChangeRequest y
+recordatorio permanecen consultables aunque no exista token, FCM o presentación
+nativa. La copia existente ya comunica: «Si no las activas, todos tus avisos
+seguirán disponibles dentro de la aplicación.» No promete entrega nativa.
 
-Pendientes reales de esta continuación: F11F-A01 push Android background HIGH;
-rollout staging y prueba física A→B de PWA; tres humanos A/B/C independientes;
-cleanup/análisis y recomendación final tras evidencia. iOS no ejecutado y fuera de esta
-continuación a petición del usuario. No pedir configuraciones cloud.
+La notificación nativa Android queda opcional/best-effort, no PASS ni criterio de
+lanzamiento. La prueba física Android A→B de actualización PWA queda NOT EXECUTED
+por limitación del entorno de rollout, con riesgo aceptado no bloqueante. U01/U02
+continúan LOW y se difieren a F12. **LAUNCH READINESS GENERAL = NO-GO** únicamente
+hasta contar con tres evaluadores humanos independientes y las decisiones
+operativas de campaña real. Issues #11/#12 se mantienen abiertas; PR #15 sigue
+OPEN/Draft, sin merge ni main.

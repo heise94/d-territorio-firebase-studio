@@ -1,6 +1,7 @@
 # F11 — Checklist de lanzamiento humano
 
-Estado vigente F11F: **F11 TÉCNICA APROBADA / NO-GO LANZAMIENTO GENERAL**.
+Estado vigente F11F: **CIERRE TÉCNICO APROBADO CON RIESGOS ACEPTADOS / NO-GO
+LANZAMIENTO GENERAL HASTA PILOTO HUMANO INDEPENDIENTE**.
 Producción ya desplegada, vacía y estable; no autoriza apertura real.
 Cada casilla necesita responsable, fecha y evidencia real. Un test local no sustituye QA HTTPS/dispositivo.
 
@@ -22,10 +23,10 @@ reportados por usuario; no acredita el flujo completo.
 - [x] Rules probadas en staging y copia de Rules productivas anterior guardada (F11C/F11E).
 - [x] Índices comprobados con flujos HTTPS; sin índices especulativos (F11C).
 - [x] Teléfono+PIN, cookie Secure/HttpOnly, sesión/logout y CSRF HTTPS comprobados (F11E Mac).
-- [ ] Android físico: instalación, standalone, persistencia, availability, programa, Avisos, offline, update SW, logout.
+- [x] Android físico: instalación, standalone, persistencia, Availability, programa, Avisos, offline y logout; update SW físico queda NOT EXECUTED por limitación de rollout, con riesgo aceptado no bloqueante.
 - [ ] iOS físico si disponible: Safari, instalación, standalone, sesión y navegación.
 - [x] FCM real subscribe/background/click/logout/unsubscribe en Mac (F11D/F11E); NO acredita móviles.
-- [ ] Push/fallback usable comprobado durante piloto físico Android/iOS y cambios de programa.
+- [x] Avisos internos persistentes y fallback probado para eventos de campaña; push nativo es opcional/best-effort y no criterio de lanzamiento.
 - [x] Backup privado verificado y restore de prueba en staging documentado (F11C; backups activos F11F).
 - [x] Monitoring 429/5xx y alertas configurados (4 métricas/4 políticas por entorno, F11F).
 - [ ] Responsable de soporte y ventanas operativas confirmados para apertura real.
@@ -36,8 +37,8 @@ reportados por usuario; no acredita el flujo completo.
 - [ ] Piloto humano con tres perfiles: tecnológico, básico y adulto mayor/WhatsApp.
 - [ ] Actualización real de PWA Android: detectar, posponer, aceptar y conservar sesión.
 - [x] Recordatorio staging real dentro de la ventana 23–24 h e idempotencia confirmada (F11F, sin acreditar push físico).
-- [ ] Cleanup exacto del piloto staging y readback de ausencia de sus datos.
-- [ ] Readback final de producción: cero datos de negocio, sin escrituras durante piloto.
+- [x] Cleanup exacto del piloto staging y readback de ausencia de sus datos (226 documentos propios; 0 posteriores).
+- [x] Readback final de producción: cero datos de negocio, sin escrituras durante piloto.
 - [ ] Decisión humana GO/NO-GO registrada después de revisar los HIGH y la evidencia física.
 
 ## Antes de publicar programa
@@ -51,7 +52,7 @@ reportados por usuario; no acredita el flujo completo.
 - [ ] Programa general revisado visualmente.
 - [ ] PDF de versión actual y PDF histórico reproducibles desde sus snapshots.
 - [x] Impresión nativa Mac horizontal, varias páginas, nombres largos, blanco/negro: **PASS F11E**; Issue #8 CLOSED tras revisión humana.
-- [ ] Notifications preparadas y fallback Avisos probado.
+- [x] Notifications internas preparadas y fallback Avisos probado; no se promete presentación nativa garantizada.
 - [ ] Responsable autoriza publicación explícitamente.
 
 ## Apertura gradual y seguimiento
@@ -65,21 +66,19 @@ criterio de pausar apertura antes de iniciar C. No abrir automáticamente desde 
 
 ## Pendientes externos
 
-- Android: **FAIL PUSH BACKGROUND — BLOCKS GENERAL LAUNCH**. Xiaomi
-  21081111RG/Android 14: instalación, standalone, persistencia y guardar/editar
-  Availability tras reapertura confirmados por usuario; la entrega nativa en
-  segundo plano no apareció en controles aislados, incluso con un reenvío FCM
-  de prioridad alta a la suscripción vigente. La PWA no revalidó el evento en el
-  worker al estar minimizada. No se atribuye la causa al Xiaomi ni se exige una
-  configuración manual por usuario; F11F-A01 queda HIGH/OPEN y click nativo no
-  está acreditado.
+- Android: instalación, standalone, persistencia, guardar/editar Availability,
+  programa, Avisos, offline y logout PASS reportados por usuario. La presentación
+  push nativa background/click no está acreditada y queda **ACCEPTED /
+  NON-BLOCKING / PLATFORM-DEPENDENT**, no PASS. Avisos internos persistentes son
+  el canal oficial; no se exige una configuración manual de fabricante ni se
+  sigue investigando el Xiaomi.
 - iOS físico: NOT EXECUTED, fuera de esta continuación a petición del usuario.
-  Push Android requiere diagnóstico en otra familia/dispositivo y nueva prueba
-  física tras un arreglo basado en evidencia. FCM/display/click Mac ya PASS; no
-  extrapolar.
+  Push nativo no se extrapola entre dispositivos y permanece complementario.
 - Tres perfiles humanos: **PENDING EXTERNAL**.
 - Impresión nativa F7: **PASS**; Issue #8 cerrada (verificado F11F).
 - F10-M01 reordenación manual de puntos: MEDIUM/F12, no implementado en F11.
 - Presentación de warnings: LOW/F12, no implementado en F11.
 - Issues #11/#12 permanecen abiertas hasta revisión humana correspondiente; sin cierre automático.
-- Piloto F11F staging preparado con tres identidades ficticias; eventos físicos/humanos, análisis y cleanup pendientes.
+- Tres evaluadores humanos independientes continúan PENDING EXTERNAL para un
+  lanzamiento general. La limpieza staging y el análisis técnico F11F ya están
+  completados.

@@ -371,3 +371,28 @@ suites. Producción conserva Scheduler PAUSED; permisos runtime amplios añadido
 por CLI se retiran después de cada deploy. F7 impresión y QA humanos permanecen
 pendientes; sin F12, campañas reales, invitaciones ni merge. Evidencia vigente:
 [PHASE_11D_DOMAIN_PUSH.md](./PHASE_11D_DOMAIN_PUSH.md).
+
+## D-037 — Avisos internos garantizados; push nativo best-effort
+
+**Fecha:** 2026-10-11
+**Estado:** Aceptada
+
+Por decisión explícita de producto, los Avisos internos persistentes son el canal
+oficial de comunicación de la campaña. Los eventos de PairRequest, publicación,
+cambio de programa, ChangeRequest y recordatorio se conservan en ese canal aunque
+no exista token, FCM o presentación visible del sistema operativo. La aplicación
+ya informa que, si no se activan las notificaciones, los avisos continúan
+disponibles dentro de ella; no se promete una entrega nativa garantizada.
+
+La presentación push nativa depende de permisos, batería, políticas del fabricante
+y comportamiento de plataforma. Por ello F11F-A01 se reclasifica de HIGH a
+**ACCEPTED / NON-BLOCKING / PLATFORM-DEPENDENT**: no es PASS y no requiere seguir
+ajustando ni diagnosticando un teléfono concreto. FCM permanece como complemento
+opcional; ninguna función crítica depende de que el sistema operativo muestre un
+banner.
+
+El cierre técnico F11F no sustituye el piloto de tres evaluadores humanos
+independientes ni las decisiones operativas de una campaña real, que permanecen
+como condición separada de lanzamiento general. U01/U02 continúan LOW y se
+consideran candidatos F12. No se habilita F12, producción mutable, merge ni cierre
+automático de Issues.
