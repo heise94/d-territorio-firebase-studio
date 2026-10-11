@@ -247,6 +247,9 @@ El usuario cerró sesión en el perfil A y al reabrir Campañas volvió a la pan
 de ingreso por teléfono y PIN, sin datos previos de la cuenta visibles. **PASS
 reportado por usuario: logout y ocultación de datos privados.** Falta únicamente
 el reingreso posterior como comprobación separada de recuperación de sesión.
+El usuario reingresó con el perfil A sin error y confirmó que recuperó Inicio y
+su disponibilidad previa. **PASS reportado por usuario: reingreso posterior y
+restauración de estado propio.**
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
