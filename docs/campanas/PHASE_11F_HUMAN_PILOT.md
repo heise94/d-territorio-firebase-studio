@@ -72,6 +72,8 @@ del tester correspondiente. Ayudar solo si se atasca y registrar esa ayuda.
    acciones para atribuirlas a un tester. Coordinar una respuesta aceptada y otra
    rechazada si las relaciones y su exclusividad lo permiten; no cancelar accepted
    automáticamente para acomodar un guion.
+   Excepción de preparación técnica documentada abajo: B envió un evento de
+   prueba para observar recepción en Android A; no se cuenta como tarea humana B.
 3. Después de esa etapa, cerrar inscripción explícitamente; configurar Assignment
    manualmente respetando Availability, maxTurns y unidades accepted. No elegir
    reservas automáticamente. Revisar warnings/blockers y publicar v1 con el motor
@@ -120,6 +122,25 @@ a guardar correctamente: **Availability crear/editar tras reapertura PASS
 reportado por usuario**. No se atribuyen tiempos ni clicks no observados.
 Esta prueba de un dispositivo no acredita los tres perfiles humanos de usabilidad.
 
+### Android — activación y primer evento real
+
+El usuario activó notificaciones desde Avisos y reportó cero avisos iniciales.
+Con historial vacío, actualizar conserva cero y marcar todos no tiene avisos que
+modificar; esta observación por sí sola no demuestra un bug.
+Readback técnico: **una suscripción enabled/platform=android**, perteneciente a
+perfil A con sesión propia vigente. Sin imprimir token ni cookie.
+
+Para probar recepción se eligió explícitamente el contraparte ficticio B como
+fixture técnico (no persona humana simulada ni evidencia de usabilidad B).
+Login B → endpoint real PairRequest B→A → logout técnico B. Respuesta 200/pending,
+Notification y outbox reales; no edición manual de avisos, Availability, Assignment,
+vínculo accepted ni snapshots. No se modifica la sesión Android de A.
+Readback del evento 2026-10-11 01:57:57 UTC: `pair_request_created`, título
+«Solicitud para participar juntos», unread=1, destino `/campanas/participar-juntos`;
+outbox delivered y una delivery delivered/attempts=1/error=null.
+**FCM accepted técnico**, NO PASS de visualización Android ni foreground todavía.
+Se espera confirmación humana de aparición automática frente a refresh manual.
+
 | Comprobación | Android | iOS/iPadOS |
 | --- | --- | --- |
 | Instalación real | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
@@ -127,7 +148,7 @@ Esta prueba de un dispositivo no acredita los tres perfiles humanos de usabilida
 | Login/persistencia/cierre/reapertura | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
 | Availability guardar/editar tras reapertura | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
 | Avisos/Mi programa | NOT EXECUTED | NOT EXECUTED |
-| Permiso push contextual | NOT EXECUTED | NOT EXECUTED |
+| Permiso push contextual | Activación reportada por usuario; suscripción Android vigente verificada | NOT EXECUTED |
 | Foreground | NOT EXECUTED | NOT EXECUTED |
 | Background / aviso OS visible | NOT EXECUTED | NOT EXECUTED |
 | Click / destino / ownership | NOT EXECUTED | NOT EXECUTED |
