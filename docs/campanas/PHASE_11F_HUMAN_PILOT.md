@@ -113,15 +113,20 @@ Evidencia humana con perfil A: el usuario confirmó instalación y, después de
 cerrar/reabrir la aplicación, permanencia dentro sin solicitar teléfono ni PIN.
 **PASS reportado por el usuario** para instalación y persistencia, no observación
 remota directa de Codex. La captura adjunta acredita especificaciones, no la UI de
-la app. Ausencia de barra de direcciones/standalone todavía no confirmada.
+la app. El usuario confirmó después apertura desde el icono sin barra de
+direcciones de Chrome: **standalone PASS reportado por usuario**.
+También guardó disponibilidad, cerró/reabrió la app, editó los horarios y volvió
+a guardar correctamente: **Availability crear/editar tras reapertura PASS
+reportado por usuario**. No se atribuyen tiempos ni clicks no observados.
 Esta prueba de un dispositivo no acredita los tres perfiles humanos de usabilidad.
 
 | Comprobación | Android | iOS/iPadOS |
 | --- | --- | --- |
 | Instalación real | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
-| Standalone | NOT EXECUTED | NOT EXECUTED |
+| Standalone | PASS — desde icono, sin barra Chrome, confirmado por usuario | NOT EXECUTED |
 | Login/persistencia/cierre/reapertura | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
-| Availability/Avisos/Mi programa | NOT EXECUTED | NOT EXECUTED |
+| Availability guardar/editar tras reapertura | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
+| Avisos/Mi programa | NOT EXECUTED | NOT EXECUTED |
 | Permiso push contextual | NOT EXECUTED | NOT EXECUTED |
 | Foreground | NOT EXECUTED | NOT EXECUTED |
 | Background / aviso OS visible | NOT EXECUTED | NOT EXECUTED |
@@ -253,8 +258,9 @@ cuentas y no se deshabilitaron antes del piloto.
 
 ## Decisión y siguientes acciones
 
-**PILOTO CONTROLADO: EN CURSO / NO ACREDITADO**. Instalación y persistencia Android
-confirmadas por el usuario; resto del flujo crítico aún no completado. No un FAIL
+**PILOTO CONTROLADO: EN CURSO / NO ACREDITADO**. Instalación, standalone,
+persistencia y guardar/editar Availability tras reapertura en Android confirmados
+por el usuario; resto del flujo crítico aún no completado. No un FAIL
 funcional demostrado ni un PASS del piloto completo. **LAUNCH READINESS = NO-GO**.
 No nueva decisión de arquitectura/producto: DECISIONS_LOG sin entrada repetida.
 Issues #11/#12: mantener abiertas, sin recomendación de cierre todavía.
