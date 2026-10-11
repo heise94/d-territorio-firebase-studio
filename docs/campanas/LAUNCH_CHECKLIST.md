@@ -35,7 +35,7 @@ reportados por usuario; no acredita el flujo completo.
 - [x] Auditoría runtime HIGH/CRITICAL bloqueante resuelta y build/typecheck verdes (baseline F11E).
 - [ ] Piloto humano con tres perfiles: tecnológico, básico y adulto mayor/WhatsApp.
 - [ ] Actualización real de PWA Android: detectar, posponer, aceptar y conservar sesión.
-- [ ] Recordatorio staging real dentro de la ventana 23–24 h e idempotencia confirmada.
+- [x] Recordatorio staging real dentro de la ventana 23–24 h e idempotencia confirmada (F11F, sin acreditar push físico).
 - [ ] Cleanup exacto del piloto staging y readback de ausencia de sus datos.
 - [ ] Readback final de producción: cero datos de negocio, sin escrituras durante piloto.
 - [ ] Decisión humana GO/NO-GO registrada después de revisar los HIGH y la evidencia física.

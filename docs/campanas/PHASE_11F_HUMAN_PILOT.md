@@ -446,9 +446,27 @@ se clasifican conforme al prompt; no decidir por métricas inventadas.
 
 ## Observación técnica y producción read-only
 
+- **Recordatorio real staging PASS técnico.** Se creó el fixture aislado
+  `F11F Reminder QA — NO REAL`, con un turno publicado v1 para las 09:46 del
+  12-10-2026 America/Santiago (aproximadamente 23 h 30 min desde su creación).
+  La primera ejecución real del Scheduler staging creó exactamente una
+  Notification `turn_reminder`; outbox `delivered` y una entrega FCM `delivered`
+  (intento 1, sin código de error). La segunda ejecución real no creó duplicado.
+  Readback: campaña `published`, v1 actual y la única Assignment publicada sigue
+  en el snapshot actual. Esto acredita zona horaria, ventana, Scheduler e
+  idempotencia; **no** acredita aviso físico/click Android, que continúa sujeto a
+  F11F-A01.
+- **PWA update B preparada, no desplegada.** Una compilación limpia regeneró el
+  worker con `SKIP_WAITING` únicamente tras acción explícita del usuario, en vez
+  de activarlo inmediatamente. Commit `e075396` está en `feature/campanas-v1`.
+  El intento de rollout staging fue rechazado porque el backend App Hosting no
+  expone un origen Git/repository conectado; el despliegue directo tampoco tiene
+  un target App Hosting reconocido. No se sustituyó App Hosting por otra vía ni
+  se tocó producción. Por eso la prueba física Android A→B permanece pendiente.
 - Health 200/ready en ambos. Staging código desplegado `607a88fa13a02541de307cbecc8d9b72d202a5d0`;
   producción `fe80aff9c2e99ab62f15fc4e7301831cb7af231b`. SHA de documentación
-  posterior no se presenta como código desplegado. No rollout en F11F.
+  posterior no se presenta como código desplegado. El SHA `e075396` no se declara
+  desplegado mientras App Hosting no pueda crear su rollout.
 - Readback productivo: campaigns, participants, campaignRegistrations, availabilities,
   pairRequests, campaignAssignments, campaignNotifications, pushSubscriptions y
   deviceSessions = **0 cada una**. No se modificó producción para lograr estos ceros.
@@ -470,17 +488,18 @@ se clasifican conforme al prompt; no decidir por métricas inventadas.
 
 ## Regresión
 
-Sin cambios de código de aplicación ni dependencias: baseline F11E aprobado,
-**334 PASS / 0 skips** preservado, no rerun completo atribuido a F11F.
-F2 12, F3 13, F4 20, F5 25, F6 51, F7 64, F8 64, F9 56, F10 12, F11 17.
-Typecheck/build: PASS del baseline F11E; no ejecución nueva en F11F documental.
-Helpers privados de QA son herramientas operacionales fuera del repositorio,
-no funcionalidad nueva ni cambio del producto. No se relajó ninguna suite.
+El baseline F11E de **334 PASS / 0 skips** se conserva. Para la regeneración del
+worker manual de update se ejecutó F9 `test:campaign-notifications-pwa`:
+**56/56 PASS** con emuladores Auth/Firestore, `test:campaign-deployment`:
+**17/17 PASS**, `typecheck` PASS y `build` PASS. Build conserva únicamente los
+warnings históricos de dependencias opcionales Genkit/Handlebars; no hubo error de
+Campañas. No se relajó ninguna suite. Los helpers privados de QA siguen fuera de
+Git y no son funcionalidad de producto.
 
 ## Cleanup reproducible — preparado, NO aplicado
 
-Manifest privado durable fuera de Git: proyecto explícito, run/campaignId,
-paths exactos de 45 documentos de configuración propios y tres identidades.
+Manifiestos privados durables fuera de Git: proyecto explícito, run/campaignId,
+paths exactos de los fixtures humano y Reminder QA, y tres identidades.
 Dry-run inicial: **66 documentos propios**, antes del preflight adicional.
 Dry-run posterior al preflight: **78 documentos propios**, seis sesiones técnicas
 ya revocadas, sin borrar ni deshabilitar los perfiles.
@@ -512,15 +531,15 @@ cuentas y no se deshabilitaron antes del piloto.
 
 **PILOTO CONTROLADO: EN CURSO / PARCIALMENTE ACREDITADO**. En Android se
 confirmaron instalación, standalone, sesión, Availability, offline/recovery,
-logout/reingreso, pareja, programa v1/v2, ChangeRequest y avisos internos. No
-es un PASS del piloto completo: persiste un HIGH de push background y faltan
-pruebas físicas/humanas definidas abajo. **LAUNCH READINESS = NO-GO**.
+logout/reingreso, pareja, programa v1/v2, ChangeRequest, avisos internos y el
+recordatorio real idempotente en staging. No es un PASS del piloto completo:
+persiste un HIGH de push background, falta desplegar/probar la actualización PWA
+y faltan tres personas humanas independientes. **LAUNCH READINESS = NO-GO**.
 No nueva decisión de arquitectura/producto: DECISIONS_LOG sin entrada repetida.
 Issues #11/#12: mantener abiertas, sin recomendación de cierre todavía.
 PR #15 OPEN/Draft, sin merge ni main.
 
-Pendientes reales de esta continuación (máximo cinco): diagnóstico/reprueba de
-push Android background; actualización PWA con rollout staging seguro; recordatorio
-en su ventana temporal real; tres humanos A/B/C independientes; cleanup/análisis
-y recomendación final tras evidencia. iOS no ejecutado y fuera de esta
+Pendientes reales de esta continuación: F11F-A01 push Android background HIGH;
+rollout staging y prueba física A→B de PWA; tres humanos A/B/C independientes;
+cleanup/análisis y recomendación final tras evidencia. iOS no ejecutado y fuera de esta
 continuación a petición del usuario. No pedir configuraciones cloud.
