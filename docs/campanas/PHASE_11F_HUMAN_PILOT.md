@@ -213,7 +213,7 @@ queda pendiente revisar batería/datos y ejecución real del worker.
 | Login/persistencia/cierre/reapertura | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
 | Availability guardar/editar tras reapertura | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
 | Avisos | PASS — aviso recibido automáticamente, confirmado por usuario | NOT EXECUTED |
-| Mi programa | NOT EXECUTED | NOT EXECUTED |
+| Mi programa | PASS funcional — C vio turno publicado v1; tras resolución v2 dejó de verlo y B no vio turnos ajenos | NOT EXECUTED |
 | Permiso push contextual | Activación reportada por usuario; suscripción Android vigente verificada | NOT EXECUTED |
 | Foreground / recepción in-app | PASS — confirmado por usuario sin refresh manual | NOT EXECUTED |
 | Background / aviso OS visible | FAIL reproducible: no visible con Chrome cerrado ni al abrir Chrome; hubo un único display previo con factor Chrome no aislado | NOT EXECUTED |
@@ -480,15 +480,17 @@ cuentas y no se deshabilitaron antes del piloto.
 
 ## Decisión y siguientes acciones
 
-**PILOTO CONTROLADO: EN CURSO / NO ACREDITADO**. Instalación, standalone,
-persistencia y guardar/editar Availability tras reapertura en Android confirmados
-por el usuario; resto del flujo crítico aún no completado. No un FAIL
-funcional demostrado ni un PASS del piloto completo. **LAUNCH READINESS = NO-GO**.
+**PILOTO CONTROLADO: EN CURSO / PARCIALMENTE ACREDITADO**. En Android se
+confirmaron instalación, standalone, sesión, Availability, offline/recovery,
+logout/reingreso, pareja, programa v1/v2, ChangeRequest y avisos internos. No
+es un PASS del piloto completo: persiste un HIGH de push background y faltan
+pruebas físicas/humanas definidas abajo. **LAUNCH READINESS = NO-GO**.
 No nueva decisión de arquitectura/producto: DECISIONS_LOG sin entrada repetida.
 Issues #11/#12: mantener abiertas, sin recomendación de cierre todavía.
 PR #15 OPEN/Draft, sin merge ni main.
 
-Pendientes reales de esta continuación (máximo cinco): resto de QA Android físico;
-tres humanos A/B/C; completar eventos/observación durante esas sesiones;
-cleanup/análisis y recomendación final tras evidencia. iOS no ejecutado y fuera
-de esta continuación a petición del usuario. No pedir configuraciones cloud.
+Pendientes reales de esta continuación (máximo cinco): diagnóstico/reprueba de
+push Android background; actualización PWA con rollout staging seguro; recordatorio
+en su ventana temporal real; tres humanos A/B/C independientes; cleanup/análisis
+y recomendación final tras evidencia. iOS no ejecutado y fuera de esta
+continuación a petición del usuario. No pedir configuraciones cloud.
