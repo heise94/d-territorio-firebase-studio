@@ -282,6 +282,10 @@ claridad el lunes 08:00–09:00, Punto ficticio 1 y A como compañero. **PASS
 funcional: programa publicado v1 visible para participante asignado.** No se
 infiere recepción de aviso interno de publicación porque no fue reportada por
 separado.
+Como C, el operador creó una ChangeRequest `cannot_attend` sin comentario desde
+su turno publicado; quedó `pending` sin modificar Assignment. Un organizador la
+pasó a `approved`. Readback: Campaign continúa en v1, ambos Assignments siguen
+`published`. **PASS funcional: aprobar no autoasigna ni altera programa.**
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
