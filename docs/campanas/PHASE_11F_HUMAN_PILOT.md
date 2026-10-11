@@ -285,6 +285,11 @@ FCM accepted, notificación visible, clic y destino son evidencias separadas.
 | B smartphone básico | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | No observada |
 | C adulto mayor/WhatsApp | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | NOT EXECUTED | No observada |
 
+El operador del piloto inició sesión correctamente en el perfil ficticio C desde
+el mismo Xiaomi usado por A. Es una comprobación funcional de acceso C; **no** se
+acredita como prueba humana independiente del perfil C ni como evidencia de
+usabilidad de adulto mayor.
+
 Registrar por tarea: PASS sin ayuda / PASS con ayuda / FAIL, confusión concreta,
 ayuda requerida y comentario textual breve real. Tiempo/clics/errores solo si
 observables; actualmente no medidos. Cubrir comprender Inicio, guardar y cambiar
