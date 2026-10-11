@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 export function normalizeChileanPhone(input: string): string {
-  const compact = input.trim().replace(/[\s()-]/g, "");
+  const compact = input.trim().replace(/\D/g, "");
+  if (/^\d{8}$/.test(compact)) return `+569${compact}`;
   const national = compact.startsWith("+56") ? compact.slice(3) : compact;
   if (!/^9\d{8}$/.test(national))
     throw new Error("Ingresa un teléfono móvil chileno válido.");
@@ -17,7 +18,7 @@ export const phoneSchema = z
     } catch {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Ingresa un teléfono móvil chileno válido.",
+        message: "Ingresa los 8 dígitos de tu teléfono.",
       });
       return z.NEVER;
     }
@@ -34,7 +35,7 @@ export const registrationSchema = loginSchema
     congregationId: z
       .string()
       .regex(/^[A-Za-z0-9_-]{1,128}$/)
-      .optional(),
+      .min(1, "Selecciona tu congregación."),
     confirmPin: pinSchema,
   })
   .refine((value) => value.pin === value.confirmPin, {

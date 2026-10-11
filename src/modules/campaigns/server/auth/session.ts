@@ -29,7 +29,7 @@ export async function getCurrentParticipant() {
 }
 export async function requireParticipantSession() {
   const participant = await getCurrentParticipant();
-  if (!participant) redirect("/campanas/ingresar");
+  if (!participant) redirect("/campanas/bienvenida");
   return participant;
 }
 

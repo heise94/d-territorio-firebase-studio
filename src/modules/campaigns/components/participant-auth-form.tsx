@@ -97,13 +97,12 @@ export function ParticipantAuthForm({
 
   return (
     <main className="mx-auto max-w-md px-5 py-10">
-      <p className="font-semibold text-teal-700">D-Territorio · Campañas</p>
+      <p className="font-semibold text-teal-700">Campañas con exhibidores</p>
       <h1 className="mt-3 text-2xl font-bold">
-        {register ? "Crear mi perfil" : "Ingresar"}
+        {register ? "Crear mi cuenta" : "Ingresar"}
       </h1>
       <p className="mt-2 text-sm leading-6 text-slate-600">
-        Tu teléfono y PIN te permiten ingresar. La sesión se mantiene en este
-        dispositivo hasta que cierres sesión o venza.
+        {register ? "Completa tus datos una sola vez. Después podrás ingresar con tu teléfono y PIN." : "Ingresa con tu teléfono y PIN."}
       </p>
       <form
         onSubmit={submit}
@@ -121,20 +120,21 @@ export function ParticipantAuthForm({
               minLength={2}
               maxLength={120}
             />
+            <span className="mt-1 block text-sm font-normal text-slate-600">Escribe tu nombre y apellido paterno. Si estás casada, debes agregar también el apellido de tu esposo usando “de”. Ejemplo: María de González</span>
           </label>
         )}
         <label className="block font-medium">
           Teléfono
-          <input
-            className={inputClass}
+          <div className="mt-1 flex min-h-12 overflow-hidden rounded-xl border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-teal-700"><span className="flex items-center border-r border-slate-200 px-3 font-semibold">+56 9</span><input
+            className="min-w-0 flex-1 px-3 text-base outline-none"
             name="phone"
             type="tel"
-            inputMode="tel"
+            inputMode="numeric"
             autoComplete="tel"
-            placeholder="9 1234 5678"
+            placeholder="1234 5678"
             required
-            maxLength={40}
-          />
+            maxLength={9}
+          /></div>
         </label>
         {register && (
           <label className="block font-medium">
@@ -146,7 +146,7 @@ export function ParticipantAuthForm({
             >
               <option value="">
                 {congregationsReady
-                  ? "Sin congregación por ahora"
+                  ? "Selecciona tu congregación"
                   : "Cargando…"}
               </option>
               {congregations.map((congregation) => (
@@ -158,7 +158,7 @@ export function ParticipantAuthForm({
           </label>
         )}
         <label className="block font-medium">
-          PIN
+          {register ? "Crea tu PIN" : "PIN"}
           <input
             className={inputClass}
             name="pin"
@@ -200,7 +200,7 @@ export function ParticipantAuthForm({
           disabled={busy || !congregationsReady}
           className="min-h-12 w-full rounded-xl bg-teal-700 px-4 font-semibold text-white disabled:opacity-50"
         >
-          {busy ? "Espera un momento…" : register ? "Crear perfil" : "Ingresar"}
+          {busy ? "Espera un momento…" : register ? "Crear cuenta" : "Ingresar"}
         </button>
       </form>
       <div className="mt-6 space-y-4 text-sm">
@@ -208,7 +208,7 @@ export function ParticipantAuthForm({
           className="block text-teal-700 underline"
           href={register ? "/campanas/ingresar" : "/campanas/registro"}
         >
-          {register ? "Ya tengo un perfil" : "Primer acceso: crear perfil"}
+          {register ? "Ya tengo cuenta" : "¿Primera vez? Crear mi cuenta"}
         </Link>
         <Link
           className="block text-teal-700 underline"
