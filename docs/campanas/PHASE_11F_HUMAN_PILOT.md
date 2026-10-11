@@ -289,6 +289,10 @@ El operador del piloto inició sesión correctamente en el perfil ficticio C des
 el mismo Xiaomi usado por A. Es una comprobación funcional de acceso C; **no** se
 acredita como prueba humana independiente del perfil C ni como evidencia de
 usabilidad de adulto mayor.
+El operador marcó y guardó los tres bloques de la mañana del primer día para C.
+Readback técnico confirmó los tres Availability y su coincidencia con bloques ya
+marcados por A. Es preparación funcional para un vínculo de prueba, no evidencia
+humana independiente C.
 
 Registrar por tarea: PASS sin ayuda / PASS con ayuda / FAIL, confusión concreta,
 ayuda requerida y comentario textual breve real. Tiempo/clics/errores solo si
