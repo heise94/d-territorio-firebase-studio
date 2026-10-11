@@ -196,6 +196,16 @@ que tampoco apareció en el panel nativo, ni antes ni después de abrir Chrome, 
 abrir Campañas durante esa comprobación. **FAIL reproducible de entrega visible
 background Android**. El envío FCM y el dato persistido no constituyen PASS.
 
+Control adicional de configuración: el usuario verificó permiso general y del
+sitio activos y desactivó temporalmente para Chrome la opción Xiaomi de pausar la
+actividad de una app no usada (que puede retirar permisos/detener notificaciones).
+Con Campañas en segundo plano y Chrome cerrado, se creó un quinto evento nuevo
+C→A a las 02:24:50 UTC, cancelando exclusivamente la solicitud técnica C→A
+pending inmediata anterior. API 200/pending, Notification/outbox/delivery
+delivered, intento 1/error=null. El usuario confirmó **«no pasa nada»** en el
+panel nativo. Ese ajuste no resolvió el fallo; se suspende el reintento ciego y
+queda pendiente revisar batería/datos y ejecución real del worker.
+
 | Comprobación | Android | iOS/iPadOS |
 | --- | --- | --- |
 | Instalación real | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
@@ -253,8 +263,9 @@ blockers acreditados en dispositivos/personas.
 ### HIGH
 
 F11F-A01, HIGH: notificación background no visible de forma reproducible en
-Android perfil A. En los dos controles aislados no apareció con Chrome cerrado;
-el último tampoco apareció al abrir Chrome. Hubo una sola visualización previa,
+Android perfil A. En tres controles aislados no apareció con Chrome cerrado;
+uno tampoco apareció al abrir Chrome y otro ocurrió con la pausa automática de
+apps sin uso desactivada. Hubo una sola visualización previa,
 no aislada porque el usuario estaba usando Chrome. El backend registró Notification,
 outbox y delivery FCM sin error, pero ello no acredita presentación nativa. No hay
 bug de código ni limitación de plataforma causalmente confirmados todavía. No
