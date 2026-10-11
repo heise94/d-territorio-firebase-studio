@@ -160,9 +160,10 @@ Todavía falta distinguir ausencia de banner frente a ausencia en el panel nativ
 No se atribuye la causa a Xiaomi, batería, permisos ni código sin comprobarla.
 
 Lectura de logs para cada evento: el primero tiene revalidación push-event 200 a
-01:57:58 UTC; no se encontró revalidación del segundo en la consulta disponible.
-Esto no demuestra pérdida definitiva ni identifica una causa: el envío aceptado
-no prueba recepción/ejecución del worker Android y puede haber demora de logs.
+01:57:58 UTC; el segundo tuvo revalidación desde worker a 02:04:16 UTC. Esto no
+demuestra una visualización del sistema ni identifica la causa: el envío aceptado
+no prueba recepción/ejecución o presentación oportuna en Android y puede haber
+demora de logs.
 Consulta de señales desde 01:57 UTC sin 5xx/429/push failures/scheduler ERROR.
 Sin cambios de ajustes, reenvío ciego, código, IAM ni producción. Diagnóstico
 abierto: comprobar primero el panel nativo sin abrir la app.
@@ -183,8 +184,17 @@ ownership y status antes de cancelar; jamás se toca accepted, Availability,
 Assignment, snapshots ni solicitud C→A. Historial y auditoría conservados.
 Evento nuevo 2026-10-11 02:07:35 UTC: API 200/pending, tercera Notification propia;
 outbox/delivery delivered, intento 1/error=null. No reenvío del evento anterior.
-**Repetición background en curso**, pendiente observación humana SIN abrir Chrome
-ni Campañas. Envío FCM no constituye PASS de esta repetición.
+El usuario informó que no hubo aviso nativo con Chrome cerrado; al abrir Campañas
+sí vio los avisos internos. Confirmó expresamente que Chrome solo estaba cerrado,
+no forzado ni deshabilitado.
+
+Último control aislado: se creó un cuarto evento nuevo C→A a las 02:15:03 UTC,
+previa cancelación únicamente de la solicitud técnica C→A pending original y sin
+tocar relaciones accepted, Availability, Assignment ni snapshots. API 200/pending,
+Notification/outbox/delivery delivered (intento 1/error=null). El usuario confirmó
+que tampoco apareció en el panel nativo, ni antes ni después de abrir Chrome, sin
+abrir Campañas durante esa comprobación. **FAIL reproducible de entrega visible
+background Android**. El envío FCM y el dato persistido no constituyen PASS.
 
 | Comprobación | Android | iOS/iPadOS |
 | --- | --- | --- |
@@ -196,7 +206,7 @@ ni Campañas. Envío FCM no constituye PASS de esta repetición.
 | Mi programa | NOT EXECUTED | NOT EXECUTED |
 | Permiso push contextual | Activación reportada por usuario; suscripción Android vigente verificada | NOT EXECUTED |
 | Foreground / recepción in-app | PASS — confirmado por usuario sin refresh manual | NOT EXECUTED |
-| Background / aviso OS visible | OS display confirmado después; repetición sin abrir Chrome EN CURSO | NOT EXECUTED |
+| Background / aviso OS visible | FAIL reproducible: no visible con Chrome cerrado ni al abrir Chrome; hubo un único display previo con factor Chrome no aislado | NOT EXECUTED |
 | Click / destino / ownership | NOT EXECUTED | NOT EXECUTED |
 | Offline sin falso guardado | NOT EXECUTED | NOT EXECUTED |
 | Recovery / reintento explícito | NOT EXECUTED | NOT EXECUTED |
@@ -242,12 +252,14 @@ blockers acreditados en dispositivos/personas.
 
 ### HIGH
 
-F11F-A01, seguimiento provisional: notificación background no visible en el
-primer intento Android perfil A. Reproducción inicial sí; causa y repetibilidad
-pendientes. No bug de código confirmado ni limitación de plataforma acreditada.
-Recomendación: verificar panel/estado real, contrastar recepción y permisos antes
-de cualquier fix; repetir de forma controlada. No cerrar como PASS ni atribuir
-HIGH definitivo al producto si la causa es configuración del dispositivo.
+F11F-A01, HIGH: notificación background no visible de forma reproducible en
+Android perfil A. En los dos controles aislados no apareció con Chrome cerrado;
+el último tampoco apareció al abrir Chrome. Hubo una sola visualización previa,
+no aislada porque el usuario estaba usando Chrome. El backend registró Notification,
+outbox y delivery FCM sin error, pero ello no acredita presentación nativa. No hay
+bug de código ni limitación de plataforma causalmente confirmados todavía. No
+cerrar como PASS ni aplicar un fix especulativo: investigar el recorrido Android
+real y permisos/worker con evidencia antes de cambiar producto.
 
 ### MEDIUM
 

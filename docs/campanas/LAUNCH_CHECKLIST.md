@@ -60,11 +60,13 @@ criterio de pausar apertura antes de iniciar C. No abrir automáticamente desde 
 
 ## Pendientes externos
 
-- Android: **EN CURSO — BLOCKS GENERAL LAUNCH** hasta completar flujo crítico.
-  Xiaomi 21081111RG/Android 14: instalación, standalone, persistencia y
-  guardar/editar Availability tras reapertura confirmados por usuario.
+- Android: **FAIL PUSH BACKGROUND — BLOCKS GENERAL LAUNCH**. Xiaomi
+  21081111RG/Android 14: instalación, standalone, persistencia y guardar/editar
+  Availability tras reapertura confirmados por usuario; la entrega nativa en
+  segundo plano no apareció en dos controles aislados, tampoco al abrir Chrome.
 - iOS físico: NOT EXECUTED, fuera de esta continuación a petición del usuario.
-  Push Android aún pendiente. FCM/display/click Mac ya PASS; no extrapolar.
+  Push Android requiere diagnóstico y nueva prueba física tras un arreglo basado
+  en evidencia. FCM/display/click Mac ya PASS; no extrapolar.
 - Tres perfiles humanos: **PENDING EXTERNAL**.
 - Impresión nativa F7: **PASS**; Issue #8 cerrada (verificado F11F).
 - F10-M01 reordenación manual de puntos: MEDIUM/F12, no implementado en F11.
