@@ -218,7 +218,7 @@ queda pendiente revisar batería/datos y ejecución real del worker.
 | Foreground / recepción in-app | PASS — confirmado por usuario sin refresh manual | NOT EXECUTED |
 | Background / aviso OS visible | FAIL reproducible: no visible con Chrome cerrado ni al abrir Chrome; hubo un único display previo con factor Chrome no aislado | NOT EXECUTED |
 | Click / destino / ownership | NOT EXECUTED | NOT EXECUTED |
-| Offline sin falso guardado | NOT EXECUTED | NOT EXECUTED |
+| Offline sin falso guardado | PASS — perfil A: app cerrada y luego abierta sin red muestra «Sin conexión»; app abierta al activar modo avión cambia inmediatamente a esa pantalla y no permite editar Availability | NOT EXECUTED |
 | Recovery / reintento explícito | NOT EXECUTED | NOT EXECUTED |
 | Update | NOT EXECUTED | NOT EXECUTED |
 | Logout / desaparición de datos privados | NOT EXECUTED | NOT EXECUTED |
@@ -227,6 +227,15 @@ Android: Chrome → URL → instalar → abrir standalone → login → cerrar/r
 Availability/Avisos/programa → habilitar permiso por clic → foreground/background
 → clic/destino propio → offline/intento mutable sin éxito falso → reconexión/reintento
 explícito → update si seguro → logout. Registrar modelo/OS general, no identificadores.
+
+### Android — offline sin falso guardado
+
+El usuario realizó dos pruebas físicas con el perfil A. Con Campañas cerrada y
+modo avión activado, al intentar abrirla apareció «Sin conexión». Con Campañas ya
+abierta, al activar modo avión la pantalla cambió inmediatamente a «Sin conexión».
+En ambos casos no fue posible editar Availability ni simular un guardado. **PASS
+reportado por usuario: offline bloquea la mutación sin falso éxito.** Queda por
+verificar la recuperación al restablecer conectividad y el reintento explícito.
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
