@@ -16,7 +16,7 @@ export default function CampaignsLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="min-h-screen bg-[#F7F9FC] text-[#0F172A]">
+    <div className="min-h-screen bg-[var(--campaign-background)] text-[var(--campaign-ink)]">
       <CampaignPwa>{children}</CampaignPwa>
     </div>
   );

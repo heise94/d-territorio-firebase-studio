@@ -1,120 +1,22 @@
 "use client";
-import { campaignFetch } from "../lib/campaign-fetch";
-import { useEffect, useState } from "react";
+import { CalendarCheck, ChevronRight, Clock3, MapPin, UsersRound } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import type { PersonalProgram } from "../domain/program";
-import { changeStatusLabels } from "../domain/change-request";
-import {
-  ChangeAlerts,
-  ParticipantChangeHistory,
-  RequestChange,
-} from "./participant-change-requests";
+import { campaignFetch } from "../lib/campaign-fetch";
+import { ParticipantChangeHistory, RequestChange } from "./participant-change-requests";
+
+type Turn = PersonalProgram["campaigns"][number]["turns"][number] & { campaignName: string };
+function dateText(date: string) { return new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${date}T12:00:00`)); }
+function statusText(status?: Turn["changeRequestStatus"]) { return status === "pending" ? "Tu solicitud está en revisión" : status === "approved" ? "Estamos gestionando tu cambio" : null; }
+function TurnDetails({ turn, primary = false, onSent }: { turn: Turn; primary?: boolean; onSent: () => void }) {
+  const status = statusText(turn.changeRequestStatus);
+  return <article className={primary ? "campaign-mint space-y-5" : "campaign-surface flex items-center gap-4"}>{primary ? <><div className="flex items-center gap-3"><span className="campaign-icon-surface"><CalendarCheck /></span><p className="text-xl font-bold text-[var(--campaign-primary-strong)]">Próximo turno</p></div><div><p className="text-3xl font-bold capitalize">{dateText(turn.date)}</p><p className="mt-2 text-5xl font-bold tracking-tight">{turn.startTime}–{turn.endTime}</p></div><div className="space-y-3 text-lg"><p className="flex gap-3"><MapPin className="shrink-0 text-[var(--campaign-primary)]" />{turn.pointName}{turn.locationText ? ` — ${turn.locationText}` : ""}</p><p className="flex gap-3"><UsersRound className="shrink-0 text-[var(--campaign-primary)]" />Con {turn.companionName ?? "compañero pendiente"}</p></div><Link href={`/campanas/informacion#punto-${turn.pointId}`} className="campaign-secondary w-full gap-2"><MapPin className="h-5 w-5" />Ver ubicación<ChevronRight className="ml-auto h-5 w-5" /></Link>{status ? <p className="rounded-xl bg-white/70 p-3 font-semibold">{status}</p> : turn.turnId && <RequestChange turnId={turn.turnId} onSent={onSent} />}</> : <><div className="campaign-icon-surface h-16 w-16 rounded-2xl text-center"><span className="text-xs uppercase">{new Intl.DateTimeFormat("es-CL", { weekday: "short" }).format(new Date(`${turn.date}T12:00:00`))}</span><b className="block text-2xl">{turn.date.slice(8)}</b></div><div className="min-w-0 flex-1"><p className="text-2xl font-bold">{turn.startTime}–{turn.endTime}</p><p className="mt-1 truncate text-[var(--campaign-muted)]">{turn.pointName}{turn.locationText ? ` — ${turn.locationText}` : ""}</p><p className="mt-1 flex items-center gap-2 text-[var(--campaign-muted)]"><UsersRound className="h-4 w-4" />Con {turn.companionName ?? "compañero pendiente"}</p></div><ChevronRight className="shrink-0 text-[var(--campaign-muted)]" /></>}</article>;
+}
 export function PersonalProgramView() {
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [view, setView] = useState<PersonalProgram | null>(null),
-    [error, setError] = useState("");
-  useEffect(() => {
-    const controller = new AbortController();
-    const load = async () => {
-      try {
-        const response = await campaignFetch(
-          "/api/campanas/participant/my-program",
-          {
-            cache: "no-store",
-            signal: controller.signal,
-          },
-        );
-        const data = await response.json();
-        if (!response.ok) {
-          setView(null);
-          throw new Error(data.error);
-        }
-        setView(data);
-        setError("");
-      } catch (e) {
-        if (!controller.signal.aborted)
-          setError(
-            e instanceof Error
-              ? e.message
-              : "No se pudo consultar tu programa.",
-          );
-      }
-    };
-    void load();
-    const visible = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    document.addEventListener("visibilitychange", visible);
-    window.addEventListener("campanas-notification", visible);
-    const timer = setInterval(visible, 12000);
-    return () => {
-      controller.abort();
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", visible);
-      window.removeEventListener("campanas-notification", visible);
-    };
-  }, [refreshKey]);
-  return (
-    <div className="space-y-5">
-      <ChangeAlerts />
-      {error && (
-        <p role="alert" className="text-red-800">
-          {error}
-        </p>
-      )}
-      {!view && !error && <p role="status">Consultando tu programa…</p>}
-      {view?.campaigns.length === 0 && (
-        <p>El programa todavía no ha sido publicado.</p>
-      )}
-      {view?.campaigns.map((campaign, index) => (
-        <section key={index} className="space-y-4 rounded-2xl border p-4">
-          <h2 className="text-xl font-bold">{campaign.name}</h2>
-          {!campaign.published ? (
-            <p>El programa todavía no ha sido publicado.</p>
-          ) : (
-            <>
-              <p className="font-semibold text-teal-800">
-                Publicado · v{campaign.version}
-              </p>
-              <p className="text-sm">
-                {new Date(campaign.publishedAt!).toLocaleString("es-CL")}
-              </p>
-              {!campaign.turns.length && (
-                <p>No tienes turnos asignados en el programa publicado.</p>
-              )}
-              {campaign.turns.map((turn, i) => (
-                <article
-                  key={i}
-                  className="space-y-2 rounded-xl bg-teal-50 p-4"
-                >
-                  <h3 className="font-bold">
-                    {turn.date} {turn.dayLabel}
-                  </h3>
-                  <p className="text-lg font-semibold">
-                    {turn.startTime}–{turn.endTime}
-                  </p>
-                  {turn.blockLabel && <p>{turn.blockLabel}</p>}
-                  <p className="font-bold">{turn.pointName}</p>
-                  {turn.locationText && <p>{turn.locationText}</p>}
-                  {turn.description && <p>{turn.description}</p>}
-                  <p>Compañero: {turn.companionName ?? "Pendiente"}</p>
-                  {turn.changeRequestStatus && (
-                    <p className="font-semibold">
-                      {changeStatusLabels[turn.changeRequestStatus]}
-                    </p>
-                  )}
-                  {turn.turnId && turn.canRequestChange !== false && (
-                    <RequestChange
-                      turnId={turn.turnId}
-                      onSent={() => setRefreshKey((key) => key + 1)}
-                    />
-                  )}
-                </article>
-              ))}
-            </>
-          )}
-        </section>
-      ))}
-      <ParticipantChangeHistory refreshKey={refreshKey} />
-    </div>
-  );
+  const [view, setView] = useState<PersonalProgram | null>(null), [error, setError] = useState(""), [refresh, setRefresh] = useState(0);
+  useEffect(() => { const controller = new AbortController(); void campaignFetch("/api/campanas/participant/my-program", { cache: "no-store", signal: controller.signal }).then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error); setView(data); setError(""); }).catch((e) => !controller.signal.aborted && setError(e instanceof Error ? e.message : "No pudimos consultar tu programa.")); return () => controller.abort(); }, [refresh]);
+  const { current, future, past, unpublished } = useMemo(() => { const now = new Date().toISOString().slice(0, 16); const turns = view?.campaigns.flatMap((campaign) => campaign.published ? campaign.turns.map((turn) => ({ ...turn, campaignName: campaign.name })) : []) ?? []; const sorted = turns.sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`)); const next = sorted.find((turn) => `${turn.date}T${turn.endTime}` >= now); const historic = sorted.filter((turn) => `${turn.date}T${turn.endTime}` < now); return { current: next, future: next ? sorted.filter((turn) => turn !== next && `${turn.date}T${turn.endTime}` >= now) : [], past: historic, unpublished: view?.campaigns.filter((campaign) => !campaign.published) ?? [] }; }, [view]);
+  const sent = () => setRefresh((value) => value + 1);
+  return <div className="space-y-6">{error && <p role="alert">{error}</p>}{!view && !error && <p role="status">Consultando tu programa…</p>}{view && !current && !future.length && !past.length && <section className="campaign-surface"><h2 className="text-xl font-bold">Aún no tienes turnos asignados</h2><p className="mt-2 text-[var(--campaign-muted)]">Cuando el programa esté listo, verás aquí tus horarios.</p></section>}{unpublished.map((campaign) => <section key={campaign.name} className="campaign-surface"><p className="font-semibold">{campaign.name}</p><p className="mt-1 text-[var(--campaign-muted)]">El programa todavía no ha sido publicado.</p></section>)}{current && <TurnDetails turn={current} primary onSent={sent} />}{future.length > 0 && <section className="space-y-3"><h2 className="text-3xl font-bold">Próximos turnos</h2>{future.map((turn) => <TurnDetails key={`${turn.date}-${turn.turnId ?? turn.pointId}`} turn={turn} onSent={sent} />)}</section>}{past.length > 0 && <details className="campaign-surface"><summary className="cursor-pointer text-xl font-bold">Turnos anteriores</summary><div className="mt-4 space-y-3">{past.map((turn) => <TurnDetails key={`${turn.date}-${turn.turnId ?? turn.pointId}`} turn={turn} onSent={sent} />)}</div></details>}<ParticipantChangeHistory refreshKey={refresh} /></div>;
 }

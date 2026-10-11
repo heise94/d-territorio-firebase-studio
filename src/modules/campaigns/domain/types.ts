@@ -32,6 +32,29 @@ export interface Campaign {
   programVersion?: number;
   publishedAt?: Timestamp;
   updatedProgramAt?: Timestamp;
+  information?: CampaignInformation;
+}
+
+export interface CampaignContact {
+  name: string;
+  role?: string;
+  phone: string;
+  allowCall: boolean;
+  allowWhatsApp: boolean;
+}
+export interface CampaignLogisticsInfo {
+  location?: string;
+  schedule?: string;
+  instructions?: string;
+  mapUrl?: string;
+}
+export interface CampaignInformation {
+  intro?: string;
+  generalMapUrl?: string;
+  pickup?: CampaignLogisticsInfo;
+  returnInfo?: CampaignLogisticsInfo;
+  contacts?: CampaignContact[];
+  notes?: { title: string; body?: string }[];
 }
 
 export interface CampaignDay {
@@ -77,6 +100,7 @@ export interface Point {
   name: string;
   description?: string;
   locationText?: string;
+  mapUrl?: string;
   active: boolean;
   sortOrder: number;
 }

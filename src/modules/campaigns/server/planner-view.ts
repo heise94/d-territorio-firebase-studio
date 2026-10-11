@@ -21,7 +21,7 @@ export function plannerPerson(
   const profile = registration
     ? source.profiles.get(registration.participantId)
     : undefined;
-  const unit = acceptedUnit(source, id);
+  const unit = acceptedUnit(source, id, blockId);
   const otherId = unit?.[1];
   const other = otherId ? source.registrations.get(otherId) : undefined;
   const first = source.selections.get(id) ?? new Set<string>(),
@@ -32,6 +32,7 @@ export function plannerPerson(
     ? source.pairs.find(
         (pair) =>
           pair.status === "accepted" &&
+          (!pair.timeBlockId || pair.timeBlockId === blockId) &&
           [pair.requesterRegistrationId, pair.recipientRegistrationId].includes(
             id,
           ),
@@ -170,7 +171,11 @@ export function projectPlanner(
           ).length > 1
         )
           warnings.push("Conflicto: persona duplicada en el bloque.");
-        const unit = acceptedUnit(source, assignment.registrationId);
+        const unit = acceptedUnit(
+          source,
+          assignment.registrationId,
+          selected!,
+        );
         if (!unit) warnings.push("Vínculos accepted incompatibles.");
         if (unit?.length === 2) {
           const companion = assigned.filter(
@@ -222,7 +227,7 @@ export function projectPlanner(
       );
     if (person.accepted?.participationConflict)
       conflicts.add(person.fullName + ": revisar participación del vínculo.");
-    if (!acceptedUnit(source, person.registrationId))
+    if (!acceptedUnit(source, person.registrationId, selected))
       conflicts.add(person.fullName + ": vínculos accepted incompatibles.");
   }
   const activePoints = points.filter(

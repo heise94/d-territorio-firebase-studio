@@ -85,6 +85,7 @@ export interface PersonalProgram {
       startTime: string;
       endTime: string;
       blockLabel: string;
+      pointId: string;
       pointName: string;
       locationText: string;
       description: string;

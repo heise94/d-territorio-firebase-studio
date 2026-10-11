@@ -1,98 +1,16 @@
 "use client";
 import Link from "next/link";
+import { CalendarCheck, ChevronRight, Clock3, MapPin, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PersonalProgram } from "../domain/program";
 import { campaignFetch } from "../lib/campaign-fetch";
-
+function dayText(date: string) { return new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${date}T12:00:00`)); }
 export function ParticipantNextTurn() {
   const [program, setProgram] = useState<PersonalProgram | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    const controller = new AbortController();
-    const load = async () => {
-      try {
-        const response = await campaignFetch(
-          "/api/campanas/participant/my-program",
-          { signal: controller.signal },
-        );
-        if (!response.ok)
-          throw new Error("No pudimos revisar tu próximo turno.");
-        setProgram(await response.json());
-        setError("");
-      } catch (error) {
-        if (!controller.signal.aborted)
-          setError(
-            error instanceof Error
-              ? error.message
-              : "No pudimos revisar tu próximo turno.",
-          );
-      }
-    };
-    const visible = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    void load();
-    const timer = setInterval(visible, 15000);
-    document.addEventListener("visibilitychange", visible);
-    window.addEventListener("campanas-notification", visible);
-    return () => {
-      controller.abort();
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", visible);
-      window.removeEventListener("campanas-notification", visible);
-    };
-  }, []);
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone:
-        process.env.NEXT_PUBLIC_CAMPAIGNS_TIME_ZONE || "America/Santiago",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(new Date())
-      .map((p) => [p.type, p.value]),
-  );
-  const now = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
-  const turn = program?.campaigns
-    .flatMap((c) =>
-      c.published ? c.turns.map((t) => ({ ...t, campaignName: c.name })) : [],
-    )
-    .filter((t) => `${t.date}T${t.endTime}` >= now)
-    .sort((a, b) =>
-      `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`),
-    )[0];
-  return (
-    <section
-      className="space-y-2 rounded-2xl border bg-teal-50 p-5"
-      aria-label="Próximo turno"
-    >
-      <h2 className="text-xl font-bold">Próximo turno</h2>
-      {error ? (
-        <p role="alert">{error}</p>
-      ) : !program ? (
-        <p>Consultando tu programa…</p>
-      ) : turn ? (
-        <>
-          <p className="font-semibold">{turn.campaignName}</p>
-          <p>
-            {turn.date} · {turn.startTime}–{turn.endTime}
-          </p>
-          <p>{turn.pointName}</p>
-        </>
-      ) : (
-        <p>No tienes próximos turnos en el programa publicado.</p>
-      )}
-      <Link
-        href="/campanas/mi-programa"
-        prefetch={false}
-        className="inline-flex min-h-12 items-center font-semibold text-teal-800 underline"
-      >
-        Revisar Mi programa
-      </Link>
-    </section>
-  );
+  useEffect(() => { const controller = new AbortController(); void campaignFetch("/api/campanas/participant/my-program", { signal: controller.signal, cache: "no-store" }).then(async (response) => response.ok ? setProgram(await response.json()) : null).catch(() => {}); return () => controller.abort(); }, []);
+  const now = new Date().toISOString().slice(0, 16);
+  const turn = program?.campaigns.flatMap((campaign) => campaign.published ? campaign.turns.map((item) => ({ ...item, campaignName: campaign.name })) : []).filter((item) => `${item.date}T${item.endTime}` >= now).sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`))[0];
+  if (!program) return <section className="campaign-mint"><p>Consultando tu próximo turno…</p></section>;
+  if (!turn) return <section className="campaign-surface"><div className="flex gap-3"><span className="campaign-icon-surface"><CalendarCheck /></span><div><h2 className="text-xl font-bold">Aún no tienes próximo turno</h2><p className="text-[var(--campaign-muted)]">Cuando el programa esté publicado, podrás verlo aquí.</p></div></div></section>;
+  return <section className="campaign-mint space-y-4"><div className="flex gap-3"><span className="campaign-icon-surface"><CalendarCheck /></span><p className="self-center text-xl font-bold text-[var(--campaign-primary-strong)]">Próximo turno</p></div><div><h2 className="text-3xl font-bold capitalize">{dayText(turn.date)}</h2><p className="mt-2 text-2xl font-bold">{turn.startTime}–{turn.endTime}</p></div><div className="space-y-2 text-lg"><p className="flex gap-3"><MapPin className="text-[var(--campaign-primary)]" />{turn.pointName}</p><p className="flex gap-3"><UsersRound className="text-[var(--campaign-primary)]" />Con {turn.companionName ?? "compañero pendiente"}</p></div><Link href="/campanas/mi-programa" prefetch={false} className="campaign-primary w-full gap-3"><Clock3 />Ver mi programa<ChevronRight className="ml-auto" /></Link></section>;
 }

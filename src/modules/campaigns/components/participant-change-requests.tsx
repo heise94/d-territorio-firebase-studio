@@ -24,13 +24,9 @@ export function RequestChange({
     [comment, setComment] = useState("");
   return (
     <div className="space-y-3">
-      {!open ? (
-        <button className={button} onClick={() => setOpen(true)}>
-          Solicitar cambio
-        </button>
-      ) : (
-        <form
-          className="space-y-3"
+      {!open ? <button className="campaign-primary w-full gap-2" onClick={() => setOpen(true)}>Solicitar un cambio</button> : (
+        <div role="dialog" aria-modal="true" aria-label="Solicitar cambio" className="fixed inset-0 z-40 flex items-end bg-slate-950/30 p-3 sm:items-center sm:justify-center"><form
+          className="w-full max-w-md space-y-4 rounded-t-[24px] bg-white p-5 shadow-2xl sm:rounded-[24px]"
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
@@ -57,7 +53,9 @@ export function RequestChange({
             }
           }}
         >
-          <label className="block">
+          <h2 className="text-2xl font-bold">Solicitar un cambio</h2>
+          <p className="text-[var(--campaign-muted)]">Cuéntanos brevemente qué necesitas cambiar.</p>
+          <label className="block font-semibold">
             Motivo
             <select
               className="mt-1 block min-h-12 w-full rounded-lg border p-2"
@@ -71,7 +69,7 @@ export function RequestChange({
               ))}
             </select>
           </label>
-          <label className="block">
+          <label className="block font-semibold">
             Comentario opcional
             <textarea
               maxLength={500}
@@ -81,24 +79,21 @@ export function RequestChange({
             />
           </label>
           <p>No necesitas incluir información médica o privada.</p>
-          <p className="text-sm">
-            Solicitar un cambio no modifica tu turno. La organización debe
-            revisarlo y resolverlo.
-          </p>
+          <p className="text-sm text-[var(--campaign-muted)]">Tu turno seguirá vigente hasta que la organización confirme un cambio.</p>
           <div className="flex gap-3">
-            <button className={button} disabled={busy}>
+            <button className="campaign-primary flex-1" disabled={busy}>
               Enviar solicitud
             </button>
             <button
               type="button"
-              className={button}
+              className="campaign-secondary flex-1"
               disabled={busy}
               onClick={() => setOpen(false)}
             >
               Cancelar
             </button>
           </div>
-        </form>
+        </form></div>
       )}
       {error && (
         <p role="alert" className="text-red-800">

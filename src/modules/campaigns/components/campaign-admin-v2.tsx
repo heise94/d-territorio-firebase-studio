@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CampaignGeneralForm, CongregationSettings } from "./campaign-settings";
+import { CampaignGeneralForm, CampaignInformationForm, CongregationSettings } from "./campaign-settings";
 import { useAuth } from "@/hooks/use-auth";
 import { campaignRepository as repo } from "../repositories/campaign-repository";
 import {
@@ -116,6 +116,9 @@ function Editor({
       >
         <Section title="Información general">
           <CampaignGeneralForm campaign={campaign} onSaved={setCampaign} />
+        </Section>
+        <Section title="Información para participantes">
+          <CampaignInformationForm campaign={campaign} onSaved={setCampaign} />
         </Section>
         <Section title="Congregaciones participantes">
           <CongregationSettings campaignId={campaign.id} />
@@ -281,16 +284,18 @@ function Editor({
                     name: editPoint.name,
                     locationText: editPoint.locationText || "",
                     description: editPoint.description || "",
+                    mapUrl: editPoint.mapUrl || "",
                     active: String(editPoint.active),
                   }
                 : {
                     name: "",
                     locationText: "",
                     description: "",
+                    mapUrl: "",
                     active: "true",
                   }
             }
-            fields={["name", "locationText", "description", "active"]}
+            fields={["name", "locationText", "description", "mapUrl", "active"]}
             submit="Guardar punto"
             cancel={() => setEditPoint(undefined)}
             onSubmit={(f) => {
@@ -317,6 +322,7 @@ function Editor({
                         name: p.name,
                         locationText: p.locationText,
                         description: p.description,
+                        mapUrl: p.mapUrl,
                         active: !p.active,
                       },
                       p,
@@ -372,6 +378,7 @@ function EntityForm({
     name: "Nombre",
     description: "Descripción (opcional)",
     locationText: "Ubicación (opcional)",
+    mapUrl: "Enlace de mapa HTTPS (opcional)",
   };
   return (
     <form

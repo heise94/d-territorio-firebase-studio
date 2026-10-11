@@ -1,93 +1,16 @@
 "use client";
-import { campaignFetch } from "../lib/campaign-fetch";
-import Link from "next/link";
+import { Check, UsersRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { campaignFetch } from "../lib/campaign-fetch";
 import type { PairInboxGroup } from "../domain/pair-request";
 
 export function PairInbox({ expanded = false }: { expanded?: boolean }) {
-  const [groups, setGroups] = useState<PairInboxGroup[]>([]);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let disposed = false;
-    const load = async () => {
-      try {
-        const reply = await campaignFetch(
-          "/api/campanas/participant/pair-inbox",
-          {
-            cache: "no-store",
-          },
-        );
-        const data = await reply.json();
-        if (!reply.ok) throw new Error(data.error);
-        if (!disposed) {
-          setGroups(data.groups);
-          setError("");
-        }
-      } catch {
-        if (!disposed)
-          setError(
-            "No pudimos actualizar tus solicitudes pendientes. Intenta recargar.",
-          );
-      } finally {
-        if (!disposed) setLoading(false);
-      }
-    };
-    const refresh = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    void load();
-    window.addEventListener("focus", refresh);
-    const timer = window.setInterval(refresh, 30_000);
-    return () => {
-      disposed = true;
-      window.removeEventListener("focus", refresh);
-      window.clearInterval(timer);
-    };
-  }, []);
-  if (loading) return <p role="status">Revisando solicitudes pendientes…</p>;
-  if (error) return <p role="alert">{error}</p>;
-  if (!groups.length)
-    return expanded ? <p>No tienes solicitudes pendientes recibidas.</p> : null;
-  const total = groups.reduce((sum, group) => sum + group.count, 0);
-  return (
-    <section
-      aria-label="Solicitudes pendientes recibidas"
-      className="space-y-4 rounded-2xl border-2 border-teal-700 bg-teal-50 p-5"
-    >
-      <h2 className="text-xl font-bold">
-        {total === 1
-          ? "Solicitud pendiente"
-          : `${total} solicitudes pendientes`}
-      </h2>
-      {(expanded ? groups : groups.slice(0, 3)).map((group) => (
-        <div key={group.campaignId} className="space-y-2">
-          <p className="font-semibold">{group.campaignName}</p>
-          <p>
-            {group.senderNames.join(" y ")}{" "}
-            {group.count === 1
-              ? "desea participar contigo"
-              : "desean participar contigo"}
-            .{group.count > 2 && ` Hay ${group.count} solicitudes por revisar.`}
-          </p>
-          <Link
-            prefetch={false}
-            href={`/campanas/participar-juntos/${group.campaignId}`}
-            className="flex min-h-12 items-center justify-center rounded-xl bg-teal-700 px-4 font-semibold text-white"
-          >
-            Revisar y responder
-          </Link>
-        </div>
-      ))}
-      {!expanded && groups.length > 3 && (
-        <Link
-          prefetch={false}
-          href="/campanas/participar-juntos"
-          className="inline-flex min-h-12 items-center underline"
-        >
-          Ver todas las solicitudes
-        </Link>
-      )}
-    </section>
-  );
+  const [groups, setGroups] = useState<PairInboxGroup[]>([]); const [busy, setBusy] = useState(""); const [error, setError] = useState("");
+  const load = async () => { const reply = await campaignFetch("/api/campanas/participant/pair-inbox", { cache: "no-store" }); const data = await reply.json(); if (!reply.ok) throw new Error(data.error); setGroups(data.groups); };
+  useEffect(() => { void load().catch(() => setError("No pudimos actualizar tus solicitudes pendientes.")); }, []);
+  async function respond(campaignId: string, id: string, action: "accept" | "reject") { setBusy(id); setError(""); try { const response = await campaignFetch(`/api/campanas/participant/campaigns/${campaignId}/pair-requests`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, requestId: id }), cache: "no-store" }); const data = await response.json(); if (!response.ok) throw new Error(data.error); await load(); window.dispatchEvent(new Event("campanas-notification")); } catch (e) { setError(e instanceof Error ? e.message : "No pudimos guardar tu respuesta."); } finally { setBusy(""); } }
+  if (error && !groups.length) return <p role="alert">{error}</p>;
+  if (!groups.length) return expanded ? <p>No tienes solicitudes pendientes recibidas.</p> : null;
+  const entries = groups.flatMap((group) => (group.requests ?? []).map((request) => ({ group, request })));
+  return <section aria-label="Solicitudes pendientes recibidas" className="space-y-4">{entries.slice(0, expanded ? undefined : 1).map(({ group, request }) => <article key={request.id} className="campaign-attention space-y-4"><div className="flex items-start gap-3"><span className="campaign-icon-surface bg-amber-100 text-amber-700"><UsersRound /></span><div><p className="font-semibold text-amber-700">Necesita tu respuesta</p><h2 className="mt-1 text-2xl font-bold">{request.sender} quiere trabajar contigo</h2>{request.timeBlock && <p className="mt-2 text-[var(--campaign-muted)]">{request.timeBlock.date} · {request.timeBlock.startTime}–{request.timeBlock.endTime}</p>}</div></div><div className="grid grid-cols-2 gap-3"><button disabled={!!busy} className="campaign-primary gap-2" onClick={() => void respond(group.campaignId, request.id, "accept")}><Check className="h-5 w-5" />{request.recipientCanAddAvailability ? "Confirmar y agregar horario" : "Confirmar"}</button><button disabled={!!busy} className="campaign-secondary gap-2" onClick={() => void respond(group.campaignId, request.id, "reject")}><X className="h-5 w-5" />No acordamos esto</button></div></article>)}{error && <p role="alert" className="text-red-700">{error}</p>}</section>;
 }

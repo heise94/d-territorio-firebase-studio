@@ -53,10 +53,11 @@ export const activeAssignments = (source: PlannerSource) =>
     (assignment) =>
       assignment.status === "draft" || assignment.status === "published",
   );
-export function acceptedUnit(source: PlannerSource, registrationId: string) {
+export function acceptedUnit(source: PlannerSource, registrationId: string, timeBlockId?: string) {
   const pairs = source.pairs.filter(
     (pair) =>
       pair.status === "accepted" &&
+      (!timeBlockId || !pair.timeBlockId || pair.timeBlockId === timeBlockId) &&
       (pair.requesterRegistrationId === registrationId ||
         pair.recipientRegistrationId === registrationId),
   );

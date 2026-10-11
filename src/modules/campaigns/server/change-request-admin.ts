@@ -56,7 +56,11 @@ async function resolution(
       a.registrationId === request.registrationId,
   );
   if (!original) throw changeConflict();
-  const outgoing = acceptedUnit(source, request.registrationId);
+  const outgoing = acceptedUnit(
+    source,
+    request.registrationId,
+    original.timeBlockId,
+  );
   if (!outgoing || (outgoing.length > 1 && !data.confirmUnit))
     throw new AuthError(
       422,
@@ -80,7 +84,11 @@ async function resolution(
     if (data.releaseWithoutReplacement)
       throw new AuthError(400, "Elige reemplazo o liberar, no ambos.");
     const available = reserves(source, version, original.timeBlockId);
-    const unit = acceptedUnit(source, data.replacementRegistrationId);
+    const unit = acceptedUnit(
+      source,
+      data.replacementRegistrationId,
+      original.timeBlockId,
+    );
     if (
       !unit ||
       unit.some((reg) => !available.some((r) => r.registrationId === reg))

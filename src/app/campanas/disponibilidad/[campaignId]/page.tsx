@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireParticipantSession } from "@/modules/campaigns/server/auth/session";
 import { AvailabilityForm } from "@/modules/campaigns/components/availability-form";
@@ -14,14 +13,7 @@ export default async function CampaignAvailabilityDetailPage({
   const { campaignId } = await params;
   if (!campaignDocumentIdSchema.safeParse(campaignId).success) notFound();
   return (
-    <main className="mx-auto min-h-screen max-w-md space-y-6 px-5 pb-28 pt-8">
-      <Link
-        href="/campanas/disponibilidad"
-        prefetch={false}
-        className="inline-flex min-h-12 items-center text-teal-800 underline"
-      >
-        Volver a campañas
-      </Link>
+    <main className="campaign-page space-y-6">
       <AvailabilityForm campaignId={campaignId} />
       <ParticipantNavigation active="Disponibilidad" />
     </main>

@@ -353,6 +353,7 @@ export async function getPersonalProgram(
                 startTime: block.startTime,
                 endTime: block.endTime,
                 blockLabel: block.label,
+                pointId: point.id,
                 pointName: point.name,
                 locationText: point.locationText,
                 description: point.description,

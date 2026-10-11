@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { campaignRepository as repo } from "../repositories/campaign-repository";
 import {
   campaignSchema,
+  campaignInformationSchema,
   congregationSchema,
 } from "../schemas/campaign-schemas";
 import type {
@@ -215,4 +216,42 @@ export function CongregationSettings({ campaignId }: { campaignId: string }) {
       </ul>
     </div>
   );
+}
+
+/** Small configuration form; participant-facing presentation lives outside admin. */
+export function CampaignInformationForm({ campaign, onSaved }: { campaign: Campaign; onSaved: (campaign: Campaign) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const info = campaign.information;
+  const contacts = (info?.contacts ?? []).map((row) => [row.name, row.role ?? "", row.phone, row.allowWhatsApp ? "whatsapp" : ""].join(" | ")).join("\n");
+  const notes = (info?.notes ?? []).map((row) => [row.title, row.body ?? ""].join(" | ")).join("\n");
+  const lines = (value: FormDataEntryValue | null) => String(value ?? "").split("\n").map((line) => line.trim()).filter(Boolean);
+  return <form className="mt-4 grid gap-4 md:grid-cols-2" onSubmit={async (event) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const logistics = (prefix: "pickup" | "returnInfo") => ({
+      location: String(data.get(`${prefix}Location`) ?? ""),
+      schedule: String(data.get(`${prefix}Schedule`) ?? ""),
+      instructions: String(data.get(`${prefix}Instructions`) ?? ""),
+      mapUrl: String(data.get(`${prefix}MapUrl`) ?? ""),
+    });
+    const parsed = campaignInformationSchema.safeParse({
+      intro: String(data.get("intro") ?? ""), generalMapUrl: String(data.get("generalMapUrl") ?? ""),
+      pickup: logistics("pickup"), returnInfo: logistics("returnInfo"),
+      contacts: lines(data.get("contacts")).map((line) => { const [name, role = "", phone = "", channel = ""] = line.split("|").map((part) => part.trim()); return { name, role, phone, allowCall: true, allowWhatsApp: channel.toLocaleLowerCase("es").includes("whatsapp") }; }),
+      notes: lines(data.get("notes")).map((line) => { const [title, body = ""] = line.split("|").map((part) => part.trim()); return { title, body }; }),
+    });
+    if (!parsed.success) { setMessage(parsed.error.issues[0]?.message ?? "Revisa los datos."); return; }
+    setBusy(true); setMessage("Guardando…");
+    try { await repo.updateCampaignInformation(campaign.id, parsed.data); onSaved({ ...campaign, information: parsed.data }); setMessage("Información para participantes guardada."); }
+    catch { setMessage("No se pudo guardar la información."); }
+    finally { setBusy(false); }
+  }}>
+    <label className="grid gap-2 text-sm font-semibold md:col-span-2">Introducción<Textarea name="intro" defaultValue={info?.intro ?? ""} /></label>
+    <label className="grid gap-2 text-sm font-semibold md:col-span-2">Mapa general (URL HTTPS)<Input name="generalMapUrl" defaultValue={info?.generalMapUrl ?? ""} /></label>
+    {(["pickup", "returnInfo"] as const).map((kind) => <div key={kind} className="grid gap-2 rounded border p-3"><p className="font-semibold">{kind === "pickup" ? "Retiro de exhibidores" : "Devolución"}</p><Input name={`${kind}Location`} placeholder="Lugar" defaultValue={info?.[kind]?.location ?? ""} /><Input name={`${kind}Schedule`} placeholder="Horario" defaultValue={info?.[kind]?.schedule ?? ""} /><Textarea name={`${kind}Instructions`} placeholder="Indicaciones" defaultValue={info?.[kind]?.instructions ?? ""} /><Input name={`${kind}MapUrl`} placeholder="URL HTTPS de ubicación" defaultValue={info?.[kind]?.mapUrl ?? ""} /></div>)}
+    <label className="grid gap-2 text-sm font-semibold md:col-span-2">Contactos (una línea: Nombre | Rol | Teléfono | whatsapp)<Textarea name="contacts" defaultValue={contacts} /></label>
+    <label className="grid gap-2 text-sm font-semibold md:col-span-2">Indicaciones (una línea: Título | Detalle)<Textarea name="notes" defaultValue={notes} /></label>
+    <div className="md:col-span-2"><Button disabled={busy} className="bg-teal-700 text-white hover:bg-teal-800">{busy ? "Guardando…" : "Guardar información participante"}</Button><p role="status" className="mt-2 text-sm">{message}</p></div>
+  </form>;
 }

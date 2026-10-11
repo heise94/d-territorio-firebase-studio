@@ -66,6 +66,14 @@ criterio de pausar apertura antes de iniciar C. No abrir automáticamente desde 
 
 ## Pendientes externos
 
+- [ ] F11G: revisión visual del propietario en staging (390/360/430 px), incluida
+  Información, vínculo contextual por horario y ausencia de símbolos religiosos.
+- [ ] F11G: verificar Inicio con campaña, acción prioritaria y próximo turno.
+- [ ] F11G: verificar Disponibilidad y confirmación de pareja por bloque horario.
+- [ ] F11G: verificar Avisos con no leídos primero y navegación segura al destino.
+- [ ] F11G: verificar Mi programa como itinerario de la versión vigente.
+- [ ] F11G: comprobar que Información oculta secciones no configuradas.
+
 - Android: instalación, standalone, persistencia, guardar/editar Availability,
   programa, Avisos, offline y logout PASS reportados por usuario. La presentación
   push nativa background/click no está acreditada y queda **ACCEPTED /

@@ -13,6 +13,7 @@ export const pairMutationSchema = z.discriminatedUnion("action", [
     .object({
       action: z.literal("create"),
       recipientRegistrationId: campaignDocumentIdSchema,
+      timeBlockId: campaignDocumentIdSchema.optional(),
     })
     .strict(),
   z

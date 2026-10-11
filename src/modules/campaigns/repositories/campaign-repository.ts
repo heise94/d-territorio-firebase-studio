@@ -17,6 +17,7 @@ import { db } from "@/lib/firebase";
 import { campaignCollections } from "../lib/paths";
 import type {
   Campaign,
+  CampaignInformation,
   CampaignCongregation,
   CampaignDay,
   Congregation,
@@ -78,6 +79,12 @@ export const campaignRepository = {
     }
     return updateDoc(doc(db, campaignCollections.campaigns, id), {
       ...editable,
+      updatedAt: serverTimestamp(),
+    });
+  },
+  updateCampaignInformation(id: string, information: CampaignInformation | undefined) {
+    return updateDoc(doc(db, campaignCollections.campaigns, id), {
+      information: information ?? deleteField(),
       updatedAt: serverTimestamp(),
     });
   },
@@ -241,11 +248,11 @@ export const campaignRepository = {
     );
   },
   async savePoint(campaignId: string, input: PointInput, existing?: Point) {
-    if (existing)
-      return updateDoc(
-        doc(db, campaignCollections.points, existing.id),
-        clean(input),
-      );
+    if (existing) {
+      const payload = clean(input);
+      if (input.mapUrl === undefined) Object.assign(payload, { mapUrl: deleteField() });
+      return updateDoc(doc(db, campaignCollections.points, existing.id), payload);
+    }
     const current = await getDocs(
       query(
         ref(campaignCollections.points),

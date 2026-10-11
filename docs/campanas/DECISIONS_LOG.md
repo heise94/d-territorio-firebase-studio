@@ -396,3 +396,16 @@ independientes ni las decisiones operativas de una campaña real, que permanecen
 como condición separada de lanzamiento general. U01/U02 continúan LOW y se
 consideran candidatos F12. No se habilita F12, producción mutable, merge ni cierre
 automático de Issues.
+
+## D-038 — F11G: experiencia participante orientada a horarios y programa vigente
+
+La interfaz participante se separa de la densidad administrativa: Inicio muestra
+acciones y próximo turno, Disponibilidad prioriza horarios, Mi programa actúa
+como itinerario vigente y Avisos sigue siendo el canal interno garantizado.
+Información se configura por campaña y no muestra secciones vacías. El símbolo
+del exhibidor es neutral y no se permiten cruces, iglesias ni símbolos religiosos
+en assets o ilustraciones. PairRequest pasa a estar acotada a `timeBlockId`; los
+vínculos accepted son obligatorios solo en ese bloque, sin autoasignación.
+
+F11G no autoriza lanzamiento general ni producción mutable; requiere QA visual
+en staging y conserva los pendientes humanos de F11.

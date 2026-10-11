@@ -130,7 +130,7 @@ export function reserves(
     )
     .map((reg) => {
       const profile = source.profiles.get(reg.participantId)!;
-      const unit = acceptedUnit(source, reg.id);
+      const unit = acceptedUnit(source, reg.id, blockId);
       return {
         registrationId: reg.id,
         fullName: profile.fullName,

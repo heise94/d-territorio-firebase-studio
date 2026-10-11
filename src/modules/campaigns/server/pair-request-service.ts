@@ -27,7 +27,7 @@ import {
 } from "../schemas/pair-request-schemas";
 import { campaignDocumentIdSchema } from "../schemas/registration-schemas";
 import { AuthError, ParticipantAuthService } from "./auth/service";
-import { registrationId } from "./registration-service";
+import { availabilityId, registrationId } from "./registration-service";
 import { writeDomainNotification } from "./notification-events";
 
 /** Internal sentinels, not a second PairRequest model or a participant-facing collection. */
@@ -35,10 +35,10 @@ export const pairLockCollection = "campaignPairRequestLocks";
 export const pairLimits = { search: 60, create: 20, respond: 60 } as const;
 const key = (parts: string[]) =>
   createHash("sha256").update(JSON.stringify(parts)).digest("hex");
-export const pairRelationKey = (campaignId: string, a: string, b: string) =>
-  key(["relation", campaignId, ...[a, b].sort()]);
-const acceptedKey = (campaignId: string, registration: string) =>
-  key(["accepted", campaignId, registration]);
+export const pairRelationKey = (campaignId: string, a: string, b: string, timeBlockId?: string) =>
+  key(["relation", campaignId, timeBlockId ?? "legacy", ...[a, b].sort()]);
+const acceptedKey = (campaignId: string, registration: string, timeBlockId?: string) =>
+  key(["accepted", campaignId, timeBlockId ?? "legacy", registration]);
 
 export class PairRequestService {
   constructor(
@@ -234,6 +234,24 @@ export class PairRequestService {
           a.startTime.localeCompare(b.startTime),
       );
   }
+  private async block(
+    tx: Transaction,
+    campaignId: string,
+    timeBlockId: string,
+  ): Promise<SharedBlock> {
+    const block = (await tx.get(this.db.collection(collections.timeBlocks).doc(timeBlockId))).data() as TimeBlock | undefined;
+    if (!block || block.campaignId !== campaignId || !block.active)
+      throw new AuthError(400, "El horario ya no está disponible.");
+    const day = (await tx.get(this.db.collection(collections.campaignDays).doc(block.campaignDayId))).data() as CampaignDay | undefined;
+    if (!day || day.campaignId !== campaignId || !day.active)
+      throw new AuthError(400, "El horario ya no está disponible.");
+    return { id: timeBlockId, date: day.date, startTime: block.startTime, endTime: block.endTime };
+  }
+  private async hasAvailability(tx: Transaction, campaignId: string, registration: string, timeBlockId: string) {
+    const doc = await tx.get(this.db.collection(collections.availabilities).doc(availabilityId(registration, timeBlockId)));
+    const row = doc.data() as Availability | undefined;
+    return row?.campaignId === campaignId && row.registrationId === registration && row.timeBlockId === timeBlockId && row.available === true;
+  }
   async view(token: string, campaignId: string): Promise<PairRequestView> {
     return this.auth.withParticipantTransaction(
       token,
@@ -265,6 +283,8 @@ export class PairRequestService {
           const sharedBlocks = validOther
             ? await this.shared(tx, campaignId, ownId, otherId)
             : [];
+          const block = request.timeBlockId ? await this.block(tx, campaignId, request.timeBlockId) : undefined;
+          const recipientHasAvailability = !request.timeBlockId || await this.hasAvailability(tx, campaignId, request.recipientRegistrationId, request.timeBlockId);
           requests.push({
             id: doc.id,
             status: request.status,
@@ -275,12 +295,14 @@ export class PairRequestService {
             },
             createdAt: request.createdAt.toDate().toISOString(),
             respondedAt: request.respondedAt?.toDate().toISOString() ?? null,
-            sharedBlocks,
-            availabilityConflict: sharedBlocks.length === 0,
+            sharedBlocks: block ? (sharedBlocks.filter((entry) => entry.id === block.id)) : sharedBlocks,
+            availabilityConflict: block ? !recipientHasAvailability : sharedBlocks.length === 0,
             participationConflict:
               registration.registrationStatus !== "active" ||
               validOther?.registrationStatus !== "active" ||
               !person.active,
+            timeBlock: block,
+            recipientCanAddAvailability: received && !!block && !recipientHasAvailability,
           });
         }
         return {
@@ -332,26 +354,25 @@ export class PairRequestService {
           );
           if (!pending.length) continue;
           const names: string[] = [];
+          const requestRows: NonNullable<PairInboxGroup["requests"]> = [];
           for (const doc of pending.slice(0, 2)) {
             const sender = (
               await tx.get(
                 this.registrations().doc(doc.data().requesterRegistrationId),
               )
             ).data() as CampaignRegistration | undefined;
-            names.push(
-              (
-                await this.person(
-                  tx,
-                  sender?.campaignId === campaignId ? sender : undefined,
-                )
-              ).fullName,
-            );
+            const person = await this.person(tx, sender?.campaignId === campaignId ? sender : undefined);
+            names.push(person.fullName);
+            const timeBlock = doc.data().timeBlockId ? await this.block(tx, campaignId, doc.data().timeBlockId) : undefined;
+            requestRows.push({ id: doc.id, sender: person.fullName, congregation: person.congregation, timeBlock, recipientCanAddAvailability: !!timeBlock && !await this.hasAvailability(tx, campaignId, registration.id, timeBlock.id) });
           }
           groups.push({
             campaignId,
             campaignName: campaign.name,
             count: pending.length,
             senderNames: names,
+            blocks: await Promise.all(pending.filter((doc) => !!doc.data().timeBlockId).slice(0, 2).map((doc) => this.block(tx, campaignId, doc.data().timeBlockId))),
+            requests: requestRows,
           });
         }
         return groups.sort((a, b) =>
@@ -390,8 +411,13 @@ export class PairRequestService {
               400,
               "La persona debe tener una inscripción activa en esta campaña.",
             );
+          if (data.timeBlockId) {
+            await this.block(tx, campaignId, data.timeBlockId);
+            if (!await this.hasAvailability(tx, campaignId, ownId, data.timeBlockId))
+              throw new AuthError(409, "Marca primero que puedes participar en este horario.");
+          }
           const relationRef = this.locks().doc(
-            pairRelationKey(campaignId, ownId, data.recipientRegistrationId),
+            pairRelationKey(campaignId, ownId, data.recipientRegistrationId, data.timeBlockId),
           );
           const relation = (await tx.get(relationRef)).data();
           if (relation) {
@@ -408,11 +434,11 @@ export class PairRequestService {
               );
           }
           const ownLock = await tx.get(
-            this.locks().doc(acceptedKey(campaignId, ownId)),
+            this.locks().doc(acceptedKey(campaignId, ownId, data.timeBlockId)),
           );
           const otherLock = await tx.get(
             this.locks().doc(
-              acceptedKey(campaignId, data.recipientRegistrationId),
+              acceptedKey(campaignId, data.recipientRegistrationId, data.timeBlockId),
             ),
           );
           if (ownLock.exists || otherLock.exists)
@@ -427,6 +453,7 @@ export class PairRequestService {
             campaignId,
             requesterRegistrationId: ownId,
             recipientRegistrationId: data.recipientRegistrationId,
+            ...(data.timeBlockId ? { timeBlockId: data.timeBlockId } : {}),
             status: "pending",
             createdAt: now,
             updatedAt: now,
@@ -492,12 +519,23 @@ export class PairRequestService {
                 409,
                 "Ambas personas deben mantener su inscripción y perfil activos.",
               );
+            if (stored.timeBlockId) {
+              await this.block(tx, campaignId, stored.timeBlockId);
+              if (!await this.hasAvailability(tx, campaignId, stored.requesterRegistrationId, stored.timeBlockId))
+                throw new AuthError(409, "El horario ya no está disponible para quien envió la solicitud.");
+              if (!await this.hasAvailability(tx, campaignId, stored.recipientRegistrationId, stored.timeBlockId)) {
+                tx.set(this.db.collection(collections.availabilities).doc(availabilityId(stored.recipientRegistrationId, stored.timeBlockId)), {
+                  id: availabilityId(stored.recipientRegistrationId, stored.timeBlockId), campaignId, registrationId: stored.recipientRegistrationId,
+                  timeBlockId: stored.timeBlockId, available: true, createdAt: now, updatedAt: now,
+                });
+              }
+            }
             const locks = [
               stored.requesterRegistrationId,
               stored.recipientRegistrationId,
             ]
               .sort()
-              .map((id) => this.locks().doc(acceptedKey(campaignId, id)));
+              .map((id) => this.locks().doc(acceptedKey(campaignId, id, stored.timeBlockId)));
             const first = await tx.get(locks[0]),
               second = await tx.get(locks[1]);
             if (first.exists || second.exists)
@@ -509,6 +547,7 @@ export class PairRequestService {
               tx.create(lock, {
                 campaignId,
                 requestId: stored.id,
+                ...(stored.timeBlockId ? { timeBlockId: stored.timeBlockId } : {}),
                 createdAt: now,
               });
           }
@@ -557,7 +596,7 @@ export class PairRequestService {
                 : "Tu solicitud para participar juntos fue rechazada.",
             { requestId: request.id },
             now,
-            "/campanas/participar-juntos",
+            "/campanas/avisos",
             data.action === "create"
               ? "Solicitud para participar juntos"
               : "Respuesta a tu solicitud",

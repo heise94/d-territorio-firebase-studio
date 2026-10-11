@@ -4,8 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import type { notificationsPage } from "../server/notification-center";
 import { campaignFetch } from "../lib/campaign-fetch";
 import { PushSettings } from "./push-settings";
+import { Bell, ChevronRight } from "lucide-react";
 type Page = Awaited<ReturnType<typeof notificationsPage>>;
 const base = "/api/campanas/participant/notifications";
+const relativeDate = (value: string) => {
+  const diff = Date.now() - new Date(value).getTime();
+  if (diff < 3_600_000) return `Hace ${Math.max(1, Math.round(diff / 60_000))} min`;
+  if (diff < 86_400_000) return `Hace ${Math.round(diff / 3_600_000)} h`;
+  if (diff < 172_800_000) return "Ayer";
+  return new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short" }).format(new Date(value));
+};
 
 export function NotificationSummary() {
   const [count, setCount] = useState<number | null>(null);
@@ -121,21 +129,21 @@ export function NotificationCenter() {
   }
   return (
     <div className="space-y-5">
-      <PushSettings />
-      <div className="flex flex-wrap gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="rounded-full bg-red-50 px-3 py-1 font-semibold text-red-500">{page?.unreadCount ?? 0} nuevos</p>
         <button
-          className="min-h-12 rounded-xl border px-4 font-semibold"
+          className="text-sm font-semibold text-[var(--campaign-primary-strong)]"
           disabled={busy}
           onClick={() => void refresh()}
         >
-          Actualizar avisos
+          Actualizar
         </button>
         <button
-          className="min-h-12 rounded-xl border px-4 font-semibold"
+          className="text-sm font-semibold text-[var(--campaign-primary-strong)]"
           disabled={busy || !page?.unreadCount}
           onClick={() => void mark({ action: "all" })}
         >
-          Marcar todos como leídos
+          Marcar leídos
         </button>
       </div>
       {error && (
@@ -143,38 +151,33 @@ export function NotificationCenter() {
           {error} La información mostrada no se ha actualizado.
         </p>
       )}
-      {page ? (
-        <p>{page.unreadCount} avisos no leídos</p>
-      ) : (
-        <p>Cargando avisos…</p>
-      )}
+      {!page && <p>Cargando avisos…</p>}
       {page?.notifications.length === 0 && <p>No tienes avisos todavía.</p>}
-      {page?.notifications.map((n) => (
+      {page?.notifications.filter((n) => !n.readAt).length ? <h2 className="text-2xl font-bold">Recientes</h2> : null}
+      {page?.notifications.filter((n) => !n.readAt).map((n) => (
         <article
           key={n.id}
           className={
-            "space-y-3 rounded-2xl border p-5 " +
-            (n.readAt ? "bg-white" : "border-teal-700 bg-teal-50")
+            "campaign-surface relative space-y-2 " +
+            "bg-[var(--campaign-mint)]"
           }
         >
-          <p className="font-semibold">{n.readAt ? "Leído" : "No leído"}</p>
-          <h2 className="text-xl font-bold">{n.title}</h2>
-          <p>{n.body}</p>
-          <time dateTime={n.createdAt}>
-            {new Date(n.createdAt).toLocaleString("es-CL")}
-          </time>
-          <div className="flex flex-wrap gap-3">
+          <span className="absolute left-3 top-7 h-2 w-2 rounded-full bg-[var(--campaign-primary)]" aria-label="No leído" />
+          <time className="absolute right-4 top-4 text-sm text-[var(--campaign-muted)]" dateTime={n.createdAt}>{relativeDate(n.createdAt)}</time>
+          <h2 className="pl-5 text-xl font-bold">{n.title}</h2>
+          <p className="pl-5 text-[var(--campaign-muted)]">{n.body}</p>
+          <div className="flex flex-wrap gap-3 pl-5">
             <Link
               href={n.targetRoute}
               prefetch={false}
-              className="inline-flex min-h-12 items-center font-semibold text-teal-800 underline"
+              className="inline-flex min-h-11 items-center gap-2 font-semibold text-[var(--campaign-primary-strong)]"
             >
-              Revisar en la aplicación
+              Revisar <ChevronRight className="h-4 w-4" />
             </Link>
             {!n.readAt && (
               <button
                 disabled={busy}
-                className="min-h-12 rounded-xl border px-4"
+                className="text-sm underline"
                 onClick={() => void mark({ action: "one", id: n.id })}
               >
                 Marcar como leído
@@ -182,6 +185,10 @@ export function NotificationCenter() {
             )}
           </div>
         </article>
+      ))}
+      {page?.notifications.filter((n) => n.readAt).length ? <h2 className="pt-2 text-2xl font-bold">Anteriores</h2> : null}
+      {page?.notifications.filter((n) => n.readAt).map((n) => (
+        <article key={n.id} className="campaign-surface flex items-start gap-3 py-4"><Bell className="mt-1 h-5 w-5 text-[var(--campaign-muted)]" /><div className="min-w-0 flex-1"><h2 className="font-bold">{n.title}</h2><p className="text-sm text-[var(--campaign-muted)]">{n.body}</p></div><time className="text-xs text-[var(--campaign-muted)]">{relativeDate(n.createdAt)}</time></article>
       ))}
       {page?.nextCursor && (
         <button
@@ -192,6 +199,7 @@ export function NotificationCenter() {
           Ver más avisos
         </button>
       )}
+      <PushSettings />
     </div>
   );
 }

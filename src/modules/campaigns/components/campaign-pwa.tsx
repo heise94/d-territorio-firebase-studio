@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState, type ReactNode } from "react";
+import { Download } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { isAppleMobile, isInstallDismissed } from "../lib/pwa-support";
 
 type InstallPrompt = Event & {
@@ -15,6 +17,8 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
   const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [iosHelp, setIosHelp] = useState(false);
+  const pathname = usePathname();
   useEffect(() => {
     const standalone = window.matchMedia("(display-mode: standalone)");
     const refresh = () => {
@@ -164,24 +168,11 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
           </button>
         </aside>
       )}
-      {!installed && !dismissed && (prompt || ios) && (
-        <aside className="mx-auto max-w-md space-y-2 rounded-2xl border bg-white p-5">
-          <p className="font-bold">Instalar aplicación</p>
-          {prompt ? (
-            <button
-              className="min-h-12 rounded-xl bg-teal-700 px-5 font-semibold text-white"
-              onClick={() => void install()}
-            >
-              Instalar aplicación
-            </button>
-          ) : (
-            <p>
-              En iPhone o iPad: abre Compartir → Añadir a pantalla de inicio.
-            </p>
-          )}
-          <button className="ml-4 min-h-12 underline" onClick={dismiss}>
-            Ahora no
-          </button>
+      {pathname === "/campanas" && !installed && !dismissed && (prompt || ios) && (
+        <aside className="campaign-surface mx-auto mb-2 flex max-w-md items-center gap-3 p-4">
+          <span className="campaign-icon-surface"><Download /></span>
+          <div className="min-w-0 flex-1"><p className="font-bold">Instala la aplicación</p><p className="text-sm text-[var(--campaign-muted)]">{iosHelp ? "En Safari: Compartir → Añadir a pantalla de inicio." : "Accede más rápido y recibe avisos importantes."}</p></div>
+          <div className="grid gap-1"><button className="campaign-primary min-h-10 rounded-xl px-4" onClick={() => prompt ? void install() : setIosHelp(true)}>{prompt ? "Instalar" : "Cómo instalar"}</button><button className="min-h-8 text-sm text-[var(--campaign-muted)]" onClick={dismiss}>Ahora no</button></div>
         </aside>
       )}
       {children}

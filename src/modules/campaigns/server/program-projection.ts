@@ -154,9 +154,16 @@ export function projectProgram(
     .filter((p) => p.status === "accepted")
     .sort((a, b) => a.id.localeCompare(b.id))) {
     const ids = [pair.requesterRegistrationId, pair.recipientRegistrationId];
+    const blockIds = pair.timeBlockId
+      ? assignments.some((a) => ids.includes(a.registrationId) && a.timeBlockId === pair.timeBlockId)
+        ? [pair.timeBlockId]
+        : []
+      : new Set(
+      assignments.filter((a) => ids.includes(a.registrationId)).map((a) => a.timeBlockId),
+    );
     if (
       ids[0] === ids[1] ||
-      ids.some((id) => paired.has(id) || !source.registrations.has(id))
+      ids.some((id) => (!pair.timeBlockId && paired.has(id)) || !source.registrations.has(id))
     ) {
       issue(
         "corrupt_pair",
@@ -165,11 +172,7 @@ export function projectProgram(
       );
     }
     ids.forEach((id) => paired.add(id));
-    for (const block of new Set(
-      assignments
-        .filter((a) => ids.includes(a.registrationId))
-        .map((a) => a.timeBlockId),
-    )) {
+    for (const block of blockIds) {
       const members = ids.map((id) =>
         assignments.filter(
           (a) => a.registrationId === id && a.timeBlockId === block,

@@ -52,12 +52,12 @@ function destination(source: PlannerSource, block: string, point: string) {
   )
     throw conflict();
 }
-function unitFor(source: PlannerSource, registration: string) {
-  const unit = acceptedUnit(source, registration);
+function unitFor(source: PlannerSource, registration: string, block: string) {
+  const unit = acceptedUnit(source, registration, block);
   if (
     !unit ||
     unit.some((id) => {
-      const other = acceptedUnit(source, id);
+      const other = acceptedUnit(source, id, block);
       return (
         !other ||
         other.length !== unit.length ||
@@ -265,7 +265,7 @@ export async function createAssignment(
     const source = await readPlannerSource(db, tx, campaignId);
     planning(source);
     destination(source, value.timeBlockId, value.pointId);
-    const unit = unitFor(source, value.registrationId),
+    const unit = unitFor(source, value.registrationId, value.timeBlockId),
       active = activeAssignments(source).filter(
         (item) => item.timeBlockId === value.timeBlockId,
       );
@@ -367,7 +367,7 @@ export async function changeAssignment(
     const primary = activeAssignments(source).find((item) => item.id === id);
     if (!primary || (primary.version ?? 1) !== value.expectedVersion)
       throw conflict();
-    const unit = unitFor(source, primary.registrationId),
+    const unit = unitFor(source, primary.registrationId, primary.timeBlockId),
       own = activeAssignments(source).filter(
         (item) =>
           item.timeBlockId === primary.timeBlockId &&

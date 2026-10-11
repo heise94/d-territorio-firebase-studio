@@ -44,11 +44,15 @@ export async function adminChanges(
           (t) => t.person.assignmentId === request.assignmentId,
         );
         const reg = context.source.registrations.get(request.registrationId);
-        const unit = acceptedUnit(context.source, request.registrationId);
         const currentTurn = context.turns.find(
           (t) =>
             t.person.assignmentId === request.assignmentId &&
             t.person.registrationId === request.registrationId,
+        );
+        const unit = acceptedUnit(
+          context.source,
+          request.registrationId,
+          currentTurn?.block.id ?? turn?.block.id,
         );
         result.push({
           currentTurn: currentTurn

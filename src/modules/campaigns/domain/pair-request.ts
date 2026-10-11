@@ -11,6 +11,8 @@ export interface PairRequest {
   campaignId: string;
   requesterRegistrationId: string;
   recipientRegistrationId: string;
+  /** Absent only on legacy requests created before F11G. New requests are scoped to this block. */
+  timeBlockId?: string;
   status: PairRequestStatus;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -37,6 +39,8 @@ export interface PairRequestDTO {
   sharedBlocks: SharedBlock[];
   availabilityConflict: boolean;
   participationConflict: boolean;
+  timeBlock?: SharedBlock;
+  recipientCanAddAvailability?: boolean;
 }
 export interface PairRequestView {
   campaign: { id: string; name: string; status: CampaignStatus };
@@ -48,6 +52,8 @@ export interface PairInboxGroup {
   campaignName: string;
   count: number;
   senderNames: string[];
+  blocks?: SharedBlock[];
+  requests?: { id: string; sender: string; congregation: string; timeBlock?: SharedBlock; recipientCanAddAvailability: boolean }[];
 }
 
 export function normalizePairSearch(value: string) {
