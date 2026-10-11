@@ -289,6 +289,15 @@ pasó a `approved`. Readback: Campaign continúa en v1, ambos Assignments siguen
 El operador confirmó visualmente en C que la solicitud aparece «Aprobada» y el
 aviso superior indica que está siendo gestionada, mientras el turno permanece
 igual. **PASS físico: estado y microcopy de aprobación visibles.**
+Con confirmación explícita del operador se previsualizó y resolvió esa solicitud
+liberando la unidad accepted A–C completa, sin reemplazo. No hubo blocker; se
+confirmaron warnings de puntos ficticios vacíos. Readback: ambos Assignments
+anteriores quedaron `cancelled`, ChangeRequest `resolved`, Campaign sigue
+`published` y apunta a v2. Existen ProgramVersion v1 (dos asignaciones en su
+snapshot) y v2 (sin ellas), ambas con snapshot completo de dos días. **PASS
+funcional: resolución de pareja accepted sin ruptura automática y versionado
+inmutable v1 → v2.** Pendiente observación física de Mi programa actualizado y
+del aviso interno de resolución.
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
