@@ -310,6 +310,10 @@ funcional: no se muestran avisos de la resolución a participante no afectado.**
 Como B, el operador abrió Mi programa y confirmó que no muestra turnos ni el
 turno histórico A–C. **PASS funcional: participante no afectado mantiene su
 vista personal sin asignaciones ajenas.**
+Readback administrativo staging: el historial contiene v1 y v2; la proyección
+de v1 conserva dos slots A–C y v2 cero. Los PDFs de ambas versiones devolvieron
+200, cabecera PDF y nombres versionados distintos (`…-v1.pdf`, `…-v2.pdf`).
+**PASS técnico: historial/PDF reproducibles desde snapshots, no desde datos vivos.**
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
