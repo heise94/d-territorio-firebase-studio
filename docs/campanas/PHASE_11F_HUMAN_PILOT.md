@@ -167,6 +167,25 @@ Consulta de señales desde 01:57 UTC sin 5xx/429/push failures/scheduler ERROR.
 Sin cambios de ajustes, reenvío ciego, código, IAM ni producción. Diagnóstico
 abierto: comprobar primero el panel nativo sin abrir la app.
 
+Continuación humana: el usuario confirmó una notificación nativa «D-Territorio
+Campañas», «Tienes un aviso nuevo, revisa la aplicación», con acción de anular
+suscripción. **OS display confirmado por usuario**. Indicó que estaba usando
+Chrome y pidió repetir para aislar si esa apertura precedió la llegada. Se
+conserva el resultado inicial sin aviso observado; no se declara aún independencia
+de Chrome ni entrega oportuna en background. Click de navegación sigue sin ejecutar.
+
+Repetición expresamente solicitada: el usuario borra solo el aviso nativo, NO
+anula la suscripción, deja Chrome/Campañas en segundo plano y responde «listo».
+Se verifica que sigue existiendo una suscripción Android activa con sesión vigente.
+Para generar un evento NUEVO por el servicio normal, el contraparte técnico B
+cancela únicamente su solicitud original pending y crea otra B→A. Se verifica ID,
+ownership y status antes de cancelar; jamás se toca accepted, Availability,
+Assignment, snapshots ni solicitud C→A. Historial y auditoría conservados.
+Evento nuevo 2026-10-11 02:07:35 UTC: API 200/pending, tercera Notification propia;
+outbox/delivery delivered, intento 1/error=null. No reenvío del evento anterior.
+**Repetición background en curso**, pendiente observación humana SIN abrir Chrome
+ni Campañas. Envío FCM no constituye PASS de esta repetición.
+
 | Comprobación | Android | iOS/iPadOS |
 | --- | --- | --- |
 | Instalación real | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
@@ -177,7 +196,7 @@ abierto: comprobar primero el panel nativo sin abrir la app.
 | Mi programa | NOT EXECUTED | NOT EXECUTED |
 | Permiso push contextual | Activación reportada por usuario; suscripción Android vigente verificada | NOT EXECUTED |
 | Foreground / recepción in-app | PASS — confirmado por usuario sin refresh manual | NOT EXECUTED |
-| Background / aviso OS visible | FAIL — primer intento sin notificación reportada; diagnóstico abierto | NOT EXECUTED |
+| Background / aviso OS visible | OS display confirmado después; repetición sin abrir Chrome EN CURSO | NOT EXECUTED |
 | Click / destino / ownership | NOT EXECUTED | NOT EXECUTED |
 | Offline sin falso guardado | NOT EXECUTED | NOT EXECUTED |
 | Recovery / reintento explícito | NOT EXECUTED | NOT EXECUTED |
