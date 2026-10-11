@@ -257,6 +257,15 @@ Desde Inicio, el usuario confirmó que identifica fácilmente el nombre de la
 campaña, el acceso a su disponibilidad y la información de estado/cobertura sin
 ayuda. **PASS reportado por usuario: orientación básica de Inicio para perfil A.**
 
+### Android — Mi programa antes de publicación
+
+El usuario abrió Mi programa y encontró el nombre de la campaña ficticia,
+«El programa todavía no ha sido publicado» y «Mis solicitudes de cambio: no tiene
+solicitudes de cambio». Confirmó que el estado se entiende sin ayuda. **PASS
+reportado por usuario: estado vacío pre-publicación y ausencia de ChangeRequests
+claros.** Esto no acredita Mi programa con asignaciones: para ello hace falta
+publicar un programa de piloto válido tras disponibilidad humana B/C.
+
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
 si soportados en la versión y desde instalación → offline/recovery → logout.
