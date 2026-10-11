@@ -277,6 +277,11 @@ explícita los warnings de puntos ficticios vacíos. Publicación 200: campaña
 `published`, ProgramVersion v1 única, dos Assignments `published`; no producción
 ni campaña real afectada. Pendiente la observación física de Mi programa y Avisos
 para A/C; B queda sin turno publicado.
+El operador reingresó como C y confirmó físicamente que Mi programa muestra con
+claridad el lunes 08:00–09:00, Punto ficticio 1 y A como compañero. **PASS
+funcional: programa publicado v1 visible para participante asignado.** No se
+infiere recepción de aviso interno de publicación porque no fue reportada por
+separado.
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
