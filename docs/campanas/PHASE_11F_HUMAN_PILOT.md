@@ -138,8 +138,12 @@ vínculo accepted ni snapshots. No se modifica la sesión Android de A.
 Readback del evento 2026-10-11 01:57:57 UTC: `pair_request_created`, título
 «Solicitud para participar juntos», unread=1, destino `/campanas/participar-juntos`;
 outbox delivered y una delivery delivered/attempts=1/error=null.
-**FCM accepted técnico**, NO PASS de visualización Android ni foreground todavía.
-Se espera confirmación humana de aparición automática frente a refresh manual.
+FCM accepted técnico se verificó por separado de la observación humana.
+El usuario confirmó que apareció automáticamente, sin «Actualizar avisos», el
+aviso «Solicitud para participar juntos», marcado «No leído», con acciones para
+revisar en la aplicación y marcar como leído. **Foreground/in-app PASS reportado
+por usuario**. No se atribuye un banner nativo Android: esa comprobación requiere
+la prueba independiente con la app en segundo plano.
 
 | Comprobación | Android | iOS/iPadOS |
 | --- | --- | --- |
@@ -147,9 +151,10 @@ Se espera confirmación humana de aparición automática frente a refresh manual
 | Standalone | PASS — desde icono, sin barra Chrome, confirmado por usuario | NOT EXECUTED |
 | Login/persistencia/cierre/reapertura | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
 | Availability guardar/editar tras reapertura | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
-| Avisos/Mi programa | NOT EXECUTED | NOT EXECUTED |
+| Avisos | PASS — aviso recibido automáticamente, confirmado por usuario | NOT EXECUTED |
+| Mi programa | NOT EXECUTED | NOT EXECUTED |
 | Permiso push contextual | Activación reportada por usuario; suscripción Android vigente verificada | NOT EXECUTED |
-| Foreground | NOT EXECUTED | NOT EXECUTED |
+| Foreground / recepción in-app | PASS — confirmado por usuario sin refresh manual | NOT EXECUTED |
 | Background / aviso OS visible | NOT EXECUTED | NOT EXECUTED |
 | Click / destino / ownership | NOT EXECUTED | NOT EXECUTED |
 | Offline sin falso guardado | NOT EXECUTED | NOT EXECUTED |
