@@ -304,6 +304,9 @@ en Mi programa y recibió el mensaje destacado «Tu programa fue actualizado».
 En Avisos, C vio dos mensajes recientes: «Solicitud de cambio» y «Tu programa fue
 actualizado». **PASS físico: avisos internos de resolución y actualización
 visibles para participante afectado.**
+El operador comprobó Avisos como B, sin turno ni afectación por la resolución, y
+no encontró «Solicitud de cambio» ni «Tu programa fue actualizado». **PASS
+funcional: no se muestran avisos de la resolución a participante no afectado.**
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
