@@ -266,6 +266,17 @@ observables; actualmente no medidos. Cubrir comprender Inicio, guardar y cambiar
 disponibilidad, cobertura si aplica, solicitar pareja, responder cuando corresponda,
 Avisos, programa, entender cambio y logout. No hay respuestas simuladas por IA.
 
+Observación de usabilidad real durante el perfil A: al abrir un aviso de PairRequest
+se vio únicamente el nombre del invitante y el mensaje «Conflicto de horarios».
+El conflicto es esperado en este fixture: B/C técnicos no tienen Availability
+humana cargada, por lo que no existe bloque compartido. La PairRequest vigente es
+un vínculo para la campaña, no una invitación a un turno particular; cuando sí hay
+intersección, la interfaz existente lista fecha y hora de los bloques compartidos.
+Feedback del usuario: hacer más explícito que debe revisar/actualizar su propia
+disponibilidad y que los horarios aparecerán al existir coincidencia. No se expone
+la disponibilidad individual del invitante ni se cambia el alcance congelado de
+F11F sin decisión explícita; registrar para revisión de UX posterior.
+
 ## Findings / bugs / fixes
 
 ### BLOCKER
@@ -293,6 +304,12 @@ usada para bloquear la ejecución del piloto.
 ### LOW
 
 Presentación de warnings, backlog previo F12. Sin cambio en esta fase.
+
+F11F-U01, observación UX: el texto de conflicto de PairRequest puede no explicar
+suficientemente que la solicitud no está ligada a un turno y que los horarios
+compartidos solo se muestran después de que ambos indiquen disponibilidad. No es
+fallo de datos ni de seguridad; revisar el microcopy y su enlace de disponibilidad
+con evidencia adicional de perfiles humanos antes de priorizarlo.
 
 No bugs funcionales corregidos ni código de aplicación modificado. Si aparece un
 bug real: reproducir/clasificar, test, fix mínimo, regresión requerida, deploy solo
