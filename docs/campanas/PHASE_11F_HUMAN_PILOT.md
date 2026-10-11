@@ -219,7 +219,7 @@ queda pendiente revisar batería/datos y ejecución real del worker.
 | Background / aviso OS visible | FAIL reproducible: no visible con Chrome cerrado ni al abrir Chrome; hubo un único display previo con factor Chrome no aislado | NOT EXECUTED |
 | Click / destino / ownership | NOT EXECUTED | NOT EXECUTED |
 | Offline sin falso guardado | PASS — perfil A: app cerrada y luego abierta sin red muestra «Sin conexión»; app abierta al activar modo avión cambia inmediatamente a esa pantalla y no permite editar Availability | NOT EXECUTED |
-| Recovery / reintento explícito | NOT EXECUTED | NOT EXECUTED |
+| Recovery / reintento explícito | PASS — tras reactivar conectividad, Availability cargó normalmente y conservó el estado anterior; sin reintento oculto | NOT EXECUTED |
 | Update | NOT EXECUTED | NOT EXECUTED |
 | Logout / desaparición de datos privados | NOT EXECUTED | NOT EXECUTED |
 
@@ -236,6 +236,10 @@ abierta, al activar modo avión la pantalla cambió inmediatamente a «Sin conex
 En ambos casos no fue posible editar Availability ni simular un guardado. **PASS
 reportado por usuario: offline bloquea la mutación sin falso éxito.** Queda por
 verificar la recuperación al restablecer conectividad y el reintento explícito.
+El usuario reactivó conectividad, abrió Campañas y confirmó que la pantalla dejó
+de indicar «Sin conexión», Availability cargó normalmente y conservó su estado
+anterior. **PASS reportado por usuario: recuperación sin pérdida ni reintento
+oculto.**
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
