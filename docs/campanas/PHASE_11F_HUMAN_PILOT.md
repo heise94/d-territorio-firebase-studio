@@ -277,6 +277,11 @@ disponibilidad y que los horarios aparecerán al existir coincidencia. No se exp
 la disponibilidad individual del invitante ni se cambia el alcance congelado de
 F11F sin decisión explícita; registrar para revisión de UX posterior.
 
+El usuario rechazó una solicitud pendiente de prueba. Confirmó que el estado pasó
+a «Rechazada», desaparecieron los controles para responder y la solicitud quedó
+en el historial conservando el nombre esperado. **PASS reportado por usuario:
+PairRequest pending → rejected, historial visible y sin exposición adicional.**
+
 ## Findings / bugs / fixes
 
 ### BLOCKER
