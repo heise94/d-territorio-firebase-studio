@@ -145,6 +145,28 @@ revisar en la aplicación y marcar como leído. **Foreground/in-app PASS reporta
 por usuario**. No se atribuye un banner nativo Android: esa comprobación requiere
 la prueba independiente con la app en segundo plano.
 
+### Android — background: primer intento sin notificación visible
+
+Tras pedir ir a la pantalla de inicio sin cerrar sesión, el usuario respondió
+«listo». Se eligió explícitamente C como segundo contraparte ficticio técnico y
+se creó PairRequest C→A por el endpoint existente, sin aceptación/asignación
+automática ni modificación de la sesión Android. Evento 2026-10-11 02:00:37 UTC:
+API 200/pending, aviso persistido; outbox y única delivery delivered, intento 1,
+error=null. El historial tiene dos avisos sin leer.
+
+El usuario informó **«no mostró nada de nada»** fuera de la app. **FAIL del
+primer intento background**, no PASS basado en FCM. Click no ejecutado.
+Todavía falta distinguir ausencia de banner frente a ausencia en el panel nativo.
+No se atribuye la causa a Xiaomi, batería, permisos ni código sin comprobarla.
+
+Lectura de logs para cada evento: el primero tiene revalidación push-event 200 a
+01:57:58 UTC; no se encontró revalidación del segundo en la consulta disponible.
+Esto no demuestra pérdida definitiva ni identifica una causa: el envío aceptado
+no prueba recepción/ejecución del worker Android y puede haber demora de logs.
+Consulta de señales desde 01:57 UTC sin 5xx/429/push failures/scheduler ERROR.
+Sin cambios de ajustes, reenvío ciego, código, IAM ni producción. Diagnóstico
+abierto: comprobar primero el panel nativo sin abrir la app.
+
 | Comprobación | Android | iOS/iPadOS |
 | --- | --- | --- |
 | Instalación real | PASS — confirmado por usuario, perfil A | NOT EXECUTED |
@@ -155,7 +177,7 @@ la prueba independiente con la app en segundo plano.
 | Mi programa | NOT EXECUTED | NOT EXECUTED |
 | Permiso push contextual | Activación reportada por usuario; suscripción Android vigente verificada | NOT EXECUTED |
 | Foreground / recepción in-app | PASS — confirmado por usuario sin refresh manual | NOT EXECUTED |
-| Background / aviso OS visible | NOT EXECUTED | NOT EXECUTED |
+| Background / aviso OS visible | FAIL — primer intento sin notificación reportada; diagnóstico abierto | NOT EXECUTED |
 | Click / destino / ownership | NOT EXECUTED | NOT EXECUTED |
 | Offline sin falso guardado | NOT EXECUTED | NOT EXECUTED |
 | Recovery / reintento explícito | NOT EXECUTED | NOT EXECUTED |
@@ -201,7 +223,12 @@ blockers acreditados en dispositivos/personas.
 
 ### HIGH
 
-Ninguno nuevo observado; sin evaluación física/humana todavía.
+F11F-A01, seguimiento provisional: notificación background no visible en el
+primer intento Android perfil A. Reproducción inicial sí; causa y repetibilidad
+pendientes. No bug de código confirmado ni limitación de plataforma acreditada.
+Recomendación: verificar panel/estado real, contrastar recepción y permisos antes
+de cualquier fix; repetir de forma controlada. No cerrar como PASS ni atribuir
+HIGH definitivo al producto si la causa es configuración del dispositivo.
 
 ### MEDIUM
 
