@@ -221,7 +221,7 @@ queda pendiente revisar batería/datos y ejecución real del worker.
 | Offline sin falso guardado | PASS — perfil A: app cerrada y luego abierta sin red muestra «Sin conexión»; app abierta al activar modo avión cambia inmediatamente a esa pantalla y no permite editar Availability | NOT EXECUTED |
 | Recovery / reintento explícito | PASS — tras reactivar conectividad, Availability cargó normalmente y conservó el estado anterior; sin reintento oculto | NOT EXECUTED |
 | Update | NOT EXECUTED | NOT EXECUTED |
-| Logout / desaparición de datos privados | NOT EXECUTED | NOT EXECUTED |
+| Logout / desaparición de datos privados | PASS — perfil A cerró sesión y, al reabrir, solo vio acceso por teléfono y PIN; sin datos previos visibles | NOT EXECUTED |
 
 Android: Chrome → URL → instalar → abrir standalone → login → cerrar/reabrir →
 Availability/Avisos/programa → habilitar permiso por clic → foreground/background
@@ -240,6 +240,13 @@ El usuario reactivó conectividad, abrió Campañas y confirmó que la pantalla 
 de indicar «Sin conexión», Availability cargó normalmente y conservó su estado
 anterior. **PASS reportado por usuario: recuperación sin pérdida ni reintento
 oculto.**
+
+### Android — logout
+
+El usuario cerró sesión en el perfil A y al reabrir Campañas volvió a la pantalla
+de ingreso por teléfono y PIN, sin datos previos de la cuenta visibles. **PASS
+reportado por usuario: logout y ocultación de datos privados.** Falta únicamente
+el reingreso posterior como comprobación separada de recuperación de sesión.
 
 iOS: Safari → URL → Añadir a pantalla de inicio → abrir standalone → login →
 cerrar/reabrir → Availability/Avisos/programa → permiso/push/background/clic solo
