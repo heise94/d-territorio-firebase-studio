@@ -120,10 +120,22 @@ export class CampaignAdminDashboardService {
   private async authorize(token: string, campaignId: string) {
     if (!campaignDocumentIdSchema.safeParse(campaignId).success)
       throw new AuthError(400, "Campaña inválida.");
-    await requireCampaignAccess(this.db, token, campaignId, [
-      "SUPER_ADMIN",
-      "CAMPAIGN_ADMIN",
-    ]);
+    try {
+      await requireCampaignAccess(this.db, token, campaignId, [
+        "SUPER_ADMIN",
+        "CAMPAIGN_ADMIN",
+      ]);
+    } catch (error) {
+      // An authenticated administrator must not be able to distinguish an
+      // unknown campaign from one outside its explicit grant.
+      if (
+        error instanceof AuthError &&
+        error.status === 403 &&
+        error.message === "No tienes acceso a esta campaña."
+      )
+        throw new AuthError(404, "Campaña no encontrada.");
+      throw error;
+    }
   }
   async overview(token: string, campaignId: string): Promise<AdminOverview> {
     await this.authorize(token, campaignId);

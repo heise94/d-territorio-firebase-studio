@@ -3,7 +3,8 @@ import { z } from "zod";
 export function normalizeChileanPhone(input: string): string {
   const compact = input.trim().replace(/\D/g, "");
   if (/^\d{8}$/.test(compact)) return `+569${compact}`;
-  const national = compact.startsWith("+56") ? compact.slice(3) : compact;
+  // `compact` contains digits only, so the Chilean country prefix is `56`.
+  const national = compact.startsWith("56") ? compact.slice(2) : compact;
   if (!/^9\d{8}$/.test(national))
     throw new Error("Ingresa un teléfono móvil chileno válido.");
   return `+56${national}`;
