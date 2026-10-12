@@ -87,7 +87,7 @@ export function CampaignStatusControls({
         </p>
       )}
       <p className="text-sm text-slate-600">
-        Publicación, ejecución y cierre no se habilitan en esta fase.
+        Revisa y publica la versión oficial desde Programa.
       </p>
     </section>
   );

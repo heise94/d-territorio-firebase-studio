@@ -1,0 +1,58 @@
+i  emulators: Starting emulators: auth, firestore
+i  emulators: Detected demo project ID "demo-campaign-auth", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node --require ./tests/campaign-auth/server-only.cjs --import tsx --test --test-name-pattern='^(?:Todas las lecturas y mutaciones rechazan cookie/token sin claim|HTTP 409 humanizado y 422 con advertencias individuales|Claim actual retirado y cuenta deshabilitada niegan mutación|Rules deny explícito de planner, incluso campaign_admin|Solo draft→open→planning, sin retrocesos ni fases posteriores|Lectura sin N\+1 por participante: consultas fijas y field masks|Assignment rechazada en open/published/active/completed y sin salto draft→planning|Audita max_turns_override específico y no acepta mover entre bloques por PATCH)$' tests/campaign-planner/integration.test.ts
+(node:9349) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Todas las lecturas y mutaciones rechazan cookie/token sin claim (3607.364625ms)
+✔ HTTP 409 humanizado y 422 con advertencias individuales (209.528375ms)
+✔ Claim actual retirado y cuenta deshabilitada niegan mutación (47.873042ms)
+[2026-10-12T17:24:31.366Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9eb3 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L72, false for 'update' @ L72
+[2026-10-12T17:24:31.383Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9eb5 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L72, false for 'update' @ L72
+[2026-10-12T17:24:31.398Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9eb7 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L73, false for 'update' @ L73
+[2026-10-12T17:24:31.412Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9eb9 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L73, false for 'update' @ L73
+[2026-10-12T17:24:31.426Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9ebb error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L74, false for 'update' @ L74
+[2026-10-12T17:24:31.440Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9ebd error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L74, false for 'update' @ L74
+[2026-10-12T17:24:31.458Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9ebf error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L62, false for 'update' @ L62
+[2026-10-12T17:24:31.470Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9ec1 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L62, false for 'update' @ L62
+[2026-10-12T17:24:31.484Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9ec3 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L69, false for 'update' @ L69
+[2026-10-12T17:24:31.497Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9ec5 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L69, false for 'update' @ L69
+[2026-10-12T17:24:31.511Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9ec7 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L70, false for 'update' @ L70
+[2026-10-12T17:24:31.522Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9ec9 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L70, false for 'update' @ L70
+[2026-10-12T17:24:31.534Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9ecb error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L67, false for 'update' @ L67
+[2026-10-12T17:24:31.546Z]  @firebase/firestore: Firestore (11.8.0): GrpcConnection RPC 'Write' stream 0x8b9f9ecd error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L67, false for 'update' @ L67
+✔ Rules deny explícito de planner, incluso campaign_admin (337.068208ms)
+✔ Solo draft→open→planning, sin retrocesos ni fases posteriores (143.214917ms)
+✔ Lectura sin N+1 por participante: consultas fijas y field masks (60.443042ms)
+✔ Assignment rechazada en open/published/active/completed y sin salto draft→planning (260.54075ms)
+✔ Audita max_turns_override específico y no acepta mover entre bloques por PATCH (99.520375ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5116.978667
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  auth: Stopping Authentication Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator
+

@@ -84,6 +84,36 @@
 }
 
 @layer components {
+  .campaign-admin-shell .admin-settings-row {
+    @apply mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm;
+  }
+  .campaign-admin-shell .admin-settings-row > span {
+    @apply w-full font-semibold;
+  }
+  .campaign-admin-shell .admin-settings-row > button {
+    @apply rounded-md border border-slate-200 px-3 py-2 font-medium text-teal-800 hover:bg-teal-50;
+  }
+  .campaign-admin-shell .admin-settings-row > button:last-child {
+    @apply text-red-700 hover:bg-red-50;
+  }
+  .campaign-admin-shell {
+    color-scheme: light;
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --input: 214 20% 86%;
+    --border: 214 20% 86%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+  }
+  .campaign-admin-shell input,
+  .campaign-admin-shell textarea,
+  .campaign-admin-shell select {
+    @apply bg-white text-slate-900 placeholder:text-slate-500;
+  }
   .campaign-page {
     @apply mx-auto min-h-screen max-w-md px-5 pb-28 pt-8;
     background: var(--campaign-background);

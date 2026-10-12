@@ -409,8 +409,8 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
         </p>
       )}
       {view && (
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(240px,1fr)_minmax(420px,2fr)_minmax(240px,1fr)]">
-          <section className="space-y-3 rounded-lg border bg-slate-50 p-4">
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_240px] xl:grid-cols-[minmax(210px,1fr)_minmax(360px,2fr)_minmax(200px,1fr)]">
+          <section className="space-y-3 rounded-lg border bg-slate-50 p-4 lg:order-2 xl:order-1">
             <h2 className="text-xl font-bold">Disponibles</h2>
             <p className="text-sm">
               Disponibilidad declarada y aún sin asignación en este bloque.
@@ -441,29 +441,31 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
               <p className="text-sm">No hay personas en esta lista.</p>
             )}
           </section>
-          <PlannerPoints
-            view={view}
-            saving={saving || loading}
-            selected={selected}
-            activate={(id, active) => void activate(id, active)}
-            assign={assign}
-            change={change}
-            complete={(assignment) => {
-              const person = [...view.available, ...view.exceptions].find(
-                (item) =>
-                  item.registrationId ===
-                  assignment.person.accepted?.otherRegistrationId,
-              );
-              if (person)
-                start({
-                  action: "create",
-                  person,
-                  pointId: assignment.pointId,
-                  slotNumber: assignment.slotNumber === 1 ? 2 : 1,
-                });
-            }}
-          />
-          <aside className="space-y-4 rounded-lg border bg-slate-50 p-4">
+          <div className="min-w-0 lg:order-1 xl:order-2">
+            <PlannerPoints
+              view={view}
+              saving={saving || loading}
+              selected={selected}
+              activate={(id, active) => void activate(id, active)}
+              assign={assign}
+              change={change}
+              complete={(assignment) => {
+                const person = [...view.available, ...view.exceptions].find(
+                  (item) =>
+                    item.registrationId ===
+                    assignment.person.accepted?.otherRegistrationId,
+                );
+                if (person)
+                  start({
+                    action: "create",
+                    person,
+                    pointId: assignment.pointId,
+                    slotNumber: assignment.slotNumber === 1 ? 2 : 1,
+                  });
+              }}
+            />
+          </div>
+          <aside className="space-y-4 rounded-lg border bg-slate-50 p-4 lg:order-3 lg:col-span-2 xl:col-span-1">
             <h2 className="text-xl font-bold">Contexto / Reserva</h2>
             <p className="text-sm">
               Reserva derivada: {view.metrics.reserve} disponibles sin asignar.

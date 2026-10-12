@@ -219,39 +219,295 @@ export function CongregationSettings({ campaignId }: { campaignId: string }) {
 }
 
 /** Small configuration form; participant-facing presentation lives outside admin. */
-export function CampaignInformationForm({ campaign, onSaved }: { campaign: Campaign; onSaved: (campaign: Campaign) => void }) {
+export function CampaignInformationForm({
+  campaign,
+  onSaved,
+}: {
+  campaign: Campaign;
+  onSaved: (campaign: Campaign) => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const info = campaign.information;
-  const contacts = (info?.contacts ?? []).map((row) => [row.name, row.role ?? "", row.phone, row.allowWhatsApp ? "whatsapp" : ""].join(" | ")).join("\n");
-  const notes = (info?.notes ?? []).map((row) => [row.title, row.body ?? ""].join(" | ")).join("\n");
-  const lines = (value: FormDataEntryValue | null) => String(value ?? "").split("\n").map((line) => line.trim()).filter(Boolean);
-  return <form className="mt-4 grid gap-4 md:grid-cols-2" onSubmit={async (event) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const logistics = (prefix: "pickup" | "returnInfo") => ({
-      location: String(data.get(`${prefix}Location`) ?? ""),
-      schedule: String(data.get(`${prefix}Schedule`) ?? ""),
-      instructions: String(data.get(`${prefix}Instructions`) ?? ""),
-      mapUrl: String(data.get(`${prefix}MapUrl`) ?? ""),
-    });
-    const parsed = campaignInformationSchema.safeParse({
-      intro: String(data.get("intro") ?? ""), generalMapUrl: String(data.get("generalMapUrl") ?? ""),
-      pickup: logistics("pickup"), returnInfo: logistics("returnInfo"),
-      contacts: lines(data.get("contacts")).map((line) => { const [name, role = "", phone = "", channel = ""] = line.split("|").map((part) => part.trim()); return { name, role, phone, allowCall: true, allowWhatsApp: channel.toLocaleLowerCase("es").includes("whatsapp") }; }),
-      notes: lines(data.get("notes")).map((line) => { const [title, body = ""] = line.split("|").map((part) => part.trim()); return { title, body }; }),
-    });
-    if (!parsed.success) { setMessage(parsed.error.issues[0]?.message ?? "Revisa los datos."); return; }
-    setBusy(true); setMessage("Guardando…");
-    try { await repo.updateCampaignInformation(campaign.id, parsed.data); onSaved({ ...campaign, information: parsed.data }); setMessage("Información para participantes guardada."); }
-    catch { setMessage("No se pudo guardar la información."); }
-    finally { setBusy(false); }
-  }}>
-    <label className="grid gap-2 text-sm font-semibold md:col-span-2">Introducción<Textarea name="intro" defaultValue={info?.intro ?? ""} /></label>
-    <label className="grid gap-2 text-sm font-semibold md:col-span-2">Mapa general (URL HTTPS)<Input name="generalMapUrl" defaultValue={info?.generalMapUrl ?? ""} /></label>
-    {(["pickup", "returnInfo"] as const).map((kind) => <div key={kind} className="grid gap-2 rounded border p-3"><p className="font-semibold">{kind === "pickup" ? "Retiro de exhibidores" : "Devolución"}</p><Input name={`${kind}Location`} placeholder="Lugar" defaultValue={info?.[kind]?.location ?? ""} /><Input name={`${kind}Schedule`} placeholder="Horario" defaultValue={info?.[kind]?.schedule ?? ""} /><Textarea name={`${kind}Instructions`} placeholder="Indicaciones" defaultValue={info?.[kind]?.instructions ?? ""} /><Input name={`${kind}MapUrl`} placeholder="URL HTTPS de ubicación" defaultValue={info?.[kind]?.mapUrl ?? ""} /></div>)}
-    <label className="grid gap-2 text-sm font-semibold md:col-span-2">Contactos (una línea: Nombre | Rol | Teléfono | whatsapp)<Textarea name="contacts" defaultValue={contacts} /></label>
-    <label className="grid gap-2 text-sm font-semibold md:col-span-2">Indicaciones (una línea: Título | Detalle)<Textarea name="notes" defaultValue={notes} /></label>
-    <div className="md:col-span-2"><Button disabled={busy} className="bg-teal-700 text-white hover:bg-teal-800">{busy ? "Guardando…" : "Guardar información participante"}</Button><p role="status" className="mt-2 text-sm">{message}</p></div>
-  </form>;
+  const [contacts, setContacts] = useState(info?.contacts ?? []);
+  const [notes, setNotes] = useState(info?.notes ?? []);
+  return (
+    <form
+      className="mt-4 grid gap-6 md:grid-cols-2"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
+        const logistics = (prefix: "pickup" | "returnInfo") => ({
+          location: String(data.get(`${prefix}Location`) ?? ""),
+          schedule: String(data.get(`${prefix}Schedule`) ?? ""),
+          instructions: String(data.get(`${prefix}Instructions`) ?? ""),
+          mapUrl: String(data.get(`${prefix}MapUrl`) ?? ""),
+        });
+        const parsed = campaignInformationSchema.safeParse({
+          intro: String(data.get("intro") ?? ""),
+          generalMapUrl: String(data.get("generalMapUrl") ?? ""),
+          pickup: logistics("pickup"),
+          returnInfo: logistics("returnInfo"),
+          contacts,
+          notes,
+        });
+        if (!parsed.success) {
+          setMessage(parsed.error.issues[0]?.message ?? "Revisa los datos.");
+          return;
+        }
+        setBusy(true);
+        setMessage("Guardando…");
+        try {
+          await repo.updateCampaignInformation(campaign.id, parsed.data);
+          onSaved({ ...campaign, information: parsed.data });
+          setMessage("Información para participantes guardada.");
+        } catch {
+          setMessage("No se pudo guardar la información.");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <label className="grid gap-2 text-sm font-semibold md:col-span-2">
+        Introducción
+        <Textarea name="intro" defaultValue={info?.intro ?? ""} />
+      </label>
+      <label className="grid gap-2 text-sm font-semibold md:col-span-2">
+        Mapa general (URL HTTPS)
+        <Input name="generalMapUrl" defaultValue={info?.generalMapUrl ?? ""} />
+        <span className="font-normal text-slate-500">
+          Enlace al lugar principal de la campaña.
+        </span>
+      </label>
+      {(["pickup", "returnInfo"] as const).map((kind) => (
+        <fieldset
+          key={kind}
+          className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4"
+        >
+          <legend className="px-1 font-bold">
+            {kind === "pickup"
+              ? "Retiro de exhibidores"
+              : "Devolución de exhibidores"}
+          </legend>
+          <label className="grid gap-2 text-sm font-semibold">
+            Lugar
+            <Input
+              name={`${kind}Location`}
+              defaultValue={info?.[kind]?.location ?? ""}
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold">
+            Horario
+            <Input
+              name={`${kind}Schedule`}
+              defaultValue={info?.[kind]?.schedule ?? ""}
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold">
+            Indicaciones
+            <Textarea
+              name={`${kind}Instructions`}
+              defaultValue={info?.[kind]?.instructions ?? ""}
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold">
+            Enlace de ubicación (opcional)
+            <Input
+              name={`${kind}MapUrl`}
+              defaultValue={info?.[kind]?.mapUrl ?? ""}
+            />
+          </label>
+        </fieldset>
+      ))}
+      <section className="space-y-3 md:col-span-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-bold">
+            Contactos del equipo organizador
+          </h3>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={contacts.length >= 12}
+            onClick={() =>
+              setContacts([
+                ...contacts,
+                {
+                  name: "",
+                  role: "",
+                  phone: "",
+                  allowCall: true,
+                  allowWhatsApp: false,
+                },
+              ])
+            }
+          >
+            Agregar contacto
+          </Button>
+        </div>
+        {contacts.length === 0 && (
+          <p className="text-sm text-slate-500">
+            Todavía no hay contactos configurados.
+          </p>
+        )}
+        {contacts.map((row, index) => (
+          <fieldset
+            key={index}
+            className="grid gap-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2"
+          >
+            <legend className="px-1 text-sm font-semibold">
+              Contacto {index + 1}
+            </legend>
+            <label className="grid gap-2 text-sm font-semibold">
+              Nombre
+              <Input
+                required
+                value={row.name}
+                onChange={(e) =>
+                  setContacts(
+                    contacts.map((r, i) =>
+                      i === index ? { ...r, name: e.target.value } : r,
+                    ),
+                  )
+                }
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-semibold">
+              Rol
+              <Input
+                value={row.role ?? ""}
+                onChange={(e) =>
+                  setContacts(
+                    contacts.map((r, i) =>
+                      i === index ? { ...r, role: e.target.value } : r,
+                    ),
+                  )
+                }
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-semibold">
+              Teléfono
+              <Input
+                required
+                value={row.phone}
+                onChange={(e) =>
+                  setContacts(
+                    contacts.map((r, i) =>
+                      i === index ? { ...r, phone: e.target.value } : r,
+                    ),
+                  )
+                }
+              />
+            </label>
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={row.allowCall}
+                  onChange={(e) =>
+                    setContacts(
+                      contacts.map((r, i) =>
+                        i === index ? { ...r, allowCall: e.target.checked } : r,
+                      ),
+                    )
+                  }
+                />
+                Permitir llamada
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={row.allowWhatsApp}
+                  onChange={(e) =>
+                    setContacts(
+                      contacts.map((r, i) =>
+                        i === index
+                          ? { ...r, allowWhatsApp: e.target.checked }
+                          : r,
+                      ),
+                    )
+                  }
+                />
+                Permitir WhatsApp
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setContacts(contacts.filter((_, i) => i !== index))
+                }
+              >
+                Quitar contacto {index + 1}
+              </Button>
+            </div>
+          </fieldset>
+        ))}
+      </section>
+      <section className="space-y-3 md:col-span-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-bold">Indicaciones importantes</h3>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={notes.length >= 20}
+            onClick={() => setNotes([...notes, { title: "", body: "" }])}
+          >
+            Agregar indicación
+          </Button>
+        </div>
+        {notes.map((row, index) => (
+          <div
+            key={index}
+            className="grid gap-3 rounded-xl border border-slate-200 p-4"
+          >
+            <label className="grid gap-2 text-sm font-semibold">
+              Título de indicación {index + 1}
+              <Input
+                required
+                value={row.title}
+                onChange={(e) =>
+                  setNotes(
+                    notes.map((r, i) =>
+                      i === index ? { ...r, title: e.target.value } : r,
+                    ),
+                  )
+                }
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-semibold">
+              Detalle
+              <Textarea
+                value={row.body ?? ""}
+                onChange={(e) =>
+                  setNotes(
+                    notes.map((r, i) =>
+                      i === index ? { ...r, body: e.target.value } : r,
+                    ),
+                  )
+                }
+              />
+            </label>
+            <Button
+              type="button"
+              variant="outline"
+              className="justify-self-end"
+              onClick={() => setNotes(notes.filter((_, i) => i !== index))}
+            >
+              Quitar indicación {index + 1}
+            </Button>
+          </div>
+        ))}
+      </section>
+      <div className="md:col-span-2">
+        <Button
+          disabled={busy}
+          className="bg-teal-700 text-white hover:bg-teal-800"
+        >
+          {busy ? "Guardando…" : "Guardar información participante"}
+        </Button>
+        <p role="status" className="mt-2 text-sm">
+          {message}
+        </p>
+      </div>
+    </form>
+  );
 }

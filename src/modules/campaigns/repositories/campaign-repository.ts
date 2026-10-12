@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { campaignCollections } from "../lib/paths";
+import { cleanFirestorePayload } from "../lib/firestore-payload";
 import type {
   Campaign,
   CampaignInformation,
@@ -37,10 +38,7 @@ const item = <T>(snapshot: { id: string; data: () => unknown }) => ({
   id: snapshot.id,
   ...(snapshot.data() as Omit<T, "id">),
 });
-const clean = <T extends Record<string, unknown>>(payload: T) =>
-  Object.fromEntries(
-    Object.entries(payload).filter(([, value]) => value !== undefined),
-  ) as T;
+const clean = cleanFirestorePayload;
 
 export const campaignRepository = {
   subscribeCampaigns(callback: (items: Campaign[]) => void) {
@@ -82,9 +80,12 @@ export const campaignRepository = {
       updatedAt: serverTimestamp(),
     });
   },
-  updateCampaignInformation(id: string, information: CampaignInformation | undefined) {
+  updateCampaignInformation(
+    id: string,
+    information: CampaignInformation | undefined,
+  ) {
     return updateDoc(doc(db, campaignCollections.campaigns, id), {
-      information: information ?? deleteField(),
+      information: information ? clean(information) : deleteField(),
       updatedAt: serverTimestamp(),
     });
   },
@@ -250,8 +251,12 @@ export const campaignRepository = {
   async savePoint(campaignId: string, input: PointInput, existing?: Point) {
     if (existing) {
       const payload = clean(input);
-      if (input.mapUrl === undefined) Object.assign(payload, { mapUrl: deleteField() });
-      return updateDoc(doc(db, campaignCollections.points, existing.id), payload);
+      if (input.mapUrl === undefined)
+        Object.assign(payload, { mapUrl: deleteField() });
+      return updateDoc(
+        doc(db, campaignCollections.points, existing.id),
+        payload,
+      );
     }
     const current = await getDocs(
       query(

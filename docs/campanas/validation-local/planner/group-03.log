@@ -1,0 +1,28 @@
+i  emulators: Starting emulators: auth, firestore
+i  emulators: Detected demo project ID "demo-campaign-auth", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node --require ./tests/campaign-auth/server-only.cjs --import tsx --test --test-name-pattern='^(?:Accepted legacy incompleto: conflicto, no separar/mover, completar mismo punto|Accepted legacy se puede liberar sin dejar huérfano|Accepted no puede entrar a punto parcialmente ocupado|Vínculos accepted corruptos no se adivinan|Punto global inactivo rechaza asignación/activación|Capacidad 0 válida y límite de puntos configurado, no hardcodeado|Auditoría mínima con UID, campaignId, entidad y timestamp|DTO mínimo sin teléfonos/hashes/sesiones)$' tests/campaign-planner/integration.test.ts
+✔ Accepted legacy incompleto: conflicto, no separar/mover, completar mismo punto (834.463042ms)
+✔ Accepted legacy se puede liberar sin dejar huérfano (91.688375ms)
+✔ Accepted no puede entrar a punto parcialmente ocupado (104.006333ms)
+✔ Vínculos accepted corruptos no se adivinan (72.254917ms)
+✔ Punto global inactivo rechaza asignación/activación (95.318791ms)
+✔ Capacidad 0 válida y límite de puntos configurado, no hardcodeado (86.908916ms)
+✔ Auditoría mínima con UID, campaignId, entidad y timestamp (62.478625ms)
+✔ DTO mínimo sin teléfonos/hashes/sesiones (86.942125ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1784.648125
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  auth: Stopping Authentication Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator
+

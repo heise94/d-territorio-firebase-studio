@@ -1,6 +1,9 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { calculateCoverage, registrationIsApproved } from "../domain/registration";
+import {
+  calculateCoverage,
+  registrationIsApproved,
+} from "../domain/registration";
 import type { PairRequest } from "../domain/pair-request";
 import { normalizePairSearch } from "../domain/pair-request";
 import {
@@ -56,62 +59,73 @@ function pairContext(source: DashboardSource, pair: PairRequest) {
       source.profiles.get(b.participantId)?.active !== true,
   };
 }
+function visiblePairs(source: DashboardSource) {
+  return source.pairs.filter((pair) =>
+    [pair.requesterRegistrationId, pair.recipientRegistrationId].every((id) => {
+      const registration = source.registrations.get(id);
+      return !!registration && registrationIsApproved(registration);
+    }),
+  );
+}
+
 function rows(source: DashboardSource): AdminParticipantRow[] {
   // The shared campaign pool intentionally contains only approved registrations.
-  return [...source.registrations.values()].filter(registrationIsApproved).map((registration) => {
-    const profile = source.profiles.get(registration.participantId);
-    const ownPairs = source.pairs.filter(
-      (pair) =>
-        pair.requesterRegistrationId === registration.id ||
-        pair.recipientRegistrationId === registration.id,
-    );
-    const accepted = ownPairs.find((pair) => pair.status === "accepted");
-    const otherId = accepted
-      ? accepted.requesterRegistrationId === registration.id
-        ? accepted.recipientRegistrationId
-        : accepted.requesterRegistrationId
-      : null;
-    const other = otherId ? source.registrations.get(otherId) : null;
-    const conflict = accepted ? pairContext(source, accepted) : null;
-    return {
-      registrationId: registration.id,
-      fullName: profile?.fullName ?? "Participante no disponible",
-      congregationId: profile?.congregationId ?? null,
-      congregation: profile?.congregationId
-        ? (source.congregations.get(profile.congregationId)?.name ??
-          "Congregación no disponible")
-        : "Sin congregación",
-      availableBlockCount: [
-        ...(source.selections.get(registration.id) ?? []),
-      ].filter((id) => source.activeBlocks.has(id)).length,
-      maxTurns: registration.maxTurns,
-      registrationStatus: registration.registrationStatus,
-      profileActive: profile?.active === true,
-      accepted:
-        accepted && otherId && conflict
-          ? {
-              requestId: accepted.id,
-              otherRegistrationId: otherId,
-              otherName: other
-                ? (source.profiles.get(other.participantId)?.fullName ??
-                  "Participante no disponible")
-                : "Participante no disponible",
-              availabilityConflict: conflict.availabilityConflict,
-              participationConflict: conflict.participationConflict,
-            }
-          : null,
-      pendingSent: ownPairs.filter(
+  return [...source.registrations.values()]
+    .filter(registrationIsApproved)
+    .map((registration) => {
+      const profile = source.profiles.get(registration.participantId);
+      const ownPairs = visiblePairs(source).filter(
         (pair) =>
-          pair.status === "pending" &&
-          pair.requesterRegistrationId === registration.id,
-      ).length,
-      pendingReceived: ownPairs.filter(
-        (pair) =>
-          pair.status === "pending" &&
+          pair.requesterRegistrationId === registration.id ||
           pair.recipientRegistrationId === registration.id,
-      ).length,
-    };
-  });
+      );
+      const accepted = ownPairs.find((pair) => pair.status === "accepted");
+      const otherId = accepted
+        ? accepted.requesterRegistrationId === registration.id
+          ? accepted.recipientRegistrationId
+          : accepted.requesterRegistrationId
+        : null;
+      const other = otherId ? source.registrations.get(otherId) : null;
+      const conflict = accepted ? pairContext(source, accepted) : null;
+      return {
+        registrationId: registration.id,
+        fullName: profile?.fullName ?? "Participante no disponible",
+        congregationId: profile?.congregationId ?? null,
+        congregation: profile?.congregationId
+          ? (source.congregations.get(profile.congregationId)?.name ??
+            "Congregación no disponible")
+          : "Sin congregación",
+        availableBlockCount: [
+          ...(source.selections.get(registration.id) ?? []),
+        ].filter((id) => source.activeBlocks.has(id)).length,
+        maxTurns: registration.maxTurns,
+        registrationStatus: registration.registrationStatus,
+        profileActive: profile?.active === true,
+        accepted:
+          accepted && otherId && conflict
+            ? {
+                requestId: accepted.id,
+                otherRegistrationId: otherId,
+                otherName: other
+                  ? (source.profiles.get(other.participantId)?.fullName ??
+                    "Participante no disponible")
+                  : "Participante no disponible",
+                availabilityConflict: conflict.availabilityConflict,
+                participationConflict: conflict.participationConflict,
+              }
+            : null,
+        pendingSent: ownPairs.filter(
+          (pair) =>
+            pair.status === "pending" &&
+            pair.requesterRegistrationId === registration.id,
+        ).length,
+        pendingReceived: ownPairs.filter(
+          (pair) =>
+            pair.status === "pending" &&
+            pair.recipientRegistrationId === registration.id,
+        ).length,
+      };
+    });
 }
 
 /** Read-only application service. Every entry point authorizes before any campaign read. */
@@ -143,7 +157,11 @@ export class CampaignAdminDashboardService {
       const source = await readDashboardSource(this.db, tx, campaignId);
       const active = new Set(
         [...source.registrations.values()]
-          .filter((row) => row.registrationStatus === "active" && registrationIsApproved(row))
+          .filter(
+            (row) =>
+              row.registrationStatus === "active" &&
+              registrationIsApproved(row),
+          )
           .map((row) => row.id),
       );
       const counts = new Map<string, number>();
@@ -179,7 +197,7 @@ export class CampaignAdminDashboardService {
             }),
         }));
       const blocks = days.flatMap((day) => day.blocks);
-      const accepted = source.pairs.filter(
+      const accepted = visiblePairs(source).filter(
         (pair) => pair.status === "accepted",
       );
       return {
@@ -207,7 +225,7 @@ export class CampaignAdminDashboardService {
             (sum, block) => sum + (block.coverage.reservePotential ?? 0),
             0,
           ),
-          pendingRequests: source.pairs.filter(
+          pendingRequests: visiblePairs(source).filter(
             (pair) => pair.status === "pending",
           ).length,
           acceptedLinks: accepted.length,
@@ -338,7 +356,7 @@ export class CampaignAdminDashboardService {
           .doc(registration.participantId),
         { fieldMask: ["phoneNormalized"] },
       );
-      const pairRequests: AdminPairDetail[] = source.pairs
+      const pairRequests: AdminPairDetail[] = visiblePairs(source)
         .filter(
           (pair) =>
             pair.requesterRegistrationId === id ||

@@ -135,12 +135,14 @@ before(async () => {
     phone: "913111112",
     pin: "1234",
     confirmPin: "1234",
+    congregationId: "associated",
   });
   c = await auth.register({
     fullName: "Persona ficticia C",
     phone: "913111113",
     pin: "1234",
     confirmPin: "1234",
+    congregationId: "associated",
   });
 });
 after(async () => {

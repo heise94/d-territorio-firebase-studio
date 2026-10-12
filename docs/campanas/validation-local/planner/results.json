@@ -1,0 +1,144 @@
+[
+  {
+    "group": 1,
+    "cases": [
+      "Fixture 80, cuatro congregaciones y 3/5/8 puntos por bloque",
+      "Desactivar punto vacío conserva relación e historial",
+      "Punto ocupado exige liberar antes y no cancela assignments",
+      "Crear draft, UID real, timestamps y desaparición inmediata de disponibles",
+      "Pareja manual no crea PairRequest ni vínculo permanente",
+      "Slot único y persona única dentro del bloque",
+      "Liberar cancela con trazabilidad y vuelve a Disponible/reserva",
+      "Mover punto y slot preserva id/createdBy y no duplica"
+    ],
+    "passed": 8,
+    "exitCode": 0
+  },
+  {
+    "group": 2,
+    "cases": [
+      "Movimiento a slot ocupado no modifica destino/origen",
+      "Disponibilidad falsa o ausente exige confirmación, no cambia Availability",
+      "available=false jamás se interpreta como disponible",
+      "maxTurns por campaña: warning personal, confirmación y registro sin cambiar preferencia",
+      "maxTurns null no limita; cancelados no cuentan",
+      "Accepted asigna dos slots atómicos, mueve y libera juntos",
+      "Accepted sin comunes visible, override de miembro ausente, sin cambiar Availability",
+      "Accepted: warning específico maxTurns de un miembro y ninguna escritura parcial"
+    ],
+    "passed": 8,
+    "exitCode": 0
+  },
+  {
+    "group": 3,
+    "cases": [
+      "Accepted legacy incompleto: conflicto, no separar/mover, completar mismo punto",
+      "Accepted legacy se puede liberar sin dejar huérfano",
+      "Accepted no puede entrar a punto parcialmente ocupado",
+      "Vínculos accepted corruptos no se adivinan",
+      "Punto global inactivo rechaza asignación/activación",
+      "Capacidad 0 válida y límite de puntos configurado, no hardcodeado",
+      "Auditoría mínima con UID, campaignId, entidad y timestamp",
+      "DTO mínimo sin teléfonos/hashes/sesiones"
+    ],
+    "passed": 8,
+    "exitCode": 0
+  },
+  {
+    "group": 4,
+    "cases": [
+      "Todas las lecturas y mutaciones rechazan cookie/token sin claim",
+      "HTTP 409 humanizado y 422 con advertencias individuales",
+      "Claim actual retirado y cuenta deshabilitada niegan mutación",
+      "Rules deny explícito de planner, incluso campaign_admin",
+      "Solo draft→open→planning, sin retrocesos ni fases posteriores",
+      "Lectura sin N+1 por participante: consultas fijas y field masks",
+      "Assignment rechazada en open/published/active/completed y sin salto draft→planning",
+      "Audita max_turns_override específico y no acepta mover entre bloques por PATCH"
+    ],
+    "passed": 8,
+    "exitCode": 0
+  },
+  {
+    "group": 5,
+    "cases": [
+      "Reserva/punto incompleto y dos documentos corruptos no cuentan doble turno",
+      "Rechazo servidor: slot inválido",
+      "Rechazo servidor: createdBy falsificado",
+      "Rechazo servidor: bloque ajeno",
+      "Rechazo servidor: punto ajeno",
+      "Rechazo servidor: inscripción ajena",
+      "Rechazo servidor: registro retirado",
+      "Rechazo servidor: perfil inactivo"
+    ],
+    "passed": 8,
+    "exitCode": 0
+  },
+  {
+    "group": 6,
+    "cases": [
+      "Rechazo servidor: bloque inactivo",
+      "Rechazo servidor: día inactivo",
+      "Rechazo servidor: punto no activado",
+      "Rechazo servidor: override ajeno"
+    ],
+    "passed": 4,
+    "exitCode": 0
+  },
+  {
+    "group": 7,
+    "cases": [
+      "BlockPoint determinístico, activación idempotente auditada una vez"
+    ],
+    "passed": 1,
+    "exitCode": 0
+  },
+  {
+    "group": 8,
+    "cases": [
+      "Dos UID: mismo slot solo un ganador"
+    ],
+    "passed": 1,
+    "exitCode": 0
+  },
+  {
+    "group": 9,
+    "cases": [
+      "Dos UID: misma persona en puntos distintos solo un ganador"
+    ],
+    "passed": 1,
+    "exitCode": 0
+  },
+  {
+    "group": 10,
+    "cases": [
+      "Dos UID: accepted concurrente no duplica miembros"
+    ],
+    "passed": 1,
+    "exitCode": 0
+  },
+  {
+    "group": 11,
+    "cases": [
+      "Desactivar vs asignar: nunca assignment sobre relación inactiva"
+    ],
+    "passed": 1,
+    "exitCode": 0
+  },
+  {
+    "group": 12,
+    "cases": [
+      "Liberar vs mover: versión evita pérdida silenciosa y duplicación"
+    ],
+    "passed": 1,
+    "exitCode": 0
+  },
+  {
+    "group": 13,
+    "cases": [
+      "maxTurns concurrente entre bloques: segunda decisión exige override"
+    ],
+    "passed": 1,
+    "exitCode": 0
+  }
+]
