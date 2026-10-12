@@ -1,4 +1,5 @@
 import "server-only";
+import { registrationIsApproved } from "../domain/registration";
 import type {
   PlannerAssignment,
   PlannerPerson,
@@ -69,8 +70,10 @@ export function plannerPerson(
               !first.has(blockId) || !second.has(blockId),
             participationConflict:
               registration?.registrationStatus !== "active" ||
+              (registration ? !registrationIsApproved(registration) : true) ||
               !profile?.active ||
               other?.registrationStatus !== "active" ||
+              (other ? !registrationIsApproved(other) : true) ||
               !other ||
               source.profiles.get(other.participantId)?.active !== true,
           }
@@ -108,7 +111,11 @@ export function projectPlanner(
   );
   const people = selected
     ? [...source.registrations.values()]
-        .filter((registration) => registration.registrationStatus === "active")
+        .filter(
+          (registration) =>
+            registration.registrationStatus === "active" &&
+            registrationIsApproved(registration),
+        )
         .map((registration) => plannerPerson(source, registration.id, selected))
         .sort(
           (a, b) =>
@@ -153,10 +160,14 @@ export function projectPlanner(
           warnings.push(
             "Punto o bloque inactivo/eliminado. Libera o revisa esta asignación.",
           );
+        const assignmentRegistration = source.registrations.get(
+          assignment.registrationId,
+        );
         if (
           !person.profileActive ||
-          source.registrations.get(assignment.registrationId)
-            ?.registrationStatus !== "active"
+          assignmentRegistration?.registrationStatus !== "active" ||
+          !assignmentRegistration ||
+          !registrationIsApproved(assignmentRegistration)
         )
           warnings.push("Inscripción o perfil inactivo.");
         if (!person.available && !assignment.availabilityOverride)

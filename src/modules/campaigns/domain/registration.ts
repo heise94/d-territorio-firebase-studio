@@ -3,14 +3,25 @@ import type { CampaignStatus } from "./types";
 
 export type MaxTurns = 1 | 2 | 3 | null;
 export type RegistrationStatus = "active" | "withdrawn" | "cancelled";
+/** Internal operational review. It is intentionally absent from participant DTOs. */
+export type RegistrationApprovalStatus =
+  | "pending"
+  | "approved"
+  | "not_approved";
 export interface CampaignRegistration {
   id: string;
   campaignId: string;
   participantId: string;
   maxTurns: MaxTurns;
   registrationStatus: RegistrationStatus;
+  /** Undefined is a pre-review legacy record and is treated as approved. */
+  approvalStatus?: RegistrationApprovalStatus;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+export function registrationIsApproved(row: CampaignRegistration): boolean {
+  return row.approvalStatus === undefined || row.approvalStatus === "approved";
 }
 export interface Availability {
   id: string;

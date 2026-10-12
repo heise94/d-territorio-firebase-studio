@@ -312,6 +312,8 @@ export class CampaignRegistrationService {
           participantId: participant.id,
           maxTurns: parsed.data.maxTurns,
           registrationStatus: "active",
+          // Never return this internal operational state in participant DTOs.
+          approvalStatus: existing?.approvalStatus ?? "pending",
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         };

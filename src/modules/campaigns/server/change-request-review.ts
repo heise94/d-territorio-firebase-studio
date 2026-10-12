@@ -4,8 +4,8 @@ import type { ChangeRequest } from "../domain/change-request";
 import { campaignCollections as names } from "../lib/paths";
 import { decideChangeSchema } from "../schemas/change-request-schemas";
 import { AuthError } from "./auth/service";
-import { authorizeCampaignDashboard } from "./admin-dashboard-authorization";
 import { campaignsAdminDb } from "./firebase-admin";
+import { requireCampaignAccess } from "./campaign-access";
 import { acceptedUnit } from "./planner-source";
 import { readVersion } from "./program-service";
 import {
@@ -22,7 +22,7 @@ export async function adminChanges(
   campaignId: string,
   requestId?: string,
 ) {
-  await authorizeCampaignDashboard(token);
+  await requireCampaignAccess(campaignsAdminDb(), token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"]);
   const db = campaignsAdminDb();
   return db.runTransaction(
     async (tx) => {
@@ -160,7 +160,7 @@ export async function decideChange(
   action: "approve" | "reject",
   input: unknown,
 ) {
-  const uid = await authorizeCampaignDashboard(token);
+  const uid = (await requireCampaignAccess(campaignsAdminDb(), token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"])).uid;
   const parsed = decideChangeSchema.safeParse(input);
   if (!parsed.success)
     throw new AuthError(400, "Respuesta inválida (máximo 500 caracteres).");

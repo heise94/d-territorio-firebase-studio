@@ -60,6 +60,7 @@ service cloud.firestore {
     // Participant authentication is exclusively server-side (Firebase Admin).
     // Even authenticated organizers cannot directly retrieve credential/session documents.
     match /participants/{docId} { allow read, write: if false; }
+    match /organizerUsers/{docId} { allow read, write: if false; }
     match /deviceSessions/{docId} { allow read, write: if false; }
     match /campaignParticipantPhones/{docId} { allow read, write: if false; }
     match /campaignAuthLimits/{docId} { allow read, write: if false; }

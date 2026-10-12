@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { calculateCoverage } from "../../src/modules/campaigns/domain/registration";
+import { calculateCoverage, registrationIsApproved } from "../../src/modules/campaigns/domain/registration";
 import {
   maxTurnsSchema,
   saveRegistrationSchema,
@@ -68,4 +68,11 @@ test("IDs lógicos estables, sin ambigüedad al concatenar ni usar teléfono", (
   );
   assert.notEqual(registrationId("ab", "c"), registrationId("a", "bc"));
   assert.notEqual(availabilityId("ab", "c"), availabilityId("a", "bc"));
+});
+test("Revisión interna: legado aprobado y estados explícitos sin DTO participante", () => {
+  const base = { id: "r", campaignId: "c", participantId: "p", maxTurns: 2 as const, registrationStatus: "active" as const, createdAt: {} as never, updatedAt: {} as never };
+  assert.equal(registrationIsApproved(base), true);
+  assert.equal(registrationIsApproved({ ...base, approvalStatus: "pending" }), false);
+  assert.equal(registrationIsApproved({ ...base, approvalStatus: "not_approved" }), false);
+  assert.equal(registrationIsApproved({ ...base, approvalStatus: "approved" }), true);
 });

@@ -92,6 +92,8 @@ export interface CampaignCongregation {
   campaignId: CampaignId;
   congregationId: CongregationId;
   coordinatorUserId?: string;
+  /** Explicit operational owner for private registration review. */
+  responsibleUserId?: string;
 }
 
 export interface Point {

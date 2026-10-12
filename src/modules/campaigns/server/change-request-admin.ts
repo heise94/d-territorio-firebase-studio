@@ -6,8 +6,8 @@ import type { ProgramVersion, ProgramView } from "../domain/program";
 import { campaignCollections as names } from "../lib/paths";
 import { resolveChangeSchema } from "../schemas/change-request-schemas";
 import { AuthError } from "./auth/service";
-import { authorizeCampaignDashboard } from "./admin-dashboard-authorization";
 import { campaignsAdminDb } from "./firebase-admin";
+import { requireCampaignAccess } from "./campaign-access";
 import { acceptedUnit } from "./planner-source";
 import { projectProgram } from "./program-projection";
 import {
@@ -208,7 +208,7 @@ export async function previewResolution(
   id: string,
   input: unknown,
 ) {
-  const uid = await authorizeCampaignDashboard(token);
+  const uid = (await requireCampaignAccess(campaignsAdminDb(), token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"])).uid;
   const parsed = resolveChangeSchema.safeParse(input);
   if (!parsed.success) throw new AuthError(400, "Resolución inválida.");
   return campaignsAdminDb().runTransaction(
@@ -225,7 +225,7 @@ export async function resolveChange(
   id: string,
   input: unknown,
 ): Promise<ProgramView> {
-  const uid = await authorizeCampaignDashboard(token);
+  const uid = (await requireCampaignAccess(campaignsAdminDb(), token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"])).uid;
   const parsed = resolveChangeSchema.safeParse(input);
   if (!parsed.success) throw new AuthError(400, "Resolución inválida.");
   const db = campaignsAdminDb();

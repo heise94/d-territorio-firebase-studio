@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { calculateCoverage } from "../domain/registration";
+import { calculateCoverage, registrationIsApproved } from "../domain/registration";
 import type { PairRequest } from "../domain/pair-request";
 import { normalizePairSearch } from "../domain/pair-request";
 import {
@@ -17,7 +17,7 @@ import { campaignDocumentIdSchema } from "../schemas/registration-schemas";
 import { adminParticipantFiltersSchema } from "../schemas/admin-dashboard-schemas";
 import { phoneSchema } from "../schemas/participant-auth";
 import { AuthError } from "./auth/service";
-import { authorizeCampaignDashboard } from "./admin-dashboard-authorization";
+import { requireCampaignAccess } from "./campaign-access";
 import {
   readDashboardSource,
   type DashboardSource,
@@ -57,7 +57,8 @@ function pairContext(source: DashboardSource, pair: PairRequest) {
   };
 }
 function rows(source: DashboardSource): AdminParticipantRow[] {
-  return [...source.registrations.values()].map((registration) => {
+  // The shared campaign pool intentionally contains only approved registrations.
+  return [...source.registrations.values()].filter(registrationIsApproved).map((registration) => {
     const profile = source.profiles.get(registration.participantId);
     const ownPairs = source.pairs.filter(
       (pair) =>
@@ -117,9 +118,12 @@ function rows(source: DashboardSource): AdminParticipantRow[] {
 export class CampaignAdminDashboardService {
   constructor(private readonly db: Firestore) {}
   private async authorize(token: string, campaignId: string) {
-    await authorizeCampaignDashboard(token);
     if (!campaignDocumentIdSchema.safeParse(campaignId).success)
       throw new AuthError(400, "Campaña inválida.");
+    await requireCampaignAccess(this.db, token, campaignId, [
+      "SUPER_ADMIN",
+      "CAMPAIGN_ADMIN",
+    ]);
   }
   async overview(token: string, campaignId: string): Promise<AdminOverview> {
     await this.authorize(token, campaignId);
@@ -127,7 +131,7 @@ export class CampaignAdminDashboardService {
       const source = await readDashboardSource(this.db, tx, campaignId);
       const active = new Set(
         [...source.registrations.values()]
-          .filter((row) => row.registrationStatus === "active")
+          .filter((row) => row.registrationStatus === "active" && registrationIsApproved(row))
           .map((row) => row.id),
       );
       const counts = new Map<string, number>();

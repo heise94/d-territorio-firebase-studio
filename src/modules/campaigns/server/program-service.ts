@@ -13,8 +13,8 @@ import type { PairRequest } from "../domain/pair-request";
 import type { CampaignRegistration } from "../domain/registration";
 import { AuthError } from "./auth/service";
 import { participantAuth } from "./auth/session";
-import { authorizeCampaignDashboard } from "./admin-dashboard-authorization";
 import { campaignsAdminDb } from "./firebase-admin";
+import { requireCampaignAccess } from "./campaign-access";
 import { readPlannerSource } from "./planner-source";
 import { projectProgram } from "./program-projection";
 import { turnId } from "./program-turn-locator";
@@ -82,7 +82,7 @@ export async function getProgram(
   campaignId: string,
   selectedVersion?: number,
 ) {
-  await authorizeCampaignDashboard(token);
+  await requireCampaignAccess(campaignsAdminDb(), token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"]);
   const db = campaignsAdminDb();
   return db.runTransaction(
     async (tx) => {
@@ -117,7 +117,7 @@ export async function publishProgram(
   campaignId: string,
   input: unknown,
 ) {
-  const uid = await authorizeCampaignDashboard(token);
+  const uid = (await requireCampaignAccess(campaignsAdminDb(), token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"])).uid;
   const parsed = publishSchema.safeParse(input);
   if (!parsed.success)
     throw new AuthError(400, "Datos de publicación inválidos.");

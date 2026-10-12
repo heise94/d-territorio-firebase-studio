@@ -16,8 +16,9 @@ import {
   type PlannerOverrides,
 } from "../schemas/planner-schemas";
 import { AuthError } from "./auth/service";
-import { authorizeCampaignDashboard } from "./admin-dashboard-authorization";
 import { campaignsAdminDb } from "./firebase-admin";
+import { registrationIsApproved } from "../domain/registration";
+import { requireCampaignAccess } from "./campaign-access";
 import {
   activeAssignments,
   acceptedUnit,
@@ -34,6 +35,12 @@ export class PlannerWarnings extends AuthError {
   }
 }
 const conflict = () => new AuthError(409, plannerConflictMessage);
+async function plannerAccess(token: string, campaignId: string) {
+  return requireCampaignAccess(campaignsAdminDb(), token, campaignId, [
+    "SUPER_ADMIN",
+    "CAMPAIGN_ADMIN",
+  ]);
+}
 function parse<T extends z.ZodTypeAny>(schema: T, input: unknown): z.output<T> {
   const result = schema.safeParse(input);
   if (!result.success)
@@ -109,6 +116,7 @@ function validatePeople(
     const reg = source.registrations.get(id);
     if (
       reg?.registrationStatus !== "active" ||
+      !registrationIsApproved(reg) ||
       source.profiles.get(reg.participantId)?.active !== true
     )
       throw conflict();
@@ -173,7 +181,7 @@ export async function getPlanner(
   campaignId: string,
   block?: string,
 ) {
-  await authorizeCampaignDashboard(token);
+  await plannerAccess(token, campaignId);
   return campaignsAdminDb().runTransaction(
     async (tx) =>
       projectPlanner(
@@ -188,7 +196,7 @@ export async function setBlockPoint(
   campaignId: string,
   input: unknown,
 ) {
-  const uid = await authorizeCampaignDashboard(token),
+  const uid = (await plannerAccess(token, campaignId)).uid,
     value = parse(blockPointInputSchema, input),
     db = campaignsAdminDb();
   await db.runTransaction(async (tx) => {
@@ -254,7 +262,7 @@ export async function createAssignment(
   campaignId: string,
   input: unknown,
 ) {
-  const uid = await authorizeCampaignDashboard(token),
+  const uid = (await plannerAccess(token, campaignId)).uid,
     value = parse(assignmentInputSchema, input),
     db = campaignsAdminDb();
   const newIds = [
@@ -358,7 +366,7 @@ export async function changeAssignment(
   id: string,
   input: unknown,
 ) {
-  const uid = await authorizeCampaignDashboard(token),
+  const uid = (await plannerAccess(token, campaignId)).uid,
     value = parse(assignmentChangeSchema, input),
     db = campaignsAdminDb();
   await db.runTransaction(async (tx) => {
@@ -457,7 +465,7 @@ export async function changePlannerStatus(
   campaignId: string,
   input: unknown,
 ) {
-  const uid = await authorizeCampaignDashboard(token),
+  const uid = (await plannerAccess(token, campaignId)).uid,
     value = parse(plannerStatusSchema, input),
     db = campaignsAdminDb();
   await db.runTransaction(async (tx) => {
