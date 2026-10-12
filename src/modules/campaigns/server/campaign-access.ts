@@ -9,10 +9,15 @@ import { campaignsAdminApp } from "./firebase-admin";
 async function verifiedUid(idToken: string) {
   if (!idToken || idToken.length > 8192)
     throw new AuthError(401, "Ingresa con tu cuenta administrativa.");
-  const decoded = await getAuth(campaignsAdminApp()).verifyIdToken(idToken, true);
-  const user = await getAuth(campaignsAdminApp()).getUser(decoded.uid);
-  if (user.disabled) throw new AuthError(403, "La cuenta administrativa está desactivada.");
-  return { uid: decoded.uid, superAdmin: decoded.super_admin === true };
+  try {
+    const decoded = await getAuth(campaignsAdminApp()).verifyIdToken(idToken, true);
+    const user = await getAuth(campaignsAdminApp()).getUser(decoded.uid);
+    if (user.disabled) throw new AuthError(403, "La cuenta administrativa está desactivada.");
+    return { uid: decoded.uid, superAdmin: user.customClaims?.super_admin === true, campaignAdmin: user.customClaims?.campaign_admin === true };
+  } catch (error) {
+    if (error instanceof AuthError) throw error;
+    throw new AuthError(401, "Tu sesión administrativa no es válida. Ingresa nuevamente.");
+  }
 }
 
 /**
@@ -26,6 +31,10 @@ export async function requireCampaignAccess(
   allowed: OrganizerRole[],
 ): Promise<CampaignAccess> {
   const identity = await verifiedUid(idToken);
+  // The scoped document is authoritative for *where* access applies. The
+  // revocable Firebase claim remains the global administrative admission gate.
+  if (!identity.campaignAdmin && !identity.superAdmin)
+    throw new AuthError(403, "Tu cuenta no tiene autorización administrativa de Campañas.");
   if (identity.superAdmin && allowed.includes("SUPER_ADMIN"))
     return { uid: identity.uid, role: "SUPER_ADMIN", campaignId };
   const grants = await db
@@ -47,4 +56,16 @@ export async function requireCampaignAccess(
     campaignId,
     ...(match.congregationId ? { congregationId: match.congregationId } : {}),
   };
+}
+
+export async function campaignAccessForNavigation(
+  db: Firestore,
+  idToken: string,
+  campaignId: string,
+) {
+  return requireCampaignAccess(db, idToken, campaignId, [
+    "SUPER_ADMIN",
+    "CAMPAIGN_ADMIN",
+    "CONGREGATION_RESPONSIBLE",
+  ]);
 }

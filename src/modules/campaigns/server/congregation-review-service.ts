@@ -23,16 +23,21 @@ export class CongregationReviewService {
       const registration = { id: doc.id, ...doc.data() } as CampaignRegistration;
       const profileDoc = await this.db.collection(campaignCollections.participants).doc(registration.participantId).get();
       const profile = profileDoc.data() as Participant | undefined;
-      return { registration, profile };
+      const availability = await this.db.collection(campaignCollections.availabilities)
+        .where("registrationId", "==", registration.id).get();
+      return { registration, profile, availableBlocks: availability.docs.filter((item) => item.data().available === true).length };
     }));
     return rows
       .filter(({ registration, profile }) => profile?.congregationId === access.congregationId && (!status || stateOf(registration) === status))
-      .map(({ registration, profile }) => ({
+      .map(({ registration, profile, availableBlocks }) => ({
         registrationId: registration.id,
         fullName: profile?.fullName ?? "Participante no disponible",
+        phone: profile?.phoneNormalized ?? "",
         available: registration.registrationStatus === "active",
+        availableBlocks,
         maxTurns: registration.maxTurns,
         status: stateOf(registration),
+        registeredAt: registration.createdAt?.toDate?.().toISOString?.() ?? null,
       }))
       .sort((a, b) => a.fullName.localeCompare(b.fullName, "es"));
   }

@@ -24,7 +24,7 @@ export function CampaignAdminV2() {
   const [error, setError] = useState("");
   useEffect(() => repo.subscribeCampaigns(setItems), []);
   if (selected)
-    return <Editor campaign={selected} back={() => setSelected(undefined)} />;
+    return <CampaignEditor campaign={selected} back={() => setSelected(undefined)} />;
   return (
     <main className="mx-auto max-w-5xl p-6">
       <h1 className="text-3xl font-bold">Campañas</h1>
@@ -65,7 +65,7 @@ export function CampaignAdminV2() {
     </main>
   );
 }
-function Editor({
+export function CampaignEditor({
   campaign: initialCampaign,
   back,
 }: {

@@ -51,6 +51,12 @@ export async function seedPlannerFixture() {
     await removal.commit();
   }
   const batch = db.batch();
+  batch.set(db.collection("organizerUsers").doc("fixture-planner-campaign-admin"), {
+    uid: "planner-organizer-2",
+    role: "CAMPAIGN_ADMIN",
+    campaignId: fixtureCampaign,
+    active: true,
+  });
   batch.update(db.collection("campaigns").doc(fixtureCampaign), {
     status: "planning",
     maxPointsDefault: 8,

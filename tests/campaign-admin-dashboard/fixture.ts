@@ -71,6 +71,16 @@ export async function seedDashboardFixture() {
     role: "Encargado Territorio",
     status: "Activo",
   });
+  put("organizerUsers", "fixture-dashboard-campaign-admin", {
+    uid: "dashboard-organizer",
+    role: "CAMPAIGN_ADMIN",
+    campaignId: fixtureCampaign,
+    active: true,
+  });
+  for (const campaignId of ["empty-draft", "undefined-capacity"])
+    put("organizerUsers", `fixture-dashboard-${campaignId}`, {
+      uid: "dashboard-organizer", role: "CAMPAIGN_ADMIN", campaignId, active: true,
+    });
   put("campaigns", fixtureCampaign, {
     name: "Campaña ficticia · 80 participantes",
     description: "Datos locales de prueba",
