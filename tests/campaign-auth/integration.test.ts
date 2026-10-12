@@ -18,7 +18,7 @@ let now = Date.now();
 const secret = 'integration-test-only-secret-not-production';
 const auth = new ParticipantAuthService(db, secret, () => now);
 let environment: RulesTestEnvironment;
-const registration = (phone: string, extras = {}) => ({ fullName: 'Participante de prueba', phone, pin: '1234', confirmPin: '1234', ...extras });
+const registration = (phone: string, extras = {}) => ({ fullName: 'Participante de prueba', phone, pin: '1234', confirmPin: '1234', congregationId: 'active-congregation', ...extras });
 
 before(async () => {
   const [host, port] = process.env.FIRESTORE_EMULATOR_HOST!.split(':');
@@ -26,6 +26,7 @@ before(async () => {
     host, port: Number(port), rules: await readFile('firestore.rules', 'utf8'),
   } });
   await environment.clearFirestore();
+  await db.collection('congregations').doc('active-congregation').set({ name: 'Activa', active: true });
 });
 after(async () => {
   await environment?.cleanup(); await db.terminate(); await deleteApp(app);

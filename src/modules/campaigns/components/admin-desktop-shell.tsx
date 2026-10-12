@@ -3,6 +3,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import type { OrganizerRole } from "../domain/organizer";
+import { campaignNavigation } from "../lib/admin-navigation";
 import {
   CalendarDays,
   ClipboardList,
@@ -16,32 +18,17 @@ import {
   ChevronLeft,
 } from "lucide-react";
 
-const items = [
-  ["Resumen", LayoutDashboard, (id: string) => `/campanas/admin/resumen/${id}`],
-  ["Campaña", Settings2, (id: string) => `/campanas/admin/campana/${id}`],
-  [
-    "Horarios y puntos",
-    CalendarDays,
-    (id: string) => `/campanas/admin/campana/${id}?seccion=horarios`,
-  ],
-  [
-    "Participantes",
-    Users,
-    (id: string) => `/campanas/admin/participantes/${id}`,
-  ],
-  [
-    "Planificación",
-    ClipboardList,
-    (id: string) => `/campanas/admin/planificar/${id}`,
-  ],
-  ["Programa", FileText, (id: string) => `/campanas/admin/programa/${id}`],
-  ["Solicitudes", Wrench, (id: string) => `/campanas/admin/cambios/${id}`],
-  [
-    "Información",
-    MapPinned,
-    (id: string) => `/campanas/admin/campana/${id}?seccion=informacion`,
-  ],
-] as const;
+const icons = {
+  Resumen: LayoutDashboard,
+  Campaña: Settings2,
+  "Horarios y puntos": CalendarDays,
+  Participantes: Users,
+  Planificación: ClipboardList,
+  Programa: FileText,
+  Solicitudes: Wrench,
+  Información: MapPinned,
+  "Mi congregación": Users,
+};
 
 export function AdminDesktopShell({
   campaignId,
@@ -54,10 +41,20 @@ export function AdminDesktopShell({
 }) {
   const pathname = usePathname();
   const { user } = useAuth();
-  const [responsible, setResponsible] = useState(false);
+  const [access, setAccess] = useState<{
+    uid: string;
+    campaignId: string;
+    role: OrganizerRole;
+  } | null>(null);
+  const role =
+    access && access.uid === user?.uid && access.campaignId === campaignId
+      ? access.role
+      : null;
   useEffect(() => {
     let active = true;
-    (async () => {
+    let requestNumber = 0;
+    const refreshAccess = async () => {
+      const currentRequest = ++requestNumber;
       try {
         if (!user || !campaignId) return;
         const r = await fetch(
@@ -68,14 +65,25 @@ export function AdminDesktopShell({
           },
         );
         const b = await r.json();
-        if (active)
-          setResponsible(r.ok && b.role === "CONGREGATION_RESPONSIBLE");
+        if (active && currentRequest === requestNumber)
+          setAccess(
+            r.ok
+              ? {
+                  uid: user.uid,
+                  campaignId,
+                  role: b.role,
+                }
+              : null,
+          );
       } catch {
-        if (active) setResponsible(false);
+        if (active && currentRequest === requestNumber) setAccess(null);
       }
-    })();
+    };
+    void refreshAccess();
+    window.addEventListener("focus", refreshAccess);
     return () => {
       active = false;
+      window.removeEventListener("focus", refreshAccess);
     };
   }, [campaignId, user]);
   return (
@@ -105,40 +113,27 @@ export function AdminDesktopShell({
           </nav>
         ) : (
           <nav className="space-y-1">
-            {items.map(([label, Icon, href]) => {
-              const target = href(campaignId);
-              const targetSection =
-                label === "Horarios y puntos"
-                  ? "horarios"
-                  : label === "Información"
-                    ? "informacion"
-                    : "general";
-              const active =
-                pathname === target.split("?")[0] &&
-                (!pathname.includes("/campana/") || section === targetSection);
-              return (
-                <Link
-                  key={label}
-                  href={target}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${active ? "bg-white/15 shadow-sm" : "text-teal-50/85 hover:bg-white/10"}`}
-                >
-                  <Icon size={20} />
-                  {label}
-                </Link>
-              );
-            })}
+            {campaignNavigation(role, campaignId).map(
+              ({ label, href: target, section: targetSection }) => {
+                const Icon = icons[label as keyof typeof icons];
+                const active =
+                  pathname === target.split("?")[0] &&
+                  (!pathname.includes("/campana/") ||
+                    section === targetSection);
+                return (
+                  <Link
+                    key={label}
+                    href={target}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${active ? "bg-white/15 shadow-sm" : "text-teal-50/85 hover:bg-white/10"}`}
+                  >
+                    <Icon size={20} />
+                    {label}
+                  </Link>
+                );
+              },
+            )}
           </nav>
-        )}
-        {responsible && (
-          <div className="mt-5 border-t border-white/15 pt-4">
-            <Link
-              href={`/campanas/admin/mi-congregacion/${campaignId}`}
-              className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-teal-50 hover:bg-white/10 ${pathname === `/campanas/admin/mi-congregacion/${campaignId}` ? "bg-white/15" : ""}`}
-            >
-              <Users size={20} />
-              Mi congregación
-            </Link>
-          </div>
         )}
       </aside>
       <div className="min-w-0">

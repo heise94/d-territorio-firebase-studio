@@ -1,4 +1,5 @@
 "use client";
+import { campaignStatusLabels } from "../lib/presentation";
 import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -231,7 +232,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
       </p>
       {person.accepted && (
         <p className="text-sm text-teal-900">
-          Vínculo accepted: {person.accepted.otherName}
+          Vínculo confirmado: {person.accepted.otherName}
           {person.accepted.availabilityConflict
             ? " · SIN HORARIOS EN COMÚN"
             : person.accepted.blockAvailabilityConflict
@@ -279,7 +280,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
         {view && (
           <>
             <h2 className="text-xl">
-              {view.campaign.name} · {view.campaign.status}
+              {view.campaign.name} · {campaignStatusLabels[view.campaign.status]}
             </h2>
             <div className="flex flex-wrap items-end gap-3">
               <label>
@@ -386,7 +387,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
             </p>
             {!view.mutable && (
               <p className="rounded bg-amber-50 p-3">
-                Solo lectura. La planificación requiere estado planning y
+                Solo lectura. La planificación requiere estado En planificación y
                 bloque/día activos.
               </p>
             )}

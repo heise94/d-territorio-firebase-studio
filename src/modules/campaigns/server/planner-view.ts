@@ -187,7 +187,7 @@ export function projectPlanner(
           assignment.registrationId,
           selected!,
         );
-        if (!unit) warnings.push("Vínculos accepted incompatibles.");
+        if (!unit) warnings.push("Vínculos confirmados incompatibles.");
         if (unit?.length === 2) {
           const companion = assigned.filter(
             (item) => item.registrationId === unit[1],
@@ -234,12 +234,12 @@ export function projectPlanner(
   for (const person of [...available, ...exceptions]) {
     if (person.accepted?.availabilityConflict)
       conflicts.add(
-        person.fullName + ": vínculo accepted sin horarios activos en común.",
+        person.fullName + ": vínculo confirmado sin horarios activos en común.",
       );
     if (person.accepted?.participationConflict)
       conflicts.add(person.fullName + ": revisar participación del vínculo.");
     if (!acceptedUnit(source, person.registrationId, selected))
-      conflicts.add(person.fullName + ": vínculos accepted incompatibles.");
+      conflicts.add(person.fullName + ": vínculos confirmados incompatibles.");
   }
   const activePoints = points.filter(
     (point) => point.active && point.globalActive,

@@ -80,7 +80,7 @@ export function PlannerDecisionDialog({
         <p className="font-medium">{unitLabel}</p>
         {decision.person.accepted && (
           <p className="text-sm text-teal-900">
-            El vínculo accepted se{" "}
+            El vínculo obligatorio se{" "}
             {decision.action === "cancel"
               ? "libera"
               : decision.action === "move"

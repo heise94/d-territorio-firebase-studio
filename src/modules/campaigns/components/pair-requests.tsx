@@ -1,4 +1,5 @@
 "use client";
+import { pairStatusLabels as statusLabels } from "../lib/presentation";
 import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import {
@@ -20,12 +21,7 @@ const buttonBase =
   "min-h-12 rounded-xl border px-4 font-semibold focus-visible:ring-2 focus-visible:ring-teal-700 disabled:opacity-60";
 const button = `${buttonBase} border-slate-300 bg-white`;
 const primary = `${buttonBase} border-teal-700 bg-teal-700 text-white`;
-const statusLabels = {
-  pending: "Pendiente de confirmación",
-  accepted: "Aceptada · vínculo obligatorio",
-  rejected: "Rechazada",
-  cancelled: "Cancelada",
-};
+
 function fullDate(date: string) {
   return new Intl.DateTimeFormat("es-CL", {
     weekday: "long",

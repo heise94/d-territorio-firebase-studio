@@ -6,10 +6,10 @@ import { hashPin, newSessionToken, privateKey, tokenHash, verifyPin } from '../.
 import { cookieOptions } from '../../src/modules/campaigns/server/auth/session';
 
 test('Chile: formatos equivalentes e inválidos', () => {
-  for (const input of ['912345678', '9 1234 5678', '+56 9 1234 5678', '+56912345678', '(9)1234-5678']) {
+  for (const input of ['12345678', '912345678', '9 1234 5678', '+56 9 1234 5678', '+56912345678', '(9)1234-5678', '56912345678']) {
     assert.equal(normalizeChileanPhone(input), '+56912345678');
   }
-  for (const input of ['', '123', '+54912345678', '812345678', '9abc12345', '9123456789', '56912345678']) {
+  for (const input of ['', '123', '+54912345678', '812345678', '9abc12345', '9123456789', '5656912345678']) {
     assert.throws(() => normalizeChileanPhone(input));
   }
 });

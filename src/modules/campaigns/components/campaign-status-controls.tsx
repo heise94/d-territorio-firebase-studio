@@ -1,4 +1,5 @@
 "use client";
+import { campaignStatusLabels } from "../lib/presentation";
 import { campaignFetch } from "../lib/campaign-fetch";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -52,7 +53,7 @@ export function CampaignStatusControls({
     <section className="space-y-2">
       <h2 className="text-xl font-bold">Estado</h2>
       <p>
-        Actual: <strong>{status}</strong>
+        Actual: <strong>{campaignStatusLabels[status]}</strong>
       </p>
       {status === "registration_open" && (
         <label className="block">

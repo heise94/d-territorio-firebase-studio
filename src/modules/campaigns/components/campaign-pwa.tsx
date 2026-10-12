@@ -1,8 +1,10 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Download } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { isAppleMobile, isInstallDismissed } from "../lib/pwa-support";
+import { waitForCampaignUpdate } from "../lib/pwa-update";
+import { participantLogoutDestination } from "../lib/participant-logout";
 
 type InstallPrompt = Event & {
   prompt(): Promise<void>;
@@ -17,6 +19,11 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
   const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [updateFailed, setUpdateFailed] = useState(false);
+  const updateAttempt = useRef<ReturnType<typeof waitForCampaignUpdate> | null>(
+    null,
+  );
+  const reloadStarted = useRef(false);
   const [iosHelp, setIosHelp] = useState(false);
   const pathname = usePathname();
   useEffect(() => {
@@ -58,10 +65,12 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
       if (
         !clearingSession &&
         event.data?.type === "CAMPAIGNS_SESSION_CLEARED" &&
-        window.location.pathname !== "/campanas/ingresar"
+        !["/campanas/ingresar", participantLogoutDestination].includes(
+          window.location.pathname,
+        )
       ) {
         clearingSession = true;
-        window.location.replace("/campanas/ingresar");
+        window.location.replace(participantLogoutDestination);
       }
     };
     const sessionChannel =
@@ -72,27 +81,40 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
     navigator.serviceWorker?.addEventListener("message", sessionCleared);
     standalone.addEventListener("change", refresh);
     let cleanupWorker = () => {};
+    let mounted = true;
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
       void navigator.serviceWorker
         .register("/sw.js", { scope: "/" })
         .then((registration) => {
+          if (!mounted) return;
+          const tracked = new Set<ServiceWorker>();
           const check = () => {
             if (registration.waiting && navigator.serviceWorker.controller)
               setWaiting(registration.waiting);
           };
           const update = () => {
             const worker = registration.installing;
-            if (worker) worker.addEventListener("statechange", check);
+            if (worker && !tracked.has(worker)) {
+              tracked.add(worker);
+              worker.addEventListener("statechange", check);
+            }
           };
+          update();
           check();
           registration.addEventListener("updatefound", update);
-          cleanupWorker = () =>
+          cleanupWorker = () => {
             registration.removeEventListener("updatefound", update);
+            tracked.forEach((worker) =>
+              worker.removeEventListener("statechange", check),
+            );
+          };
           void registration.update().catch(() => {});
         })
         .catch(() => {});
     }
     return () => {
+      mounted = false;
+      updateAttempt.current?.cancel();
       window.removeEventListener("online", refresh);
       window.removeEventListener("offline", refresh);
       window.removeEventListener("beforeinstallprompt", beforeInstall);
@@ -117,8 +139,8 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
     setPrompt(null);
     if (result.outcome === "dismissed") dismiss();
   }
-  function update() {
-    if (!waiting || updating) return;
+  async function update() {
+    if (!waiting || updating || updateAttempt.current) return;
     if (
       !window.confirm(
         "Actualizar recargará la aplicación. Los formularios sin enviar no se guardarán. ¿Continuar?",
@@ -126,12 +148,24 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
     )
       return;
     setUpdating(true);
-    navigator.serviceWorker.addEventListener(
-      "controllerchange",
-      () => window.location.reload(),
-      { once: true },
+    setUpdateFailed(false);
+    const attempt = waitForCampaignUpdate(
+      navigator.serviceWorker,
+      waiting,
+      () => waiting.postMessage({ type: "SKIP_WAITING" }),
     );
-    waiting.postMessage({ type: "SKIP_WAITING" });
+    updateAttempt.current = attempt;
+    const result = await attempt.promise;
+    updateAttempt.current = null;
+    if (result === "cancelled") return;
+    setUpdating(false);
+    if (result === "ready") reloadOnce();
+    else setUpdateFailed(true);
+  }
+  function reloadOnce() {
+    if (reloadStarted.current) return;
+    reloadStarted.current = true;
+    window.location.reload();
   }
   if (offline)
     return (
@@ -158,23 +192,56 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
           role="status"
           className="mx-auto max-w-md border border-teal-700 bg-teal-50 p-4"
         >
-          <p>Hay una actualización disponible.</p>
+          <p>
+            {updateFailed
+              ? "La actualización no terminó. Puedes recargar la aplicación para continuar."
+              : "Hay una actualización disponible."}
+          </p>
           <button
             className="min-h-12 font-semibold underline"
             disabled={updating}
-            onClick={update}
+            onClick={() => (updateFailed ? reloadOnce() : void update())}
           >
-            {updating ? "Actualizando…" : "Actualizar"}
+            {updating
+              ? "Actualizando…"
+              : updateFailed
+                ? "Recargar"
+                : "Actualizar"}
           </button>
         </aside>
       )}
-      {pathname === "/campanas" && !installed && !dismissed && (prompt || ios) && (
-        <aside className="campaign-surface mx-auto mb-2 flex max-w-md items-center gap-3 p-4">
-          <span className="campaign-icon-surface"><Download /></span>
-          <div className="min-w-0 flex-1"><p className="font-bold">Instala la aplicación</p><p className="text-sm text-[var(--campaign-muted)]">{iosHelp ? "En Safari: Compartir → Añadir a pantalla de inicio." : "Accede más rápido y recibe avisos importantes."}</p></div>
-          <div className="grid gap-1"><button className="campaign-primary min-h-10 rounded-xl px-4" onClick={() => prompt ? void install() : setIosHelp(true)}>{prompt ? "Instalar" : "Cómo instalar"}</button><button className="min-h-8 text-sm text-[var(--campaign-muted)]" onClick={dismiss}>Ahora no</button></div>
-        </aside>
-      )}
+      {pathname === "/campanas" &&
+        !installed &&
+        !dismissed &&
+        (prompt || ios) && (
+          <aside className="campaign-surface mx-auto mb-2 flex max-w-md items-center gap-3 p-4">
+            <span className="campaign-icon-surface">
+              <Download />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold">Instala la aplicación</p>
+              <p className="text-sm text-[var(--campaign-muted)]">
+                {iosHelp
+                  ? "En Safari: Compartir → Añadir a pantalla de inicio."
+                  : "Accede más rápido y recibe avisos importantes."}
+              </p>
+            </div>
+            <div className="grid gap-1">
+              <button
+                className="campaign-primary min-h-10 rounded-xl px-4"
+                onClick={() => (prompt ? void install() : setIosHelp(true))}
+              >
+                {prompt ? "Instalar" : "Cómo instalar"}
+              </button>
+              <button
+                className="min-h-8 text-sm text-[var(--campaign-muted)]"
+                onClick={dismiss}
+              >
+                Ahora no
+              </button>
+            </div>
+          </aside>
+        )}
       {children}
     </>
   );

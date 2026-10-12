@@ -335,7 +335,10 @@ test("Health is private, secret-free and missing metadata is explicitly null", a
       ready: true,
       environment: "staging",
       sha: null,
-      deployedAt: null,
+      shaSource: null,
+      buildId: null,
+      builtAt: null,
+      serviceRevision: process.env.K_REVISION ?? null,
     });
     delete process.env.CAMPAIGNS_AUTH_SECRET;
     assert.equal(GET().status, 503);

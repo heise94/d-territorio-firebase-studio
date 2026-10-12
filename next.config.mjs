@@ -1,8 +1,10 @@
 import { createRequire } from "node:module";
+import { buildRelease } from "./src/modules/campaigns/lib/build-release.mjs";
 
 const require = createRequire(import.meta.url);
 
 const isDev = process.env.NODE_ENV !== "production";
+const release = buildRelease();
 
 /** @type {import('@ducanh2912/next-pwa').PWAConfig} */
 const withPWA = require("@ducanh2912/next-pwa").default({
@@ -45,6 +47,13 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  env: {
+    CAMPAIGNS_COMPILED_SHA: release.sha ?? "",
+    CAMPAIGNS_COMPILED_SHA_SOURCE: release.source,
+    CAMPAIGNS_COMPILED_BUILD_ID: release.buildId,
+    CAMPAIGNS_COMPILED_AT: release.builtAt,
+  },
+  generateBuildId: async () => release.buildId,
   async redirects() {
     if (process.env.CAMPAIGNS_HOST_ROUTING !== "true") return [];
     const origin = new URL(process.env.CAMPAIGNS_APP_ORIGIN ?? "");

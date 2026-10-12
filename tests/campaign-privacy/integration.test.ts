@@ -73,11 +73,12 @@ const privateReq = (path: string, token: string) =>
 const denied = (error: unknown) =>
   error instanceof AuthError && [403, 404].includes(error.status);
 before(async () => {
+  const [host, port] = process.env.FIRESTORE_EMULATOR_HOST!.split(":");
   env = await initializeTestEnvironment({
     projectId: "demo-campaign-auth",
     firestore: {
-      host: "127.0.0.1",
-      port: 8088,
+      host,
+      port: Number(port),
       rules: await readFile("firestore.rules", "utf8"),
     },
   });

@@ -1,4 +1,5 @@
 "use client";
+import { campaignStatusLabels } from "../lib/presentation";
 import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -195,7 +196,7 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
               </p>
               <p className="text-sm">
                 Fechas: {overview.campaign.dates.join(", ") || "por definir"} ·
-                Estado: <strong>{overview.campaign.status}</strong>
+                Estado: <strong>{campaignStatusLabels[overview.campaign.status]}</strong>
               </p>
             </>
           )}
@@ -261,8 +262,8 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
                 "Reservas potenciales por bloque",
                 overview.metrics.reservePotential,
               ],
-              ["Solicitudes pending", overview.metrics.pendingRequests],
-              ["Vínculos accepted", overview.metrics.acceptedLinks],
+              ["Solicitudes pendientes", overview.metrics.pendingRequests],
+              ["Vínculos confirmados", overview.metrics.acceptedLinks],
             ].map(([label, value]) => (
               <div key={label} className="rounded-xl border bg-white p-4">
                 <p className="text-sm text-slate-600">{label}</p>
@@ -272,7 +273,7 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
           </section>
           {!!overview.metrics.acceptedAvailabilityConflicts && (
             <p className="rounded border border-amber-300 bg-amber-50 p-3 text-amber-900">
-              {overview.metrics.acceptedAvailabilityConflicts} vínculos accepted
+              {overview.metrics.acceptedAvailabilityConflicts} vínculos confirmados
               sin disponibilidad activa en común. Requieren revisión; no se
               disuelven automáticamente.
             </p>

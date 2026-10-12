@@ -1,4 +1,5 @@
 "use client";
+import { campaignStatusLabels } from "../lib/presentation";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -93,7 +94,7 @@ export function CampaignSummary({ campaignId }: { campaignId: string }) {
           </h1>
           <p className="mt-2 text-slate-600">
             {overview.campaign.dates.join(" · ") || "Fechas por definir"} ·{" "}
-            {overview.campaign.status}
+            {campaignStatusLabels[overview.campaign.status]}
           </p>
         </div>
         <div className="flex flex-wrap gap-3">

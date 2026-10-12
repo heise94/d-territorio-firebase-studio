@@ -1,4 +1,5 @@
 "use client";
+import { registrationStatusLabel, pairStatusLabels } from "../lib/presentation";
 import {
   Dialog,
   DialogContent,
@@ -47,7 +48,7 @@ export function DashboardDetail({
             {detail?.fullName ?? "Ficha del participante"}
           </DialogTitle>
           <DialogDescription className="text-slate-600">
-            Consulta administrativa de solo lectura. Los vínculos accepted son
+            Consulta administrativa de solo lectura. Los vínculos confirmados son
             obligatorios; no se asignan turnos desde esta ficha.
           </DialogDescription>
         </DialogHeader>
@@ -63,7 +64,7 @@ export function DashboardDetail({
               {[
                 ["Congregación", detail.congregation],
                 ["Teléfono", detail.phone ?? "No disponible"],
-                ["Inscripción", detail.registrationStatus],
+                ["Inscripción", registrationStatusLabel(detail.registrationStatus)],
                 ["Perfil", detail.profileActive ? "Activo" : "Inactivo"],
                 ["Máximo de turnos", detail.maxTurns ?? "Sin límite"],
                 ["Bloques disponibles actuales", detail.availableBlockCount],
@@ -112,7 +113,7 @@ export function DashboardDetail({
                     className="space-y-1 rounded border p-3 text-sm"
                   >
                     <p className="font-semibold">
-                      {pair.otherName} · {pair.status}
+                      {pair.otherName} · {pairStatusLabels[pair.status]}
                     </p>
                     <p>{pair.direction === "sent" ? "Enviada" : "Recibida"}</p>
                     {pair.status === "accepted" && (

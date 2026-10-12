@@ -4,8 +4,9 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export function GET() {
   const ready = deploymentErrors(process.env).length === 0;
-  const sha = process.env.CAMPAIGNS_BUILD_SHA;
-  const deployedAt = process.env.CAMPAIGNS_DEPLOYED_AT;
+  // Next embeds these constants from the source build, even if runtime env is stale.
+  const sha = process.env.CAMPAIGNS_COMPILED_SHA;
+  const builtAt = process.env.CAMPAIGNS_COMPILED_AT;
   return NextResponse.json(
     {
       ready,
@@ -15,8 +16,12 @@ export function GET() {
         ? process.env.CAMPAIGNS_ENV
         : "unconfigured",
       sha: sha && /^[a-f0-9]{40}$/.test(sha) ? sha : null,
-      deployedAt:
-        deployedAt && !Number.isNaN(Date.parse(deployedAt)) ? deployedAt : null,
+      shaSource: sha
+        ? (process.env.CAMPAIGNS_COMPILED_SHA_SOURCE ?? null)
+        : null,
+      buildId: process.env.CAMPAIGNS_COMPILED_BUILD_ID ?? null,
+      builtAt: builtAt && !Number.isNaN(Date.parse(builtAt)) ? builtAt : null,
+      serviceRevision: process.env.K_REVISION ?? null,
     },
     {
       status: ready ? 200 : 503,

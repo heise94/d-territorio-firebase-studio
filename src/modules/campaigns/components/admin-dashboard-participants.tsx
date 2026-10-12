@@ -1,4 +1,5 @@
 "use client";
+import { registrationStatusLabel } from "../lib/presentation";
 import { useEffect, useState } from "react";
 import type {
   AdminOverview,
@@ -161,7 +162,7 @@ export function DashboardParticipants({
             <option value="all">Todos</option>
             <option value="none">Sin vínculo ni pendientes</option>
             <option value="pending">Con solicitudes pendientes</option>
-            <option value="accepted">Con vínculo accepted</option>
+            <option value="accepted">Con vínculo confirmado</option>
             <option value="conflict">Conflicto de disponibilidad</option>
           </select>
         </label>
@@ -197,7 +198,7 @@ export function DashboardParticipants({
             <h3 className="font-semibold">{row.fullName}</h3>
             <p className="text-sm">{row.congregation}</p>
             <p className="text-sm">
-              Inscripción: {row.registrationStatus} · Máximo de turnos:{" "}
+              Inscripción: {registrationStatusLabel(row.registrationStatus)} · Máximo de turnos:{" "}
               {row.maxTurns ?? "Sin límite"}
             </p>
             {!row.profileActive && (
