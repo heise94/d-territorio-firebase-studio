@@ -37,7 +37,7 @@ export function ParticipantNavigation({
           const content = (
             <>
               <span className="relative"><Icon className="mb-1 h-5 w-5" aria-hidden="true" />{label === "Avisos" && unread > 0 && <span aria-label={`${unread} avisos nuevos`} className="absolute -right-3 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white">{unread > 9 ? "9+" : unread}</span>}</span>
-              <span>{label}</span>
+              <span>{label === "Mi programa" ? "Programa" : label}</span>
             </>
           );
           const classes = `flex min-h-14 flex-col items-center justify-center rounded-xl px-1 text-xs font-semibold ${active === label ? "bg-teal-100 text-teal-800" : "text-slate-600"}`;
@@ -47,6 +47,7 @@ export function ParticipantNavigation({
               href={href}
               prefetch={false}
               aria-current={active === label ? "page" : undefined}
+              aria-label={label}
               className={`${classes} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700`}
             >
               {content}

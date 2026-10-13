@@ -82,8 +82,8 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
   const editable = view.campaign.status === "registration_open" &&
     (!view.campaign.registration || view.campaign.registration.registrationStatus === "active");
   const initial = new Set(view.days.flatMap((day) => day.blocks.filter((block) => block.selected).map((block) => block.id)));
-  const dirty = !view.campaign.registration || congregationId !== (view.congregationId ?? "") ||
-    maxTurns !== view.campaign.registration.maxTurns || selected.size !== initial.size ||
+  const dirty = congregationId !== (view.congregationId ?? "") ||
+    maxTurns !== (view.campaign.registration?.maxTurns ?? 1) || selected.size !== initial.size ||
     [...selected].some((id) => !initial.has(id));
   const pairFor = (id: string) => pairs.find((pair) => pair.timeBlock?.id === id && ["pending", "accepted"].includes(pair.status));
 
