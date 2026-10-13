@@ -52,6 +52,7 @@ const campaignDTO = (
   locationName: campaign.locationName ?? "",
   locationDetails: campaign.locationDetails ?? "",
   status: campaign.status,
+  companionRequestsEnabled: campaign.companionRequestsEnabled === true,
   registration: registrationDTO(row),
 });
 

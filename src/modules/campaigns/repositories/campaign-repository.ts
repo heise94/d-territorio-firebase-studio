@@ -52,6 +52,7 @@ export const campaignRepository = {
     return (
       await addDoc(ref(campaignCollections.campaigns), {
         ...clean(input),
+        companionRequestsEnabled: false,
         createdBy: createdBy || null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -77,6 +78,12 @@ export const campaignRepository = {
     }
     return updateDoc(doc(db, campaignCollections.campaigns, id), {
       ...editable,
+      updatedAt: serverTimestamp(),
+    });
+  },
+  setCompanionRequestsEnabled(id: string, enabled: boolean) {
+    return updateDoc(doc(db, campaignCollections.campaigns, id), {
+      companionRequestsEnabled: enabled,
       updatedAt: serverTimestamp(),
     });
   },

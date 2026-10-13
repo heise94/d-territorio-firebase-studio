@@ -22,6 +22,8 @@ export interface Campaign {
   description?: string;
   locationName?: string;
   status: CampaignStatus;
+  /** Participant pair requests are opened explicitly by an organizer. Defaults to false. */
+  companionRequestsEnabled?: boolean;
   maxPointsDefault?: number;
   defaultCapacityPerBlock?: number;
   locationDetails?: string;

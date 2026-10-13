@@ -222,7 +222,7 @@ for (const action of ["accept", "reject"] as const)
     await db
       .collection("campaigns")
       .doc(campaign)
-      .update({ status: "registration_open" });
+      .update({ status: "registration_open", companionRequestsEnabled: true });
     for (const index of [8, 9]) {
       const id = registrationId(campaign, `person-${index}`);
       await db

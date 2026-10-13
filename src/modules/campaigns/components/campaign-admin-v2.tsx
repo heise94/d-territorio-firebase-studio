@@ -6,6 +6,7 @@ import { CalendarDays, MapPin, Plus, Presentation } from "lucide-react";
 import { AdminDesktopShell } from "./admin-desktop-shell";
 import {
   CampaignGeneralForm,
+  CampaignCompanionSettings,
   CampaignInformationForm,
   CongregationSettings,
 } from "./campaign-settings";
@@ -292,6 +293,9 @@ export function CampaignEditor({
             </Section>
             <Section title="Congregaciones participantes">
               <CongregationSettings campaignId={campaign.id} />
+            </Section>
+            <Section title="Participar con un compañero">
+              <CampaignCompanionSettings campaign={campaign} onSaved={setCampaign} />
             </Section>
             <CampaignStatusControls
               campaignId={campaign.id}

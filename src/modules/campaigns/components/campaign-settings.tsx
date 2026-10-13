@@ -116,6 +116,44 @@ export function CampaignGeneralForm({
     </form>
   );
 }
+export function CampaignCompanionSettings({
+  campaign,
+  onSaved,
+}: {
+  campaign: Campaign;
+  onSaved: (campaign: Campaign) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const enabled = campaign.companionRequestsEnabled === true;
+  return (
+    <div className="mt-4 space-y-3 text-sm">
+      <p>Estado: <strong>{enabled ? "Disponible para participantes" : "Disponible más adelante"}</strong></p>
+      <p className="text-slate-600">Activa esta opción cuando la organización decida abrir las solicitudes para escoger compañero.</p>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setMessage("Guardando…");
+          try {
+            await repo.setCompanionRequestsEnabled(campaign.id, !enabled);
+            onSaved({ ...campaign, companionRequestsEnabled: !enabled });
+            setMessage(enabled ? "Opción desactivada." : "Opción habilitada.");
+          } catch {
+            setMessage("No se pudo cambiar esta opción. Inténtalo nuevamente.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {enabled ? "Cerrar solicitudes de compañero" : "Habilitar solicitudes de compañero"}
+      </Button>
+      <p role="status">{message}</p>
+    </div>
+  );
+}
 export function CongregationSettings({ campaignId }: { campaignId: string }) {
   const [congregations, setCongregations] = useState<Congregation[]>([]);
   const [links, setLinks] = useState<CampaignCongregation[]>([]);

@@ -140,7 +140,9 @@ export class PairRequestService {
     return this.auth.withParticipantTransaction(
       token,
       async (tx, participant) => {
-        const { ownId } = await this.context(tx, participant, campaignId, true);
+        const { campaign, ownId } = await this.context(tx, participant, campaignId, true);
+        if (campaign.companionRequestsEnabled !== true)
+          throw new AuthError(409, "Esta opción estará disponible más adelante.");
         const rows = await tx.get(
           this.registrations().where("campaignId", "==", campaignId),
         );
@@ -313,7 +315,8 @@ export class PairRequestService {
           },
           editable:
             campaign.status === "registration_open" &&
-            registration.registrationStatus === "active",
+            registration.registrationStatus === "active" &&
+            campaign.companionRequestsEnabled === true,
           requests: requests.sort(
             (a, b) =>
               Number(b.status === "pending" && b.direction === "received") -
@@ -389,7 +392,9 @@ export class PairRequestService {
     return this.auth.withParticipantTransaction(
       token,
       async (tx, participant) => {
-        const { ownId } = await this.context(tx, participant, campaignId, true);
+        const { campaign, ownId } = await this.context(tx, participant, campaignId, true);
+        if (data.action === "create" && campaign.companionRequestsEnabled !== true)
+          throw new AuthError(409, "Esta opción estará disponible más adelante.");
         const now = Timestamp.now();
         let request: PairRequest;
         let ref;

@@ -90,6 +90,9 @@ test("Flujo crítico por repositorio público y servicios autorizados: configura
     },
     client.auth.currentUser!.uid,
   );
+  await campaignsAdminDb().collection("organizerUsers").doc(`pilot-${campaign}`).set({
+    uid: "dashboard-organizer", role: "CAMPAIGN_ADMIN", campaignId: campaign, active: true,
+  });
   const congregationIds: string[] = [],
     days: string[] = [],
     blocks: string[] = [],
@@ -122,6 +125,7 @@ test("Flujo crítico por repositorio público y servicios autorizados: configura
   await changePlannerStatus(credentials.token, campaign, {
     status: "registration_open",
   });
+  await repository.setCompanionRequestsEnabled(campaign, true);
   const tokens: string[] = [],
     people: string[] = [],
     regs: string[] = [];
@@ -132,6 +136,7 @@ test("Flujo crítico por repositorio público y servicios autorizados: configura
     const response = await invokeAuth("register", {
       fullName: `Persona E2E ficticia ${index}`,
       phone: pilotPhone(2000 + index),
+      congregationId: congregationIds[index],
       pin: pilotPin,
       confirmPin: pilotPin,
     });
@@ -145,6 +150,9 @@ test("Flujo crítico por repositorio público y servicios autorizados: configura
       congregationId: congregationIds[index],
       maxTurns: null,
       timeBlockIds: [blocks[0], blocks[1]],
+    });
+    await campaignsAdminDb().collection("campaignRegistrations").doc(regs[index]).update({
+      approvalStatus: "approved",
     });
   }
   const request = await pairs.mutate(tokens[0], campaign, {

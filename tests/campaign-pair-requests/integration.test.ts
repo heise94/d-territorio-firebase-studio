@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { before, beforeEach, after, test } from "node:test";
 import { initializeApp, deleteApp, getApps } from "firebase-admin/app";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
 import {
   initializeTestEnvironment,
   assertFails,
@@ -68,6 +68,7 @@ async function setup(campaign: string, people = [a, b, c, d]) {
     .set({
       name: `Campaña ficticia ${campaign}`,
       status: "registration_open",
+      companionRequestsEnabled: true,
       defaultCapacityPerBlock: 1,
     });
   await db
@@ -177,6 +178,18 @@ test("Búsqueda privada: misma campaña/active, excluye propio, acentos y DTO m�
   for (const query of ["", "j", "x".repeat(81)])
     await assert.rejects(pairs.search(a.token, "search", query));
   await assert.rejects(pairs.search(u.token, "search", "Jose"));
+});
+test("Compañero cerrado: no permite buscar ni crear PairRequest", async () => {
+  await setup("companion-closed", [a, b]);
+  const campaign = db.collection("campaigns").doc("companion-closed");
+  // A legacy campaign with no field must remain closed without data migration.
+  await campaign.update({ companionRequestsEnabled: FieldValue.delete() });
+  const countBefore = (await db.collection("pairRequests").where("campaignId", "==", "companion-closed").get()).size;
+  await assert.rejects(pairs.search(a.token, "companion-closed", "Jose"), (error: any) => error.status === 409);
+  await assert.rejects(create(a.token, "companion-closed", b), (error: any) => error.status === 409);
+  assert.equal((await db.collection("pairRequests").where("campaignId", "==", "companion-closed").get()).size, countBefore);
+  await campaign.update({ companionRequestsEnabled: false });
+  await assert.rejects(create(a.token, "companion-closed", b), (error: any) => error.status === 409);
 });
 test("Búsqueda limita a 10 sin descargar directorio al cliente", async () => {
   await setup("limit-search", [a]);

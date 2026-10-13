@@ -3,7 +3,7 @@ import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronRight, MapPin } from "lucide-react";
 import type { CampaignSummary } from "../domain/registration";
 
 export function ParticipantCampaigns() {
@@ -62,31 +62,35 @@ export function ParticipantCampaigns() {
       {!loading &&
         !error &&
         campaigns.map((campaign) => (
-          <article key={campaign.id} className="campaign-surface space-y-4">
-            <div className="flex gap-3">
-              <span className="campaign-icon-surface"><CalendarDays /></span>
-              <div><p className="text-sm text-[var(--campaign-muted)]">Campaña</p><h2 className="text-xl font-bold">{campaign.name}</h2>
-            <p className="mt-1 text-sm font-semibold text-[var(--campaign-primary-strong)]">
-              {campaign.status === "registration_open"
-                ? "Inscripciones abiertas"
-                : "Inscripciones cerradas · solo consulta"}
-            </p></div></div>
+          <article key={campaign.id} className="space-y-4 rounded-[20px] border border-[#F2B29B] bg-[#FFF0E8] p-5 shadow-[0_10px_28px_rgba(110,56,39,0.08)]">
+            <div className="flex items-start gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/75 text-[var(--campaign-primary-strong)]"><CalendarDays aria-hidden="true" /></span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[#704331]">Campaña</p>
+                <h2 className="text-xl font-bold leading-snug">{campaign.name}</h2>
+                <p className="mt-2 inline-flex rounded-full bg-white/75 px-3 py-1 text-sm font-semibold text-[var(--campaign-primary-strong)]">
+                  {campaign.status === "registration_open"
+                    ? "Inscripciones abiertas"
+                    : "Inscripciones cerradas · solo consulta"}
+                </p>
+              </div>
+            </div>
             {campaign.description && (
               <p className="leading-7">{campaign.description}</p>
             )}
             {campaign.locationName && (
-              <p className="text-slate-600">{campaign.locationName}</p>
+              <p className="flex items-start gap-2 text-slate-700"><MapPin aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />{campaign.locationName}</p>
             )}
             <Link
               href={`/campanas/disponibilidad/${campaign.id}`}
               prefetch={false}
-              className="campaign-secondary w-full gap-2"
+              className="campaign-primary w-full gap-2 bg-[#075e55] text-white hover:bg-[#064b44]"
             >
               {campaign.status !== "registration_open"
                 ? "Revisar disponibilidad"
                 : campaign.registration
-                  ? "Editar disponibilidad"
-                  : "Inscribirme"}<ChevronRight className="ml-auto h-5 w-5" />
+                  ? "Editar mi disponibilidad"
+                  : "Ingresar mi disponibilidad"}<ChevronRight className="ml-auto h-5 w-5" />
             </Link>
           </article>
         ))}

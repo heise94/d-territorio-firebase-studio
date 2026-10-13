@@ -43,7 +43,7 @@ async function seed() {
       await db
         .collection("campaigns")
         .doc(campaignId)
-        .set({ name, status: "registration_open", defaultCapacityPerBlock: 1 });
+        .set({ name, status: "registration_open", companionRequestsEnabled: true, defaultCapacityPerBlock: 1 });
       await db
         .collection("campaignCongregations")
         .doc(campaignId)

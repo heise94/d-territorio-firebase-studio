@@ -52,6 +52,7 @@ export interface CampaignSummary {
   locationName: string;
   locationDetails: string;
   status: CampaignStatus;
+  companionRequestsEnabled: boolean;
   registration: RegistrationDTO | null;
 }
 export interface RegistrationView {
