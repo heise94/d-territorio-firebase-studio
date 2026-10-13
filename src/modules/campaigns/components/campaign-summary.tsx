@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { campaignFetch } from "../lib/campaign-fetch";
 import type { AdminOverview } from "../domain/admin-dashboard";
 import type { ProgramView } from "../domain/program";
+import { joinShareUrl } from "../lib/public-join";
 
 export function CampaignSummary({ campaignId }: { campaignId: string }) {
   const { user } = useAuth();
@@ -16,6 +17,16 @@ export function CampaignSummary({ campaignId }: { campaignId: string }) {
     pendingCount: number;
   } | null>(null);
   const [error, setError] = useState("");
+  const [shareMessage, setShareMessage] = useState("");
+  async function copyJoinLink() {
+    const url = joinShareUrl(window.location.origin);
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareMessage("Enlace de inscripción copiado.");
+    } catch {
+      setShareMessage(`No pudimos copiar el enlace. Puedes copiarlo aquí: ${url}`);
+    }
+  }
   useEffect(() => {
     let alive = true;
     const load = async () => {
@@ -98,6 +109,13 @@ export function CampaignSummary({ campaignId }: { campaignId: string }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => void copyJoinLink()}
+            className="rounded-xl border border-teal-700 bg-white px-4 py-3 font-semibold text-teal-900"
+          >
+            Compartir inscripción
+          </button>
           <Link
             className="rounded-xl border bg-white px-4 py-3 font-semibold"
             href={`/campanas/admin/programa/${campaignId}`}
@@ -112,6 +130,11 @@ export function CampaignSummary({ campaignId }: { campaignId: string }) {
           </Link>
         </div>
       </header>
+      {shareMessage && (
+        <p role="status" className="break-all rounded-xl bg-teal-50 px-4 py-3 text-sm font-medium text-teal-950">
+          {shareMessage}
+        </p>
+      )}
       <section className="grid gap-4 md:grid-cols-3">
         {[
           ["Turnos asignados", `${assigned} de ${total}`],

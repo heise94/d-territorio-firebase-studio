@@ -409,3 +409,19 @@ vínculos accepted son obligatorios solo en ese bloque, sin autoasignación.
 
 F11G no autoriza lanzamiento general ni producción mutable; requiere QA visual
 en staging y conserva los pendientes humanos de F11.
+
+## D-039 — Enlace público de inscripción
+
+`/unirse` es la entrada pública para compartir por WhatsApp. Reutiliza las rutas
+existentes de registro, ingreso y la PWA de Campañas, sin crear una segunda
+identidad ni exigir instalación. Muestra nombre y ubicación solo cuando hay una
+única campaña con inscripciones abiertas; si hay varias, dirige al participante
+a su Inicio para elegir después de ingresar. No se fija un cementerio ni un ID de
+campaña en el enlace. El admin copia el enlace canónico en producción y el enlace
+del entorno actual en staging. La campaña real y las congregaciones se configuran
+antes de compartir el enlace productivo.
+
+La entrada pública usa un manifiesto con el mismo ID y comienzo `/campanas` de
+la PWA existente, pero con alcance que incluye `/unirse`; el manifiesto de
+`/campanas` no cambia. Así instalar desde la invitación abre la aplicación y no
+un acceso aislado a la landing. Instalar sigue siendo opcional.
