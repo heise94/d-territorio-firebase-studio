@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import type { OrganizerRole } from "../domain/organizer";
 import { campaignNavigation } from "../lib/admin-navigation";
-import { CampaignExhibitorIcon } from "./campaign-exhibitor-icon";
 import {
   CalendarDays,
   ClipboardList,
@@ -93,9 +93,13 @@ export function AdminDesktopShell({
           href="/campanas/admin"
           className="mb-10 flex items-center gap-3 px-3 pt-4 text-xl font-bold"
         >
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/15">
-            <CampaignExhibitorIcon aria-hidden="true" className="h-8 w-8" />
-          </span>
+          <Image
+            src="/campanas-icon-192.png"
+            alt=""
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded-xl"
+          />
           Campaña exhibidores
         </Link>
         <p className="px-3 pb-3 text-xs font-bold uppercase tracking-[.16em] text-teal-100/70">

@@ -1,6 +1,6 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, CalendarDays, MapPin } from "lucide-react";
-import { CampaignExhibitorIcon } from "@/modules/campaigns/components/campaign-exhibitor-icon";
 import { JoinInstall } from "@/modules/campaigns/components/join-install";
 import { getPublicJoinState } from "@/modules/campaigns/server/public-join";
 import { getCurrentParticipant } from "@/modules/campaigns/server/auth/session";
@@ -16,12 +16,14 @@ export default async function JoinPage() {
   return (
     <main className="mx-auto min-h-dvh max-w-lg space-y-5 px-5 pb-12 pt-8 sm:pt-12">
       <header className="flex items-center gap-3">
-        <span
-          className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--campaign-primary-strong)] text-white"
-          aria-hidden="true"
-        >
-          <CampaignExhibitorIcon className="h-8 w-8" />
-        </span>
+        <Image
+          src="/campanas-icon-192.png"
+          alt=""
+          width={48}
+          height={48}
+          priority
+          className="h-12 w-12 rounded-2xl"
+        />
         <span className="text-lg font-bold tracking-tight">Campaña exhibidores</span>
       </header>
 
