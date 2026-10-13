@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -120,6 +121,10 @@ export function CongregationSettings({ campaignId }: { campaignId: string }) {
   const [links, setLinks] = useState<CampaignCongregation[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const { user } = useAuth();
+  const [responsibles, setResponsibles] = useState<Record<string, { email: string; status: string }[]>>({});
+  const [inviteEmail, setInviteEmail] = useState<Record<string, string>>({});
+  const [inviteLinks, setInviteLinks] = useState<Record<string, string>>({});
   useEffect(() => {
     const stops = [
       repo.subscribeCongregations(setCongregations),
@@ -127,6 +132,17 @@ export function CongregationSettings({ campaignId }: { campaignId: string }) {
     ];
     return () => stops.forEach((stop) => stop());
   }, [campaignId]);
+  useEffect(() => {
+    if (!user || links.length === 0) return;
+    let cancelled = false;
+    void Promise.all(links.map(async (link) => {
+      const response = await fetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/congregations/${encodeURIComponent(link.congregationId)}/responsibles`, { headers: { Authorization: `Bearer ${await user.getIdToken(true)}` }, cache: "no-store" });
+      if (!response.ok) return [link.congregationId, []] as const;
+      const body = await response.json();
+      return [link.congregationId, body.invitations ?? []] as const;
+    })).then((items) => { if (!cancelled) setResponsibles(Object.fromEntries(items)); });
+    return () => { cancelled = true; };
+  }, [campaignId, links, user]);
   async function save(action: () => Promise<unknown>) {
     setBusy(true);
     setMessage("Guardando…");
@@ -210,6 +226,32 @@ export function CongregationSettings({ campaignId }: { campaignId: string }) {
               >
                 {link ? "Desasociar de campaña" : "Asociar a campaña"}
               </Button>
+              {link && (
+                <div className="w-full rounded-lg bg-slate-50 p-3">
+                  <p className="text-sm font-semibold">Responsables de esta congregación</p>
+                  <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                    {(responsibles[congregation.id] ?? []).map((entry) => <li key={entry.email}>{entry.email} <span className="text-xs text-slate-500">({entry.status === "active" ? "Activo" : entry.status === "pending" ? "Invitación pendiente" : "Expirada"})</span></li>)}
+                  </ul>
+                  <form className="mt-3 flex flex-wrap gap-2" onSubmit={async (event) => {
+                    event.preventDefault();
+                    if (!user) return;
+                    const email = inviteEmail[congregation.id]?.trim();
+                    if (!email) return setMessage("Introduce el correo del responsable.");
+                    setBusy(true); setMessage("Generando invitación…");
+                    try {
+                      const response = await fetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/congregations/${encodeURIComponent(congregation.id)}/responsibles`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${await user.getIdToken(true)}` }, body: JSON.stringify({ email }) });
+                      const body = await response.json();
+                      if (!response.ok) throw new Error(body.error);
+                      setInviteLinks((current) => ({ ...current, [congregation.id]: body.link })); setInviteEmail((current) => ({ ...current, [congregation.id]: "" })); setResponsibles((current) => ({ ...current, [congregation.id]: [...(current[congregation.id] ?? []), { email, status: "pending" }] })); setMessage("Invitación creada. Copia el enlace y envíalo por tu correo.");
+                    } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo crear la invitación."); }
+                    finally { setBusy(false); }
+                  }}>
+                    <Input type="email" placeholder="responsable@correo.com" value={inviteEmail[congregation.id] ?? ""} onChange={(event) => setInviteEmail((current) => ({ ...current, [congregation.id]: event.target.value }))} className="min-w-[240px] flex-1" />
+                    <Button type="submit" variant="outline" disabled={busy}>Generar enlace</Button>
+                  </form>
+                  {inviteLinks[congregation.id] && <div className="mt-2 flex gap-2"><Input readOnly value={inviteLinks[congregation.id]} aria-label="Enlace de invitación generado" /><Button type="button" variant="outline" onClick={() => navigator.clipboard?.writeText(inviteLinks[congregation.id])}>Copiar</Button></div>}
+                </div>
+              )}
             </li>
           );
         })}
