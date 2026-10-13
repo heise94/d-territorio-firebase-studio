@@ -30,7 +30,7 @@ export function ParticipantNavigation({
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-md border-t border-slate-200 bg-white px-2 pb-[max(12px,env(safe-area-inset-bottom))] pt-2"
-      aria-label="Navegación principal de Campañas"
+      aria-label="Navegación principal de Campaña exhibidores"
     >
       <div className="grid grid-cols-5 gap-1">
         {items.map(({ label, icon: Icon, href }) => {

@@ -22,7 +22,7 @@ export default async function JoinPage() {
         >
           <CampaignExhibitorIcon className="h-8 w-8" />
         </span>
-        <span className="text-lg font-bold tracking-tight">D-Territorio</span>
+        <span className="text-lg font-bold tracking-tight">Campaña exhibidores</span>
       </header>
 
       <section className="campaign-mint space-y-4 border border-[var(--campaign-line)] px-6 py-7">
@@ -68,7 +68,7 @@ export default async function JoinPage() {
 
         {participant ? (
           <Link href="/campanas" className="campaign-primary w-full gap-2 text-lg">
-            Abrir D-Territorio <ArrowRight aria-hidden="true" className="h-5 w-5" />
+            Abrir Campaña exhibidores <ArrowRight aria-hidden="true" className="h-5 w-5" />
           </Link>
         ) : (
           <div className="space-y-3">

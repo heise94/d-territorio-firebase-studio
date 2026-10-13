@@ -58,7 +58,7 @@ export function JoinInstall() {
       const choice = await prompt.userChoice;
       setPrompt(null);
       if (choice.outcome !== "accepted")
-        setNotice("Puedes seguir usando D-Territorio sin instalarla.");
+        setNotice("Puedes seguir usando Campaña exhibidores sin instalarla.");
       else setNotice("Instalación iniciada. Puedes continuar con tu cuenta.");
     } catch {
       setNotice("No pudimos abrir la instalación. Puedes seguir en el navegador.");
@@ -76,7 +76,7 @@ export function JoinInstall() {
         </span>
         <div>
           <h2 id="join-install-title" className="text-xl font-bold leading-snug">
-            Instala D-Territorio en tu teléfono
+            Instala Campaña exhibidores en tu teléfono
           </h2>
           <p className="mt-2 leading-relaxed text-[var(--campaign-muted)]">
             Puedes instalar la aplicación para abrirla fácilmente desde tu
@@ -96,7 +96,7 @@ export function JoinInstall() {
           className="campaign-secondary w-full gap-2 text-lg"
         >
           <Download aria-hidden="true" className="h-5 w-5" />
-          Instalar D-Territorio
+          Instalar Exhibidores
         </button>
       ) : device === "ios" ? (
         <div className="rounded-2xl bg-[var(--campaign-mint)] p-4">

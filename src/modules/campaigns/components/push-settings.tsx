@@ -34,7 +34,7 @@ export function PushSettings() {
       if (!available) {
         setState(
           isAppleMobile(navigator.userAgent, navigator.maxTouchPoints)
-            ? "En iPhone/iPad, añade Campañas a la pantalla de inicio y revisa las notificaciones allí."
+            ? "En iPhone/iPad, añade Exhibidores a la pantalla de inicio y revisa las notificaciones allí."
             : "No disponibles en este navegador",
         );
         return;

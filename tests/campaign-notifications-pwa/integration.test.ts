@@ -839,6 +839,8 @@ test("Manifest real y PNG locales 192/512/maskable; offline sin información pri
   );
   assert.equal(manifest.start_url, "/campanas");
   assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.name, "Campaña exhibidores");
+  assert.equal(manifest.short_name, "Exhibidores");
   for (const icon of manifest.icons) {
     const png = await readFile("public" + icon.src);
     assert.equal(png.readUInt32BE(16), Number(icon.sizes.split("x")[0]));
@@ -872,6 +874,7 @@ test("Worker único, NetworkOnly privado; actualización manual y ningún permis
   assert.match(worker, /credentials: "same-origin"/);
   assert.match(worker, /CAMPAIGNS_LOGOUT/);
   assert.match(worker, /CAMPAIGNS_SESSION_CLEARED/);
+  assert.match(worker, /Campaña exhibidores/);
   assert.match(ui, /BroadcastChannel/);
   assert.match(ui, /CAMPAIGNS_SESSION_CLEARED/);
   assert.doesNotMatch(worker, /importScripts\("https:/);

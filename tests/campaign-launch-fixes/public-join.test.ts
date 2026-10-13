@@ -65,4 +65,8 @@ test("public invite installs the existing campaign PWA without altering its mani
   assert.equal(invite.start_url, campaign.start_url);
   assert.equal(invite.scope, "/");
   assert.equal(campaign.scope, "/campanas");
+  assert.equal(invite.name, "Campaña exhibidores");
+  assert.equal(campaign.name, "Campaña exhibidores");
+  assert.equal(invite.short_name, "Exhibidores");
+  assert.equal(campaign.short_name, "Exhibidores");
 });

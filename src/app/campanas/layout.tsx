@@ -2,11 +2,12 @@ import type { Metadata, Viewport } from "next";
 import { CampaignPwa } from "@/modules/campaigns/components/campaign-pwa";
 
 export const metadata: Metadata = {
-  title: "D-Territorio Campañas",
+  title: "Campaña exhibidores",
+  applicationName: "Campaña exhibidores",
   description: "Organización de campañas especiales de predicación.",
   manifest: "/campanas.webmanifest",
-  icons: { apple: "/campanas-icon-192.png", icon: "/campanas-icon-192.png" },
-  appleWebApp: { capable: true, title: "Campañas", statusBarStyle: "default" },
+  icons: { apple: "/campanas-apple-touch-icon.png", icon: "/campanas-icon-192.png" },
+  appleWebApp: { capable: true, title: "Exhibidores", statusBarStyle: "default" },
 };
 export const viewport: Viewport = { themeColor: "#0f766e" };
 

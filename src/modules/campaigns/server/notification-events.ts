@@ -33,7 +33,7 @@ export function writeDomainNotification(
   metadata: InternalNotification["metadata"],
   now: Timestamp,
   targetRoute = "/campanas/mi-programa",
-  title = "Aviso de Campañas",
+  title = "Aviso de Campaña exhibidores",
 ) {
   const id = notificationEventId(eventKey, type, participantId);
   const notification: InternalNotification = {

@@ -97,7 +97,7 @@ export function ParticipantAuthForm({
 
   return (
     <main className="mx-auto max-w-md px-5 py-10">
-      <p className="font-semibold text-teal-700">Campañas con exhibidores</p>
+      <p className="font-semibold text-teal-700">Campaña exhibidores</p>
       <h1 className="mt-3 text-2xl font-bold">
         {register ? "Crear mi cuenta" : "Ingresar"}
       </h1>

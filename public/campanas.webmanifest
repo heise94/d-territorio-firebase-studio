@@ -1,7 +1,7 @@
 {
   "id": "/campanas",
-  "name": "D-Territorio Campañas",
-  "short_name": "Campañas",
+  "name": "Campaña exhibidores",
+  "short_name": "Exhibidores",
   "description": "Tu disponibilidad, programa y avisos de campañas en un solo lugar.",
   "lang": "es-CL",
   "start_url": "/campanas",

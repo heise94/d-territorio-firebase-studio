@@ -45,7 +45,7 @@ const safeErrorCode = (error: unknown) => {
     : "messaging/transient-error";
 };
 const payload = (n: InternalNotification) => ({
-  title: "D-Territorio Campañas",
+  title: "Campaña exhibidores",
   body:
     n.type === "turn_reminder"
       ? "Tienes un turno próximo. Revisa la aplicación."

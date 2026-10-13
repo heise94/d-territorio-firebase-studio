@@ -62,7 +62,7 @@ export function ParticipantProfile({
       <DialogContent className="max-w-[calc(100%_-_2rem)] rounded-2xl bg-white text-slate-900 sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Tu perfil</DialogTitle>
-          <DialogDescription>Tu sesión en Campañas.</DialogDescription>
+          <DialogDescription>Tu sesión en Campaña exhibidores.</DialogDescription>
         </DialogHeader>
         <dl className="space-y-4">
           <div>

@@ -86,7 +86,7 @@ if (
       const data = payload.data ?? {},
         current = await ownEvent(data.eventId);
       if (!current) return; // Cookie ownership is checked again after logout/login.
-      await self.registration.showNotification("D-Territorio Campañas", {
+      await self.registration.showNotification("Campaña exhibidores", {
         body:
           current.type === "turn_reminder"
             ? "Tienes un turno próximo. Revisa la aplicación."
