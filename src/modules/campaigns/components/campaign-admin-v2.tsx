@@ -2,7 +2,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, MapPin, Plus, Presentation } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarDays,
+  MapPin,
+  Plus,
+  Presentation,
+  Users,
+} from "lucide-react";
 import { AdminDesktopShell } from "./admin-desktop-shell";
 import {
   CampaignGeneralForm,
@@ -21,6 +28,63 @@ const input =
   "h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-slate-900";
 const button =
   "rounded-lg bg-teal-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-900";
+
+function formatCampaignDates(dates: string[]) {
+  if (!dates.length) return "Fechas por definir";
+  const format = new Intl.DateTimeFormat("es-CL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  const start = new Date(`${dates[0]}T00:00:00Z`);
+  const end = new Date(`${dates.at(-1)}T00:00:00Z`);
+  if (dates.length === 1) return format.format(start);
+  const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+  const shortFormat = new Intl.DateTimeFormat("es-CL", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+  return sameYear
+    ? `${shortFormat.format(start)} – ${format.format(end)}`
+    : `${format.format(start)} – ${format.format(end)}`;
+}
+
+function SouthernLandscape({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 720 360"
+      fill="none"
+      className={className}
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <defs>
+        <linearGradient id="admin-sky" x1="360" y1="0" x2="360" y2="360" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#e6f5f1" stopOpacity=".96" />
+          <stop offset="1" stopColor="#f8f5ed" stopOpacity=".3" />
+        </linearGradient>
+        <linearGradient id="admin-mountain" x1="400" y1="102" x2="400" y2="286" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#6fa7a2" stopOpacity=".7" />
+          <stop offset="1" stopColor="#256b6a" stopOpacity=".18" />
+        </linearGradient>
+      </defs>
+      <rect width="720" height="360" fill="url(#admin-sky)" />
+      <circle cx="570" cy="72" r="39" fill="#fffdf7" fillOpacity=".76" />
+      <path d="M0 248 108 177l73 50 86-92 80 66 74-113 142 160 80-49 77 49v112H0V248Z" fill="url(#admin-mountain)" />
+      <path d="m347 201 74-113 41 93-30-23-20 22-22-27-43 48Z" fill="#effaf7" fillOpacity=".77" />
+      <path d="M0 276c75-43 139-35 210-6 68 28 129 33 201 1 70-32 162-39 309 9v70H0v-74Z" fill="#397b78" fillOpacity=".27" />
+      <path d="M0 305c91-27 178-21 260 7 108 37 218 20 323-3 53-12 99-11 137-2v43H0v-45Z" fill="#075b60" fillOpacity=".35" />
+      {[48, 92, 145, 615, 664].map((x, index) => (
+        <g key={x} opacity={index % 2 ? ".46" : ".58"}>
+          <path d={`M${x} 315l18-49 18 49H${x}Z`} fill="#075b60" />
+          <rect x={x + 16} y="310" width="4" height="24" rx="2" fill="#075b60" />
+        </g>
+      ))}
+    </svg>
+  );
+}
 function values(data: FormData) {
   return Object.fromEntries(data);
 }
@@ -35,33 +99,38 @@ export function CampaignAdminV2() {
   return (
     <AdminDesktopShell>
       <main className="mx-auto max-w-7xl space-y-7 p-5 lg:p-9">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+        {creating ? (
+          <header>
             <p className="text-xs font-bold uppercase tracking-[.16em] text-teal-700">
               Administración de plataforma
             </p>
-            <h1 className="mt-2 text-4xl font-extrabold tracking-tight">
-              {creating ? "Nueva campaña" : "Campañas"}
-            </h1>
+            <h1 className="mt-2 text-4xl font-extrabold tracking-tight">Nueva campaña</h1>
             <p className="mt-3 max-w-2xl text-slate-600">
-              {creating
-                ? "Define la información inicial. Después podrás configurar congregaciones, horarios y puntos."
-                : "Crea y administra tus campañas. Entra a una campaña para trabajar en su planificación."}
+              Define la información inicial. Después podrás configurar congregaciones, horarios y puntos.
             </p>
-          </div>
-          {!creating && (
-            <button
-              className={`${button} inline-flex items-center gap-2`}
-              onClick={() => {
-                setError("");
-                setCreating(true);
-              }}
-            >
-              <Plus size={20} />
-              Nueva campaña
-            </button>
-          )}
-        </header>
+          </header>
+        ) : (
+          <section className="relative overflow-hidden rounded-3xl border border-teal-100 bg-[#f9f7f0] px-6 py-8 shadow-[0_18px_50px_-36px_rgba(1,79,80,.55)] sm:px-8 lg:min-h-64 lg:px-10 lg:py-10">
+            <SouthernLandscape className="pointer-events-none absolute inset-y-0 right-0 h-full w-full max-w-3xl opacity-80" />
+            <div className="relative z-10 max-w-xl">
+              <p className="text-xs font-bold uppercase tracking-[.16em] text-teal-700">Administración de plataforma</p>
+              <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">Campañas</h1>
+              <p className="mt-4 max-w-md text-base leading-relaxed text-slate-600">
+                Crea tus campañas y entra a administrarlas cuando lo necesites.
+              </p>
+              <button
+                className={`${button} mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}
+                onClick={() => {
+                  setError("");
+                  setCreating(true);
+                }}
+              >
+                <Plus size={20} />
+                Nueva campaña
+              </button>
+            </div>
+          </section>
+        )}
         {creating ? (
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">
             <form
@@ -171,22 +240,18 @@ export function CampaignAdminV2() {
             </aside>
           </div>
         ) : (
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center gap-3 border-b p-5">
-              <h2 className="text-xl font-bold">Tus campañas</h2>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">
+          <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-[0_16px_45px_-32px_rgba(15,23,42,.36)]">
+            <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-5 sm:px-7">
+              <h2 className="text-xl font-bold tracking-tight">Tus campañas</h2>
+              <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800">
                 {items.length}
               </span>
             </div>
-            <div className="divide-y">
+            <div className="divide-y divide-slate-100">
               {items.map((item) => (
                 <CampaignListRow key={item.id} campaign={item} />
               ))}
-              {items.length === 0 && (
-                <p className="p-6 text-slate-600">
-                  Todavía no hay campañas. Crea la primera para comenzar.
-                </p>
-              )}
+              {items.length === 0 && <CampaignEmptyState onCreate={() => setCreating(true)} />}
             </div>
           </section>
         )}
@@ -211,14 +276,14 @@ function CampaignListRow({ campaign }: { campaign: Campaign }) {
     .map((day) => day.date)
     .sort();
   return (
-    <article className="flex flex-wrap items-center justify-between gap-5 p-6">
+    <article className="group flex flex-wrap items-center justify-between gap-5 px-6 py-6 transition-colors hover:bg-[#fcfcfa] sm:px-7">
       <div className="flex min-w-0 flex-1 items-start gap-4">
-        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-teal-50 text-teal-800">
-          <Presentation size={32} />
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-teal-50 to-[#dff0ea] text-teal-800 shadow-inner">
+          <Presentation size={27} />
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h3 className="break-words text-lg font-bold">{campaign.name}</h3>
+            <h3 className="break-words text-lg font-bold tracking-tight text-slate-950">{campaign.name}</h3>
             <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">
               {statusLabels[campaign.status]}
             </span>
@@ -229,22 +294,38 @@ function CampaignListRow({ campaign }: { campaign: Campaign }) {
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-600">
             <span className="inline-flex items-center gap-2">
               <CalendarDays size={16} />
-              {dates.length
-                ? `${dates[0]}${dates.length > 1 ? ` — ${dates.at(-1)}` : ""}`
-                : "Fechas por definir"}
+              {formatCampaignDates(dates)}
             </span>
             <span className="inline-flex items-center gap-2">
               <MapPin size={16} />
-              {campaign.locationName || "Ubicación por definir"}
+              {campaign.locationName || "Ubicación pendiente"}
             </span>
-            <span>{count} congregaciones</span>
+            <span className="inline-flex items-center gap-2"><Users size={16} />{count} {count === 1 ? "congregación" : "congregaciones"}</span>
           </div>
         </div>
       </div>
-      <Link className={button} href={`/campanas/admin/resumen/${campaign.id}`}>
-        Administrar
+      <Link className={`${button} inline-flex items-center gap-2 rounded-xl px-4 py-2.5`} href={`/campanas/admin/resumen/${campaign.id}`}>
+        Administrar <ArrowRight size={17} />
       </Link>
     </article>
+  );
+}
+
+function CampaignEmptyState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="relative isolate overflow-hidden px-6 py-12 text-center sm:px-10">
+      <SouthernLandscape className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-48 w-full opacity-35" />
+      <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-teal-50 text-teal-800">
+        <Presentation size={30} />
+      </div>
+      <h3 className="mt-5 text-xl font-bold tracking-tight">Aún no hay campañas</h3>
+      <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-600">
+        Crea tu primera campaña para comenzar.
+      </p>
+      <button className={`${button} mt-6 inline-flex items-center gap-2 rounded-xl`} onClick={onCreate}>
+        <Plus size={18} /> Nueva campaña
+      </button>
+    </div>
   );
 }
 export function CampaignEditor({
