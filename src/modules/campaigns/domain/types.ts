@@ -105,9 +105,14 @@ export interface Point {
   description?: string;
   locationText?: string;
   mapUrl?: string;
+  minParticipants?: number;
+  maxParticipants?: number;
   active: boolean;
   sortOrder: number;
 }
+export { getPointCapacity, calculateBlockCapacity } from "./point-capacity";
+export type { PointCapacity, BlockCapacitySummary } from "./point-capacity";
+
 
 export interface BlockPoint {
   id: BlockPointId;

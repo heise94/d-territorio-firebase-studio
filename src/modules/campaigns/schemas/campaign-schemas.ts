@@ -84,13 +84,30 @@ export const congregationSchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio.").max(120),
   active: z.boolean().default(true),
 });
-export const pointSchema = z.object({
-  name: z.string().trim().min(1, "El nombre es obligatorio.").max(120),
-  description: optionalText,
-  locationText: optionalText,
-  mapUrl: optionalUrl,
-  active: z.boolean().default(true),
-});
+const pointCapacityField = (defaultVal: number, fieldName: string) =>
+  z.preprocess(
+    (val) => (val === "" || val === undefined || val === null ? defaultVal : val),
+    z.coerce
+      .number({ invalid_type_error: `Ingresa un número válido para ${fieldName}.` })
+      .int(`El valor para ${fieldName} debe ser un número entero.`)
+      .min(1, "El mínimo debe ser al menos 1 hermano."),
+  );
+
+export const pointSchema = z
+  .object({
+    name: z.string().trim().min(1, "El nombre es obligatorio.").max(120),
+    description: optionalText,
+    locationText: optionalText,
+    mapUrl: optionalUrl,
+    minParticipants: pointCapacityField(2, "el mínimo de hermanos"),
+    maxParticipants: pointCapacityField(2, "el máximo de hermanos"),
+    active: z.boolean().default(true),
+  })
+  .refine((data) => data.maxParticipants >= data.minParticipants, {
+    message: "El máximo de hermanos no puede ser menor que el mínimo.",
+    path: ["maxParticipants"],
+  });
+
 export const campaignInformationSchema = z
   .object({
     intro: optionalText,
@@ -144,7 +161,7 @@ export type CampaignInput = z.infer<typeof campaignSchema>;
 export type CampaignDayInput = z.infer<typeof campaignDaySchema>;
 export type TimeBlockInput = z.infer<typeof timeBlockSchema>;
 export type CongregationInput = z.infer<typeof congregationSchema>;
-export type PointInput = z.infer<typeof pointSchema>;
+export type PointInput = z.input<typeof pointSchema>;
 export type CampaignInformationInput = z.infer<
   typeof campaignInformationSchema
 >;

@@ -201,7 +201,8 @@ export async function setBlockPoint(
     db = campaignsAdminDb();
   await db.runTransaction(async (tx) => {
     const source = await readPlannerSource(db, tx, campaignId);
-    planning(source);
+    if (source.campaign.status === "completed")
+      throw new AuthError(409, "La campaña ya está finalizada.");
     const id = blockPointId(value.timeBlockId, value.pointId),
       old = source.blockPoints.get(id);
     if (

@@ -9,6 +9,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
   writeBatch,
@@ -16,7 +17,9 @@ import {
 import { db } from "@/lib/firebase";
 import { campaignCollections } from "../lib/paths";
 import { cleanFirestorePayload } from "../lib/firestore-payload";
+import { computeBlockPointId } from "../lib/block-point-id";
 import type {
+  BlockPoint,
   Campaign,
   CampaignInformation,
   CampaignCongregation,
@@ -25,12 +28,13 @@ import type {
   Point,
   TimeBlock,
 } from "../domain/types";
-import type {
-  CampaignDayInput,
-  CampaignInput,
-  CongregationInput,
-  PointInput,
-  TimeBlockInput,
+import {
+  pointSchema,
+  type CampaignDayInput,
+  type CampaignInput,
+  type CongregationInput,
+  type PointInput,
+  type TimeBlockInput,
 } from "../schemas/campaign-schemas";
 
 const ref = (name: string) => collection(db, name);
@@ -145,7 +149,16 @@ export const campaignRepository = {
       ),
     );
     const batch = writeBatch(db);
-    blocks.docs.forEach((block) => batch.delete(block.ref));
+    for (const block of blocks.docs) {
+      const blockPoints = await getDocs(
+        query(
+          ref(campaignCollections.blockPoints),
+          where("timeBlockId", "==", block.id),
+        ),
+      );
+      blockPoints.docs.forEach((bp) => batch.delete(bp.ref));
+      batch.delete(block.ref);
+    }
     batch.delete(doc(db, campaignCollections.campaignDays, id));
     return batch.commit();
   },
@@ -194,8 +207,17 @@ export const campaignRepository = {
       sortOrder: current.size,
     });
   },
-  deleteBlock(id: string) {
-    return deleteDoc(doc(db, campaignCollections.timeBlocks, id));
+  async deleteBlock(id: string) {
+    const blockPoints = await getDocs(
+      query(
+        ref(campaignCollections.blockPoints),
+        where("timeBlockId", "==", id),
+      ),
+    );
+    const batch = writeBatch(db);
+    blockPoints.docs.forEach((bp) => batch.delete(bp.ref));
+    batch.delete(doc(db, campaignCollections.timeBlocks, id));
+    return batch.commit();
   },
 
   subscribeCongregations(callback: (items: Congregation[]) => void) {
@@ -255,7 +277,8 @@ export const campaignRepository = {
       (snapshot) => callback(snapshot.docs.map((entry) => item<Point>(entry))),
     );
   },
-  async savePoint(campaignId: string, input: PointInput, existing?: Point) {
+  async savePoint(campaignId: string, rawInput: PointInput, existing?: Point) {
+    const input = pointSchema.parse(rawInput);
     if (existing) {
       const payload = clean(input);
       if (input.mapUrl === undefined)
@@ -277,7 +300,49 @@ export const campaignRepository = {
       sortOrder: current.size,
     });
   },
-  deletePoint(id: string) {
-    return deleteDoc(doc(db, campaignCollections.points, id));
+  async deletePoint(id: string) {
+    const blockPoints = await getDocs(
+      query(
+        ref(campaignCollections.blockPoints),
+        where("pointId", "==", id),
+      ),
+    );
+    const batch = writeBatch(db);
+    blockPoints.docs.forEach((bp) => batch.delete(bp.ref));
+    batch.delete(doc(db, campaignCollections.points, id));
+    return batch.commit();
+  },
+
+  subscribeBlockPoints(
+    campaignId: string,
+    callback: (items: BlockPoint[]) => void,
+  ) {
+    return onSnapshot(
+      query(
+        ref(campaignCollections.blockPoints),
+        where("campaignId", "==", campaignId),
+      ),
+      (snapshot) =>
+        callback(snapshot.docs.map((entry) => item<BlockPoint>(entry))),
+    );
+  },
+  async saveBlockPoint(
+    campaignId: string,
+    timeBlockId: string,
+    pointId: string,
+    active: boolean,
+  ) {
+    const id = await computeBlockPointId(timeBlockId, pointId);
+    return setDoc(
+      doc(db, campaignCollections.blockPoints, id),
+      {
+        campaignId,
+        timeBlockId,
+        pointId,
+        active,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
   },
 };

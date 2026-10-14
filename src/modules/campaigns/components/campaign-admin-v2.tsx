@@ -327,7 +327,7 @@ export function CampaignEditor({
         </h1>
         <p className="mt-3 text-slate-600">
           {section === "horarios"
-            ? "Define los días, bloques de tiempo y puntos disponibles para la campaña."
+            ? "Define cuándo se realizará la campaña y cuántos hermanos pueden participar en cada punto."
             : section === "informacion"
               ? "Configura la información operativa que verán los participantes."
               : "Consulta y administra la información, las congregaciones, el equipo y el estado de la campaña."}

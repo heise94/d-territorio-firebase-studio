@@ -56,6 +56,12 @@ service cloud.firestore {
       allow update: if isCampaignAdmin() && editableCampaign(resource.data.campaignId) && editableCampaign(request.resource.data.campaignId);
       allow delete: if isCampaignAdmin() && editableCampaign(resource.data.campaignId);
     }
+    match /blockPoints/{docId} {
+      allow read: if isCampaignAdmin();
+      allow create: if isCampaignAdmin() && editableCampaign(request.resource.data.campaignId);
+      allow update: if isCampaignAdmin() && editableCampaign(resource.data.campaignId) && editableCampaign(request.resource.data.campaignId);
+      allow delete: if isCampaignAdmin() && editableCampaign(resource.data.campaignId);
+    }
 
     // Participant authentication is exclusively server-side (Firebase Admin).
     // Even authenticated organizers cannot directly retrieve credential/session documents.
@@ -70,7 +76,6 @@ service cloud.firestore {
     match /availabilities/{docId} { allow read, write: if false; }
     match /pairRequests/{docId} { allow read, write: if false; }
     match /campaignPairRequestLocks/{docId} { allow read, write: if false; }
-    match /blockPoints/{docId} { allow read, write: if false; }
     match /campaignAssignments/{docId} { allow read, write: if false; }
     match /campaignPlannerLocks/{docId} { allow read, write: if false; }
     match /campaignProgramVersions/{docId} { allow read, write: if false; }

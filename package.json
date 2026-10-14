@@ -13,6 +13,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "test:campaign-schedule-points": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-schedule-points.test.ts",
     "test:campaign-launch-fixes": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-launch-fixes/*.test.ts",
     "test:campaign-auth": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-auth/*.test.ts",
     "test:campaign-registration": "node --require ./tests/campaign-auth/server-only.cjs --import tsx --test tests/campaign-registration/*.test.ts",
