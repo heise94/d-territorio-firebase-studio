@@ -47,6 +47,8 @@ test("Campaña muestra cinco secciones simples sin controles de aprobación ni c
   assert.doesNotMatch(general, /Capacidad objetivo por bloque|Máximo de puntos/);
   assert.doesNotMatch(congregations, /responsable|invitación|Generar enlace/i);
   assert.match(settings, /Participa en esta campaña/);
+  assert.match(congregations, /showAdd &&/);
+  assert.match(congregations, /Agregar congregación/);
 });
 for (const role of ["CAMPAIGN_ADMIN", "SUPER_ADMIN"] as const) {
   test(`${role} receives all eight authorized campaign sections`, () => {

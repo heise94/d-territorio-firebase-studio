@@ -137,6 +137,7 @@ export function CampaignCompanionSettings({
 export function CongregationSettings({ campaignId }: { campaignId: string }) {
   const [congregations, setCongregations] = useState<Congregation[]>([]);
   const [links, setLinks] = useState<CampaignCongregation[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   useEffect(() => {
@@ -160,79 +161,82 @@ export function CongregationSettings({ campaignId }: { campaignId: string }) {
       setBusy(false);
     }
   }
+  const associated = congregations.filter((congregation) =>
+    links.some((entry) => entry.congregationId === congregation.id),
+  );
+  const available = congregations.filter((congregation) =>
+    !links.some((entry) => entry.congregationId === congregation.id),
+  );
   return (
     <div className="mt-4 space-y-4">
-      <form
-        className="flex flex-wrap items-end gap-3"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          const form = event.currentTarget;
-          const parsed = congregationSchema.safeParse(
-            Object.fromEntries(new FormData(form)),
-          );
-          if (!parsed.success) {
-            setMessage(parsed.error.issues[0].message);
-            return;
-          }
-          if (await save(() => repo.saveCongregation(parsed.data)))
-            form.reset();
-        }}
-      >
-        <label className="grid gap-2 text-sm font-semibold">
-          Nueva congregación
-          <Input name="name" required />
-        </label>
-        <Button
-          disabled={busy}
-          className="bg-teal-700 text-white hover:bg-teal-800"
-        >
-          Crear congregación
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-600">{associated.length} {associated.length === 1 ? "congregación participa" : "congregaciones participan"} en esta campaña.</p>
+        <Button type="button" variant="outline" onClick={() => setShowAdd((value) => !value)}>
+          {showAdd ? "Cerrar" : "Agregar congregación"}
         </Button>
-      </form>
+      </div>
       <p role="status" className="text-sm">
         {message}
       </p>
-      {congregations.length === 0 && (
-        <p>No hay congregaciones disponibles todavía.</p>
+      {associated.length === 0 && (
+        <p className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">Todavía no hay congregaciones asociadas a esta campaña.</p>
       )}
       <ul className="space-y-2">
-        {congregations.map((congregation) => {
-          const link = links.find(
-            (entry) => entry.congregationId === congregation.id,
-          );
+        {associated.map((congregation) => {
+          const link = links.find((entry) => entry.congregationId === congregation.id)!;
           return (
             <li
               key={congregation.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded border p-3"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"
             >
               <div>
                 <p className="font-semibold">{congregation.name}</p>
-                <p className="text-sm text-slate-600">
-                  {link
-                    ? "Participa en esta campaña"
-                    : "Disponible para asociar"}
-                </p>
+                <p className="text-sm text-slate-600">Participa en esta campaña</p>
               </div>
               <Button
                 disabled={busy}
                 variant="outline"
-                onClick={() =>
-                  save(() =>
-                    link
-                      ? repo.removeCampaignCongregation(link.id)
-                      : repo.addCampaignCongregation(
-                          campaignId,
-                          congregation.id,
-                        ),
-                  )
-                }
+                onClick={() => save(() => repo.removeCampaignCongregation(link.id))}
               >
-                {link ? "Desasociar de campaña" : "Asociar a campaña"}
+                Desasociar de campaña
               </Button>
             </li>
           );
         })}
       </ul>
+      {showAdd && (
+        <div className="space-y-4 rounded-xl border border-teal-100 bg-teal-50/40 p-4">
+          <h3 className="font-semibold">Agregar congregación</h3>
+          {available.length > 0 ? (
+            <ul className="max-h-64 space-y-2 overflow-y-auto">
+              {available.map((congregation) => (
+                <li key={congregation.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-3 text-sm">
+                  <span className="font-medium">{congregation.name}</span>
+                  <Button type="button" disabled={busy} variant="outline" onClick={() => save(() => repo.addCampaignCongregation(campaignId, congregation.id))}>
+                    Asociar a campaña
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="text-sm text-slate-600">No hay otras congregaciones disponibles para asociar.</p>}
+          <form
+            className="flex flex-wrap items-end gap-3 border-t border-teal-100 pt-4"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const form = event.currentTarget;
+              const parsed = congregationSchema.safeParse(Object.fromEntries(new FormData(form)));
+              if (!parsed.success) { setMessage(parsed.error.issues[0].message); return; }
+              if (await save(() => repo.saveCongregation(parsed.data))) form.reset();
+            }}
+          >
+            <label className="grid gap-2 text-sm font-semibold">
+              Crear una nueva congregación
+              <Input name="name" required />
+            </label>
+            <Button disabled={busy} className="bg-teal-700 text-white hover:bg-teal-800">Crear congregación</Button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
