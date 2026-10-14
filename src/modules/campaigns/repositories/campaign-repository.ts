@@ -29,6 +29,7 @@ import type {
   TimeBlock,
 } from "../domain/types";
 import {
+  campaignDaySchema,
   pointSchema,
   type CampaignDayInput,
   type CampaignInput,
@@ -36,6 +37,7 @@ import {
   type PointInput,
   type TimeBlockInput,
 } from "../schemas/campaign-schemas";
+import { checkBlocksOverlap } from "../domain/schedule-generator";
 
 const ref = (name: string) => collection(db, name);
 const item = <T>(snapshot: { id: string; data: () => unknown }) => ({
@@ -195,17 +197,222 @@ export const campaignRepository = {
       )
     )
       throw new Error("Ese bloque ya existe para este día.");
+
+    const existingBlocks = current.docs.map((d) => ({
+      id: d.id,
+      startTime: d.data().startTime as string,
+      endTime: d.data().endTime as string,
+    }));
+    const overlapError = checkBlocksOverlap(
+      existingBlocks,
+      [{ startTime: input.startTime, endTime: input.endTime }],
+      existing?.id,
+    );
+    if (overlapError) throw new Error(overlapError);
+
     if (existing)
       return updateDoc(
         doc(db, campaignCollections.timeBlocks, existing.id),
         clean(input),
       );
-    return addDoc(ref(campaignCollections.timeBlocks), {
+
+    const newBlockRef = await addDoc(ref(campaignCollections.timeBlocks), {
       ...clean(input),
       campaignId,
       campaignDayId,
       sortOrder: current.size,
     });
+
+    // Default enablement: enable all globally active points for this new block
+    const pointsSnapshot = await getDocs(
+      query(
+        ref(campaignCollections.points),
+        where("campaignId", "==", campaignId),
+      ),
+    );
+    const activePoints = pointsSnapshot.docs.filter(
+      (p) => p.data().active !== false,
+    );
+    if (activePoints.length > 0) {
+      const batch = writeBatch(db);
+      for (const pt of activePoints) {
+        const bpId = await computeBlockPointId(newBlockRef.id, pt.id);
+        batch.set(
+          doc(db, campaignCollections.blockPoints, bpId),
+          {
+            campaignId,
+            timeBlockId: newBlockRef.id,
+            pointId: pt.id,
+            active: true,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+      }
+      await batch.commit();
+    }
+
+    return newBlockRef;
+  },
+  async saveGeneratedBlocks(
+    campaignId: string,
+    campaignDayId: string,
+    blocksToCreate: Array<{ startTime: string; endTime: string; label?: string }>,
+  ) {
+    if (!blocksToCreate.length) return;
+    const current = await getDocs(
+      query(
+        ref(campaignCollections.timeBlocks),
+        where("campaignDayId", "==", campaignDayId),
+      ),
+    );
+    const existingBlocks = current.docs.map((d) => ({
+      id: d.id,
+      startTime: d.data().startTime as string,
+      endTime: d.data().endTime as string,
+    }));
+
+    const overlapError = checkBlocksOverlap(existingBlocks, blocksToCreate);
+    if (overlapError) throw new Error(overlapError);
+
+    const pointsSnapshot = await getDocs(
+      query(
+        ref(campaignCollections.points),
+        where("campaignId", "==", campaignId),
+      ),
+    );
+    const activePoints = pointsSnapshot.docs.filter(
+      (p) => p.data().active !== false,
+    );
+
+    const batch = writeBatch(db);
+    let sortOrder = current.size;
+
+    for (const b of blocksToCreate) {
+      const newBlockRef = doc(collection(db, campaignCollections.timeBlocks));
+      batch.set(newBlockRef, {
+        campaignId,
+        campaignDayId,
+        startTime: b.startTime,
+        endTime: b.endTime,
+        label: b.label || null,
+        active: true,
+        sortOrder: sortOrder++,
+      });
+
+      for (const pt of activePoints) {
+        const bpId = await computeBlockPointId(newBlockRef.id, pt.id);
+        batch.set(
+          doc(db, campaignCollections.blockPoints, bpId),
+          {
+            campaignId,
+            timeBlockId: newBlockRef.id,
+            pointId: pt.id,
+            active: true,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+      }
+    }
+
+    await batch.commit();
+  },
+  async cloneDay(
+    campaignId: string,
+    sourceDayId: string,
+    newDayInput: CampaignDayInput,
+  ) {
+    const dayInput = campaignDaySchema.parse(newDayInput);
+    const currentDays = await getDocs(
+      query(
+        ref(campaignCollections.campaignDays),
+        where("campaignId", "==", campaignId),
+      ),
+    );
+    if (currentDays.docs.some((d) => d.data().date === dayInput.date)) {
+      throw new Error("Ya existe un día configurado con esta fecha.");
+    }
+
+    const newDayRef = await addDoc(ref(campaignCollections.campaignDays), {
+      ...clean(dayInput),
+      campaignId,
+      sortOrder: currentDays.size,
+    });
+
+    const sourceBlocks = await getDocs(
+      query(
+        ref(campaignCollections.timeBlocks),
+        where("campaignDayId", "==", sourceDayId),
+      ),
+    );
+
+    if (sourceBlocks.empty) {
+      return newDayRef;
+    }
+
+    const batch = writeBatch(db);
+    for (const sBlock of sourceBlocks.docs) {
+      const sData = sBlock.data();
+      const newBlockRef = doc(collection(db, campaignCollections.timeBlocks));
+      batch.set(newBlockRef, {
+        campaignId,
+        campaignDayId: newDayRef.id,
+        startTime: sData.startTime,
+        endTime: sData.endTime,
+        label: sData.label ?? null,
+        active: sData.active ?? true,
+        sortOrder: sData.sortOrder ?? 0,
+      });
+
+      const sourceBpDocs = await getDocs(
+        query(
+          ref(campaignCollections.blockPoints),
+          where("timeBlockId", "==", sBlock.id),
+        ),
+      );
+
+      for (const bpDoc of sourceBpDocs.docs) {
+        const bpData = bpDoc.data();
+        const newBpId = await computeBlockPointId(newBlockRef.id, bpData.pointId);
+        batch.set(
+          doc(db, campaignCollections.blockPoints, newBpId),
+          {
+            campaignId,
+            timeBlockId: newBlockRef.id,
+            pointId: bpData.pointId,
+            active: bpData.active ?? true,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+      }
+    }
+
+    await batch.commit();
+    return newDayRef;
+  },
+  async saveBlockPointsForBlock(
+    campaignId: string,
+    timeBlockId: string,
+    pointStates: Array<{ pointId: string; active: boolean }>,
+  ) {
+    const batch = writeBatch(db);
+    for (const item of pointStates) {
+      const id = await computeBlockPointId(timeBlockId, item.pointId);
+      batch.set(
+        doc(db, campaignCollections.blockPoints, id),
+        {
+          campaignId,
+          timeBlockId,
+          pointId: item.pointId,
+          active: item.active,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+    return batch.commit();
   },
   async deleteBlock(id: string) {
     const blockPoints = await getDocs(
