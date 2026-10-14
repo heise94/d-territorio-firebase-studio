@@ -1,5 +1,5 @@
 import "server-only";
-import type { Firestore } from "firebase-admin/firestore";
+import { Timestamp, type Firestore } from "firebase-admin/firestore";
 import {
   calculateCoverage,
   registrationIsEligible,
@@ -17,7 +17,10 @@ import {
   type AdminPairDetail,
 } from "../domain/admin-dashboard";
 import { campaignDocumentIdSchema } from "../schemas/registration-schemas";
-import { adminParticipantFiltersSchema } from "../schemas/admin-dashboard-schemas";
+import {
+  adminParticipantFiltersSchema,
+  adminUpdateAvailabilitySchema,
+} from "../schemas/admin-dashboard-schemas";
 import { phoneSchema } from "../schemas/participant-auth";
 import { AuthError } from "./auth/service";
 import { requireCampaignAccess } from "./campaign-access";
@@ -25,6 +28,7 @@ import {
   readDashboardSource,
   type DashboardSource,
 } from "./admin-dashboard-source";
+import { availabilityId } from "./registration-service";
 import { campaignCollections } from "../lib/paths";
 
 function availability(
@@ -135,7 +139,7 @@ export class CampaignAdminDashboardService {
     if (!campaignDocumentIdSchema.safeParse(campaignId).success)
       throw new AuthError(400, "Campaña inválida.");
     try {
-      await requireCampaignAccess(this.db, token, campaignId, [
+      return await requireCampaignAccess(this.db, token, campaignId, [
         "SUPER_ADMIN",
         "CAMPAIGN_ADMIN",
       ]);
@@ -356,6 +360,17 @@ export class CampaignAdminDashboardService {
           .doc(registration.participantId),
         { fieldMask: ["phoneNormalized"] },
       );
+      const assignmentDocs = await tx.get(
+        this.db
+          .collection(campaignCollections.assignments)
+          .where("campaignId", "==", campaignId)
+          .where("registrationId", "==", id),
+      );
+      const publishedAssignmentBlockIds = assignmentDocs.docs
+        .map((doc) => doc.data())
+        .filter((a) => a.status === "published")
+        .map((a) => a.timeBlockId as string);
+
       const pairRequests: AdminPairDetail[] = visiblePairs(source)
         .filter(
           (pair) =>
@@ -387,14 +402,150 @@ export class CampaignAdminDashboardService {
       return {
         ...row,
         phone: phoneDoc[0].data()?.phoneNormalized ?? null,
+        createdAt: registration.createdAt
+          ? (typeof (registration.createdAt as unknown as { toDate?: () => Date }).toDate === "function"
+              ? (registration.createdAt as unknown as { toDate: () => Date }).toDate().toISOString()
+              : String(registration.createdAt))
+          : undefined,
+        publishedAssignmentBlockIds,
         availability: [...(source.selections.get(id) ?? [])]
-          .map((blockId) => availability(source, blockId))
+          .map((blockId) => {
+            const avail = availability(source, blockId);
+            return {
+              ...avail,
+              assignedPublished: publishedAssignmentBlockIds.includes(blockId),
+            };
+          })
           .sort(
             (a, b) =>
               (a.date ?? "").localeCompare(b.date ?? "") ||
               (a.startTime ?? "").localeCompare(b.startTime ?? ""),
           ),
         pairRequests,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+  }
+
+  async updateAvailability(
+    token: string,
+    campaignId: string,
+    registrationId: string,
+    input: unknown,
+  ): Promise<{ success: true; message: string; updatedAt: string }> {
+    const access = await this.authorize(token, campaignId);
+    if (!campaignDocumentIdSchema.safeParse(registrationId).success)
+      throw new AuthError(400, "Inscripción inválida.");
+    const parsed = adminUpdateAvailabilitySchema.safeParse(input);
+    if (!parsed.success)
+      throw new AuthError(400, "Parámetros de actualización inválidos.");
+
+    return this.db.runTransaction(async (tx) => {
+      const regRef = this.db
+        .collection(campaignCollections.campaignRegistrations)
+        .doc(registrationId);
+      const regDoc = await tx.get(regRef);
+      if (!regDoc.exists || regDoc.data()?.campaignId !== campaignId) {
+        throw new AuthError(404, "Inscripción no encontrada en esta campaña.");
+      }
+      const registrationData = regDoc.data()!;
+
+      // Protection: cannot remove availability if there is an active published assignment
+      if (parsed.data.blockChanges.some((c) => !c.available)) {
+        const assignmentsQuery = await tx.get(
+          this.db
+            .collection(campaignCollections.assignments)
+            .where("campaignId", "==", campaignId)
+            .where("registrationId", "==", registrationId),
+        );
+        const publishedBlocks = new Set(
+          assignmentsQuery.docs
+            .map((d) => d.data())
+            .filter((a) => a.status === "published")
+            .map((a) => a.timeBlockId as string),
+        );
+
+        for (const change of parsed.data.blockChanges) {
+          if (!change.available && publishedBlocks.has(change.blockId)) {
+            throw new AuthError(
+              400,
+              "Este hermano ya está asignado en este horario a través de un programa publicado. No se puede quitar su disponibilidad directamente.",
+            );
+          }
+        }
+      }
+
+      // Read current availabilities to record in audit log
+      const availabilitiesQuery = await tx.get(
+        this.db
+          .collection(campaignCollections.availabilities)
+          .where("campaignId", "==", campaignId)
+          .where("registrationId", "==", registrationId),
+      );
+      const previousAvailabilities: Record<string, boolean> = {};
+      for (const doc of availabilitiesQuery.docs) {
+        const data = doc.data();
+        if (data.timeBlockId) {
+          previousAvailabilities[data.timeBlockId] = data.available === true;
+        }
+      }
+
+      const now = Timestamp.now();
+
+      // Apply block availability changes
+      for (const change of parsed.data.blockChanges) {
+        const docId = availabilityId(registrationId, change.blockId);
+        const docRef = this.db
+          .collection(campaignCollections.availabilities)
+          .doc(docId);
+        tx.set(
+          docRef,
+          {
+            id: docId,
+            campaignId,
+            registrationId,
+            timeBlockId: change.blockId,
+            available: change.available,
+            updatedAt: now,
+          },
+          { merge: true },
+        );
+      }
+
+      // Update maxTurns on registration if provided and changed
+      const previousMaxTurns = registrationData.maxTurns ?? null;
+      let newMaxTurns = previousMaxTurns;
+      if (
+        parsed.data.maxTurns !== undefined &&
+        parsed.data.maxTurns !== previousMaxTurns
+      ) {
+        tx.update(regRef, {
+          maxTurns: parsed.data.maxTurns,
+          updatedAt: now,
+        });
+        newMaxTurns = parsed.data.maxTurns;
+      }
+
+      // Record administrative audit log
+      const auditRef = this.db.collection(campaignCollections.auditLogs).doc();
+      tx.create(auditRef, {
+        campaignId,
+        actorId: access.uid,
+        action: "admin_update_availability",
+        entityId: registrationId,
+        metadata: {
+          blockChanges: parsed.data.blockChanges,
+          previousMaxTurns,
+          newMaxTurns,
+          reason: parsed.data.reason ?? null,
+          previousAvailabilities,
+        },
+        createdAt: new Date().toISOString(),
+      });
+
+      return {
+        success: true,
+        message: "Disponibilidad actualizada exitosamente.",
         updatedAt: new Date().toISOString(),
       };
     });

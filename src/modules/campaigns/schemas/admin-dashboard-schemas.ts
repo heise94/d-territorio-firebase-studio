@@ -16,3 +16,22 @@ export const adminParticipantFiltersSchema = z
 export type AdminParticipantFilters = z.infer<
   typeof adminParticipantFiltersSchema
 >;
+
+export const adminUpdateAvailabilitySchema = z
+  .object({
+    blockChanges: z
+      .array(
+        z.object({
+          blockId: campaignDocumentIdSchema,
+          available: z.boolean(),
+        }),
+      )
+      .default([]),
+    maxTurns: z.union([z.number().int().min(1).max(10), z.null()]).optional(),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .strict();
+
+export type AdminUpdateAvailabilityInput = z.infer<
+  typeof adminUpdateAvailabilitySchema
+>;

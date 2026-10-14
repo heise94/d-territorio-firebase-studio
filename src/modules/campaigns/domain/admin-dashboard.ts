@@ -91,6 +91,7 @@ export interface AdminAvailability {
   endTime: string | null;
   label: string;
   active: boolean;
+  assignedPublished?: boolean;
 }
 export interface AdminPairDetail {
   id: string;
@@ -106,6 +107,8 @@ export interface AdminParticipantDetail extends AdminParticipantRow {
   phone: string | null;
   availability: AdminAvailability[];
   pairRequests: AdminPairDetail[];
+  createdAt?: string;
+  publishedAssignmentBlockIds?: string[];
   updatedAt: string;
 }
 export function orderedCoverageDays(

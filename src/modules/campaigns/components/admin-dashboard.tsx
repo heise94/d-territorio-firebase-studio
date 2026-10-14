@@ -1,4 +1,5 @@
 "use client";
+
 import { campaignStatusLabels } from "../lib/presentation";
 import { campaignFetch } from "../lib/campaign-fetch";
 import Link from "next/link";
@@ -10,14 +11,11 @@ import type {
   AdminParticipantList,
 } from "../domain/admin-dashboard";
 import type { AdminParticipantFilters } from "../schemas/admin-dashboard-schemas";
-import { DashboardCoverage } from "./admin-dashboard-coverage";
 import {
   DashboardParticipants,
   dashboardButton,
 } from "./admin-dashboard-participants";
 import { DashboardDetail } from "./admin-dashboard-detail";
-import { CampaignStatusControls } from "./campaign-status-controls";
-import { ChangeRequestsLink } from "./campaign-changes";
 
 class DashboardError extends Error {
   constructor(
@@ -27,13 +25,13 @@ class DashboardError extends Error {
     super(message);
   }
 }
+
 async function consult<T>(
   url: string,
   token: string,
   signal: AbortSignal,
   search = "",
 ): Promise<T> {
-  // Keep names/phones out of URLs and normal HTTP access logs.
   const response = await campaignFetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -50,6 +48,7 @@ async function consult<T>(
     );
   return body as T;
 }
+
 export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
   const { user } = useAuth();
   const [overview, setOverview] = useState<AdminOverview | null>(null);
@@ -67,6 +66,7 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const pending = useRef<AbortController | null>(null);
+
   const refresh = useCallback(async () => {
     pending.current?.abort();
     const controller = new AbortController();
@@ -82,7 +82,6 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
     setLoading(true);
     setDetailLoading(!!selected);
     try {
-      // Fresh existing Firebase Auth credential; never a participant cookie or stored token.
       const token = await user.getIdToken(true);
       if (controller.signal.aborted) return;
       const base = `/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}`;
@@ -135,7 +134,6 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
         failure instanceof DashboardError &&
         [401, 403].includes(failure.status);
       if (unauthorized || !(failure instanceof DashboardError)) {
-        // Token refresh failures also remove previously displayed private information.
         setOverview(null);
         setList(null);
         setDetail(null);
@@ -153,6 +151,7 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
       }
     }
   }, [campaignId, filters, selected, user]);
+
   useEffect(() => {
     void refresh();
     const visibleRefresh = () => {
@@ -166,10 +165,22 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
       pending.current?.abort();
     };
   }, [refresh]);
+
   const applyFilters = (next: AdminParticipantFilters) => {
     setList(null);
     setFilters(next);
   };
+
+  const hasActiveFilters = Boolean(
+    (filters.q && filters.q.trim().length > 0) ||
+      filters.congregationId ||
+      filters.dayId ||
+      filters.blockId,
+  );
+
+  const totalParticipants = overview?.metrics.activeRegistrations ?? list?.total ?? 0;
+  const filteredCount = list?.total ?? 0;
+
   return (
     <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
       <Link
@@ -180,25 +191,19 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
       </Link>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold sm:text-3xl">
-            Participantes y cobertura
+          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+            Participantes
           </h1>
+          <p className="mt-1 text-sm text-slate-600">
+            Consulta y administra los hermanos inscritos en esta campaña.
+          </p>
           {overview && (
-            <>
-              <h2 className="mt-2 text-xl font-semibold">
-                {overview.campaign.name}
-              </h2>
-              <p>
-                {overview.campaign.locationName || "Ubicación por definir"}
-                {overview.campaign.locationDetails
-                  ? ` · ${overview.campaign.locationDetails}`
-                  : ""}
-              </p>
-              <p className="text-sm">
-                Fechas: {overview.campaign.dates.join(", ") || "por definir"} ·
-                Estado: <strong>{campaignStatusLabels[overview.campaign.status]}</strong>
-              </p>
-            </>
+            <p className="mt-1 text-xs text-slate-500">
+              {overview.campaign.name}
+              {overview.campaign.locationName
+                ? ` · ${overview.campaign.locationName}`
+                : ""}
+            </p>
           )}
         </div>
         <button
@@ -209,31 +214,25 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
           Actualizar
         </button>
       </header>
+
+      {/* Contador principal */}
       {overview && (
-        <CampaignStatusControls
-          campaignId={campaignId}
-          status={overview.campaign.status}
-          onChanged={() => void refresh()}
-        />
+        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <div>
+            <p className="text-2xl font-bold text-slate-900 sm:text-3xl">
+              {hasActiveFilters
+                ? `${filteredCount} de ${totalParticipants} participantes`
+                : `${totalParticipants} participantes`}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {hasActiveFilters
+                ? "Hermanos según los filtros seleccionados"
+                : "Hermanos inscritos en esta campaña"}
+            </p>
+          </div>
+        </div>
       )}
-      {overview?.campaign.status === "planning" && (
-        <Link
-          className={dashboardButton}
-          href={`/campanas/admin/planificar/${campaignId}`}
-        >
-          Planificar campaña
-        </Link>
-      )}
-      <p className="text-sm text-slate-600" role="status">
-        {overview?.campaign.status === "published" && (
-          <ChangeRequestsLink campaignId={campaignId} />
-        )}
-        {loading
-          ? "Actualizando panel…"
-          : overview
-            ? `Última actualización: ${new Date(overview.updatedAt).toLocaleTimeString("es-CL")}. Se actualiza cada 30 segundos mientras está visible.`
-            : "Sin datos disponibles."}
-      </p>
+
       {error && (
         <p
           role="alert"
@@ -245,75 +244,36 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
             : ""}
         </p>
       )}
+
       {overview && (
-        <>
-          <section
-            aria-label="Resumen de campaña"
-            className="grid grid-cols-2 gap-3 lg:grid-cols-3"
-          >
-            {[
-              ["Inscritos activos", overview.metrics.activeRegistrations],
-              [
-                "Bloques que necesitan apoyo",
-                overview.metrics.needsSupportBlocks,
-              ],
-              ["Bloques completos", overview.metrics.fullBlocks],
-              [
-                "Reservas potenciales por bloque",
-                overview.metrics.reservePotential,
-              ],
-              ["Solicitudes pendientes", overview.metrics.pendingRequests],
-              ["Vínculos confirmados", overview.metrics.acceptedLinks],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-xl border bg-white p-4">
-                <p className="text-sm text-slate-600">{label}</p>
-                <p className="text-3xl font-bold">{value}</p>
-              </div>
-            ))}
-          </section>
-          {!!overview.metrics.acceptedAvailabilityConflicts && (
-            <p className="rounded border border-amber-300 bg-amber-50 p-3 text-amber-900">
-              {overview.metrics.acceptedAvailabilityConflicts} vínculos confirmados
-              sin disponibilidad activa en común. Requieren revisión; no se
-              disuelven automáticamente.
-            </p>
-          )}
-          <DashboardCoverage
-            overview={overview}
-            onBlock={(dayId, blockId) =>
-              applyFilters({
-                ...filters,
-                q: "",
-                dayId,
-                blockId,
-                status: "active",
-                page: 1,
-              })
-            }
-          />
-          <DashboardParticipants
-            overview={overview}
-            list={list}
-            filters={filters}
-            loading={loading}
-            onFilters={applyFilters}
-            onDetail={(id) => {
-              setDetail(null);
-              setDetailError("");
-              setSelected(id);
-            }}
-          />
-        </>
+        <DashboardParticipants
+          overview={overview}
+          list={list}
+          filters={filters}
+          loading={loading}
+          onFilters={applyFilters}
+          onDetail={(id) => {
+            setDetail(null);
+            setDetailError("");
+            setSelected(id);
+          }}
+        />
       )}
+
       <DashboardDetail
         open={!!selected}
         detail={detail}
+        overview={overview}
+        campaignId={campaignId}
         loading={detailLoading}
         error={detailError}
         onClose={() => {
           setSelected(null);
           setDetail(null);
           setDetailError("");
+        }}
+        onSaved={() => {
+          void refresh();
         }}
       />
     </main>

@@ -1,45 +1,38 @@
 "use client";
-import { registrationStatusLabel } from "../lib/presentation";
-import { useEffect, useState } from "react";
+
+import { useState, useEffect } from "react";
+import { registrationStatusLabel, pairStatusLabels } from "../lib/presentation";
 import type {
   AdminOverview,
   AdminParticipantList,
   AdminParticipantRow,
 } from "../domain/admin-dashboard";
 import type { AdminParticipantFilters } from "../schemas/admin-dashboard-schemas";
+import { formatHumanDate } from "./campaign-schedule-settings";
 
-export const dashboardInput =
-  "w-full rounded border border-slate-300 bg-white p-2 text-sm";
 export const dashboardButton =
-  "rounded bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50";
+  "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-teal-800 px-4 text-sm font-semibold text-white hover:bg-teal-900 disabled:opacity-50 transition-colors";
+export const dashboardInput =
+  "h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-teal-700 focus:outline-none focus:ring-1 focus:ring-teal-700";
+
 export function LinkSummary({ row }: { row: AdminParticipantRow }) {
   return (
-    <div className="space-y-1 text-sm">
+    <div className="space-y-1 text-sm text-slate-600">
       {row.accepted && (
-        <>
-          <p>Vínculo obligatorio: {row.accepted.otherName}</p>
-          {row.accepted.availabilityConflict && (
-            <p className="font-semibold text-amber-800">
-              Conflicto de disponibilidad
-            </p>
-          )}
-          {row.accepted.participationConflict && (
-            <p className="text-amber-800">Revisar participación del vínculo</p>
-          )}
-        </>
+        <p>Vínculo: {row.accepted.otherName}</p>
       )}
       {!!(row.pendingSent + row.pendingReceived) && (
         <p>
-          Pendientes: {row.pendingSent} enviadas · {row.pendingReceived}{" "}
-          recibidas
+          Solicitudes pendientes: {row.pendingSent} enviadas · {row.pendingReceived} recibidas
         </p>
       )}
       {!row.accepted && !(row.pendingSent + row.pendingReceived) && (
-        <p>Sin vínculo ni solicitudes pendientes</p>
+        <p>Sin vínculo ni solicitudes de compañero</p>
       )}
     </div>
   );
 }
+
 export function DashboardParticipants({
   overview,
   list,
@@ -57,37 +50,71 @@ export function DashboardParticipants({
 }) {
   const [draft, setDraft] = useState(filters);
   useEffect(() => setDraft(filters), [filters]);
+
   const change = (key: keyof AdminParticipantFilters, value: string) =>
     setDraft((previous) => ({ ...previous, [key]: value || undefined }));
+
+  const hasActiveFilters = Boolean(
+    (draft.q && draft.q.trim().length > 0) ||
+      draft.congregationId ||
+      draft.dayId ||
+      draft.blockId,
+  );
+
+  const handleClear = () => {
+    const cleared: AdminParticipantFilters = {
+      q: "",
+      status: "active",
+      link: "all",
+      page: 1,
+    };
+    setDraft(cleared);
+    onFilters(cleared);
+  };
+
   return (
     <section
       aria-labelledby="participants-title"
-      className="space-y-4 rounded-xl border bg-white p-4 sm:p-6"
+      className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
     >
-      <h2 id="participants-title" className="text-xl font-bold">
-        Participantes inscritos
-      </h2>
       <form
-        className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end"
         onSubmit={(event) => {
           event.preventDefault();
-          onFilters({ ...draft, q: draft.q ?? "", page: 1 });
+          onFilters({
+            ...draft,
+            q: draft.q?.trim() ?? "",
+            page: 1,
+          });
         }}
       >
-        <label className="text-sm">
-          Nombre o teléfono completo
+        <div className="lg:col-span-1">
+          <label
+            htmlFor="filter-search"
+            className="block text-xs font-semibold text-slate-600 mb-1"
+          >
+            Buscar hermano
+          </label>
           <input
+            id="filter-search"
             className={dashboardInput}
             value={draft.q ?? ""}
             maxLength={120}
             onChange={(event) => setDraft({ ...draft, q: event.target.value })}
             autoComplete="off"
-            placeholder="Nombre o móvil chileno"
+            placeholder="Nombre o teléfono"
           />
-        </label>
-        <label className="text-sm">
-          Congregación
+        </div>
+
+        <div>
+          <label
+            htmlFor="filter-congregation"
+            className="block text-xs font-semibold text-slate-600 mb-1"
+          >
+            Congregación
+          </label>
           <select
+            id="filter-congregation"
             className={dashboardInput}
             value={draft.congregationId ?? ""}
             onChange={(event) => change("congregationId", event.target.value)}
@@ -99,10 +126,17 @@ export function DashboardParticipants({
               </option>
             ))}
           </select>
-        </label>
-        <label className="text-sm">
-          Día
+        </div>
+
+        <div>
+          <label
+            htmlFor="filter-day"
+            className="block text-xs font-semibold text-slate-600 mb-1"
+          >
+            Día
+          </label>
           <select
+            id="filter-day"
             className={dashboardInput}
             value={draft.dayId ?? ""}
             onChange={(event) =>
@@ -116,14 +150,21 @@ export function DashboardParticipants({
             <option value="">Todos</option>
             {overview.days.map((day) => (
               <option key={day.id} value={day.id}>
-                {day.date} {day.label}
+                {formatHumanDate(day.date)} {day.label ? `· ${day.label}` : ""}
               </option>
             ))}
           </select>
-        </label>
-        <label className="text-sm">
-          Bloque
+        </div>
+
+        <div>
+          <label
+            htmlFor="filter-block"
+            className="block text-xs font-semibold text-slate-600 mb-1"
+          >
+            Horario / bloque
+          </label>
           <select
+            id="filter-block"
             className={dashboardInput}
             value={draft.blockId ?? ""}
             onChange={(event) => change("blockId", event.target.value)}
@@ -134,108 +175,126 @@ export function DashboardParticipants({
               .flatMap((day) =>
                 day.blocks.map((block) => (
                   <option key={block.id} value={block.id}>
-                    {day.date} {block.startTime}–{block.endTime} {block.label}
+                    {!draft.dayId ? `${formatHumanDate(day.date)}: ` : ""}
+                    {block.startTime}–{block.endTime}
+                    {block.label ? ` (${block.label})` : ""}
                   </option>
                 )),
               )}
           </select>
-        </label>
-        <label className="text-sm">
-          Inscripción
-          <select
-            className={dashboardInput}
-            value={draft.status}
-            onChange={(event) => change("status", event.target.value)}
-          >
-            <option value="active">Activa</option>
-            <option value="withdrawn">Retirada</option>
-            <option value="cancelled">Cancelada</option>
-          </select>
-        </label>
-        <label className="text-sm">
-          Vínculo
-          <select
-            className={dashboardInput}
-            value={draft.link}
-            onChange={(event) => change("link", event.target.value)}
-          >
-            <option value="all">Todos</option>
-            <option value="none">Sin vínculo ni pendientes</option>
-            <option value="pending">Con solicitudes pendientes</option>
-            <option value="accepted">Con vínculo confirmado</option>
-            <option value="conflict">Conflicto de disponibilidad</option>
-          </select>
-        </label>
-        <div className="flex gap-2">
-          <button className={dashboardButton} disabled={loading}>
-            Aplicar filtros
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button type="submit" className={dashboardButton} disabled={loading}>
+            Buscar
           </button>
-          <button
-            className="rounded border px-3 py-2 text-sm"
-            type="button"
-            onClick={() =>
-              onFilters({ q: "", status: "active", link: "all", page: 1 })
-            }
-          >
-            Limpiar
-          </button>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              onClick={handleClear}
+            >
+              Limpiar
+            </button>
+          )}
         </div>
       </form>
-      <p className="text-sm text-slate-600" role="status">
-        {loading
-          ? "Consultando participantes…"
-          : `${list?.total ?? 0} participantes con estos filtros`}
-      </p>
-      {list && !list.rows.length && !loading && (
-        <p>No hay participantes que coincidan con los filtros.</p>
+
+      {loading && !list && (
+        <p className="py-6 text-center text-sm text-slate-500" role="status">
+          Consultando participantes…
+        </p>
       )}
-      <div className="grid gap-3 md:grid-cols-2">
-        {list?.rows.map((row) => (
-          <article
-            key={row.registrationId}
-            className="space-y-2 rounded-lg border p-4"
-          >
-            <h3 className="font-semibold">{row.fullName}</h3>
-            <p className="text-sm">{row.congregation}</p>
-            <p className="text-sm">
-              Inscripción: {registrationStatusLabel(row.registrationStatus)} · Máximo de turnos:{" "}
-              {row.maxTurns ?? "Sin límite"}
-            </p>
-            {!row.profileActive && (
-              <p className="text-sm text-amber-800">Perfil inactivo</p>
-            )}
-            <p className="text-sm">
-              Bloques disponibles actuales: {row.availableBlockCount}
-            </p>
-            <LinkSummary row={row} />
-            <button
-              className="text-sm font-semibold text-teal-800 underline"
-              onClick={() => onDetail(row.registrationId)}
-            >
-              Ver ficha de {row.fullName}
-            </button>
-          </article>
-        ))}
-      </div>
-      {list && list.total > list.pageSize && (
-        <div className="flex items-center gap-3">
+
+      {list && !list.rows.length && !loading && (
+        <div className="py-12 text-center text-slate-600">
+          <p className="text-base font-medium">
+            No hay participantes que coincidan con estos filtros.
+          </p>
           <button
-            className="rounded border p-2 disabled:opacity-50"
-            disabled={loading || filters.page === 1}
-            onClick={() => onFilters({ ...filters, page: filters.page - 1 })}
+            type="button"
+            className="mt-3 inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={handleClear}
           >
-            Anterior
+            Limpiar filtros
           </button>
-          <span className="text-sm">
+        </div>
+      )}
+
+      {list && list.rows.length > 0 && (
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <table className="w-full text-left text-sm text-slate-800">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <tr>
+                <th scope="col" className="px-4 py-2.5">
+                  Hermano
+                </th>
+                <th scope="col" className="px-4 py-2.5">
+                  Congregación
+                </th>
+                <th scope="col" className="px-4 py-2.5 text-right">
+                  Acción
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {list.rows.map((row) => (
+                <tr
+                  key={row.registrationId}
+                  className="hover:bg-slate-50/80 transition-colors"
+                >
+                  <td className="px-4 py-2.5 font-medium text-slate-900 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span>{row.fullName}</span>
+                      {!row.profileActive && (
+                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-normal">
+                          Perfil inactivo
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-600 whitespace-nowrap">
+                    {row.congregation}
+                  </td>
+                  <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                    <button
+                      type="button"
+                      className="inline-flex items-center text-sm font-medium text-teal-800 hover:text-teal-900 underline"
+                      onClick={() => onDetail(row.registrationId)}
+                    >
+                      Ver más
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {list && list.total > list.pageSize && (
+        <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+          <span className="text-xs text-slate-500">
             Página {list.page} de {Math.ceil(list.total / list.pageSize)}
           </span>
-          <button
-            className="rounded border p-2 disabled:opacity-50"
-            disabled={loading || list.page * list.pageSize >= list.total}
-            onClick={() => onFilters({ ...filters, page: filters.page + 1 })}
-          >
-            Siguiente
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-50 hover:bg-slate-50"
+              disabled={loading || filters.page === 1}
+              onClick={() => onFilters({ ...filters, page: filters.page - 1 })}
+            >
+              Anterior
+            </button>
+            <button
+              type="button"
+              className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 disabled:opacity-50 hover:bg-slate-50"
+              disabled={loading || list.page * list.pageSize >= list.total}
+              onClick={() => onFilters({ ...filters, page: filters.page + 1 })}
+            >
+              Siguiente
+            </button>
+          </div>
         </div>
       )}
     </section>
