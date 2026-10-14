@@ -313,8 +313,10 @@ export class CampaignRegistrationService {
           participantId: participant.id,
           maxTurns: parsed.data.maxTurns,
           registrationStatus: "active",
-          // Never return this internal operational state in participant DTOs.
-          approvalStatus: existing?.approvalStatus ?? "pending",
+          // Preserve historical reviews without letting them gate participation.
+          ...(existing?.approvalStatus
+            ? { approvalStatus: existing.approvalStatus }
+            : {}),
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         };

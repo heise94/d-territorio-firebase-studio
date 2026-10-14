@@ -16,6 +16,7 @@ export const campaignCollections = {
   deviceSessions: "deviceSessions",
   pushSubscriptions: "pushSubscriptions",
   organizerUsers: "organizerUsers",
+  campaignTeams: "campaignTeams",
   organizerInvitations: "organizerInvitations",
   organizerNotes: "organizerNotes",
   auditLogs: "auditLogs",

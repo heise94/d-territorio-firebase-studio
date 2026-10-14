@@ -23,6 +23,7 @@ import { campaignSchema } from "../schemas/campaign-schemas";
 import { CampaignScheduleSettings } from "./campaign-schedule-settings";
 import { campaignStatusLabels as statusLabels } from "../lib/presentation";
 import { CampaignStatusControls } from "./campaign-status-controls";
+import { CampaignTeam } from "./campaign-team";
 import type { Campaign, CampaignDay } from "../domain/types";
 const input =
   "h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-slate-900";
@@ -179,26 +180,6 @@ export function CampaignAdminV2() {
                   placeholder="Ciudad o lugar de la campaña"
                 />
               </label>
-              <label className="grid gap-2 text-sm font-semibold">
-                Capacidad objetivo por bloque
-                <input
-                  className={input}
-                  type="number"
-                  min={0}
-                  name="defaultCapacityPerBlock"
-                  placeholder="Por definir"
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-semibold">
-                Máximo de puntos
-                <input
-                  className={input}
-                  type="number"
-                  min={0}
-                  name="maxPointsDefault"
-                  placeholder="Por definir"
-                />
-              </label>
               {error && (
                 <p role="alert" className="text-sm text-red-700 md:col-span-2">
                   {error}
@@ -349,7 +330,7 @@ export function CampaignEditor({
             ? "Define los días, bloques de tiempo y puntos disponibles para la campaña."
             : section === "informacion"
               ? "Configura la información operativa que verán los participantes."
-              : "Edita la información general y las congregaciones participantes."}
+              : "Consulta y administra la información, las congregaciones, el equipo y el estado de la campaña."}
         </p>
       </header>
       {campaign.status === "completed" && (
@@ -366,6 +347,9 @@ export function CampaignEditor({
             </Section>
             <Section title="Congregaciones participantes">
               <CongregationSettings campaignId={campaign.id} />
+            </Section>
+            <Section title="Equipo de campaña">
+              <CampaignTeam campaignId={campaign.id} />
             </Section>
             <Section title="Participar con un compañero">
               <CampaignCompanionSettings campaign={campaign} onSaved={setCampaign} />

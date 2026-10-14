@@ -17,7 +17,7 @@ import {
 } from "../schemas/planner-schemas";
 import { AuthError } from "./auth/service";
 import { campaignsAdminDb } from "./firebase-admin";
-import { registrationIsApproved } from "../domain/registration";
+import { registrationIsEligible } from "../domain/registration";
 import { requireCampaignAccess } from "./campaign-access";
 import {
   activeAssignments,
@@ -116,7 +116,7 @@ function validatePeople(
     const reg = source.registrations.get(id);
     if (
       reg?.registrationStatus !== "active" ||
-      !registrationIsApproved(reg) ||
+      !registrationIsEligible(reg) ||
       source.profiles.get(reg.participantId)?.active !== true
     )
       throw conflict();

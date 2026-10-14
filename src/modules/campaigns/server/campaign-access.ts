@@ -66,6 +66,5 @@ export async function campaignAccessForNavigation(
   return requireCampaignAccess(db, idToken, campaignId, [
     "SUPER_ADMIN",
     "CAMPAIGN_ADMIN",
-    "CONGREGATION_RESPONSIBLE",
   ]);
 }

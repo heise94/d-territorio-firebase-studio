@@ -16,14 +16,6 @@ export function campaignNavigation(
   role: OrganizerRole | null,
   campaignId: string,
 ) {
-  if (role === "CONGREGATION_RESPONSIBLE")
-    return [
-      {
-        label: "Mi congregación",
-        href: `/campanas/admin/mi-congregacion/${encodeURIComponent(campaignId)}`,
-        section: "general",
-      },
-    ];
   if (role !== "SUPER_ADMIN" && role !== "CAMPAIGN_ADMIN") return [];
   return campaignSections.map(([label, path, section]) => ({
     label,

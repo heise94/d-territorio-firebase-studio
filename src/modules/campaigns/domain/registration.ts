@@ -3,7 +3,7 @@ import type { CampaignStatus } from "./types";
 
 export type MaxTurns = 1 | 2 | 3 | null;
 export type RegistrationStatus = "active" | "withdrawn" | "cancelled";
-/** Internal operational review. It is intentionally absent from participant DTOs. */
+/** Historical review state. New participation never depends on this field. */
 export type RegistrationApprovalStatus =
   | "pending"
   | "approved"
@@ -14,14 +14,16 @@ export interface CampaignRegistration {
   participantId: string;
   maxTurns: MaxTurns;
   registrationStatus: RegistrationStatus;
-  /** Undefined is a pre-review legacy record and is treated as approved. */
+  /** Legacy value retained for historical records; absent from participant DTOs. */
   approvalStatus?: RegistrationApprovalStatus;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
 
-export function registrationIsApproved(row: CampaignRegistration): boolean {
-  return row.approvalStatus === undefined || row.approvalStatus === "approved";
+export function registrationIsEligible(row: CampaignRegistration): boolean {
+  // Historical review results no longer gate participation. Callers check
+  // profile state and availability for operations that need those conditions.
+  return row.registrationStatus === "active";
 }
 export interface Availability {
   id: string;

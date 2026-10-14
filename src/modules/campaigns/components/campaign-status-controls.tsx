@@ -4,6 +4,14 @@ import { campaignFetch } from "../lib/campaign-fetch";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import type { CampaignStatus } from "../domain/types";
+const statusDescriptions: Record<CampaignStatus, string> = {
+  draft: "Todavía estás preparando la campaña; los hermanos aún no pueden inscribirse.",
+  registration_open: "Los hermanos pueden crear su cuenta y registrar su disponibilidad.",
+  planning: "Las inscripciones están cerradas y puedes organizar los turnos.",
+  published: "El programa oficial está disponible para los participantes.",
+  active: "La campaña está en curso.",
+  completed: "La campaña terminó y permanece disponible para consulta.",
+};
 export function CampaignStatusControls({
   campaignId,
   status,
@@ -50,26 +58,27 @@ export function CampaignStatusControls({
     }
   };
   return (
-    <section className="space-y-2">
-      <h2 className="text-xl font-bold">Estado</h2>
-      <p>
-        Actual: <strong>{campaignStatusLabels[status]}</strong>
-      </p>
+    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <h2 className="text-xl font-bold">Estado de la campaña</h2>
+      <div className="rounded-xl bg-teal-50 p-4">
+        <p className="font-semibold text-teal-950">{campaignStatusLabels[status]}</p>
+        <p className="mt-1 text-sm text-slate-700">{statusDescriptions[status]}</p>
+      </div>
       {status === "registration_open" && (
-        <label className="block">
+        <label className="flex items-start gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
+            className="mt-1"
             checked={confirmed}
             disabled={saving}
             onChange={(e) => setConfirmed(e.target.checked)}
-          />{" "}
-          Confirmo cerrar inscripciones y disponibilidad: los participantes
-          quedarán en lectura.
+          />
+          <span>Confirmo que, al cerrar inscripciones, los participantes ya no podrán modificar su disponibilidad.</span>
         </label>
       )}
       {(status === "draft" || status === "registration_open") && (
         <button
-          className="rounded bg-teal-700 px-4 py-2 text-white disabled:opacity-50"
+          className="rounded-xl bg-teal-800 px-4 py-2.5 font-semibold text-white hover:bg-teal-900 disabled:opacity-50"
           disabled={
             saving || !user || (status === "registration_open" && !confirmed)
           }
@@ -87,9 +96,9 @@ export function CampaignStatusControls({
           {error}
         </p>
       )}
-      <p className="text-sm text-slate-600">
-        Revisa y publica la versión oficial desde Programa.
-      </p>
+      {(status === "draft" || status === "registration_open" || status === "planning") && (
+        <p className="text-sm text-slate-600">La publicación del programa se realiza después, desde «Programa».</p>
+      )}
     </section>
   );
 }

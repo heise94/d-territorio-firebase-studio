@@ -28,13 +28,25 @@ import {
   pointSchema,
 } from "../../src/modules/campaigns/schemas/campaign-schemas";
 
-test("Responsible receives only Mi congregación, never forbidden campaign destinations", () => {
+test("Legacy congregation responsible receives no campaign navigation", () => {
   const links = campaignNavigation("CONGREGATION_RESPONSIBLE", "campaign-A");
-  assert.deepEqual(
-    links.map((link) => link.label),
-    ["Mi congregación"],
-  );
-  assert.equal(links[0].href, "/campanas/admin/mi-congregacion/campaign-A");
+  assert.deepEqual(links, []);
+});
+test("Campaña muestra cinco secciones simples sin controles de aprobación ni capacidad global", async () => {
+  const editor = await readFile("src/modules/campaigns/components/campaign-admin-v2.tsx", "utf8");
+  const settings = await readFile("src/modules/campaigns/components/campaign-settings.tsx", "utf8");
+  const general = settings.split("export function CampaignGeneralForm")[1]?.split("export function CampaignCompanionSettings")[0] ?? "";
+  const congregations = settings.split("export function CongregationSettings")[1]?.split("export function CampaignInformationForm")[0] ?? "";
+  const sections = ["Información general", "Congregaciones participantes", "Equipo de campaña", "Participar con un compañero", "CampaignStatusControls"];
+  let previous = -1;
+  for (const section of sections) {
+    const current = editor.indexOf(section, previous + 1);
+    assert.ok(current > previous, `Falta o está fuera de orden: ${section}`);
+    previous = current;
+  }
+  assert.doesNotMatch(general, /Capacidad objetivo por bloque|Máximo de puntos/);
+  assert.doesNotMatch(congregations, /responsable|invitación|Generar enlace/i);
+  assert.match(settings, /Participa en esta campaña/);
 });
 for (const role of ["CAMPAIGN_ADMIN", "SUPER_ADMIN"] as const) {
   test(`${role} receives all eight authorized campaign sections`, () => {

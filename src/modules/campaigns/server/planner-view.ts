@@ -1,5 +1,5 @@
 import "server-only";
-import { registrationIsApproved } from "../domain/registration";
+import { registrationIsEligible } from "../domain/registration";
 import type {
   PlannerAssignment,
   PlannerPerson,
@@ -70,10 +70,10 @@ export function plannerPerson(
               !first.has(blockId) || !second.has(blockId),
             participationConflict:
               registration?.registrationStatus !== "active" ||
-              (registration ? !registrationIsApproved(registration) : true) ||
+              (registration ? !registrationIsEligible(registration) : true) ||
               !profile?.active ||
               other?.registrationStatus !== "active" ||
-              (other ? !registrationIsApproved(other) : true) ||
+              (other ? !registrationIsEligible(other) : true) ||
               !other ||
               source.profiles.get(other.participantId)?.active !== true,
           }
@@ -114,7 +114,7 @@ export function projectPlanner(
         .filter(
           (registration) =>
             registration.registrationStatus === "active" &&
-            registrationIsApproved(registration),
+            registrationIsEligible(registration),
         )
         .map((registration) => plannerPerson(source, registration.id, selected))
         .sort(
@@ -167,7 +167,7 @@ export function projectPlanner(
           !person.profileActive ||
           assignmentRegistration?.registrationStatus !== "active" ||
           !assignmentRegistration ||
-          !registrationIsApproved(assignmentRegistration)
+          !registrationIsEligible(assignmentRegistration)
         )
           warnings.push("Inscripción o perfil inactivo.");
         if (!person.available && !assignment.availabilityOverride)

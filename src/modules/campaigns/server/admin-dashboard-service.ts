@@ -2,7 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   calculateCoverage,
-  registrationIsApproved,
+  registrationIsEligible,
 } from "../domain/registration";
 import type { PairRequest } from "../domain/pair-request";
 import { normalizePairSearch } from "../domain/pair-request";
@@ -63,15 +63,15 @@ function visiblePairs(source: DashboardSource) {
   return source.pairs.filter((pair) =>
     [pair.requesterRegistrationId, pair.recipientRegistrationId].every((id) => {
       const registration = source.registrations.get(id);
-      return !!registration && registrationIsApproved(registration);
+      return !!registration && registrationIsEligible(registration);
     }),
   );
 }
 
 function rows(source: DashboardSource): AdminParticipantRow[] {
-  // The shared campaign pool intentionally contains only approved registrations.
+  // Keep withdrawn/cancelled rows visible for administration and history;
+  // operational counts and planning still require an active registration.
   return [...source.registrations.values()]
-    .filter(registrationIsApproved)
     .map((registration) => {
       const profile = source.profiles.get(registration.participantId);
       const ownPairs = visiblePairs(source).filter(
@@ -160,7 +160,7 @@ export class CampaignAdminDashboardService {
           .filter(
             (row) =>
               row.registrationStatus === "active" &&
-              registrationIsApproved(row),
+              registrationIsEligible(row),
           )
           .map((row) => row.id),
       );
