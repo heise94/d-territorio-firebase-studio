@@ -55,31 +55,21 @@ function SouthernLandscape({ className = "" }: { className?: string }) {
   return (
     <svg
       aria-hidden="true"
-      viewBox="0 0 720 360"
+      viewBox="0 0 1440 320"
       fill="none"
       className={className}
       preserveAspectRatio="xMidYMid slice"
     >
-      <defs>
-        <linearGradient id="admin-sky" x1="360" y1="0" x2="360" y2="360" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#e6f5f1" stopOpacity=".96" />
-          <stop offset="1" stopColor="#f8f5ed" stopOpacity=".3" />
-        </linearGradient>
-        <linearGradient id="admin-mountain" x1="400" y1="102" x2="400" y2="286" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#6fa7a2" stopOpacity=".7" />
-          <stop offset="1" stopColor="#256b6a" stopOpacity=".18" />
-        </linearGradient>
-      </defs>
-      <rect width="720" height="360" fill="url(#admin-sky)" />
-      <circle cx="570" cy="72" r="39" fill="#fffdf7" fillOpacity=".76" />
-      <path d="M0 248 108 177l73 50 86-92 80 66 74-113 142 160 80-49 77 49v112H0V248Z" fill="url(#admin-mountain)" />
-      <path d="m347 201 74-113 41 93-30-23-20 22-22-27-43 48Z" fill="#effaf7" fillOpacity=".77" />
-      <path d="M0 276c75-43 139-35 210-6 68 28 129 33 201 1 70-32 162-39 309 9v70H0v-74Z" fill="#397b78" fillOpacity=".27" />
-      <path d="M0 305c91-27 178-21 260 7 108 37 218 20 323-3 53-12 99-11 137-2v43H0v-45Z" fill="#075b60" fillOpacity=".35" />
-      {[48, 92, 145, 615, 664].map((x, index) => (
+      <path d="M0 172 137 105l114 72 115-105 103 109 108-80 102 86 131-153 165 153 121-81 129 80v134H0V172Z" fill="#b8d5cf" fillOpacity=".72" />
+      <path d="m810 187 100-153 55 101-42-31-29 33-32-42-52 92Z" fill="#f8f6ed" fillOpacity=".92" />
+      <path d="M0 208c139-54 242-31 345 2 118 39 236 33 347-9 126-48 270-50 392 9 116 56 231 41 356-1v111H0V208Z" fill="#84b4ac" fillOpacity=".42" />
+      <path d="M0 239c143-31 275-23 411 9 143 34 278 37 422 4 178-40 370-45 607 7v61H0v-81Z" fill="#d7e8e3" fillOpacity=".92" />
+      <path d="M0 263c176-23 325-19 478 6 183 31 341 27 509-3 181-33 330-29 453 1v53H0v-57Z" fill="#8ab9b1" fillOpacity=".45" />
+      <path d="M0 290c141-28 274-16 395 9 131 27 262 28 405 4 207-35 426-40 640 0v17H0v-30Z" fill="#0d6264" fillOpacity=".74" />
+      {[35, 77, 136, 196, 1180, 1234, 1293, 1354, 1405].map((x, index) => (
         <g key={x} opacity={index % 2 ? ".46" : ".58"}>
-          <path d={`M${x} 315l18-49 18 49H${x}Z`} fill="#075b60" />
-          <rect x={x + 16} y="310" width="4" height="24" rx="2" fill="#075b60" />
+          <path d={`M${x} 303l${18 + (index % 3) * 5}-61 ${18 + (index % 3) * 5} 61H${x}Z`} fill="#064d51" />
+          <rect x={x + 16} y="297" width="5" height="23" rx="2" fill="#064d51" />
         </g>
       ))}
     </svg>
@@ -98,7 +88,10 @@ export function CampaignAdminV2() {
   useEffect(() => repo.subscribeCampaigns(setItems), []);
   return (
     <AdminDesktopShell>
-      <main className="mx-auto max-w-7xl space-y-7 p-5 lg:p-9">
+      <main className="relative isolate mx-auto min-h-[calc(100vh-5rem)] max-w-7xl space-y-7 overflow-hidden p-5 lg:p-9">
+        {!creating && (
+          <SouthernLandscape className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[clamp(11rem,26vh,16rem)] w-full opacity-70" />
+        )}
         {creating ? (
           <header>
             <p className="text-xs font-bold uppercase tracking-[.16em] text-teal-700">
@@ -110,9 +103,8 @@ export function CampaignAdminV2() {
             </p>
           </header>
         ) : (
-          <section className="relative overflow-hidden rounded-3xl border border-teal-100 bg-[#f9f7f0] px-6 py-8 shadow-[0_18px_50px_-36px_rgba(1,79,80,.55)] sm:px-8 lg:min-h-64 lg:px-10 lg:py-10">
-            <SouthernLandscape className="pointer-events-none absolute inset-y-0 right-0 h-full w-full max-w-3xl opacity-80" />
-            <div className="relative z-10 max-w-xl">
+          <header className="relative z-10 px-2 py-4 sm:px-3 lg:py-6">
+            <div className="max-w-xl">
               <p className="text-xs font-bold uppercase tracking-[.16em] text-teal-700">Administración de plataforma</p>
               <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-slate-950 sm:text-5xl">Campañas</h1>
               <p className="mt-4 max-w-md text-base leading-relaxed text-slate-600">
@@ -129,7 +121,7 @@ export function CampaignAdminV2() {
                 Nueva campaña
               </button>
             </div>
-          </section>
+          </header>
         )}
         {creating ? (
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">
@@ -240,7 +232,7 @@ export function CampaignAdminV2() {
             </aside>
           </div>
         ) : (
-          <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-[0_16px_45px_-32px_rgba(15,23,42,.36)]">
+          <section className="relative z-10 overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-[0_16px_45px_-32px_rgba(15,23,42,.36)]">
             <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-5 sm:px-7">
               <h2 className="text-xl font-bold tracking-tight">Tus campañas</h2>
               <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800">
