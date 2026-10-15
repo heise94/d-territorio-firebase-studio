@@ -54,6 +54,23 @@ test("join link is canonical in production and stays in staging during review", 
     joinShareUrl("https://campanas-staging--d-territorio-campanas-staging.us-central1.hosted.app"),
     "https://campanas-staging--d-territorio-campanas-staging.us-central1.hosted.app/unirse",
   );
+  assert.equal(
+    joinShareUrl("https://campanas-staging--d-territorio-campanas-staging.us-central1.hosted.app", "campaign-public-42"),
+    "https://campanas-staging--d-territorio-campanas-staging.us-central1.hosted.app/unirse?campana=campaign-public-42",
+  );
+  assert.equal(
+    joinShareUrl("https://campanas.d-territorio.cl", "campaign-public-42"),
+    "https://campanas.d-territorio.cl/unirse?campana=campaign-public-42",
+  );
+});
+
+test("Organización usa el enlace público de la campaña y ofrece compartir o copiar", async () => {
+  const source = await readFile("src/modules/campaigns/components/organization-pwa.tsx", "utf8");
+  assert.match(source, /joinShareUrl\(window\.location\.origin,campaignId\)/);
+  assert.match(source, /navigator\.share/);
+  assert.match(source, /navigator\.clipboard\.writeText/);
+  assert.match(source, /Enlace copiado/);
+  assert.ok(!source.includes("Authorization:"));
 });
 
 test("public invite installs the existing campaign PWA without altering its manifest", async () => {

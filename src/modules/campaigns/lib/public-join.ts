@@ -37,13 +37,17 @@ export function selectPublicJoinCampaign(
   };
 }
 
-export function joinShareUrl(origin: string): string {
+export function joinShareUrl(origin: string, campaignId?: string): string {
   const url = new URL(origin);
   if (
     url.hostname === "campanas.d-territorio.cl" ||
     url.hostname ===
       "campanas-production--d-territorio-campanas-prod.us-central1.hosted.app"
   )
-    return "https://campanas.d-territorio.cl/unirse";
-  return new URL("/unirse", url.origin).href;
+    return campaignId
+      ? `https://campanas.d-territorio.cl/unirse?campana=${encodeURIComponent(campaignId)}`
+      : "https://campanas.d-territorio.cl/unirse";
+  const join = new URL("/unirse", url.origin);
+  if (campaignId) join.searchParams.set("campana", campaignId);
+  return join.href;
 }

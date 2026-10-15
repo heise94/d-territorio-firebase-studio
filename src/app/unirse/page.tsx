@@ -7,9 +7,14 @@ import { getCurrentParticipant } from "@/modules/campaigns/server/auth/session";
 
 export const dynamic = "force-dynamic";
 
-export default async function JoinPage() {
+export default async function JoinPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ campana?: string }>;
+}) {
+  const campaignId = (await searchParams).campana;
   const [campaign, participant] = await Promise.all([
-    getPublicJoinState(),
+    getPublicJoinState(campaignId),
     getCurrentParticipant(),
   ]);
 
@@ -75,13 +80,13 @@ export default async function JoinPage() {
         ) : (
           <div className="space-y-3">
             <Link
-              href="/campanas/registro"
+              href={campaignId ? `/campanas/registro?campana=${encodeURIComponent(campaignId)}` : "/campanas/registro"}
               className="campaign-primary w-full gap-2 text-lg"
             >
               Crear mi cuenta <ArrowRight aria-hidden="true" className="h-5 w-5" />
             </Link>
             <Link
-              href="/campanas/ingresar"
+              href={campaignId ? `/campanas/ingresar?campana=${encodeURIComponent(campaignId)}` : "/campanas/ingresar"}
               className="campaign-secondary w-full text-lg"
             >
               Ya tengo cuenta

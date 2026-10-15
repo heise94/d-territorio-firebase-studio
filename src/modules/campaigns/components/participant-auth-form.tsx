@@ -83,10 +83,13 @@ export function ParticipantAuthForm({
       const result = await reply.json();
       if (!reply.ok) throw new Error(result.error);
       formElement.reset();
+      const campaignId = searchParams.get("campana");
       router.replace(
         !register && searchParams.get("modo") === "organizacion"
           ? "/campanas/organizacion"
-          : "/campanas",
+          : campaignId
+            ? `/campanas/disponibilidad/${encodeURIComponent(campaignId)}`
+            : "/campanas",
       );
       router.refresh();
     } catch (failure) {
