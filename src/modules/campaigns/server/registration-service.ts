@@ -201,11 +201,11 @@ export class CampaignRegistrationService {
         return {
           campaign: campaignDTO(config.campaign, own),
           congregationId:
-            participant.congregationId &&
+            (own?.congregationId ?? participant.congregationId) &&
             config.congregations.some(
-              (row) => row.id === participant.congregationId,
+              (row) => row.id === (own?.congregationId ?? participant.congregationId),
             )
-              ? participant.congregationId
+              ? (own?.congregationId ?? participant.congregationId ?? null)
               : null,
           congregations: config.congregations,
           unavailableSelectionCount: [...selected].filter(

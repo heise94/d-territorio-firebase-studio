@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Firestore } from "firebase-admin/firestore";
 import { CampaignOrganizationService } from "../src/modules/campaigns/server/organization-service";
+import { readDashboardSource } from "../src/modules/campaigns/server/admin-dashboard-source";
 import { AuthError, type ParticipantAuthService } from "../src/modules/campaigns/server/auth/service";
-import { availabilityId } from "../src/modules/campaigns/server/registration-service";
+import { availabilityId, registrationId } from "../src/modules/campaigns/server/registration-service";
 
 type Data = Record<string, unknown>;
 function firestoreFixture(seed: Record<string, Record<string, Data>>) {
@@ -25,7 +26,7 @@ function firestoreFixture(seed: Record<string, Record<string, Data>>) {
       const writes: Array<() => void> = [];
       const tx = {
         get: (target: Ref | Query) => target.get(),
-        getAll: (...refs: Ref[]) => Promise.all(refs.map((ref) => ref.get())),
+        getAll: (...refs: (Ref | {fieldMask: string[]})[]) => Promise.all(refs.filter((ref): ref is Ref => ref instanceof Ref).map((ref) => ref.get())),
         create: (ref: Ref, value: Data) => writes.push(() => bucket(ref.collectionName).set(ref.id, { ...value })),
         set: (ref: Ref, value: Data, options?: { merge?: boolean }) => writes.push(() => bucket(ref.collectionName).set(ref.id, options?.merge ? { ...(bucket(ref.collectionName).get(ref.id) ?? {}), ...value } : { ...value })),
         update: (ref: Ref, value: Data) => writes.push(() => bucket(ref.collectionName).set(ref.id, { ...(bucket(ref.collectionName).get(ref.id) ?? {}), ...value })),
@@ -49,9 +50,10 @@ const base = {
     organizer: { fullName: "Organizador", phoneNormalized: "+56911111111", active: true, congregationId: "congA" },
     member: { fullName: "Hermana Disponible", phoneNormalized: "+56922222222", active: true, congregationId: "congA" },
     outsider: { fullName: "Participante", phoneNormalized: "+56933333333", active: true, congregationId: "congA" },
-    memberB: { fullName: "Otra campaña", phoneNormalized: "+56944444444", active: true, congregationId: "congB" },
+    memberB: { fullName: "Otra campaña", phoneNormalized: "+56944444444", pinHash: "hash-original", active: true, congregationId: "congB" },
   },
   congregations: { congA: { name: "Maquehue", active: true }, congB: { name: "Otra", active: true } },
+  campaignCongregations: { assocA: { campaignId: "a", congregationId: "congA" }, assocB: { campaignId: "b", congregationId: "congB" } },
   campaignDays: { dayA: { campaignId: "a", date: "2026-11-01", active: true, label: "Domingo" } },
   timeBlocks: { blockA: { campaignId: "a", campaignDayId: "dayA", active: true, startTime: "10:00", endTime: "12:00", label: "Mañana" } },
   availabilities: { avA: { campaignId: "a", registrationId: "memberA", timeBlockId: "blockA", available: true } },
@@ -64,6 +66,7 @@ function serviceFor(participantId = "organizer", overrides: Record<string, unkno
   const fixture = firestoreFixture(structuredClone(base));
   const auth = {
     withParticipantTransaction: async <T>(_token: string, work: (tx: any, participant: { id: string }) => Promise<T>) => fixture.db.runTransaction((tx: any) => work(tx, { id: participantId })),
+    limit: async () => {},
     findByPhone: async () => null,
     createForOrganizer: async () => { throw new Error("not used in these access tests"); },
     ...overrides,
@@ -112,6 +115,7 @@ test("alta nueva crea inscripción y disponibilidad sin generar avisos ni push",
   const result = await service.createParticipant("token", "a", { action: "create", fullName: "Hermana Nueva", phone: "55555555", pin: "1234", congregationId: "congA", maxTurns: 2, selectedBlockIds: ["blockA"] });
   assert.equal(result.kind, "created");
   assert.equal(fixture.store.get("campaignRegistrations")!.get(result.registrationId)?.participantId, "new-member");
+  assert.equal(fixture.store.get("campaignRegistrations")!.get(result.registrationId)?.congregationId, "congA");
   assert.equal(fixture.store.get("availabilities")!.get(availabilityId(result.registrationId, "blockA"))?.available, true);
   assert.equal(fixture.store.get("campaignNotifications")!.size, 0);
   assert.equal(fixture.store.get("pushSubscriptions")!.size, 0);
@@ -125,10 +129,71 @@ test("cuenta existente se detecta antes de crear otra y puede abrirse su ficha",
   assert.equal(result.registrationId, "memberA");
 });
 
-test("la interfaz consume endpoints protegidos y ofrece Contact Picker sólo cuando existe", async () => {
+test("opciones de congregación provienen sólo de asociaciones activas de esa campaña", async () => {
+  const { service } = serviceFor();
+  const result = await service.participants("token", "a", {});
+  assert.deepEqual(result.congregations, [{ id: "congA", name: "Maquehue" }]);
+});
+
+test("lookup temprano distingue teléfono nuevo, cuenta existente y ya inscrito", async () => {
+  const existing = { id: "memberB", fullName: "Otra campaña", phoneNormalized: "+56944444444", active: true, congregationId: "congB" };
+  const { service } = serviceFor("organizer", { findByPhone: async (phone: string) => phone === existing.phoneNormalized ? existing : phone === "+56922222222" ? { id: "member", fullName: "Hermana Disponible", congregationId: "congA" } : null });
+  assert.deepEqual(await service.lookupParticipant("token", "a", "55555555"), { kind: "new", phone: "+56955555555" });
+  assert.deepEqual(await service.lookupParticipant("token", "a", "44444444"), { kind: "existing", fullName: "Otra campaña", phone: "+56944444444", congregationId: null, registrationId: null });
+  assert.equal((await service.lookupParticipant("token", "a", "22222222")).kind, "already_registered");
+});
+
+test("cuenta existente entra con congregación de esta campaña sin alterar PIN ni perfil global", async () => {
+  const existing = { id: "memberB", fullName: "Otra campaña", phoneNormalized: "+56944444444", pinHash: "hash-original", active: true, congregationId: "congB" };
+  const { service, fixture } = serviceFor("organizer", { findByPhone: async () => existing, createForOrganizer: async () => { throw new Error("No debe crearse otra cuenta"); } });
+  const input = { action: "add_existing", fullName: existing.fullName, phone: "44444444", congregationId: "congA", maxTurns: 2, selectedBlockIds: ["blockA"] };
+  const first = await service.createParticipant("token", "a", input);
+  assert.equal(first.kind, "created");
+  assert.equal(first.registrationId, registrationId("a", existing.id));
+  assert.equal(fixture.store.get("campaignRegistrations")!.get(first.registrationId)?.congregationId, "congA");
+  assert.equal(fixture.store.get("participants")!.get("memberB")?.congregationId, "congB");
+  assert.equal(fixture.store.get("participants")!.get("memberB")?.pinHash, "hash-original");
+  assert.equal((await service.detail("token", "a", first.registrationId)).congregation, "Maquehue");
+  const adminSource = await fixture.db.runTransaction((tx: any) => readDashboardSource(fixture.db as unknown as Firestore, tx, "a"));
+  assert.equal(adminSource.profiles.get("memberB")?.congregationId, "congA");
+  const second = await service.createParticipant("token", "a", input);
+  assert.equal(second.kind, "already_registered");
+  assert.equal(fixture.store.get("campaignRegistrations")!.size, 5);
+});
+
+test("servidor exige congregación asociada y no acepta PIN para cuenta existente", async () => {
+  const existing = { id: "memberB", fullName: "Otra campaña", phoneNormalized: "+56944444444", active: true, congregationId: "congB" };
+  const { service, fixture } = serviceFor("organizer", { findByPhone: async () => existing });
+  const baseInput = { action: "add_existing", fullName: existing.fullName, phone: "44444444", maxTurns: null, selectedBlockIds: [] };
+  await assert.rejects(() => service.createParticipant("token", "a", { ...baseInput }), (error: unknown) => error instanceof AuthError && error.status === 400);
+  await assert.rejects(() => service.createParticipant("token", "a", { ...baseInput, congregationId: "congB" }), (error: unknown) => error instanceof AuthError && error.status === 400);
+  await assert.rejects(() => service.createParticipant("token", "a", { ...baseInput, congregationId: "congA", pin: "1234" }), (error: unknown) => error instanceof AuthError && error.status === 400);
+  assert.equal(fixture.store.get("campaignRegistrations")!.size, 4);
+});
+
+test("teléfono nuevo requiere PIN inicial válido antes de crear la cuenta", async () => {
+  let created = 0;
+  const { service } = serviceFor("organizer", { createForOrganizer: async () => { created++; throw new Error("No debe llegar aquí"); } });
+  const input = { action: "create", fullName: "Hermano Nuevo", phone: "55555555", congregationId: "congA", maxTurns: null, selectedBlockIds: [] };
+  await assert.rejects(() => service.createParticipant("token", "a", input), (error: unknown) => error instanceof AuthError && error.status === 400);
+  await assert.rejects(() => service.createParticipant("token", "a", { ...input, pin: "12" }), (error: unknown) => error instanceof AuthError && error.status === 400);
+  assert.equal(created, 0);
+});
+
+test("participante normal no puede consultar teléfonos ni agregar a Organización", async () => {
+  let lookups = 0;
+  const { service } = serviceFor("outsider", { findByPhone: async () => { lookups++; return null; } });
+  await assert.rejects(() => service.lookupParticipant("token", "a", "44444444"), (error: unknown) => error instanceof AuthError && error.status === 403);
+  await assert.rejects(() => service.createParticipant("token", "a", { action: "create", fullName: "Nuevo", phone: "55555555", pin: "1234", congregationId: "congA", maxTurns: null, selectedBlockIds: [] }), (error: unknown) => error instanceof AuthError && error.status === 403);
+  assert.equal(lookups, 0);
+});
+
+test("la interfaz consulta teléfono antes de continuar y ofrece Contact Picker", async () => {
   const source = await import("node:fs/promises").then(({ readFile }) => readFile("src/modules/campaigns/components/organization-pwa.tsx", "utf8"));
   assert.match(source, /contacts\.select/);
   assert.match(source, /campaignFetch\(`\/api\/campanas\/organization/);
   assert.match(source, /Turno publicado/);
-  assert.match(source, /Abrir ficha del hermano/);
+  assert.match(source, /participants\/lookup\?phone=/);
+  assert.match(source, /Ver participante/);
+  assert.match(source, /Selecciona la congregación del participante/);
 });

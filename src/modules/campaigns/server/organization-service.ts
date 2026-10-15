@@ -22,6 +22,7 @@ type Source = {
   registrations: Map<string, CampaignRegistration>;
   profiles: Map<string, Participant>;
   congregations: Map<string, Congregation>;
+  associatedCongregations: Map<string, Congregation>;
   days: Map<string, CampaignDay>;
   blocks: Map<string, TimeBlock>;
   activeBlocks: Map<string, TimeBlock>;
@@ -53,6 +54,8 @@ const createSchema = z.object({
 }).strict().superRefine((value, ctx) => {
   if (value.action === "create" && !value.pin)
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pin"], message: "Ingresa un PIN inicial." });
+  if (value.action === "add_existing" && value.pin)
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pin"], message: "No cambies el PIN de una cuenta existente." });
 });
 
 const humanRole = (role: OrganizationRole) => role === "CAMPAIGN_ADMIN" ? "Administrador principal" : "Ayudante";
@@ -112,17 +115,19 @@ export class CampaignOrganizationService {
 
   private async source(tx: Transaction, campaignId: string): Promise<Source> {
     const query = (collection: string) => tx.get(this.db.collection(collection).where("campaignId", "==", campaignId));
-    const [campaignDoc, registrationDocs, availabilityDocs, dayDocs, blockDocs, pointDocs, blockPointDocs, pairDocs] = await Promise.all([
-      tx.get(this.db.collection(names.campaigns).doc(campaignId)), query(names.campaignRegistrations), query(names.availabilities), query(names.campaignDays), query(names.timeBlocks), query(names.points), query(names.blockPoints), query(names.pairRequests),
+    const [campaignDoc, registrationDocs, availabilityDocs, dayDocs, blockDocs, pointDocs, blockPointDocs, pairDocs, associationDocs] = await Promise.all([
+      tx.get(this.db.collection(names.campaigns).doc(campaignId)), query(names.campaignRegistrations), query(names.availabilities), query(names.campaignDays), query(names.timeBlocks), query(names.points), query(names.blockPoints), query(names.pairRequests), query(names.campaignCongregations),
     ]);
     if (!campaignDoc.exists) throw new AuthError(404, "Campaña no disponible.");
     const registrations = new Map(registrationDocs.docs.map((doc) => [doc.id, { ...doc.data(), id: doc.id } as CampaignRegistration]));
     const participantIds = [...new Set([...registrations.values()].map((row) => row.participantId))];
     const profileDocs = participantIds.length ? await tx.getAll(...participantIds.map((id) => this.db.collection(names.participants).doc(id))) : [];
     const profiles = new Map(profileDocs.filter((doc) => doc.exists).map((doc) => [doc.id, { ...doc.data(), id: doc.id } as Participant]));
-    const congregationIds = [...new Set([...profiles.values()].map((profile) => profile.congregationId).filter((id): id is string => !!id))];
+    const associatedIds = new Set(associationDocs.docs.map((doc) => doc.data().congregationId as string));
+    const congregationIds = [...new Set([...associatedIds, ...[...profiles.values()].map((profile) => profile.congregationId).filter((id): id is string => !!id), ...[...registrations.values()].map((row) => row.congregationId).filter((id): id is string => !!id)])];
     const congregationDocs = congregationIds.length ? await tx.getAll(...congregationIds.map((id) => this.db.collection(names.congregations).doc(id))) : [];
     const congregations = new Map(congregationDocs.filter((doc) => doc.exists).map((doc) => [doc.id, { ...doc.data(), id: doc.id } as Congregation]));
+    const associatedCongregations = new Map([...congregations].filter(([id, row]) => associatedIds.has(id) && row.active));
     const days = new Map(dayDocs.docs.map((doc) => [doc.id, { ...doc.data(), id: doc.id } as CampaignDay]));
     const blocks = new Map(blockDocs.docs.map((doc) => [doc.id, { ...doc.data(), id: doc.id } as TimeBlock]));
     const activeBlocks = new Map([...blocks].filter(([, block]) => block.active && days.get(block.campaignDayId)?.active));
@@ -141,7 +146,7 @@ export class CampaignOrganizationService {
         acceptedPartners.set(pair.recipientRegistrationId, pair.requesterRegistrationId);
       }
     }
-    return { campaign: { ...campaignDoc.data(), id: campaignId } as Campaign, registrations, profiles, congregations, days, blocks, activeBlocks, selections,
+    return { campaign: { ...campaignDoc.data(), id: campaignId } as Campaign, registrations, profiles, congregations, associatedCongregations, days, blocks, activeBlocks, selections,
       points: pointDocs.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Point),
       blockPoints: blockPointDocs.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as BlockPoint), acceptedPartners };
   }
@@ -150,7 +155,8 @@ export class CampaignOrganizationService {
     const registration = source.registrations.get(registrationId);
     const profile = registration ? source.profiles.get(registration.participantId) : undefined;
     if (!registration || !profile) throw new AuthError(404, "Participante no disponible.");
-    return { registration, profile, congregation: profile.congregationId ? source.congregations.get(profile.congregationId)?.name ?? "Sin congregación" : "Sin congregación" };
+    const congregationId = registration.congregationId ?? profile.congregationId;
+    return { registration, profile, congregationId: congregationId ?? null, congregation: congregationId ? source.congregations.get(congregationId)?.name ?? "Sin congregación" : "Sin congregación" };
   }
 
   private days(source: Source) {
@@ -178,12 +184,12 @@ export class CampaignOrganizationService {
       const parsed = filtersSchema.safeParse(input); if (!parsed.success) throw new AuthError(400, "Revisa los filtros de participantes.");
       const filters = parsed.data, source = await this.source(tx, campaignId);
       const rows = [...source.registrations.values()].filter((registration) => registration.registrationStatus === "active" && source.profiles.get(registration.participantId)?.active).map((registration) => {
-        const row = this.person(source, registration.id); return { registrationId: registration.id, fullName: row.profile.fullName, congregationId: row.profile.congregationId ?? null, congregation: row.congregation, availableBlockCount: [...(source.selections.get(registration.id) ?? [])].filter((id) => source.activeBlocks.has(id)).length, maxTurns: registration.maxTurns };
+        const row = this.person(source, registration.id); return { registrationId: registration.id, fullName: row.profile.fullName, congregationId: row.congregationId, congregation: row.congregation, availableBlockCount: [...(source.selections.get(registration.id) ?? [])].filter((id) => source.activeBlocks.has(id)).length, maxTurns: registration.maxTurns };
       }).filter((row) => {
         const selected = source.selections.get(row.registrationId) ?? new Set<string>();
         return (!filters.q || row.fullName.toLocaleLowerCase("es").includes(filters.q.toLocaleLowerCase("es"))) && (!filters.congregationId || row.congregationId === filters.congregationId) && (!filters.blockId || selected.has(filters.blockId)) && (!filters.dayId || [...selected].some((id) => source.activeBlocks.get(id)?.campaignDayId === filters.dayId));
       }).sort((a,b) => a.fullName.localeCompare(b.fullName, "es"));
-      return { rows, total: rows.length, days: this.days(source), congregations: [...source.congregations].map(([id, row]) => ({ id, name: row.name })).sort((a,b) => a.name.localeCompare(b.name, "es")) };
+      return { rows, total: rows.length, days: this.days(source), congregations: [...source.associatedCongregations].map(([id, row]) => ({ id, name: row.name })).sort((a,b) => a.name.localeCompare(b.name, "es")) };
     });
   }
 
@@ -194,7 +200,7 @@ export class CampaignOrganizationService {
       const assignments = await tx.get(this.db.collection(names.assignments).where("campaignId", "==", campaignId).where("registrationId", "==", registrationId));
       const published = new Set(assignments.docs.filter((doc) => doc.data().status === "published").map((doc) => doc.data().timeBlockId as string));
       const partnerId = source.acceptedPartners.get(registrationId); const partner = partnerId ? this.person(source, partnerId) : null;
-      return { registrationId, fullName: row.profile.fullName, phone: row.profile.phoneNormalized, congregation: row.congregation, congregationId: row.profile.congregationId ?? null, maxTurns: row.registration.maxTurns, partner: partner ? { fullName: partner.profile.fullName, congregation: partner.congregation } : null,
+      return { registrationId, fullName: row.profile.fullName, phone: row.profile.phoneNormalized, congregation: row.congregation, congregationId: row.congregationId, maxTurns: row.registration.maxTurns, partner: partner ? { fullName: partner.profile.fullName, congregation: partner.congregation } : null,
         days: this.days(source).map((day) => ({ ...day, blocks: day.blocks.map((block) => ({ ...block, available: source.selections.get(registrationId)?.has(block.id) ?? false, published: published.has(block.id) })) })) };
     });
   }
@@ -227,52 +233,70 @@ export class CampaignOrganizationService {
     });
   }
 
+  async lookupParticipant(token: string, campaignId: string, phone: string) {
+    const parsed = phoneSchema.safeParse(phone);
+    if (!parsed.success) throw new AuthError(400, "Ingresa un teléfono móvil chileno válido.");
+    const { source, actorId } = await this.withAccess(token, campaignId, async (tx, actor) => ({ source: await this.source(tx, campaignId), actorId: actor.id }));
+    if (source.campaign.status !== "registration_open") throw new AuthError(409, "Las inscripciones de esta campaña no están abiertas.");
+    await this.auth.limit("organization-phone-lookup", actorId, 60);
+    const existing = await this.auth.findByPhone(parsed.data);
+    if (!existing) return { kind: "new" as const, phone: parsed.data };
+    const registration = [...source.registrations.values()].find((row) => row.participantId === existing.id);
+    const preferred = registration?.congregationId ?? existing.congregationId;
+    return {
+      kind: registration ? "already_registered" as const : "existing" as const,
+      fullName: existing.fullName,
+      phone: parsed.data,
+      congregationId: preferred && source.associatedCongregations.has(preferred) ? preferred : null,
+      registrationId: registration?.id ?? null,
+    };
+  }
+
   async createParticipant(token: string, campaignId: string, input: unknown) {
     const parsed = createSchema.safeParse(input); if (!parsed.success) throw new AuthError(400, parsed.error.issues[0]?.message ?? "Revisa los datos.");
     const value = parsed.data;
     const validate = async (tx: Transaction) => {
       const source = await this.source(tx, campaignId);
       if (source.campaign.status !== "registration_open") throw new AuthError(409, "Las inscripciones de esta campaña no están abiertas.");
-      if (!source.congregations.has(value.congregationId)) throw new AuthError(400, "Selecciona una congregación de esta campaña.");
+      if (!source.associatedCongregations.has(value.congregationId)) throw new AuthError(400, "Selecciona una congregación de esta campaña.");
       if (value.selectedBlockIds.some((id) => !source.activeBlocks.has(id))) throw new AuthError(400, "Uno de los horarios ya no está disponible.");
       return source;
     };
+    // Check access before looking up a phone, including the create path.
+    await this.withAccess(token, campaignId, async (tx) => { await validate(tx); });
     const existing = await this.auth.findByPhone(value.phone);
     if (existing) {
       return this.withAccess(token, campaignId, async (tx, actor) => {
         const source = await validate(tx);
-        const current = [...source.registrations.values()].find((row) => row.participantId === existing.id);
+        const currentDoc = await tx.get(this.db.collection(names.campaignRegistrations).doc(registrationId(campaignId, existing.id)));
+        const current = currentDoc.exists ? { id: currentDoc.id } : [...source.registrations.values()].find((row) => row.participantId === existing.id);
         if (value.action === "create") return { kind: current ? "already_registered" as const : "existing" as const, registrationId: current?.id ?? null, fullName: existing.fullName };
         if (current) return { kind: "already_registered" as const, registrationId: current.id, fullName: existing.fullName };
-        if (!existing.congregationId || !source.congregations.has(existing.congregationId)) throw new AuthError(400, "La congregación de este hermano no participa en esta campaña.");
-        return this.addRegistration(tx, source, campaignId, existing, value, actor.id, "organization_add_existing_participant");
+        return this.addRegistration(tx, campaignId, existing, value, actor.id, "organization_add_existing_participant");
       });
     }
     if (value.action !== "create" || !value.pin) throw new AuthError(400, "Ingresa el PIN inicial para crear la cuenta.");
-    const actor = await this.withAccess(token, campaignId, async (tx, participant) => {
-      await validate(tx); return participant;
-    });
+    const actor = await this.withAccess(token, campaignId, async (_tx, participant) => participant);
     const participant = await this.auth.createForOrganizer({ fullName: value.fullName, phone: value.phone, pin: value.pin, congregationId: value.congregationId }, actor.id);
     return this.withAccess(token, campaignId, async (tx, verifiedActor) => {
       const source = await validate(tx);
-      const current = [...source.registrations.values()].find((row) => row.participantId === participant.id);
+      const currentDoc = await tx.get(this.db.collection(names.campaignRegistrations).doc(registrationId(campaignId, participant.id)));
+      const current = currentDoc.exists ? { id: currentDoc.id } : [...source.registrations.values()].find((row) => row.participantId === participant.id);
       if (current) return { kind: "already_registered" as const, registrationId: current.id, fullName: participant.fullName };
-      return this.addRegistration(tx, source, campaignId, participant, value, verifiedActor.id, "organization_create_participant");
+      return this.addRegistration(tx, campaignId, participant, value, verifiedActor.id, "organization_create_participant");
     });
   }
 
   private addRegistration(
     tx: Transaction,
-    source: Source,
     campaignId: string,
     participant: Participant,
     value: z.infer<typeof createSchema>,
     actorParticipantId: string,
     event: "organization_create_participant" | "organization_add_existing_participant",
   ) {
-    if (!participant.congregationId || !source.congregations.has(participant.congregationId)) throw new AuthError(400, "La congregación de este hermano no participa en esta campaña.");
     const id = registrationId(campaignId, participant.id), now = Timestamp.now();
-    const registration: CampaignRegistration = { id, campaignId, participantId: participant.id, maxTurns: value.maxTurns as MaxTurns, registrationStatus: "active", createdAt: now, updatedAt: now };
+    const registration: CampaignRegistration = { id, campaignId, participantId: participant.id, congregationId: value.congregationId, maxTurns: value.maxTurns as MaxTurns, registrationStatus: "active", createdAt: now, updatedAt: now };
     tx.create(this.db.collection(names.campaignRegistrations).doc(id), registration);
     for (const blockId of value.selectedBlockIds) {
       const availability: Availability = { id: availabilityId(id, blockId), campaignId, registrationId: id, timeBlockId: blockId, available: true, createdAt: now, updatedAt: now };

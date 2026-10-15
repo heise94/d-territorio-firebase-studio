@@ -12,6 +12,8 @@ export interface CampaignRegistration {
   id: string;
   campaignId: string;
   participantId: string;
+  /** Congregation selected for this campaign; legacy registrations use the profile fallback. */
+  congregationId?: string;
   maxTurns: MaxTurns;
   registrationStatus: RegistrationStatus;
   /** Legacy value retained for historical records; absent from participant DTOs. */

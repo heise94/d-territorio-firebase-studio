@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ClipboardList, Plus, UsersRound } from "lucide-react";
 import { campaignFetch } from "../lib/campaign-fetch";
+import { normalizeChileanPhone } from "../schemas/participant-auth";
 
 type Block = { id: string; startTime: string; endTime: string; label: string; available?: boolean; published?: boolean; minimum?: number; missing?: number; state?: string; };
 type Day = { id: string; date: string; label: string; blocks: Block[] };
@@ -48,13 +49,72 @@ function OrganizationDetail({ campaignId, detail, onBack, onSaved }: { campaignI
 }
 
 function OrganizationAdd({ campaignId, overview, onDone, onOpenParticipant }: { campaignId: string; overview: Overview; onDone: () => void; onOpenParticipant: (registrationId: string) => void }) {
-  const [name, setName] = useState(""), [phone, setPhone] = useState(""), [pin, setPin] = useState(""), [congregationId, setCongregationId] = useState(""), [maxTurns, setMaxTurns] = useState(""), [selected, setSelected] = useState<Set<string>>(new Set()), [message, setMessage] = useState(""), [existing, setExisting] = useState(false), [existingRegistrationId, setExistingRegistrationId] = useState<string | null>(null), [busy, setBusy] = useState(false);
+  const [name, setName] = useState(""), [phone, setPhone] = useState(""), [pin, setPin] = useState(""), [congregationId, setCongregationId] = useState(""), [maxTurns, setMaxTurns] = useState(""), [selected, setSelected] = useState<Set<string>>(new Set()), [message, setMessage] = useState(""), [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [lookup, setLookup] = useState<{ kind: "new" | "existing" | "already_registered"; fullName?: string; phone: string; registrationId?: string | null } | null>(null);
+  const [checking, setChecking] = useState(false);
   const [congregations, setCongregations] = useState<{id:string;name:string}[]>([]);
   useEffect(() => { void campaignFetch(`/api/campanas/organization/campaigns/${campaignId}/participants`).then(async (reply) => { const body = await reply.json(); if (reply.ok) setCongregations(body.congregations); }); }, [campaignId]);
+  useEffect(() => {
+    let normalized: string;
+    try { normalized = normalizeChileanPhone(phone); } catch { setChecking(false); setLookup(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void campaignFetch(`/api/campanas/organization/campaigns/${campaignId}/participants/lookup?phone=${encodeURIComponent(normalized)}`)
+        .then(async (reply) => { const body = await reply.json(); if (!reply.ok) throw new Error(body.error); if (cancelled) return; setLookup(body); if (body.kind !== "new") { setName(body.fullName); setPin(""); setCongregationId(body.congregationId ?? ""); } })
+        .catch((failure: Error) => { if (!cancelled) setMessage(failure.message); })
+        .finally(() => { if (!cancelled) setChecking(false); });
+    }, 350);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [phone, campaignId]);
   const contacts = typeof navigator !== "undefined" && "contacts" in navigator;
-  const chooseContact = async () => { try { const result = await (navigator as Navigator & { contacts: { select: (properties: string[], options: { multiple: boolean }) => Promise<{name?: string[];tel?: string[]}[]> } }).contacts.select(["name", "tel"], { multiple: false }); const contact = result[0]; if (contact?.name?.[0]) setName(contact.name[0]); if (contact?.tel?.[0]) setPhone(contact.tel[0]); } catch {} };
-  const submit = async (action: "create" | "add_existing") => { setBusy(true); setMessage(""); setExistingRegistrationId(null); try { const reply = await campaignFetch(`/api/campanas/organization/campaigns/${campaignId}/participants/create`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, fullName: name, phone, ...(action === "create" ? { pin } : {}), congregationId, maxTurns: maxTurns ? Number(maxTurns) : null, selectedBlockIds: [...selected] }) }); const body = await reply.json(); if (!reply.ok) throw new Error(body.error); if (body.kind === "existing") { setExisting(true); setMessage(`Este hermano ya tiene una cuenta: ${body.fullName}. Puedes agregarlo a esta campaña sin cambiar su PIN.`); } else if (body.kind === "already_registered") { setMessage(`${body.fullName} ya participa en esta campaña.`); setExistingRegistrationId(body.registrationId); } else { setMessage("Hermano agregado correctamente."); onDone(); } } catch (failure) { setMessage(failure instanceof Error ? failure.message : "No pudimos agregar al hermano."); } finally { setBusy(false); } };
-  return <section className="space-y-4"><h2 className="text-xl font-bold">Agregar participante</h2><label className="block font-medium">Nombre y apellido<input className={`${field} mt-1`} value={name} onChange={(event) => setName(event.target.value)} /></label><label className="block font-medium">Teléfono<div className="mt-1 flex overflow-hidden rounded-xl border border-slate-300"><span className="flex items-center border-r border-slate-200 px-3 font-semibold">+56 9</span><input className="min-h-12 min-w-0 flex-1 px-3 outline-none" inputMode="numeric" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="1234 5678" /></div></label>{contacts && <button className="campaign-secondary w-full" onClick={() => void chooseContact()}>Elegir de mis contactos</button>}<label className="block font-medium">Congregación<select className={`${field} mt-1`} value={congregationId} onChange={(event) => setCongregationId(event.target.value)}><option value="">Selecciona</option>{congregations.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>{!existing && <label className="block font-medium">PIN inicial<input className={`${field} mt-1`} type="password" inputMode="numeric" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value)} /></label>}<label className="block font-medium">Máximo de turnos<select className={`${field} mt-1`} value={maxTurns} onChange={(event) => setMaxTurns(event.target.value)}><option value="">Sin límite</option><option value="1">1 turno</option><option value="2">2 turnos</option><option value="3">3 turnos</option></select></label><div className="space-y-3"><h3 className="font-bold">Disponibilidad</h3>{overview.days.map((day) => <article key={day.id} className="campaign-surface p-4"><h4 className="font-semibold capitalize">{formatDate(day.date)}</h4>{day.blocks.map((block) => <label key={block.id} className="mt-3 flex min-h-12 items-center gap-3"><input type="checkbox" className="h-5 w-5" checked={selected.has(block.id)} onChange={() => setSelected((current) => { const next = new Set(current); next.has(block.id) ? next.delete(block.id) : next.add(block.id); return next; })} /><span>{block.startTime}–{block.endTime}</span></label>)}</article>)}</div>{message && <p role="status" className={message.startsWith("Hermano") ? "text-teal-800" : "text-red-700"}>{message}</p>}{existingRegistrationId && <button className="campaign-secondary w-full" onClick={() => onOpenParticipant(existingRegistrationId)}>Abrir ficha del hermano</button>}<button className="campaign-primary w-full" disabled={busy} onClick={() => void submit(existing ? "add_existing" : "create")}>{busy ? "Guardando…" : existing ? "Agregar a esta campaña" : "Crear y agregar"}</button></section>;
+  const chooseContact = async () => { try { const result = await (navigator as Navigator & { contacts: { select: (properties: string[], options: { multiple: boolean }) => Promise<{name?: string[];tel?: string[]}[]> } }).contacts.select(["name", "tel"], { multiple: false }); const contact = result[0]; if (contact?.name?.[0]) setName(contact.name[0]); if (contact?.tel?.[0]) changePhone(normalizeChileanPhone(contact.tel[0]).slice(-8)); } catch {} };
+  const changePhone = (value: string) => { setPhone(value); setLookup(null); setChecking(true); setMessage(""); setStep(1); };
+  const next = () => {
+    setMessage("");
+    if (!lookup || checking) { setMessage("Comprueba el teléfono antes de continuar."); return; }
+    if (lookup.kind === "already_registered") return;
+    if (!name.trim() || name.trim().length < 2) { setMessage("Ingresa el nombre y apellido del participante."); return; }
+    if (!congregationId || !congregations.some((row) => row.id === congregationId)) { setMessage("Selecciona la congregación del participante."); return; }
+    if (lookup.kind === "new" && !/^\d{4,6}$/.test(pin)) { setMessage("El PIN debe tener de 4 a 6 números."); return; }
+    setStep(2);
+  };
+  const submit = async () => {
+    if (!lookup || checking || !congregations.some((row) => row.id === congregationId)) { setStep(1); setMessage("Selecciona la congregación del participante."); return; }
+    const action = lookup.kind === "new" ? "create" : "add_existing";
+    setBusy(true); setMessage("");
+    try {
+      const reply = await campaignFetch(`/api/campanas/organization/campaigns/${campaignId}/participants/create`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, fullName: name, phone: lookup.phone, ...(action === "create" ? { pin } : {}), congregationId, maxTurns: maxTurns ? Number(maxTurns) : null, selectedBlockIds: [...selected] }) });
+      const body = await reply.json(); if (!reply.ok) throw new Error(body.error);
+      if (body.kind === "already_registered") { setLookup({ kind: "already_registered", fullName: body.fullName, phone: lookup.phone, registrationId: body.registrationId }); setStep(1); setMessage("Este hermano ya participa en esta campaña."); }
+      else if (body.kind === "existing") { setLookup({ kind: "existing", fullName: body.fullName, phone: lookup.phone }); setStep(1); setPin(""); setMessage("Esta persona ya tiene una cuenta. Continúa sin crear otro PIN."); }
+      else onDone();
+    } catch (failure) { setMessage(failure instanceof Error ? failure.message : "No pudimos agregar al hermano."); }
+    finally { setBusy(false); }
+  };
+  return <section className="space-y-4">
+    <h2 className="text-xl font-bold">Agregar participante</h2>
+    {step === 1 ? <>
+      <h3 className="font-semibold">Paso 1 · Datos</h3>
+      <label className="block font-medium">Nombre y apellido<input className={`${field} mt-1`} value={name} readOnly={lookup?.kind === "existing" || lookup?.kind === "already_registered"} onChange={(event) => setName(event.target.value)} /></label>
+      <label className="block font-medium">Teléfono<div className="mt-1 flex overflow-hidden rounded-xl border border-slate-300"><span className="flex items-center border-r border-slate-200 px-3 font-semibold">+56 9</span><input className="min-h-12 min-w-0 flex-1 px-3 outline-none" inputMode="numeric" value={phone} onChange={(event) => changePhone(event.target.value)} placeholder="1234 5678" /></div></label>
+      {contacts && <button className="campaign-secondary w-full" onClick={() => void chooseContact()}>Elegir de mis contactos</button>}
+      {checking && <p role="status">Comprobando teléfono…</p>}
+      {lookup?.kind === "existing" && <p role="status" className="rounded-xl bg-teal-50 p-3">Esta persona ya tiene una cuenta: <strong>{lookup.fullName}</strong> ({lookup.phone}). No necesita un PIN nuevo.</p>}
+      {lookup?.kind === "already_registered" && <div className="space-y-3 rounded-xl bg-teal-50 p-3"><p>Este hermano ya participa en esta campaña: <strong>{lookup.fullName}</strong>.</p>{lookup.registrationId && <button className="campaign-secondary w-full" onClick={() => onOpenParticipant(lookup.registrationId!)}>Ver participante</button>}</div>}
+      {lookup?.kind !== "already_registered" && <label className="block font-medium">Congregación<select className={`${field} mt-1`} required value={congregationId} onChange={(event) => setCongregationId(event.target.value)}><option value="">Selecciona una congregación</option>{congregations.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>}
+      {lookup?.kind === "new" && <label className="block font-medium">PIN inicial<input className={`${field} mt-1`} type="password" inputMode="numeric" minLength={4} maxLength={6} value={pin} onChange={(event) => setPin(event.target.value)} /></label>}
+      {lookup?.kind !== "already_registered" && <button className="campaign-primary w-full" disabled={checking || !lookup} onClick={next}>Continuar a disponibilidad</button>}
+    </> : <>
+      <h3 className="font-semibold">Paso 2 · Disponibilidad</h3>
+      <p>{name} · {congregations.find((row) => row.id === congregationId)?.name}</p>
+      <label className="block font-medium">Máximo de turnos<select className={`${field} mt-1`} value={maxTurns} onChange={(event) => setMaxTurns(event.target.value)}><option value="">Sin límite</option><option value="1">1 turno</option><option value="2">2 turnos</option><option value="3">3 turnos</option></select></label>
+      <div className="space-y-3">{overview.days.map((day) => <article key={day.id} className="campaign-surface p-4"><h4 className="font-semibold capitalize">{formatDate(day.date)}</h4>{day.blocks.map((block) => <label key={block.id} className="mt-3 flex min-h-12 items-center gap-3"><input type="checkbox" className="h-5 w-5" checked={selected.has(block.id)} onChange={() => setSelected((current) => { const next = new Set(current); next.has(block.id) ? next.delete(block.id) : next.add(block.id); return next; })} /><span>{block.startTime}–{block.endTime}</span></label>)}</article>)}</div>
+      <button className="campaign-secondary w-full" onClick={() => setStep(1)}>Volver a datos</button>
+      <button className="campaign-primary w-full" disabled={busy} onClick={() => void submit()}>{busy ? "Guardando…" : lookup?.kind === "existing" ? "Agregar a esta campaña" : "Crear y agregar"}</button>
+    </>}
+    {message && <p role="alert" className="text-red-700">{message}</p>}
+  </section>;
 }
 
 function OrganizationCoverage({ campaignId, overview }: { campaignId: string; overview: Overview }) {

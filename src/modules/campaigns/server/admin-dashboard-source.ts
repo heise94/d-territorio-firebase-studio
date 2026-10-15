@@ -91,6 +91,14 @@ export async function readDashboardSource(
     for (const doc of docs)
       if (doc.exists) profiles.set(doc.id, doc.data() as OperationalProfile);
   }
+  // The organizer may enroll an existing account in a different congregation
+  // for this campaign. Present the campaign-specific choice without changing
+  // the participant's global profile or registrations in other campaigns.
+  for (const registration of registrations.values()) {
+    const profile = profiles.get(registration.participantId);
+    if (profile && registration.congregationId)
+      profiles.set(registration.participantId, { ...profile, congregationId: registration.congregationId });
+  }
   const congregationIds = [
     ...new Set([
       ...associations.docs.map((doc) => doc.data().congregationId as string),
