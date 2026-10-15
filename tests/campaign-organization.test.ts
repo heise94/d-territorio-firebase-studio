@@ -101,6 +101,31 @@ test("los filtros y el detalle sólo exponen registros de la campaña solicitada
   await assert.rejects(() => service.detail("token", "a", "memberB"), (error: unknown) => error instanceof AuthError && error.status === 404);
 });
 
+test("Todas las congregaciones es una búsqueda explícita, conserva filtros de disponibilidad y pagina resultados", async () => {
+  const { service, fixture } = serviceFor();
+  const registrations = fixture.store.get("campaignRegistrations")!;
+  const participants = fixture.store.get("participants")!;
+  for (let index = 0; index < 25; index++) {
+    const participantId = `extra-${index}`;
+    registrations.set(`registration-${index}`, { campaignId: "a", participantId, registrationStatus: "active", maxTurns: null, congregationId: "congA" });
+    participants.set(participantId, { fullName: `Participante ${String(index).padStart(2, "0")}`, phoneNormalized: `+5697000${String(index).padStart(4, "0")}`, active: true, congregationId: "congA" });
+  }
+  const initial = await service.participants("token", "a", {});
+  assert.equal(initial.rows.length, 0);
+  const firstPage = await service.participants("token", "a", { showAllCongregations: "true" });
+  assert.equal(firstPage.rows.length, 20);
+  assert.equal(firstPage.resultTotal, 28);
+  assert.equal(firstPage.hasMore, true);
+  const secondPage = await service.participants("token", "a", { showAllCongregations: "true", page: 2 });
+  assert.equal(secondPage.rows.length, 8);
+  assert.equal(secondPage.hasMore, false);
+  assert.equal(new Set([...firstPage.rows, ...secondPage.rows].map((row) => row.registrationId)).size, 28);
+  const byDay = await service.participants("token", "a", { showAllCongregations: "true", dayId: "dayA" });
+  assert.deepEqual(byDay.rows.map((row) => row.fullName), ["Hermana Disponible"]);
+  const byBlock = await service.participants("token", "a", { showAllCongregations: "true", dayId: "dayA", blockId: "blockA" });
+  assert.deepEqual(byBlock.rows.map((row) => row.fullName), ["Hermana Disponible"]);
+});
+
 test("no se puede retirar disponibilidad de un turno publicado y no crea avisos", async () => {
   const { service, fixture } = serviceFor();
   fixture.store.get("campaignAssignments")!.set("assignment", { campaignId: "a", registrationId: "memberA", timeBlockId: "blockA", status: "published" });

@@ -40,6 +40,8 @@ const filtersSchema = z.object({
   congregationId: campaignDocumentIdSchema.optional(),
   dayId: campaignDocumentIdSchema.optional(),
   blockId: campaignDocumentIdSchema.optional(),
+  showAllCongregations: z.enum(["true"]).optional(),
+  page: z.coerce.number().int().min(1).max(100).default(1),
 }).strict();
 const changeSchema = z.object({
   selectedBlockIds: z.array(campaignDocumentIdSchema).max(200).refine((ids) => new Set(ids).size === ids.length, "No repitas horarios."),
@@ -190,14 +192,16 @@ export class CampaignOrganizationService {
       const all = [...source.registrations.values()].filter((registration) => registration.registrationStatus === "active" && source.profiles.get(registration.participantId)?.active).map((registration) => {
         const row = this.person(source, registration.id); return { registrationId: registration.id, fullName: row.profile.fullName, congregationId: row.congregationId, congregation: row.congregation, availableBlockCount: [...(source.selections.get(registration.id) ?? [])].filter((id) => source.activeBlocks.has(id)).length, maxTurns: registration.maxTurns };
       });
-      const hasFilter = Boolean(filters.q || filters.congregationId || filters.dayId || filters.blockId);
-      const rows = !hasFilter ? [] : all.filter((row) => {
+      const hasFilter = Boolean(filters.q || filters.congregationId || filters.dayId || filters.blockId || filters.showAllCongregations);
+      const matchingRows = all.filter((row) => {
         const selected = source.selections.get(row.registrationId) ?? new Set<string>();
         const profile = source.profiles.get(source.registrations.get(row.registrationId)?.participantId ?? "");
         const q = filters.q.toLocaleLowerCase("es");
         return (!q || row.fullName.toLocaleLowerCase("es").includes(q) || profile?.phoneNormalized?.includes(filters.q.replace(/\D/g, ""))) && (!filters.congregationId || row.congregationId === filters.congregationId) && (!filters.blockId || selected.has(filters.blockId)) && (!filters.dayId || [...selected].some((id) => source.activeBlocks.get(id)?.campaignDayId === filters.dayId));
-      }).sort((a,b) => a.fullName.localeCompare(b.fullName, "es")).slice(0, 20);
-      return { rows, total: all.length, resultTotal: hasFilter ? rows.length : 0, days: this.days(source).map((day) => ({ ...day, count: all.filter((row) => [...(source.selections.get(row.registrationId) ?? [])].some((id) => source.activeBlocks.get(id)?.campaignDayId === day.id)).length, blocks: day.blocks.map((block) => ({ ...block, count: all.filter((row) => source.selections.get(row.registrationId)?.has(block.id)).length })) })), congregations: [...source.associatedCongregations].map(([id, row]) => ({ id, name: row.name, count: all.filter((person) => person.congregationId === id).length })).sort((a,b) => a.name.localeCompare(b.name, "es")) };
+      }).sort((a,b) => a.fullName.localeCompare(b.fullName, "es"));
+      const pageSize = 20;
+      const rows = hasFilter ? matchingRows.slice((filters.page - 1) * pageSize, filters.page * pageSize) : [];
+      return { rows, total: all.length, resultTotal: hasFilter ? matchingRows.length : 0, hasMore: hasFilter && matchingRows.length > filters.page * pageSize, page: filters.page, days: this.days(source).map((day) => ({ ...day, count: all.filter((row) => [...(source.selections.get(row.registrationId) ?? [])].some((id) => source.activeBlocks.get(id)?.campaignDayId === day.id)).length, blocks: day.blocks.map((block) => ({ ...block, count: all.filter((row) => source.selections.get(row.registrationId)?.has(block.id)).length })) })), congregations: [...source.associatedCongregations].map(([id, row]) => ({ id, name: row.name, count: all.filter((person) => person.congregationId === id).length })).sort((a,b) => a.name.localeCompare(b.name, "es")) };
     });
   }
 
