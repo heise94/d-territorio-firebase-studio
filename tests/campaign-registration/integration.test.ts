@@ -283,24 +283,15 @@ test("Cobertura concurrente: completo acepta a ambos, override/fallback y reserv
   const view = await service.view(a.token, "open");
   const blocks = view.days.flatMap((day) => day.blocks);
   const early = blocks.find((block) => block.id === "early")!;
-  assert.deepEqual(early.coverage, {
-    availableCount: 2,
-    capacity: 1,
-    remainingCapacity: 0,
-    reservePotential: 1,
-    isFull: true,
-    needsSupport: false,
-  });
-  assert.equal(
-    blocks.find((block) => block.id === "late")!.coverage.capacity,
-    2,
-  );
+  assert.equal("coverage" in early, false);
+  assert.equal(early.coverageState, "covered");
+  assert.equal(blocks.find((block) => block.id === "late")!.coverageState, "normal");
   await service.save(c.token, "open", input(["early"]));
   assert.equal(
     (await service.view(c.token, "open")).days
       .flatMap((day) => day.blocks)
-      .find((block) => block.id === "early")!.coverage.reservePotential,
-    2,
+      .find((block) => block.id === "early")!.coverageState,
+    "covered",
   );
   assert.equal(
     (
@@ -320,8 +311,8 @@ test("Cobertura concurrente: completo acepta a ambos, override/fallback y reserv
   assert.equal(
     (await service.view(a.token, "open")).days
       .flatMap((day) => day.blocks)
-      .find((block) => block.id === "early")!.coverage.availableCount,
-    2,
+      .find((block) => block.id === "early")!.coverageState,
+    "covered",
   );
   await assert.rejects(service.save(c.token, "open", input()));
   await db
@@ -339,8 +330,7 @@ test("Sin capacidad ni horarios: DTO claro, sin marcar completo ni inventar capa
     .doc("undefined-capacity")
     .set({ name: "Sin capacidad ficticia", status: "registration_open" });
   const view = await service.view(a.token, "undefined-capacity");
-  assert.equal(view.days[0].blocks[0].coverage.capacity, null);
-  assert.equal(view.days[0].blocks[0].coverage.isFull, false);
+  assert.equal(view.days[0].blocks[0].coverageState, "normal");
   await db
     .collection("timeBlocks")
     .doc("undefined-capacity-block")

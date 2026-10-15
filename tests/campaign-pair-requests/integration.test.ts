@@ -426,8 +426,8 @@ test("Sin overlap puede aceptar; cambios actuales generan/eliminan conflicto sin
   assert.equal(
     (await registrations.view(a.token, "overlap")).days[0].blocks.find(
       (block) => block.id === "overlap-early",
-    )!.coverage.isFull,
-    true,
+    )!.coverageState,
+    "covered",
   );
 });
 test("Overlap excluye bloques/días inactivos y otra campaña; no expone selección completa", async () => {

@@ -44,6 +44,7 @@ export interface Coverage {
   isFull: boolean;
   needsSupport: boolean;
 }
+export type ParticipantCoverageState = "covered" | "last_slots" | "normal" | "needs_support";
 export interface RegistrationDTO {
   id: string;
   maxTurns: MaxTurns;
@@ -74,10 +75,25 @@ export interface RegistrationView {
       endTime: string;
       label: string;
       selected: boolean;
-      coverage: Coverage;
+      coverageState: ParticipantCoverageState;
     }[];
   }[];
   unavailableSelectionCount: number;
+}
+
+/** Qualitative signal for participants; coverage counts stay server-side. */
+export function participantCoverageState(
+  availableCount: number,
+  override?: number,
+  defaultCapacity?: number,
+): ParticipantCoverageState {
+  const capacity = override ?? defaultCapacity;
+  if (capacity === undefined || capacity === null) return "normal";
+  const missing = capacity - availableCount;
+  if (missing <= 0) return "covered";
+  if (missing <= 3) return "last_slots";
+  if (missing <= 8) return "normal";
+  return "needs_support";
 }
 
 export function calculateCoverage(

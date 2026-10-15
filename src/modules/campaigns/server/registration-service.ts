@@ -13,7 +13,7 @@ import type {
 } from "../domain/types";
 import type { ParticipantDTO } from "../domain/participant";
 import {
-  calculateCoverage,
+  participantCoverageState,
   type Availability,
   type CampaignRegistration,
   type CampaignSummary,
@@ -234,18 +234,13 @@ export class CampaignRegistrationService {
                   endTime: block.endTime,
                   label: block.label ?? "",
                   selected: selected.has(block.id),
-                  coverage: calculateCoverage(
+                  coverageState: participantCoverageState(
                     counts.get(block.id) ?? 0,
                     block.capacityOverride,
                     config.campaign.defaultCapacityPerBlock,
                   ),
                 }))
-                .sort(
-                  (a, b) =>
-                    Number(b.coverage.needsSupport) -
-                      Number(a.coverage.needsSupport) ||
-                    a.startTime.localeCompare(b.startTime),
-                ),
+                .sort((a, b) => a.startTime.localeCompare(b.startTime)),
             })),
         };
       },
