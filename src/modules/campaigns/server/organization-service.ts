@@ -6,7 +6,7 @@ import type { CampaignRegistration, Availability, MaxTurns } from "../domain/reg
 import type { Campaign, CampaignDay, Congregation, Point, TimeBlock, BlockPoint } from "../domain/types";
 import { calculateBlockCapacity } from "../domain/point-capacity";
 import { campaignCollections as names } from "../lib/paths";
-import { phoneSchema, pinSchema } from "../schemas/participant-auth";
+import { normalizePersonName, phoneSchema, pinSchema } from "../schemas/participant-auth";
 import { campaignDocumentIdSchema } from "../schemas/registration-schemas";
 import { AuthError, ParticipantAuthService } from "./auth/service";
 import { availabilityId, registrationId } from "./registration-service";
@@ -433,7 +433,7 @@ export class CampaignOrganizationService {
     }
     if (value.action !== "create" || !value.pin) throw new AuthError(400, "Ingresa el PIN inicial para crear la cuenta.");
     const actor = await this.withAccess(token, campaignId, async (_tx, participant) => participant);
-    const participant = await this.auth.createForOrganizer({ fullName: value.fullName, phone: value.phone, pin: value.pin, congregationId: value.congregationId }, actor.id);
+    const participant = await this.auth.createForOrganizer({ fullName: normalizePersonName(value.fullName), phone: value.phone, pin: value.pin, congregationId: value.congregationId }, actor.id);
     return this.withAccess(token, campaignId, async (tx, verifiedActor) => {
       const source = await validate(tx);
       const currentDoc = await tx.get(this.db.collection(names.campaignRegistrations).doc(registrationId(campaignId, participant.id)));

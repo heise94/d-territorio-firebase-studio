@@ -10,6 +10,35 @@ export function normalizeChileanPhone(input: string): string {
   return `+56${national}`;
 }
 
+/** Converts pasted Chilean mobile formats to the eight digits shown in the organizer form. */
+export function organizerPhoneDigits(input: string): string {
+  let digits = input.replace(/\D/g, "");
+  if (digits.startsWith("0056")) digits = digits.slice(4);
+  if (digits.startsWith("56")) digits = digits.slice(2);
+  if (digits.length === 9 && digits.startsWith("9")) digits = digits.slice(1);
+  return digits.slice(0, 8);
+}
+
+export function normalizePersonName(input: string): string {
+  return input
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((word) =>
+      word
+        .split(/([-’'])/u)
+        .map((part) =>
+          /^[-’']$/u.test(part)
+            ? part
+            : part
+              ? part.charAt(0).toLocaleUpperCase("es-CL") + part.slice(1).toLocaleLowerCase("es-CL")
+              : part,
+        )
+        .join(""),
+    )
+    .join(" ");
+}
+
 export const phoneSchema = z
   .string()
   .max(40)

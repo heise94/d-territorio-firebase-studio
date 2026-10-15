@@ -5,6 +5,7 @@ import { CampaignOrganizationService } from "../src/modules/campaigns/server/org
 import { readDashboardSource } from "../src/modules/campaigns/server/admin-dashboard-source";
 import { AuthError, type ParticipantAuthService } from "../src/modules/campaigns/server/auth/service";
 import { availabilityId, registrationId } from "../src/modules/campaigns/server/registration-service";
+import { normalizeChileanPhone, normalizePersonName, organizerPhoneDigits } from "../src/modules/campaigns/schemas/participant-auth";
 
 type Data = Record<string, unknown>;
 function firestoreFixture(seed: Record<string, Record<string, Data>>) {
@@ -206,6 +207,25 @@ test("teléfono nuevo requiere PIN inicial válido antes de crear la cuenta", as
   await assert.rejects(() => service.createParticipant("token", "a", input), (error: unknown) => error instanceof AuthError && error.status === 400);
   await assert.rejects(() => service.createParticipant("token", "a", { ...input, pin: "12" }), (error: unknown) => error instanceof AuthError && error.status === 400);
   assert.equal(created, 0);
+});
+
+test("alta de organizador normaliza teléfono chileno y nombres nuevos sin renombrar existentes", async () => {
+  assert.equal(organizerPhoneDigits("+56 9 8765 4321"), "87654321");
+  assert.equal(organizerPhoneDigits("987654321"), "87654321");
+  assert.equal(organizerPhoneDigits("8765-4321"), "87654321");
+  assert.equal(normalizeChileanPhone("87654321"), "+56987654321");
+  assert.equal(normalizePersonName("JAVIER HEISE"), "Javier Heise");
+  assert.equal(normalizePersonName("maría josé ñúñez"), "María José Ñúñez");
+  assert.equal(normalizePersonName("  ana-marÍA  o'brien "), "Ana-María O'Brien");
+  const source = await import("node:fs/promises").then(({ readFile }) => readFile("src/modules/campaigns/components/organization-pwa.tsx", "utf8"));
+  assert.match(source, /\+56 9/);
+  assert.match(source, /maxLength=\{8\}/);
+  assert.match(source, /inputMode="numeric"/);
+  assert.match(source, /Ingresa los 8 dígitos del teléfono/);
+  assert.match(source, /organizerPhoneDigits/);
+  const organizationService = await import("node:fs/promises").then(({ readFile }) => readFile("src/modules/campaigns/server/organization-service.ts", "utf8"));
+  assert.match(organizationService, /fullName: normalizePersonName\(value\.fullName\)/);
+  assert.match(organizationService, /fullName: existing\.fullName/);
 });
 
 test("participante normal no puede consultar teléfonos ni agregar a Organización", async () => {
