@@ -169,11 +169,110 @@ export class CampaignOrganizationService {
     return [...source.days.values()].filter((day) => day.active).sort((a,b) => a.date.localeCompare(b.date)).map((day) => ({ id: day.id, date: day.date, label: day.label ?? "", blocks: [...source.activeBlocks.values()].filter((block) => block.campaignDayId === day.id).sort((a,b) => a.startTime.localeCompare(b.startTime)).map((block) => ({ id: block.id, startTime: block.startTime, endTime: block.endTime, label: block.label ?? "" })) }));
   }
 
+  private async participantMetadata(tx: Transaction, campaignId: string) {
+    const query = (collection: string) => tx.get(this.db.collection(collection).where("campaignId", "==", campaignId));
+    const [campaignDoc, registrationDocs, availabilityDocs, dayDocs, blockDocs, associationDocs] = await Promise.all([
+      tx.get(this.db.collection(names.campaigns).doc(campaignId)),
+      query(names.campaignRegistrations), query(names.availabilities), query(names.campaignDays),
+      query(names.timeBlocks), query(names.campaignCongregations),
+    ]);
+    if (!campaignDoc.exists) throw new AuthError(404, "Campaña no disponible.");
+    const active = registrationDocs.docs.filter((doc) => doc.data().registrationStatus === "active");
+    const activeIds = new Set(active.map((doc) => doc.id));
+    const profileDocs = active.length
+      ? await tx.getAll(...active.map((doc) => this.db.collection(names.participants).doc(String(doc.data().participantId)))) : [];
+    const profileCongregations = new Map(profileDocs.filter((doc) => doc.exists)
+      .map((doc) => [doc.id, String(doc.data()?.congregationId ?? "")]));
+    const days = new Map(dayDocs.docs.map((doc) => [doc.id, { ...doc.data(), id: doc.id } as CampaignDay]));
+    const blocks = new Map(blockDocs.docs.map((doc) => [doc.id, { ...doc.data(), id: doc.id } as TimeBlock]));
+    const activeBlocks = new Map([...blocks].filter(([, block]) => block.active && days.get(block.campaignDayId)?.active));
+    const selected = new Map<string, Set<string>>();
+    for (const doc of availabilityDocs.docs) {
+      const row = doc.data() as Availability;
+      if (!row.available || !activeIds.has(row.registrationId) || !activeBlocks.has(row.timeBlockId)) continue;
+      const registrations = selected.get(row.registrationId) ?? new Set<string>();
+      registrations.add(row.timeBlockId); selected.set(row.registrationId, registrations);
+    }
+    const congregationIds = [...new Set(associationDocs.docs.map((doc) => doc.data().congregationId as string))];
+    const congregationDocs = congregationIds.length
+      ? await tx.getAll(...congregationIds.map((id) => this.db.collection(names.congregations).doc(id))) : [];
+    const congregations = new Map(congregationDocs.filter((doc) => doc.exists && doc.data()?.active)
+      .map((doc) => [doc.id, doc.data() as Congregation]));
+    const activeDays = [...days.values()].filter((day) => day.active).sort((a, b) => a.date.localeCompare(b.date));
+    const dayDtos = activeDays.map((day) => ({
+      id: day.id, date: day.date, label: day.label ?? "",
+      blocks: [...activeBlocks.values()].filter((block) => block.campaignDayId === day.id)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)).map((block) => ({
+          id: block.id, startTime: block.startTime, endTime: block.endTime, label: block.label ?? "",
+          count: active.filter((registration) => selected.get(registration.id)?.has(block.id)).length,
+        })),
+      count: active.filter((registration) => [...(selected.get(registration.id) ?? [])]
+        .some((blockId) => activeBlocks.get(blockId)?.campaignDayId === day.id)).length,
+    }));
+    return {
+      total: active.length,
+      days: dayDtos,
+      congregations: [...congregations].map(([id, congregation]) => ({
+        id, name: congregation.name,
+        count: active.filter((registration) => (registration.data().congregationId ?? profileCongregations.get(String(registration.data().participantId))) === id).length,
+      })).sort((a, b) => a.name.localeCompare(b.name, "es")),
+    };
+  }
+
+  private async overviewMetadata(tx: Transaction, campaignId: string) {
+    const query = (collection: string) => tx.get(this.db.collection(collection).where("campaignId", "==", campaignId));
+    const [campaignDoc, registrationDocs, availabilityDocs, dayDocs, blockDocs, pointDocs, blockPointDocs] = await Promise.all([
+      tx.get(this.db.collection(names.campaigns).doc(campaignId)), query(names.campaignRegistrations),
+      query(names.availabilities), query(names.campaignDays), query(names.timeBlocks), query(names.points), query(names.blockPoints),
+    ]);
+    if (!campaignDoc.exists) throw new AuthError(404, "Campaña no disponible.");
+    const active = registrationDocs.docs.filter((doc) => doc.data().registrationStatus === "active");
+    const activeIds = new Set(active.map((doc) => doc.id));
+    const days = new Map(dayDocs.docs.map((doc) => [doc.id, { ...doc.data(), id: doc.id } as CampaignDay]));
+    const blocks = new Map(blockDocs.docs.map((doc) => [doc.id, { ...doc.data(), id: doc.id } as TimeBlock]));
+    const activeBlocks = [...blocks.values()].filter((block) => block.active && days.get(block.campaignDayId)?.active);
+    const selected = new Map<string, Set<string>>();
+    for (const doc of availabilityDocs.docs) {
+      const row = doc.data() as Availability;
+      if (!row.available || !activeIds.has(row.registrationId)) continue;
+      const registrations = selected.get(row.registrationId) ?? new Set<string>();
+      registrations.add(row.timeBlockId); selected.set(row.registrationId, registrations);
+    }
+    const points = pointDocs.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Point);
+    const blockPoints = blockPointDocs.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as BlockPoint);
+    const coverage = activeBlocks.map((block) => {
+      const available = active.filter((registration) => selected.get(registration.id)?.has(block.id)).length;
+      const minimum = calculateBlockCapacity(campaignId, block.id, points, blockPoints).minParticipants;
+      return { available, minimum };
+    });
+    return {
+      campaign: { ...campaignDoc.data(), id: campaignId } as Campaign,
+      participantCount: active.length,
+      days: [...days.values()].filter((day) => day.active).sort((a, b) => a.date.localeCompare(b.date)).map((day) => ({
+        id: day.id, date: day.date, label: day.label ?? "",
+        blocks: activeBlocks.filter((block) => block.campaignDayId === day.id).sort((a, b) => a.startTime.localeCompare(b.startTime))
+          .map((block) => ({ id: block.id, startTime: block.startTime, endTime: block.endTime, label: block.label ?? "" })),
+      })),
+      coverageSummary: { total: coverage.length, missing: coverage.filter((block) => block.available < block.minimum).length },
+    };
+  }
+
   async overview(token: string, campaignId: string) {
     return this.withAccess(token, campaignId, async (tx, _participant, access) => {
+      const overview = await this.overviewMetadata(tx, campaignId);
+      return {
+        campaign: { id: campaignId, name: overview.campaign.name, status: overview.campaign.status, role: access.role, roleLabel: humanRole(access.role) },
+        participantCount: overview.participantCount,
+        days: overview.days,
+        coverageSummary: overview.coverageSummary,
+      };
+    });
+  }
+
+  async coverageOverview(token: string, campaignId: string) {
+    return this.withAccess(token, campaignId, async (tx) => {
       const source = await this.source(tx, campaignId);
-      const active = [...source.registrations.values()].filter((row) => row.registrationStatus === "active" && source.profiles.get(row.participantId)?.active);
-      return { campaign: { id: campaignId, name: source.campaign.name, status: source.campaign.status, role: access.role, roleLabel: humanRole(access.role) }, participantCount: active.length, days: this.days(source), coverage: this.coverage(source) };
+      return { coverage: this.coverage(source) };
     });
   }
 
@@ -188,11 +287,16 @@ export class CampaignOrganizationService {
   async participants(token: string, campaignId: string, input: unknown) {
     return this.withAccess(token, campaignId, async (tx) => {
       const parsed = filtersSchema.safeParse(input); if (!parsed.success) throw new AuthError(400, "Revisa los filtros de participantes.");
-      const filters = parsed.data, source = await this.source(tx, campaignId);
+      const filters = parsed.data;
+      const hasFilter = Boolean(filters.q || filters.congregationId || filters.dayId || filters.blockId || filters.showAllCongregations);
+      if (!hasFilter) {
+        const metadata = await this.participantMetadata(tx, campaignId);
+        return { rows: [], resultTotal: 0, hasMore: false, page: filters.page, ...metadata };
+      }
+      const source = await this.source(tx, campaignId);
       const all = [...source.registrations.values()].filter((registration) => registration.registrationStatus === "active" && source.profiles.get(registration.participantId)?.active).map((registration) => {
         const row = this.person(source, registration.id); return { registrationId: registration.id, fullName: row.profile.fullName, congregationId: row.congregationId, congregation: row.congregation, availableBlockCount: [...(source.selections.get(registration.id) ?? [])].filter((id) => source.activeBlocks.has(id)).length, maxTurns: registration.maxTurns };
       });
-      const hasFilter = Boolean(filters.q || filters.congregationId || filters.dayId || filters.blockId || filters.showAllCongregations);
       const matchingRows = all.filter((row) => {
         const selected = source.selections.get(row.registrationId) ?? new Set<string>();
         const profile = source.profiles.get(source.registrations.get(row.registrationId)?.participantId ?? "");

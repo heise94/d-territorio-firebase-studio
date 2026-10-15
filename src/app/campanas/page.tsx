@@ -1,8 +1,6 @@
 import { requireParticipantSession } from "@/modules/campaigns/server/auth/session";
 import { ParticipantCampaigns } from "@/modules/campaigns/components/participant-campaigns";
 import { ParticipantNavigation } from "@/modules/campaigns/components/participant-navigation";
-import { PairInbox } from "@/modules/campaigns/components/pair-inbox";
-import { ParticipantNextTurn } from "@/modules/campaigns/components/next-turn";
 import { ParticipantProfile } from "@/modules/campaigns/components/participant-profile";
 import { campaignsAdminDb } from "@/modules/campaigns/server/firebase-admin";
 import { campaignCollections } from "@/modules/campaigns/lib/paths";
@@ -31,8 +29,6 @@ export default async function CampaignParticipantPage() {
           }
         />
       </header>
-      <PairInbox />
-      <ParticipantNextTurn />
       <ParticipantCampaigns />
       <ParticipantNavigation active="Inicio" />
     </main>

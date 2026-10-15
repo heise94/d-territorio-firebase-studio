@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useEffect } from "react";
-import Link from "next/link";
-import { CircleUserRound, LogOut, ShieldCheck } from "lucide-react";
+import { CircleUserRound, LogOut } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +11,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { logoutParticipant } from "../lib/participant-logout";
-import { campaignFetch } from "../lib/campaign-fetch";
 
 export function ParticipantProfile({
   fullName,
@@ -24,18 +21,6 @@ export function ParticipantProfile({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [hasOrganizationAccess, setHasOrganizationAccess] = useState(false);
-  useEffect(() => {
-    let active = true;
-    void campaignFetch("/api/campanas/organization/campaigns", { cache: "no-store" })
-      .then(async (reply) => {
-        if (!reply.ok) return;
-        const body = await reply.json();
-        if (active) setHasOrganizationAccess(Array.isArray(body.campaigns) && body.campaigns.length > 0);
-      })
-      .catch(() => {});
-    return () => { active = false; };
-  }, []);
   async function logout() {
     setBusy(true);
     setError("");
@@ -89,12 +74,6 @@ export function ParticipantProfile({
             <dd className="break-words font-semibold">{congregation}</dd>
           </div>
         </dl>
-        {hasOrganizationAccess && (
-          <Link href="/campanas/organizacion" className="campaign-secondary w-full gap-2">
-            <ShieldCheck aria-hidden="true" className="h-5 w-5" />
-            <span><strong className="block">Modo organización</strong><small className="block font-normal">Gestionar campaña</small></span>
-          </Link>
-        )}
         <p className="text-sm text-slate-600">
           Cerrar sesión no elimina tu cuenta ni tu participación.
         </p>

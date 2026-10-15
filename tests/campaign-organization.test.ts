@@ -79,9 +79,12 @@ test("equipo de campaña autorizado obtiene inicio y cobertura calculada desde p
   const overview = await service.overview("token", "a");
   assert.equal(overview.campaign.roleLabel, "Administrador principal");
   assert.equal(overview.participantCount, 3);
-  assert.equal(overview.coverage[0].blocks[0].minimum, 2);
-  assert.equal(overview.coverage[0].blocks[0].available, 1);
-  assert.equal(overview.coverage[0].blocks[0].state, "missing");
+  assert.equal(overview.coverageSummary.total, 1);
+  assert.equal(overview.coverageSummary.missing, 1);
+  const coverage = await service.coverageOverview("token", "a");
+  assert.equal(coverage.coverage[0].blocks[0].minimum, 2);
+  assert.equal(coverage.coverage[0].blocks[0].available, 1);
+  assert.equal(coverage.coverage[0].blocks[0].state, "missing");
 });
 
 test("participante sin rol de equipo no obtiene funciones de Organización", async () => {
@@ -213,11 +216,18 @@ test("participante normal no puede consultar teléfonos ni agregar a Organizaci�
   assert.equal(lookups, 0);
 });
 
-test("la interfaz consulta teléfono antes de continuar y ofrece Contact Picker", async () => {
+test("la interfaz conserva datos editables, salida sin logout y carga diferida de vistas pesadas", async () => {
   const source = await import("node:fs/promises").then(({ readFile }) => readFile("src/modules/campaigns/components/organization-pwa.tsx", "utf8"));
+  const participantHome = await import("node:fs/promises").then(({ readFile }) => readFile("src/app/campanas/page.tsx", "utf8"));
+  const profile = await import("node:fs/promises").then(({ readFile }) => readFile("src/modules/campaigns/components/participant-profile.tsx", "utf8"));
   assert.match(source, /campaignFetch\(`\/api\/campanas\/organization/);
   assert.match(source, /Turno publicado/);
   assert.match(source, /participants\/lookup\?phone=/);
   assert.match(source, /Ver participante/);
   assert.match(source, /Selecciona la congregación del participante/);
+  assert.doesNotMatch(source, /readOnly=\{lookup\?\.kind!=="new"\}/);
+  assert.match(source, /Salir del modo organización/);
+  assert.match(source, /\/coverage`/);
+  assert.doesNotMatch(participantHome, /ParticipantNextTurn|PairInbox/);
+  assert.doesNotMatch(profile, /organization\/campaigns/);
 });
