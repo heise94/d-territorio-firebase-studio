@@ -45,6 +45,7 @@ const registrationDTO = (row?: CampaignRegistration) =>
 const campaignDTO = (
   campaign: Campaign,
   row?: CampaignRegistration,
+  organization?: CampaignSummary["organization"],
 ): CampaignSummary => ({
   id: campaign.id,
   name: campaign.name,
@@ -54,6 +55,7 @@ const campaignDTO = (
   status: campaign.status,
   companionRequestsEnabled: campaign.companionRequestsEnabled === true,
   registration: registrationDTO(row),
+  organization: organization ?? null,
 });
 
 export class CampaignRegistrationService {
@@ -101,8 +103,15 @@ export class CampaignRegistrationService {
               campaigns.set(id, { ...doc.data(), id: doc.id } as Campaign);
           }
         }
+        const teams = await tx.getAll(...[...campaigns.keys()].map((id) => this.db.collection(collections.campaignTeams).doc(id)));
+        const teamByCampaign = new Map(teams.filter((doc) => doc.exists).map((doc) => [doc.id, doc.data() as { primaryRegistrationId?: string | null; helperRegistrationIds?: string[] }]));
         return [...campaigns.values()]
-          .map((campaign) => campaignDTO(campaign, rows.get(campaign.id)))
+          .map((campaign) => {
+            const registration = rows.get(campaign.id);
+            const team = teamByCampaign.get(campaign.id);
+            const role = registration && team?.primaryRegistrationId === registration.id ? "CAMPAIGN_ADMIN" as const : registration && team?.helperRegistrationIds?.includes(registration.id) ? "CAMPAIGN_HELPER" as const : null;
+            return campaignDTO(campaign, registration, role ? { role, label: role === "CAMPAIGN_ADMIN" ? "Administrador principal" : "Ayudante" } : null);
+          })
           .sort((a, b) => a.name.localeCompare(b.name, "es"));
       },
     );

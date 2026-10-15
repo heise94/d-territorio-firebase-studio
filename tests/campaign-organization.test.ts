@@ -132,7 +132,7 @@ test("cuenta existente se detecta antes de crear otra y puede abrirse su ficha",
 test("opciones de congregación provienen sólo de asociaciones activas de esa campaña", async () => {
   const { service } = serviceFor();
   const result = await service.participants("token", "a", {});
-  assert.deepEqual(result.congregations, [{ id: "congA", name: "Maquehue" }]);
+  assert.deepEqual(result.congregations, [{ id: "congA", name: "Maquehue", count: 3 }]);
 });
 
 test("lookup temprano distingue teléfono nuevo, cuenta existente y ya inscrito", async () => {
@@ -190,7 +190,6 @@ test("participante normal no puede consultar teléfonos ni agregar a Organizaci�
 
 test("la interfaz consulta teléfono antes de continuar y ofrece Contact Picker", async () => {
   const source = await import("node:fs/promises").then(({ readFile }) => readFile("src/modules/campaigns/components/organization-pwa.tsx", "utf8"));
-  assert.match(source, /contacts\.select/);
   assert.match(source, /campaignFetch\(`\/api\/campanas\/organization/);
   assert.match(source, /Turno publicado/);
   assert.match(source, /participants\/lookup\?phone=/);

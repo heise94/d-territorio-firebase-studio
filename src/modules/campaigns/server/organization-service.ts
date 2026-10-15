@@ -10,6 +10,8 @@ import { phoneSchema, pinSchema } from "../schemas/participant-auth";
 import { campaignDocumentIdSchema } from "../schemas/registration-schemas";
 import { AuthError, ParticipantAuthService } from "./auth/service";
 import { availabilityId, registrationId } from "./registration-service";
+import { acceptedPairKey, pairLockCollection } from "./pair-request-service";
+import type { PairRequest } from "../domain/pair-request";
 
 type TeamRecord = {
   campaignId: string;
@@ -30,6 +32,7 @@ type Source = {
   points: Point[];
   blockPoints: BlockPoint[];
   acceptedPartners: Map<string, string>;
+  pairs: PairRequest[];
 };
 
 const filtersSchema = z.object({
@@ -57,6 +60,7 @@ const createSchema = z.object({
   if (value.action === "add_existing" && value.pin)
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pin"], message: "No cambies el PIN de una cuenta existente." });
 });
+const partnerSchema = z.object({ recipientRegistrationId: campaignDocumentIdSchema.optional() }).strict();
 
 const humanRole = (role: OrganizationRole) => role === "CAMPAIGN_ADMIN" ? "Administrador principal" : "Ayudante";
 
@@ -138,9 +142,9 @@ export class CampaignOrganizationService {
       const selected = selections.get(availability.registrationId) ?? new Set<string>();
       selected.add(availability.timeBlockId); selections.set(availability.registrationId, selected);
     }
+    const pairs = pairDocs.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as PairRequest);
     const acceptedPartners = new Map<string, string>();
-    for (const doc of pairDocs.docs) {
-      const pair = doc.data();
+    for (const pair of pairs) {
       if (pair.status === "accepted" && registrations.has(pair.requesterRegistrationId) && registrations.has(pair.recipientRegistrationId)) {
         acceptedPartners.set(pair.requesterRegistrationId, pair.recipientRegistrationId);
         acceptedPartners.set(pair.recipientRegistrationId, pair.requesterRegistrationId);
@@ -148,7 +152,7 @@ export class CampaignOrganizationService {
     }
     return { campaign: { ...campaignDoc.data(), id: campaignId } as Campaign, registrations, profiles, congregations, associatedCongregations, days, blocks, activeBlocks, selections,
       points: pointDocs.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as Point),
-      blockPoints: blockPointDocs.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as BlockPoint), acceptedPartners };
+      blockPoints: blockPointDocs.docs.map((doc) => ({ ...doc.data(), id: doc.id }) as BlockPoint), acceptedPartners, pairs };
   }
 
   private person(source: Source, registrationId: string) {
@@ -167,7 +171,7 @@ export class CampaignOrganizationService {
     return this.withAccess(token, campaignId, async (tx, _participant, access) => {
       const source = await this.source(tx, campaignId);
       const active = [...source.registrations.values()].filter((row) => row.registrationStatus === "active" && source.profiles.get(row.participantId)?.active);
-      return { campaign: { id: campaignId, name: source.campaign.name, role: access.role, roleLabel: humanRole(access.role) }, participantCount: active.length, days: this.days(source), coverage: this.coverage(source) };
+      return { campaign: { id: campaignId, name: source.campaign.name, status: source.campaign.status, role: access.role, roleLabel: humanRole(access.role) }, participantCount: active.length, days: this.days(source), coverage: this.coverage(source) };
     });
   }
 
@@ -183,13 +187,17 @@ export class CampaignOrganizationService {
     return this.withAccess(token, campaignId, async (tx) => {
       const parsed = filtersSchema.safeParse(input); if (!parsed.success) throw new AuthError(400, "Revisa los filtros de participantes.");
       const filters = parsed.data, source = await this.source(tx, campaignId);
-      const rows = [...source.registrations.values()].filter((registration) => registration.registrationStatus === "active" && source.profiles.get(registration.participantId)?.active).map((registration) => {
+      const all = [...source.registrations.values()].filter((registration) => registration.registrationStatus === "active" && source.profiles.get(registration.participantId)?.active).map((registration) => {
         const row = this.person(source, registration.id); return { registrationId: registration.id, fullName: row.profile.fullName, congregationId: row.congregationId, congregation: row.congregation, availableBlockCount: [...(source.selections.get(registration.id) ?? [])].filter((id) => source.activeBlocks.has(id)).length, maxTurns: registration.maxTurns };
-      }).filter((row) => {
+      });
+      const hasFilter = Boolean(filters.q || filters.congregationId || filters.dayId || filters.blockId);
+      const rows = !hasFilter ? [] : all.filter((row) => {
         const selected = source.selections.get(row.registrationId) ?? new Set<string>();
-        return (!filters.q || row.fullName.toLocaleLowerCase("es").includes(filters.q.toLocaleLowerCase("es"))) && (!filters.congregationId || row.congregationId === filters.congregationId) && (!filters.blockId || selected.has(filters.blockId)) && (!filters.dayId || [...selected].some((id) => source.activeBlocks.get(id)?.campaignDayId === filters.dayId));
-      }).sort((a,b) => a.fullName.localeCompare(b.fullName, "es"));
-      return { rows, total: rows.length, days: this.days(source), congregations: [...source.associatedCongregations].map(([id, row]) => ({ id, name: row.name })).sort((a,b) => a.name.localeCompare(b.name, "es")) };
+        const profile = source.profiles.get(source.registrations.get(row.registrationId)?.participantId ?? "");
+        const q = filters.q.toLocaleLowerCase("es");
+        return (!q || row.fullName.toLocaleLowerCase("es").includes(q) || profile?.phoneNormalized?.includes(filters.q.replace(/\D/g, ""))) && (!filters.congregationId || row.congregationId === filters.congregationId) && (!filters.blockId || selected.has(filters.blockId)) && (!filters.dayId || [...selected].some((id) => source.activeBlocks.get(id)?.campaignDayId === filters.dayId));
+      }).sort((a,b) => a.fullName.localeCompare(b.fullName, "es")).slice(0, 20);
+      return { rows, total: all.length, resultTotal: hasFilter ? rows.length : 0, days: this.days(source).map((day) => ({ ...day, count: all.filter((row) => [...(source.selections.get(row.registrationId) ?? [])].some((id) => source.activeBlocks.get(id)?.campaignDayId === day.id)).length, blocks: day.blocks.map((block) => ({ ...block, count: all.filter((row) => source.selections.get(row.registrationId)?.has(block.id)).length })) })), congregations: [...source.associatedCongregations].map(([id, row]) => ({ id, name: row.name, count: all.filter((person) => person.congregationId === id).length })).sort((a,b) => a.name.localeCompare(b.name, "es")) };
     });
   }
 
@@ -229,7 +237,47 @@ export class CampaignOrganizationService {
   async availableForBlock(token: string, campaignId: string, blockId: string) {
     return this.withAccess(token, campaignId, async (tx) => {
       const source = await this.source(tx, campaignId); if (!source.activeBlocks.has(blockId)) throw new AuthError(404, "Horario no disponible.");
-      return [...source.registrations.values()].filter((row) => row.registrationStatus === "active" && source.profiles.get(row.participantId)?.active && source.selections.get(row.id)?.has(blockId)).map((row) => { const person = this.person(source, row.id); return { registrationId: row.id, fullName: person.profile.fullName, congregation: person.congregation }; }).sort((a,b) => a.fullName.localeCompare(b.fullName, "es"));
+      const points = source.blockPoints.filter((row) => row.timeBlockId === blockId && row.active).map((row) => source.points.find((point) => point.id === row.pointId)).filter((point): point is Point => !!point && point.active).map((point) => ({ name: point.name, minimum: point.minParticipants ?? 0 }));
+      const participants = [...source.registrations.values()].filter((row) => row.registrationStatus === "active" && source.profiles.get(row.participantId)?.active && source.selections.get(row.id)?.has(blockId)).map((row) => { const person = this.person(source, row.id); return { registrationId: row.id, fullName: person.profile.fullName, congregation: person.congregation }; }).sort((a,b) => a.fullName.localeCompare(b.fullName, "es"));
+      return { participants, points };
+    });
+  }
+
+  async setPartner(token: string, campaignId: string, registrationId: string, input: unknown) {
+    const parsed = partnerSchema.safeParse(input); if (!parsed.success) throw new AuthError(400, "Revisa el compañero seleccionado.");
+    return this.withAccess(token, campaignId, async (tx, actor) => {
+      const source = await this.source(tx, campaignId); const own = this.person(source, registrationId);
+      if (own.registration.campaignId !== campaignId || own.registration.registrationStatus !== "active") throw new AuthError(404, "Participante no disponible.");
+      const current = source.pairs.find((pair) => pair.status === "accepted" && (pair.requesterRegistrationId === registrationId || pair.recipientRegistrationId === registrationId));
+      const now = Timestamp.now();
+      if (!parsed.data.recipientRegistrationId) {
+        if (current) {
+          tx.update(this.db.collection(names.pairRequests).doc(current.id), { status: "cancelled", updatedAt: now, respondedAt: now });
+          tx.delete(this.db.collection(pairLockCollection).doc(acceptedPairKey(campaignId, current.requesterRegistrationId, current.timeBlockId)));
+          tx.delete(this.db.collection(pairLockCollection).doc(acceptedPairKey(campaignId, current.recipientRegistrationId, current.timeBlockId)));
+        }
+        return { ok: true };
+      }
+      const recipientId = parsed.data.recipientRegistrationId;
+      if (recipientId === registrationId) throw new AuthError(400, "No puedes elegir a la misma persona.");
+      const recipient = this.person(source, recipientId);
+      if (recipient.registration.campaignId !== campaignId || recipient.registration.registrationStatus !== "active") throw new AuthError(404, "Participante no disponible.");
+      const recipientCurrent = source.pairs.find((pair) => pair.status === "accepted" && (pair.requesterRegistrationId === recipientId || pair.recipientRegistrationId === recipientId));
+      if (recipientCurrent && recipientCurrent.id !== current?.id) throw new AuthError(409, "Esta persona ya tiene un compañero acordado.");
+      if (current?.requesterRegistrationId === registrationId && current.recipientRegistrationId === recipientId) return { ok: true };
+      if (current) {
+        tx.update(this.db.collection(names.pairRequests).doc(current.id), { status: "cancelled", updatedAt: now, respondedAt: now });
+        tx.delete(this.db.collection(pairLockCollection).doc(acceptedPairKey(campaignId, current.requesterRegistrationId, current.timeBlockId)));
+        tx.delete(this.db.collection(pairLockCollection).doc(acceptedPairKey(campaignId, current.recipientRegistrationId, current.timeBlockId)));
+      }
+      const firstLock = this.db.collection(pairLockCollection).doc(acceptedPairKey(campaignId, registrationId));
+      const secondLock = this.db.collection(pairLockCollection).doc(acceptedPairKey(campaignId, recipientId));
+      if ((await tx.get(firstLock)).exists || (await tx.get(secondLock)).exists) throw new AuthError(409, "Uno de los hermanos ya tiene un compañero acordado.");
+      const ref = this.db.collection(names.pairRequests).doc();
+      tx.create(ref, { id: ref.id, campaignId, requesterRegistrationId: registrationId, recipientRegistrationId: recipientId, status: "accepted", createdAt: now, updatedAt: now, respondedAt: now });
+      tx.create(firstLock, { campaignId, requestId: ref.id, createdAt: now }); tx.create(secondLock, { campaignId, requestId: ref.id, createdAt: now });
+      tx.create(this.db.collection(names.auditLogs).doc(), { campaignId, actorParticipantId: actor.id, action: "organization_partner_set", entityId: ref.id, createdAt: now });
+      return { ok: true };
     });
   }
 

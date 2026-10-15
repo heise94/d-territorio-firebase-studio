@@ -58,6 +58,7 @@ export interface CampaignSummary {
   status: CampaignStatus;
   companionRequestsEnabled: boolean;
   registration: RegistrationDTO | null;
+  organization?: { role: "CAMPAIGN_ADMIN" | "CAMPAIGN_HELPER"; label: string } | null;
 }
 export interface RegistrationView {
   campaign: CampaignSummary;

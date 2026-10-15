@@ -92,6 +92,11 @@ export function ParticipantCampaigns() {
                   ? "Editar mi disponibilidad"
                   : "Ingresar mi disponibilidad"}<ChevronRight className="ml-auto h-5 w-5" />
             </Link>
+            {campaign.organization && (
+              <Link href={`/campanas/organizacion/${campaign.id}`} prefetch={false} className="campaign-secondary w-full gap-2">
+                Administrar campaña <ChevronRight className="ml-auto h-5 w-5" />
+              </Link>
+            )}
           </article>
         ))}
     </section>

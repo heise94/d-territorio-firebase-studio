@@ -37,7 +37,7 @@ const key = (parts: string[]) =>
   createHash("sha256").update(JSON.stringify(parts)).digest("hex");
 export const pairRelationKey = (campaignId: string, a: string, b: string, timeBlockId?: string) =>
   key(["relation", campaignId, timeBlockId ?? "legacy", ...[a, b].sort()]);
-const acceptedKey = (campaignId: string, registration: string, timeBlockId?: string) =>
+export const acceptedPairKey = (campaignId: string, registration: string, timeBlockId?: string) =>
   key(["accepted", campaignId, timeBlockId ?? "legacy", registration]);
 
 export class PairRequestService {
@@ -439,11 +439,11 @@ export class PairRequestService {
               );
           }
           const ownLock = await tx.get(
-            this.locks().doc(acceptedKey(campaignId, ownId, data.timeBlockId)),
+            this.locks().doc(acceptedPairKey(campaignId, ownId, data.timeBlockId)),
           );
           const otherLock = await tx.get(
             this.locks().doc(
-              acceptedKey(campaignId, data.recipientRegistrationId, data.timeBlockId),
+              acceptedPairKey(campaignId, data.recipientRegistrationId, data.timeBlockId),
             ),
           );
           if (ownLock.exists || otherLock.exists)
@@ -540,7 +540,7 @@ export class PairRequestService {
               stored.recipientRegistrationId,
             ]
               .sort()
-              .map((id) => this.locks().doc(acceptedKey(campaignId, id, stored.timeBlockId)));
+              .map((id) => this.locks().doc(acceptedPairKey(campaignId, id, stored.timeBlockId)));
             const first = await tx.get(locks[0]),
               second = await tx.get(locks[1]);
             if (first.exists || second.exists)
