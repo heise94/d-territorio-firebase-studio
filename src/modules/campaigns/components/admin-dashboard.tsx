@@ -16,6 +16,7 @@ import {
   dashboardButton,
 } from "./admin-dashboard-participants";
 import { DashboardDetail } from "./admin-dashboard-detail";
+import { formatHumanDate } from "./campaign-schedule-settings";
 
 class DashboardError extends Error {
   constructor(
@@ -178,8 +179,46 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
       filters.blockId,
   );
 
-  const totalParticipants = overview?.metrics.activeRegistrations ?? list?.total ?? 0;
-  const filteredCount = list?.total ?? 0;
+  const selectedCongregation = overview?.congregations.find(
+    (c) => c.id === filters.congregationId,
+  );
+  const selectedDay = overview?.days.find((d) => d.id === filters.dayId);
+  const selectedBlock = overview?.days
+    .flatMap((d) => d.blocks)
+    .find((b) => b.id === filters.blockId);
+  const searchQuery = filters.q?.trim();
+
+  const count = list?.total ?? 0;
+  const globalTotal = overview?.metrics.activeRegistrations ?? count;
+
+  let counterTitle = `${globalTotal} participantes`;
+  let counterSubtitle = "Total de hermanos inscritos en esta campaña";
+
+  if (searchQuery) {
+    const scopeTotal = selectedCongregation?.participantCount ?? globalTotal;
+    counterTitle = `${count} de ${scopeTotal} ${count === 1 ? "participante" : "participantes"}`;
+    counterSubtitle = `Coincidencias para «${searchQuery}»${
+      selectedCongregation ? ` en ${selectedCongregation.name}` : ""
+    }`;
+  } else if (selectedCongregation && (selectedBlock || selectedDay)) {
+    const congTotal = selectedCongregation.participantCount ?? count;
+    counterTitle = `${count} de ${congTotal} ${count === 1 ? "participante" : "participantes"}`;
+    const periodDesc = selectedBlock
+      ? `en horario ${selectedBlock.startTime}–${selectedBlock.endTime}`
+      : selectedDay
+        ? `el ${formatHumanDate(selectedDay.date)}`
+        : "";
+    counterSubtitle = `Hermanos de ${selectedCongregation.name} disponibles ${periodDesc}`;
+  } else if (selectedCongregation) {
+    counterTitle = `${count} ${count === 1 ? "participante" : "participantes"}`;
+    counterSubtitle = `Total de hermanos inscritos de la congregación ${selectedCongregation.name}`;
+  } else if (selectedBlock) {
+    counterTitle = `${count} ${count === 1 ? "participante" : "participantes"}`;
+    counterSubtitle = `Total de hermanos disponibles en horario ${selectedBlock.startTime}–${selectedBlock.endTime}`;
+  } else if (selectedDay) {
+    counterTitle = `${count} ${count === 1 ? "participante" : "participantes"}`;
+    counterSubtitle = `Total de hermanos disponibles el ${formatHumanDate(selectedDay.date)}`;
+  }
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
@@ -215,19 +254,15 @@ export function CampaignAdminDashboard({ campaignId }: { campaignId: string }) {
         </button>
       </header>
 
-      {/* Contador principal */}
+      {/* Contador principal dinámico según filtros */}
       {overview && (
         <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
           <div>
             <p className="text-2xl font-bold text-slate-900 sm:text-3xl">
-              {hasActiveFilters
-                ? `${filteredCount} de ${totalParticipants} participantes`
-                : `${totalParticipants} participantes`}
+              {counterTitle}
             </p>
             <p className="mt-0.5 text-xs text-slate-500">
-              {hasActiveFilters
-                ? "Hermanos según los filtros seleccionados"
-                : "Hermanos inscritos en esta campaña"}
+              {counterSubtitle}
             </p>
           </div>
         </div>

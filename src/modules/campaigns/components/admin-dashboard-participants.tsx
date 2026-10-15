@@ -119,10 +119,13 @@ export function DashboardParticipants({
             value={draft.congregationId ?? ""}
             onChange={(event) => change("congregationId", event.target.value)}
           >
-            <option value="">Todas</option>
+            <option value="">Todas ({overview.metrics.activeRegistrations})</option>
             {overview.congregations.map((congregation) => (
               <option key={congregation.id} value={congregation.id}>
                 {congregation.name}
+                {typeof congregation.participantCount === "number"
+                  ? ` (${congregation.participantCount})`
+                  : ""}
               </option>
             ))}
           </select>
@@ -147,10 +150,13 @@ export function DashboardParticipants({
               })
             }
           >
-            <option value="">Todos</option>
+            <option value="">Todos los días</option>
             {overview.days.map((day) => (
               <option key={day.id} value={day.id}>
                 {formatHumanDate(day.date)} {day.label ? `· ${day.label}` : ""}
+                {typeof day.availableCount === "number"
+                  ? ` (${day.availableCount})`
+                  : ""}
               </option>
             ))}
           </select>
@@ -169,7 +175,7 @@ export function DashboardParticipants({
             value={draft.blockId ?? ""}
             onChange={(event) => change("blockId", event.target.value)}
           >
-            <option value="">Todos</option>
+            <option value="">Todos los horarios</option>
             {overview.days
               .filter((day) => !draft.dayId || day.id === draft.dayId)
               .flatMap((day) =>
@@ -178,6 +184,9 @@ export function DashboardParticipants({
                     {!draft.dayId ? `${formatHumanDate(day.date)}: ` : ""}
                     {block.startTime}–{block.endTime}
                     {block.label ? ` (${block.label})` : ""}
+                    {typeof block.coverage.availableCount === "number"
+                      ? ` (${block.coverage.availableCount} disp.)`
+                      : ""}
                   </option>
                 )),
               )}

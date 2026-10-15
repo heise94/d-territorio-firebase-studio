@@ -445,3 +445,13 @@ test("17. Estados legacy de aprobación no aparecen en UI", async () => {
     assert.doesNotMatch(code, /approved|not_approved|pendiente de aprobación|no autorizado/i, `No legacy approval in ${file}`);
   }
 });
+
+test("18. Totales actualizados contextuales según filtros (congregación, período y búsqueda)", async () => {
+  const dashCode = await readFile("src/modules/campaigns/components/admin-dashboard.tsx", "utf8");
+  assert.ok(dashCode.includes("selectedCongregation"), "Detecta congregación seleccionada");
+  assert.ok(dashCode.includes("selectedDay") || dashCode.includes("selectedBlock"), "Detecta período seleccionado");
+  assert.ok(dashCode.includes("counterSubtitle"), "Genera subtítulo contextual");
+  // Confirms it no longer unconditionally formats as `${filteredCount} de ${totalParticipants}`
+  assert.doesNotMatch(dashCode, /hasActiveFilters\s*\?\s*`\$\{filteredCount\} de \$\{totalParticipants\}/, "No muestra 'X de global' indiscriminadamente");
+});
+

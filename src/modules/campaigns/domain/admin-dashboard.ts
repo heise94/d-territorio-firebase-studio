@@ -33,6 +33,7 @@ export interface AdminDay {
   id: string;
   date: string;
   label: string;
+  availableCount?: number;
   blocks: AdminBlock[];
 }
 export interface AdminOverview {
@@ -54,7 +55,7 @@ export interface AdminOverview {
     acceptedAvailabilityConflicts: number;
   };
   days: AdminDay[];
-  congregations: { id: string; name: string }[];
+  congregations: { id: string; name: string; participantCount?: number }[];
   updatedAt: string;
 }
 export interface AdminAcceptedLink {

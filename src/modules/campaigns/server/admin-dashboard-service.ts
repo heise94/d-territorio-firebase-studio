@@ -174,32 +174,60 @@ export class CampaignAdminDashboardService {
           for (const blockId of selected)
             if (source.activeBlocks.has(blockId))
               counts.set(blockId, (counts.get(blockId) ?? 0) + 1);
+
+      const congregationCounts = new Map<string, number>();
+      for (const reg of source.registrations.values()) {
+        if (reg.registrationStatus === "active" && registrationIsEligible(reg)) {
+          const profile = source.profiles.get(reg.participantId);
+          if (profile?.congregationId) {
+            congregationCounts.set(
+              profile.congregationId,
+              (congregationCounts.get(profile.congregationId) ?? 0) + 1,
+            );
+          }
+        }
+      }
+
       const days = [...source.days.values()]
         .filter((day) => day.active)
-        .map((day) => ({
-          id: day.id,
-          date: day.date,
-          label: day.label ?? "",
-          blocks: [...source.activeBlocks.values()]
-            .filter((block) => block.campaignDayId === day.id)
-            .map((block) => {
-              const coverage = calculateCoverage(
-                counts.get(block.id) ?? 0,
-                block.capacityOverride,
-                source.campaign.defaultCapacityPerBlock,
-              );
-              return {
-                id: block.id,
-                dayId: day.id,
-                date: day.date,
-                startTime: block.startTime,
-                endTime: block.endTime,
-                label: block.label ?? "",
-                coverage,
-                state: coverageState(coverage),
-              };
-            }),
-        }));
+        .map((day) => {
+          const dayParticipants = new Set<string>();
+          for (const [id, selected] of source.selections) {
+            if (active.has(id)) {
+              for (const blockId of selected) {
+                if (source.activeBlocks.get(blockId)?.campaignDayId === day.id) {
+                  dayParticipants.add(id);
+                }
+              }
+            }
+          }
+
+          return {
+            id: day.id,
+            date: day.date,
+            label: day.label ?? "",
+            availableCount: dayParticipants.size,
+            blocks: [...source.activeBlocks.values()]
+              .filter((block) => block.campaignDayId === day.id)
+              .map((block) => {
+                const coverage = calculateCoverage(
+                  counts.get(block.id) ?? 0,
+                  block.capacityOverride,
+                  source.campaign.defaultCapacityPerBlock,
+                );
+                return {
+                  id: block.id,
+                  dayId: day.id,
+                  date: day.date,
+                  startTime: block.startTime,
+                  endTime: block.endTime,
+                  label: block.label ?? "",
+                  coverage,
+                  state: coverageState(coverage),
+                };
+              }),
+          };
+        });
       const blocks = days.flatMap((day) => day.blocks);
       const accepted = visiblePairs(source).filter(
         (pair) => pair.status === "accepted",
@@ -239,7 +267,11 @@ export class CampaignAdminDashboardService {
         },
         days: orderedCoverageDays(days, false),
         congregations: [...source.congregations]
-          .map(([id, congregation]) => ({ id, name: congregation.name }))
+          .map(([id, congregation]) => ({
+            id,
+            name: congregation.name,
+            participantCount: congregationCounts.get(id) ?? 0,
+          }))
           .sort((a, b) => a.name.localeCompare(b.name, "es")),
         updatedAt: new Date().toISOString(),
       };
