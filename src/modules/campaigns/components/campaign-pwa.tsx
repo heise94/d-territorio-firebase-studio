@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Download } from "lucide-react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { Download, RefreshCw } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { isAppleMobile, isInstallDismissed } from "../lib/pwa-support";
 import { waitForCampaignUpdate } from "../lib/pwa-update";
@@ -10,6 +10,13 @@ type InstallPrompt = Event & {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: string }>;
 };
+type CampaignUpdateContextValue = { checkForUpdate: () => Promise<void>; checking: boolean; message: string };
+const CampaignUpdateContext = createContext<CampaignUpdateContextValue | null>(null);
+export function useCampaignUpdate() {
+  const value = useContext(CampaignUpdateContext);
+  if (!value) throw new Error("useCampaignUpdate debe usarse dentro de CampaignPwa");
+  return value;
+}
 const dismissalKey = "campanas-install-dismissed-at";
 export function CampaignPwa({ children }: { children: ReactNode }) {
   const [offline, setOffline] = useState(false),
@@ -20,6 +27,10 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
   const [updating, setUpdating] = useState(false);
   const [updateFailed, setUpdateFailed] = useState(false);
+  const [showUpdate, setShowUpdate] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [message, setMessage] = useState("");
+  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const updateAttempt = useRef<ReturnType<typeof waitForCampaignUpdate> | null>(
     null,
   );
@@ -87,10 +98,13 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
         .register("/sw.js", { scope: "/" })
         .then((registration) => {
           if (!mounted) return;
+          registrationRef.current = registration;
           const tracked = new Set<ServiceWorker>();
           const check = () => {
-            if (registration.waiting && navigator.serviceWorker.controller)
+            if (registration.waiting && navigator.serviceWorker.controller) {
               setWaiting(registration.waiting);
+              setShowUpdate(true);
+            }
           };
           const update = () => {
             const worker = registration.installing;
@@ -141,14 +155,9 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
   }
   async function update() {
     if (!waiting || updating || updateAttempt.current) return;
-    if (
-      !window.confirm(
-        "Actualizar recargará la aplicación. Los formularios sin enviar no se guardarán. ¿Continuar?",
-      )
-    )
-      return;
     setUpdating(true);
     setUpdateFailed(false);
+    setMessage("");
     const attempt = waitForCampaignUpdate(
       navigator.serviceWorker,
       waiting,
@@ -160,7 +169,30 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
     if (result === "cancelled") return;
     setUpdating(false);
     if (result === "ready") reloadOnce();
-    else setUpdateFailed(true);
+    else {
+      setUpdateFailed(true);
+      setMessage("La actualización no terminó. Puedes recargar la aplicación.");
+    }
+  }
+  async function checkForUpdate() {
+    if (checking) return;
+    setChecking(true);
+    setMessage("");
+    try {
+      if (!navigator.onLine || !("serviceWorker" in navigator)) throw new Error("unavailable");
+      const registration = registrationRef.current ?? await navigator.serviceWorker.getRegistration("/");
+      if (!registration) throw new Error("unavailable");
+      registrationRef.current = registration;
+      await registration.update();
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        setWaiting(registration.waiting);
+        setShowUpdate(true);
+      } else setMessage("✓ Estás usando la última versión");
+    } catch {
+      setMessage("No pudimos buscar actualizaciones. Revisa tu conexión e inténtalo nuevamente.");
+    } finally {
+      setChecking(false);
+    }
   }
   function reloadOnce() {
     if (reloadStarted.current) return;
@@ -187,28 +219,18 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
     );
   return (
     <>
-      {waiting && (
-        <aside
-          role="status"
-          className="mx-auto max-w-md border border-teal-700 bg-teal-50 p-4"
-        >
-          <p>
-            {updateFailed
-              ? "La actualización no terminó. Puedes recargar la aplicación para continuar."
-              : "Hay una actualización disponible."}
-          </p>
-          <button
-            className="min-h-12 font-semibold underline"
-            disabled={updating}
-            onClick={() => (updateFailed ? reloadOnce() : void update())}
-          >
-            {updating
-              ? "Actualizando…"
-              : updateFailed
-                ? "Recargar"
-                : "Actualizar"}
-          </button>
-        </aside>
+      {showUpdate && waiting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="campaign-update-title" className="w-full max-w-sm rounded-3xl bg-white p-6 text-slate-900 shadow-2xl">
+            <RefreshCw className="mb-4 h-8 w-8 text-teal-700" aria-hidden="true" />
+            <h2 id="campaign-update-title" className="text-xl font-bold">{updateFailed ? "No pudimos actualizar" : "Nueva versión disponible"}</h2>
+            <p className="mt-2 text-sm text-slate-600">{updateFailed ? "La actualización no terminó. Puedes recargar la aplicación." : "Hay una actualización de Campaña exhibidores lista para instalar."}</p>
+            <div className="mt-6 grid gap-2 sm:grid-cols-2">
+              <button type="button" className="min-h-12 rounded-xl border border-slate-300 px-4 font-semibold" disabled={updating} onClick={() => { setShowUpdate(false); setUpdateFailed(false); }}>Ahora no</button>
+              <button type="button" className="min-h-12 rounded-xl bg-teal-800 px-4 font-semibold text-white" disabled={updating} onClick={() => (updateFailed ? reloadOnce() : void update())}>{updating ? "Actualizando…" : updateFailed ? "Recargar" : "Actualizar ahora"}</button>
+            </div>
+          </section>
+        </div>
       )}
       {pathname === "/campanas" &&
         !installed &&
@@ -242,7 +264,9 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
             </div>
           </aside>
         )}
-      {children}
+      <CampaignUpdateContext.Provider value={{ checkForUpdate, checking, message }}>
+        {children}
+      </CampaignUpdateContext.Provider>
     </>
   );
 }

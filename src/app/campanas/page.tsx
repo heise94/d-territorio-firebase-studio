@@ -4,6 +4,8 @@ import { ParticipantNavigation } from "@/modules/campaigns/components/participan
 import { ParticipantProfile } from "@/modules/campaigns/components/participant-profile";
 import { campaignsAdminDb } from "@/modules/campaigns/server/firebase-admin";
 import { campaignCollections } from "@/modules/campaigns/lib/paths";
+import { APP_VERSION_LABEL } from "@/modules/campaigns/lib/app-version";
+import { CampaignUpdateFooter } from "@/modules/campaigns/components/campaign-update-footer";
 
 export const dynamic = "force-dynamic";
 export default async function CampaignParticipantPage() {
@@ -30,6 +32,7 @@ export default async function CampaignParticipantPage() {
         />
       </header>
       <ParticipantCampaigns />
+      <CampaignUpdateFooter label={APP_VERSION_LABEL} />
       <ParticipantNavigation active="Inicio" />
     </main>
   );

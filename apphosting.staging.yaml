@@ -5,6 +5,9 @@ env:
   - variable: CAMPAIGNS_ENV
     value: staging
     availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_APP_VERSION
+    value: "1.0.3"
+    availability: [BUILD, RUNTIME]
   - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
     secret: NEXT_PUBLIC_FIREBASE_VAPID_KEY
     availability: [BUILD, RUNTIME]
