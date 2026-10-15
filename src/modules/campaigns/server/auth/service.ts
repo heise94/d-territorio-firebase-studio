@@ -366,4 +366,49 @@ export class ParticipantAuthService {
       name: String(doc.data().name),
     }));
   }
+
+  /** Server-only helper for an organizer adding someone from the organization PWA. */
+  async findByPhone(phone: string) {
+    const index = (await this.phoneRef(phone).get()).data() as
+      | { participantId?: string }
+      | undefined;
+    if (!index?.participantId) return null;
+    const participant = (await this.participants().doc(index.participantId).get())
+      .data() as Participant | undefined;
+    return participant?.active ? participant : null;
+  }
+
+  /** Creates a normal participant account without creating a device session. */
+  async createForOrganizer(
+    input: { fullName: string; phone: string; pin: string; congregationId: string },
+    organizerParticipantId: string,
+  ) {
+    await this.limit("organizer-create-participant", organizerParticipantId, 10);
+    const pinHash = await hashPin(this.secret, input.pin);
+    const ref = this.participants().doc();
+    const timestamp = Timestamp.fromMillis(this.now());
+    const participant: Participant = {
+      id: ref.id,
+      fullName: input.fullName,
+      phoneNormalized: input.phone,
+      pinHash,
+      congregationId: input.congregationId,
+      active: true,
+      sessionVersion: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    await this.db.runTransaction(async (tx) => {
+      const [index, congregation] = await Promise.all([
+        tx.get(this.phoneRef(input.phone)),
+        tx.get(this.db.collection(campaignCollections.congregations).doc(input.congregationId)),
+      ]);
+      if (index.exists || congregation.data()?.active !== true)
+        throw registrationFailure();
+      tx.create(this.phoneRef(input.phone), { participantId: participant.id });
+      tx.create(ref, participant);
+      this.audit(tx, "participant_created_by_organizer", participant.id);
+    });
+    return participant;
+  }
 }

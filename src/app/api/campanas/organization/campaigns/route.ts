@@ -1,0 +1,8 @@
+import { NextRequest } from "next/server";
+import { organizationResponse, organizationFailure, organizationService, organizationToken } from "@/modules/campaigns/server/organization-http";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export async function GET(request: NextRequest) {
+  try { return organizationResponse({ campaigns: await organizationService().campaigns(organizationToken(request)) }); }
+  catch (error) { return organizationFailure(error); }
+}

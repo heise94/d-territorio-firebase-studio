@@ -2,7 +2,7 @@
 import { campaignFetch } from "../lib/campaign-fetch";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { loginSchema, registrationSchema } from "../schemas/participant-auth";
 
@@ -14,6 +14,7 @@ export function ParticipantAuthForm({
   register?: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [congregations, setCongregations] = useState<
@@ -82,7 +83,11 @@ export function ParticipantAuthForm({
       const result = await reply.json();
       if (!reply.ok) throw new Error(result.error);
       formElement.reset();
-      router.replace("/campanas");
+      router.replace(
+        !register && searchParams.get("modo") === "organizacion"
+          ? "/campanas/organizacion"
+          : "/campanas",
+      );
       router.refresh();
     } catch (failure) {
       setError(
