@@ -62,6 +62,13 @@ test("la UI participante no renderiza cifras de cobertura", async () => {
   assert.match(source, /Falta apoyo/);
 });
 
+test("Mi disponibilidad conserva la congregación de la cuenta sin mostrar un selector", async () => {
+  const source = await readFile("src/modules/campaigns/components/availability-form.tsx", "utf8");
+  assert.match(source, /congregationId: view\.congregationId \?\? ""/);
+  assert.doesNotMatch(source, /<select|Selecciona tu congregación/);
+  assert.match(source, /Tu congregación no está incluida en esta campaña/);
+});
+
 test("Cobertura de Organización no duplica horarios en tarjetas amarillas", async () => {
   const source = await readFile("src/modules/campaigns/components/organization-pwa.tsx", "utf8");
   assert.doesNotMatch(source, /missing\.map\(/);

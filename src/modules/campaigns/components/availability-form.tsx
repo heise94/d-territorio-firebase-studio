@@ -19,7 +19,6 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
   const router = useRouter();
   const [view, setView] = useState<RegistrationView | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [congregationId, setCongregationId] = useState("");
   const [maxTurns, setMaxTurns] = useState<MaxTurns>(1);
   const [pairs, setPairs] = useState<PairRequestDTO[]>([]);
   const [pairBlock, setPairBlock] = useState<{ id: string; label: string } | null>(null);
@@ -42,7 +41,6 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
   }, [campaignId]);
   const apply = useCallback((next: RegistrationView) => {
     setView(next);
-    setCongregationId(next.congregationId ?? "");
     setMaxTurns(next.campaign.registration?.maxTurns ?? 1);
     setSelected(new Set(next.days.flatMap((day) => day.blocks.filter((block) => block.selected).map((block) => block.id))));
   }, []);
@@ -58,9 +56,9 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
     event.preventDefault();
     if (!view) return;
     setError(""); setSaved(false);
-    const input = { congregationId, maxTurns, timeBlockIds: [...selected] };
+    const input = { congregationId: view.congregationId ?? "", maxTurns, timeBlockIds: [...selected] };
     if (!saveRegistrationSchema.safeParse(input).success) {
-      setError("Selecciona tu congregación y revisa los horarios.");
+      setError(view.congregationId ? "Revisa los horarios seleccionados." : "Tu congregación no está incluida en esta campaña. Contacta a la organización.");
       return;
     }
     setSaving(true);
@@ -82,8 +80,7 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
   const editable = view.campaign.status === "registration_open" &&
     (!view.campaign.registration || view.campaign.registration.registrationStatus === "active");
   const initial = new Set(view.days.flatMap((day) => day.blocks.filter((block) => block.selected).map((block) => block.id)));
-  const dirty = congregationId !== (view.congregationId ?? "") ||
-    maxTurns !== (view.campaign.registration?.maxTurns ?? 1) || selected.size !== initial.size ||
+  const dirty = maxTurns !== (view.campaign.registration?.maxTurns ?? 1) || selected.size !== initial.size ||
     [...selected].some((id) => !initial.has(id));
   const pairFor = (id: string) => pairs.find((pair) => pair.timeBlock?.id === id && ["pending", "accepted"].includes(pair.status));
 
@@ -92,13 +89,8 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
       <h1 className="text-4xl font-bold tracking-tight">Mi disponibilidad</h1>
       <p className="text-base leading-6 text-[var(--campaign-muted)]">Marca todos los horarios en los que podrías participar. Esto no significa que quedarás asignado en todos.</p>
       {!editable && <p className="campaign-attention">Las inscripciones están cerradas. Puedes revisar tu disponibilidad, pero no modificarla.</p>}
+      {editable && !view.congregationId && <p className="campaign-attention">Tu congregación no está incluida en esta campaña. Contacta a la organización.</p>}
     </header>
-    {!view.campaign.registration && <label className="block font-semibold">Congregación
-      <select required value={congregationId} onChange={(event) => { setCongregationId(event.target.value); setSaved(false); }} className="mt-2 min-h-12 w-full rounded-xl border border-[var(--campaign-line)] bg-white px-3">
-        <option value="">Selecciona tu congregación</option>
-        {view.congregations.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-      </select>
-    </label>}
     <fieldset disabled={!editable || saving} className="space-y-4">
       {view.days.filter((day) => day.blocks.length).map((day) => <section key={day.id} className="space-y-2">
         <div className="flex min-h-[68px] items-center gap-3 rounded-2xl bg-[var(--campaign-mint)] px-4 py-2">
