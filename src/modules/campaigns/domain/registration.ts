@@ -84,12 +84,10 @@ export interface RegistrationView {
 /** Qualitative signal for participants; coverage counts stay server-side. */
 export function participantCoverageState(
   availableCount: number,
-  override?: number,
-  defaultCapacity?: number,
+  minimumParticipants?: number,
 ): ParticipantCoverageState {
-  const capacity = override ?? defaultCapacity;
-  if (capacity === undefined || capacity === null) return "normal";
-  const missing = capacity - availableCount;
+  if (!minimumParticipants || minimumParticipants <= 0) return "normal";
+  const missing = minimumParticipants - availableCount;
   if (missing <= 0) return "covered";
   if (missing <= 3) return "last_slots";
   if (missing <= 8) return "normal";

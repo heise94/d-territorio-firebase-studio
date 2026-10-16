@@ -123,6 +123,20 @@ before(async () => {
         ...(override !== undefined ? { capacityOverride: override } : {}),
       });
   }
+  await db.collection("points").doc("open-early-point").set({
+    campaignId: "open",
+    name: "Punto de prueba",
+    active: true,
+    minParticipants: 1,
+    maxParticipants: 1,
+    sortOrder: 1,
+  });
+  await db.collection("blockPoints").doc("open-early-point-association").set({
+    campaignId: "open",
+    timeBlockId: "early",
+    pointId: "open-early-point",
+    active: true,
+  });
   a = await auth.register({
     fullName: "Persona ficticia A",
     phone: "913111111",

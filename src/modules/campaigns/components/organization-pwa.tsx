@@ -1230,18 +1230,6 @@ function Coverage({ id, open }: { id: string; open: (x: string) => void }) {
         {blocks.length} horarios · {blocks.length - missing.length} cubiertos ·{" "}
         {missing.length} necesitan apoyo
       </p>
-      {missing.map((b) => (
-        <button
-          key={b.id}
-          className="w-full rounded-xl bg-amber-50 p-4 text-left"
-          onClick={() => see(b)}
-        >
-          <b>
-            {date(b.d.date)} · {b.startTime}–{b.endTime}
-          </b>
-          <span className="block">Faltan {b.missing}</span>
-        </button>
-      ))}
       {coverage.map((d) => (
         <article key={d.id} className="campaign-surface p-4">
           <b>{date(d.date)}</b>

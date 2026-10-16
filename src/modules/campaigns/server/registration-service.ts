@@ -10,7 +10,10 @@ import type {
   CampaignDay,
   TimeBlock,
   Congregation,
+  Point,
+  BlockPoint,
 } from "../domain/types";
+import { calculateBlockCapacity } from "../domain/point-capacity";
 import type { ParticipantDTO } from "../domain/participant";
 import {
   participantCoverageState,
@@ -123,21 +126,34 @@ export class CampaignRegistrationService {
     if (!campaignDoc.exists)
       throw new AuthError(404, "La campaña no está disponible.");
     const campaign = { ...campaignDoc.data(), id: campaignDoc.id } as Campaign;
-    const days = await tx.get(
-      this.db
-        .collection(collections.campaignDays)
-        .where("campaignId", "==", campaignId),
-    );
-    const blocks = await tx.get(
-      this.db
-        .collection(collections.timeBlocks)
-        .where("campaignId", "==", campaignId),
-    );
-    const associations = await tx.get(
-      this.db
-        .collection(collections.campaignCongregations)
-        .where("campaignId", "==", campaignId),
-    );
+    const [days, blocks, associations, pointDocs, blockPointDocs] =
+      await Promise.all([
+        tx.get(
+          this.db
+            .collection(collections.campaignDays)
+            .where("campaignId", "==", campaignId),
+        ),
+        tx.get(
+          this.db
+            .collection(collections.timeBlocks)
+            .where("campaignId", "==", campaignId),
+        ),
+        tx.get(
+          this.db
+            .collection(collections.campaignCongregations)
+            .where("campaignId", "==", campaignId),
+        ),
+        tx.get(
+          this.db
+            .collection(collections.points)
+            .where("campaignId", "==", campaignId),
+        ),
+        tx.get(
+          this.db
+            .collection(collections.blockPoints)
+            .where("campaignId", "==", campaignId),
+        ),
+      ]);
     const congregations: { id: string; name: string }[] = [];
     for (const id of new Set(
       associations.docs.map((doc) => doc.data().congregationId as string),
@@ -163,6 +179,12 @@ export class CampaignRegistrationService {
       campaign,
       activeDays,
       activeBlocks,
+      points: pointDocs.docs.map(
+        (doc) => ({ ...doc.data(), id: doc.id }) as Point,
+      ),
+      blockPoints: blockPointDocs.docs.map(
+        (doc) => ({ ...doc.data(), id: doc.id }) as BlockPoint,
+      ),
       congregations: congregations.sort((a, b) =>
         a.name.localeCompare(b.name, "es"),
       ),
@@ -236,8 +258,12 @@ export class CampaignRegistrationService {
                   selected: selected.has(block.id),
                   coverageState: participantCoverageState(
                     counts.get(block.id) ?? 0,
-                    block.capacityOverride,
-                    config.campaign.defaultCapacityPerBlock,
+                    calculateBlockCapacity(
+                      campaignId,
+                      block.id,
+                      config.points,
+                      config.blockPoints,
+                    ).minParticipants,
                   ),
                 }))
                 .sort((a, b) => a.startTime.localeCompare(b.startTime)),
