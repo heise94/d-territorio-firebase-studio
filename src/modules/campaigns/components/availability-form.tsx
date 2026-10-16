@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, Clock3, UsersRound } from "lucide-react";
+import { CalendarDays, Check, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -101,13 +101,18 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
           const checked = selected.has(block.id);
           const pair = pairFor(block.id);
           const coverageMessage = block.coverageState === "covered"
-            ? { label: "Cupos cubiertos", className: "bg-slate-100 text-slate-700" }
+            ? { label: "Cupos cubiertos", className: "availability-state--covered" }
             : block.coverageState === "last_slots"
-              ? { label: "Últimos cupos", className: "bg-amber-50 text-amber-800" }
+              ? { label: "Últimos cupos", className: "availability-state--last-slots" }
               : block.coverageState === "needs_support"
-                ? { label: "Falta apoyo", className: "bg-teal-50 text-teal-800" }
+                ? { label: "Falta apoyo", className: "availability-state--needs-support" }
                 : null;
-          return <article key={block.id} className={`rounded-2xl border px-3 py-2 shadow-sm ${checked ? "border-[var(--campaign-primary)] bg-[#f5fcfa]" : "border-[var(--campaign-line)] bg-white"}`}>
+          const coverageCardClass = block.coverageState === "needs_support"
+            ? "availability-block--needs-support"
+            : block.coverageState === "last_slots"
+              ? "availability-block--last-slots"
+              : "";
+          return <article key={block.id} className={`availability-block rounded-2xl border px-3 py-2 shadow-sm ${coverageCardClass} ${checked ? "availability-block--selected border-[var(--campaign-primary)] bg-[#f5fcfa]" : "border-[var(--campaign-line)] bg-white"}`}>
             <label className="flex min-h-[64px] cursor-pointer items-center gap-3">
               <input type="checkbox" className="peer sr-only" checked={checked} onChange={(event) => {
                 const next = new Set(selected);
@@ -118,9 +123,8 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
                 {checked && <Check aria-hidden="true" className="h-6 w-6" />}
               </span>
               <span className="min-w-0 flex-1"><b className="text-lg leading-tight">{block.startTime} – {block.endTime}</b><span className="block text-sm text-[var(--campaign-muted)]">Puedo participar</span></span>
-              <Clock3 aria-hidden="true" className="h-5 w-5 shrink-0 text-[var(--campaign-muted)]" />
+              {coverageMessage && <span className={`availability-state ${coverageMessage.className}`}>{coverageMessage.label}</span>}
             </label>
-            {coverageMessage && <p className={`mx-1 mb-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${coverageMessage.className}`}>{coverageMessage.label}</p>}
             {checked && <div className="border-t border-[var(--campaign-line)] pt-1">
               {pair ? <p className="flex min-h-11 items-center gap-2 text-sm"><UsersRound aria-hidden="true" className="h-4 w-4" /><span><b>{pair.other.fullName}</b> · {pair.status === "accepted" ? "Confirmado" : "Esperando confirmación"}</span></p> :
                 <button type="button" className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[var(--campaign-primary-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--campaign-primary)]" onClick={() => {

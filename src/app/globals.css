@@ -158,3 +158,79 @@
     @apply bg-background text-foreground;
   }
 }
+
+.availability-block {
+  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+.availability-block--needs-support {
+  border-color: #70c8b8;
+  background: #effbf8;
+  box-shadow: 0 3px 14px rgb(7 94 85 / 10%);
+  animation: availability-nudge 520ms ease-out both;
+}
+.availability-block--last-slots {
+  border-color: #f1c27b;
+  background: #fffaf0;
+}
+.availability-block--selected.availability-block--needs-support {
+  background: #e3f7f1;
+  box-shadow: 0 0 0 1px rgb(8 127 114 / 18%), 0 4px 16px rgb(7 94 85 / 12%);
+}
+.availability-block--selected.availability-block--last-slots {
+  background: #fff5df;
+  box-shadow: 0 0 0 1px rgb(217 119 6 / 14%);
+}
+.availability-state {
+  display: inline-flex;
+  max-width: 42%;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.625rem;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.availability-state--needs-support {
+  border-color: #65b9a8;
+  background: #087f72;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgb(7 94 85 / 18%);
+  animation: availability-badge-nudge 520ms ease-out both;
+}
+.availability-state--last-slots {
+  border-color: #edb55f;
+  background: #fff0c9;
+  color: #8a4308;
+  animation: availability-badge-pop 480ms ease-out both;
+}
+.availability-state--covered {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+}
+@media (min-width: 640px) {
+  .availability-state { max-width: none; padding-inline: 0.75rem; font-size: 0.875rem; }
+}
+@keyframes availability-nudge {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-2px); }
+  40%, 80% { transform: translateX(2px); }
+}
+@keyframes availability-badge-nudge {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-2px); }
+  40%, 80% { transform: translateX(2px); }
+}
+@keyframes availability-badge-pop {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.045); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .availability-block,
+  .availability-state { animation: none !important; transition: none !important; }
+}

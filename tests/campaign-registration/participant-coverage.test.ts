@@ -69,6 +69,17 @@ test("Mi disponibilidad conserva la congregación de la cuenta sin mostrar un se
   assert.match(source, /Tu congregación no está incluida en esta campaña/);
 });
 
+test("estados de cobertura se muestran a la derecha del horario y respetan movimiento reducido", async () => {
+  const component = await readFile("src/modules/campaigns/components/availability-form.tsx", "utf8");
+  const styles = await readFile("src/app/globals.css", "utf8");
+  assert.match(component, /availability-state \$\{coverageMessage\.className\}/);
+  assert.doesNotMatch(component, /Clock3|mx-1 mb-1 inline-flex/);
+  assert.match(styles, /availability-state--needs-support[\s\S]*?animation: availability-badge-nudge 520ms/);
+  assert.match(styles, /availability-state--last-slots[\s\S]*?animation: availability-badge-pop 480ms/);
+  assert.match(styles, /availability-state--covered[\s\S]*?font-weight: 600/);
+  assert.match(styles, /prefers-reduced-motion: reduce[\s\S]*?animation: none !important/);
+});
+
 test("Cobertura de Organización no duplica horarios en tarjetas amarillas", async () => {
   const source = await readFile("src/modules/campaigns/components/organization-pwa.tsx", "utf8");
   assert.doesNotMatch(source, /missing\.map\(/);
