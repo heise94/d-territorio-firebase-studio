@@ -1,0 +1,29 @@
+"use client";
+import { ExternalLink, Map, MapPin, MessageCircle, PackageCheck, Phone, RotateCcw, ScrollText, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { campaignFetch } from "../lib/campaign-fetch";
+import type { ParticipantInformation } from "../server/information-service";
+import { CampaignExhibitorIcon } from "./campaign-exhibitor-icon";
+
+const outbound = (url?: string) => url && /^https:\/\//i.test(url) ? url : undefined;
+function MapLink({ href, children }: { href?: string; children: React.ReactNode }) {
+  const valid = outbound(href);
+  return valid ? <a href={valid} target="_blank" rel="noreferrer" className="campaign-primary w-full gap-2"><MapPin className="h-5 w-5" />{children}<ExternalLink className="ml-auto h-4 w-4" /></a> : null;
+}
+function Logistics({ title, data, returning = false }: { title: string; data?: ParticipantInformation["pickup"]; returning?: boolean }) {
+  if (!data || !Object.values(data).some(Boolean)) return null;
+  return <section className="campaign-surface space-y-3"><div className="flex gap-3"><div className="campaign-icon-surface">{returning ? <RotateCcw /> : <CampaignExhibitorIcon className="h-9 w-9" />}</div><div><h2 className="text-xl font-bold">{title}</h2>{data.location && <p className="text-[var(--campaign-muted)]">{data.location}</p>}</div></div>{data.schedule && <p>{data.schedule}</p>}{data.instructions && <p className="text-[var(--campaign-muted)]">{data.instructions}</p>}<MapLink href={data.mapUrl}>Abrir ubicación</MapLink></section>;
+}
+export function ParticipantInformationView() {
+  const [campaigns, setCampaigns] = useState<ParticipantInformation[]>([]); const [error, setError] = useState("");
+  useEffect(() => { let active = true; void campaignFetch("/api/campanas/participant/information", { cache: "no-store" }).then(async (reply) => { const data = await reply.json(); if (!reply.ok) throw new Error(data.error); if (active) setCampaigns(data); }).catch((e) => active && setError(e instanceof Error ? e.message : "No pudimos cargar la información.")); return () => { active = false; }; }, []);
+  if (error) return <p role="alert">{error}</p>;
+  if (!campaigns.length) return <p role="status">Cargando información de la campaña…</p>;
+  return <div className="space-y-5">{campaigns.map((campaign) => <section key={campaign.id} className="space-y-5"><header><h1 className="text-4xl font-bold tracking-tight">Información</h1><p className="mt-2 text-[var(--campaign-muted)]">{campaign.name}</p>{campaign.intro && <p className="mt-3 leading-7">{campaign.intro}</p>}</header>
+    {campaign.generalMapUrl && <section className="campaign-mint space-y-4"><div className="flex gap-3"><div className="campaign-icon-surface"><Map /></div><div><h2 className="text-xl font-bold">Mapa de la campaña</h2><p className="text-[var(--campaign-muted)]">Consulta los puntos, accesos y referencias de la campaña.</p></div></div><MapLink href={campaign.generalMapUrl}>Abrir mapa</MapLink></section>}
+    {!!campaign.points.length && <section className="campaign-surface space-y-4"><div className="flex gap-3"><div className="campaign-icon-surface"><MapPin /></div><div><h2 className="text-xl font-bold">Puntos y exhibidores</h2><p className="text-[var(--campaign-muted)]">Ubicación y referencias de cada punto.</p></div></div><div className="space-y-2">{campaign.points.map((point, index) => <article id={`punto-${point.id}`} key={point.id} className="rounded-2xl border border-[var(--campaign-line)] p-4"><div className="flex items-start gap-3"><span className="campaign-icon-surface h-10 w-10 rounded-full text-sm font-bold">{index + 1}</span><div className="min-w-0 flex-1"><h3 className="font-bold">{point.name}</h3>{point.locationText && <p className="text-[var(--campaign-muted)]">{point.locationText}</p>}{point.description && <p className="mt-1 text-sm text-[var(--campaign-muted)]">{point.description}</p>}</div></div>{point.mapUrl && <MapLink href={point.mapUrl}>Ver ubicación</MapLink>}</article>)}</div></section>}
+    <Logistics title="Retiro de exhibidores" data={campaign.pickup} /><Logistics title="Devolución" data={campaign.returnInfo} returning />
+    {!!campaign.contacts.length && <section className="campaign-attention space-y-4"><div className="flex gap-3"><div className="campaign-icon-surface"><Users /></div><div><h2 className="text-xl font-bold">¿Necesitas ayuda?</h2><p className="text-[var(--campaign-muted)]">Contacta al equipo organizador.</p></div></div><div className="grid gap-3 sm:grid-cols-2">{campaign.contacts.map((contact) => <article key={`${contact.name}-${contact.phone}`} className="rounded-2xl bg-white p-4"><p className="font-bold">{contact.name}</p>{contact.role && <p className="text-sm text-[var(--campaign-muted)]">{contact.role}</p>}<div className="mt-3 flex gap-2">{contact.allowCall && <a className="campaign-secondary flex-1 gap-2 px-3" href={`tel:${contact.phone}`}><Phone className="h-4 w-4" />Llamar</a>}{contact.allowWhatsApp && <a className="campaign-secondary flex-1 gap-2 px-3" href={`https://wa.me/${contact.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" />WhatsApp</a>}</div></article>)}</div></section>}
+    {!!campaign.notes.length && <section className="campaign-surface space-y-3"><div className="flex gap-3"><div className="campaign-icon-surface"><ScrollText /></div><div><h2 className="text-xl font-bold">Indicaciones importantes</h2><p className="text-[var(--campaign-muted)]">Para una mejor experiencia durante la campaña.</p></div></div>{campaign.notes.map((note) => <details key={note.title} className="rounded-2xl border border-[var(--campaign-line)] p-4"><summary className="cursor-pointer font-semibold">{note.title}</summary>{note.body && <p className="mt-2 text-[var(--campaign-muted)]">{note.body}</p>}</details>)}</section>}
+  </section>)}</div>;
+}

@@ -1,0 +1,108 @@
+.program {
+  background: white;
+  color: #111;
+}
+.status {
+  margin: 16px 0;
+  padding: 12px;
+  border: 2px solid #333;
+  font-weight: 700;
+  font-size: 20px;
+}
+.day {
+  margin: 28px 0;
+}
+.scroll {
+  overflow-x: auto;
+}
+.matrix {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 1100px;
+}
+.matrix th,
+.matrix td {
+  padding: 12px;
+  border: 1px solid #555;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.matrix thead th {
+  background: #f1f5f9;
+}
+.hour {
+  position: sticky;
+  left: 0;
+  width: 140px;
+  background: white;
+  z-index: 1;
+}
+.slot + .slot {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #ddd;
+}
+.noPrint {
+  margin-bottom: 20px;
+}
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+  .program,
+  .program * {
+    visibility: visible;
+  }
+  .program {
+    position: static;
+    width: 100%;
+    padding: 0;
+    margin: 0 !important;
+    font-size: 11px;
+  }
+  .program h1 {
+    font-size: 20px;
+  }
+  .program h2 {
+    font-size: 15px;
+  }
+  .status {
+    font-size: 16px;
+    padding: 6px;
+  }
+  .noPrint {
+    display: none !important;
+  }
+  .scroll {
+    overflow: visible;
+  }
+  .matrix {
+    min-width: 0;
+    width: 100%;
+  }
+  .matrix th,
+  .matrix td {
+    padding: 5px;
+    border-color: black;
+  }
+  .matrix thead {
+    display: table-header-group;
+  }
+  .matrix tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .hour {
+    position: static;
+    width: 85px;
+  }
+  .day ~ .day {
+    break-before: page;
+  }
+  .slot + .slot {
+    margin-top: 6px;
+    padding-top: 6px;
+  }
+}

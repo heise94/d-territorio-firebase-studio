@@ -1,0 +1,15 @@
+@media print {
+  body:has(.campaign-program-print) {
+    background: white !important;
+    color: black !important;
+  }
+  .campaign-program-main {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  :where(body:has(.campaign-program-print) *) {
+    visibility: hidden;
+  }
+}

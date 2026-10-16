@@ -1,0 +1,10 @@
+env:
+  - variable: CAMPAIGNS_ROUTING_BACKEND_HOSTS
+    value: campanas-production-xbwwbxvtna-uc.a.run.app,campanas-production-739711880739.us-central1.run.app
+    availability: [BUILD, RUNTIME]
+  - variable: CAMPAIGNS_ENV
+    value: production
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    secret: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    availability: [BUILD, RUNTIME]

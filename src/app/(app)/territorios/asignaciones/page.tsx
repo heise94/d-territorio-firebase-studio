@@ -37,8 +37,8 @@ import { format, parse, differenceInHours, isBefore, addHours, startOfDay, diffe
 import { es } from "date-fns/locale";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Territory, ReportedAssignmentData, UserAssignment, SingleTerritoryReportDetails, AdditionalTerritoryInfo, TerritoryType, AssignmentStatus, PreachingAssignedType } from "@/types";
-import { ReportarPredicacionDialog } from "@/modules/territories/components/asignaciones/reportar-predicacion-dialog";
-import { SolicitarTerritorioDialog } from "@/modules/territories/components/asignaciones/solicitar-territorio-dialog";
+import { ReportarPredicacionDialog } from "@/components/asignaciones/reportar-predicacion-dialog";
+import { SolicitarTerritorioDialog } from "@/components/asignaciones/solicitar-territorio-dialog";
 import { Timestamp, collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, orderBy, getDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { usePermissions } from "@/hooks/use-permissions";

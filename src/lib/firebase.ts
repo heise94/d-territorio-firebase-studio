@@ -1,7 +1,10 @@
-
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { getAuth, Auth, connectAuthEmulator } from "firebase/auth";
+import {
+  getFirestore,
+  Firestore,
+  connectFirestoreEmulator,
+} from "firebase/firestore";
 // import { getStorage, FirebaseStorage } from 'firebase/storage'; // Uncomment if storage is needed
 
 const firebaseConfig = {
@@ -19,21 +22,21 @@ let dbInstance: Firestore;
 // let storageInstance: FirebaseStorage;
 
 // Check for config completeness only on client-side during development
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
   const missingConfigKeys = Object.entries(firebaseConfig)
     .filter(([, value]) => !value) // Checks for undefined, null, empty string, 0, false
     .map(([key]) => key);
 
   if (missingConfigKeys.length > 0) {
     console.error(
-      `FIREBASE CONFIG ERROR: Firebase configuration is incomplete. Missing NEXT_PUBLIC_FIREBASE_ environment variables for: ${missingConfigKeys.join(', ')}. ` +
-      `Please ensure all required Firebase environment variables are correctly set in your .env.local file.`
+      `FIREBASE CONFIG ERROR: Firebase configuration is incomplete. Missing NEXT_PUBLIC_FIREBASE_ environment variables for: ${missingConfigKeys.join(", ")}. ` +
+        `Please ensure all required Firebase environment variables are correctly set in your .env.local file.`,
     );
   }
 }
 
 const isFirebaseConfigComplete = Object.values(firebaseConfig).every(
-  (value) => typeof value === 'string' && value.length > 0
+  (value) => typeof value === "string" && value.length > 0,
 );
 
 if (!getApps().length) {
@@ -44,7 +47,10 @@ if (!getApps().length) {
       dbInstance = getFirestore(app);
       // storageInstance = getStorage(app);
     } catch (e) {
-      console.error("Error initializing Firebase with (seemingly) complete config:", e);
+      console.error(
+        "Error initializing Firebase with (seemingly) complete config:",
+        e,
+      );
       // Fallback to dummy objects if init fails even with perceived complete config
       app = {} as FirebaseApp;
       authInstance = {} as Auth;
@@ -54,9 +60,9 @@ if (!getApps().length) {
   } else {
     console.warn(
       "FIREBASE WARNING: Firebase configuration in .env.local is incomplete (some NEXT_PUBLIC_FIREBASE_ variables are missing, null, or empty). " +
-      "Firebase client SDKs (Auth, Firestore) are using DUMMY objects. " +
-      "Authentication and database features WILL NOT WORK correctly. " +
-      "Please ensure all NEXT_PUBLIC_FIREBASE_ variables are correctly set in your .env.local file."
+        "Firebase client SDKs (Auth, Firestore) are using DUMMY objects. " +
+        "Authentication and database features WILL NOT WORK correctly. " +
+        "Please ensure all NEXT_PUBLIC_FIREBASE_ variables are correctly set in your .env.local file.",
     );
     app = {} as FirebaseApp;
     authInstance = {} as Auth;
@@ -68,7 +74,8 @@ if (!getApps().length) {
   // Ensure instances are correctly re-assigned if app already exists
   // This is especially important in HMR scenarios
   // And also if the first initialization (isFirebaseConfigComplete=false) resulted in dummy objects.
-  if (isFirebaseConfigComplete) { // Only try to get services if config is complete
+  if (isFirebaseConfigComplete) {
+    // Only try to get services if config is complete
     try {
       authInstance = getAuth(app);
       dbInstance = getFirestore(app);
@@ -79,12 +86,35 @@ if (!getApps().length) {
       dbInstance = {} as Firestore; // Fallback
       // storageInstance = {} as FirebaseStorage; // Fallback
     }
-  } else { // If config is not complete, ensure instances are dummies
+  } else {
+    // If config is not complete, ensure instances are dummies
     authInstance = {} as Auth;
     dbInstance = {} as Firestore;
     // storageInstance = {} as FirebaseStorage;
   }
 }
 
-export { app, authInstance as auth, dbInstance as db /*, storageInstance as storage */ };
+// Explicit local development only. A demo project cannot reach real Firebase.
+if (
+  typeof window !== "undefined" &&
+  process.env.NODE_ENV === "development" &&
+  process.env.NEXT_PUBLIC_FIREBASE_USE_EMULATORS === "true"
+) {
+  if (!firebaseConfig.projectId?.startsWith("demo-"))
+    throw new Error(
+      "Local emulator configuration requires a demo Firebase project.",
+    );
+  // Firebase preserves this flag across module reloads, preventing reconnection.
+  if (!authInstance.emulatorConfig) {
+    connectAuthEmulator(authInstance, "http://127.0.0.1:9099", {
+      disableWarnings: true,
+    });
+    connectFirestoreEmulator(dbInstance, "127.0.0.1", 8088);
+  }
+}
 
+export {
+  app,
+  authInstance as auth,
+  dbInstance as db /*, storageInstance as storage */,
+};

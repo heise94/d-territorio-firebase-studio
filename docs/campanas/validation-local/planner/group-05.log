@@ -1,0 +1,30 @@
+i  emulators: Starting emulators: auth, firestore
+i  emulators: Detected demo project ID "demo-campaign-auth", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node --require ./tests/campaign-auth/server-only.cjs --import tsx --test --test-name-pattern='^(?:Reserva/punto incompleto y dos documentos corruptos no cuentan doble turno|Rechazo servidor: slot inválido|Rechazo servidor: createdBy falsificado|Rechazo servidor: bloque ajeno|Rechazo servidor: punto ajeno|Rechazo servidor: inscripción ajena|Rechazo servidor: registro retirado|Rechazo servidor: perfil inactivo)$' tests/campaign-planner/integration.test.ts
+(node:9411) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Rechazo servidor: slot inválido (3797.061542ms)
+✔ Rechazo servidor: createdBy falsificado (66.068667ms)
+✔ Rechazo servidor: bloque ajeno (99.268209ms)
+✔ Rechazo servidor: punto ajeno (82.660208ms)
+✔ Rechazo servidor: inscripción ajena (71.223583ms)
+✔ Rechazo servidor: registro retirado (75.119708ms)
+✔ Rechazo servidor: perfil inactivo (66.546792ms)
+✔ Reserva/punto incompleto y dos documentos corruptos no cuentan doble turno (102.38475ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4712.655875
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  auth: Stopping Authentication Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator
+

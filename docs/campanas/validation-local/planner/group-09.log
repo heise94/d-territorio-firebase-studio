@@ -1,0 +1,23 @@
+i  emulators: Starting emulators: auth, firestore
+i  emulators: Detected demo project ID "demo-campaign-auth", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node --require ./tests/campaign-auth/server-only.cjs --import tsx --test --test-name-pattern='^(?:Dos UID: misma persona en puntos distintos solo un ganador)$' tests/campaign-planner/integration.test.ts
+(node:9707) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Dos UID: misma persona en puntos distintos solo un ganador (6790.146333ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7138.995334
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  auth: Stopping Authentication Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator
+

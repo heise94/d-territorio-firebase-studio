@@ -1,0 +1,9 @@
+# Campaña: simplificación del panel (staging)
+
+La página **Campaña** presenta información general, congregaciones participantes, equipo de campaña, opción de compañero y estado. La capacidad global y el máximo global de puntos se ocultan de esta página; sus campos persistidos se conservan mientras se diseña la capacidad mínima/máxima por punto en la tarea futura de «Horarios y puntos».
+
+La inscripción activa, un perfil activo y la disponibilidad vigente habilitan la participación sin revisión manual por congregación. El campo histórico `approvalStatus` se conserva sin cambiar los documentos existentes, pero no bloquea el pool ni el planner. Las inscripciones retiradas/canceladas continúan disponibles en vistas administrativas históricas, no en operaciones de asignación.
+
+`campaignTeams/{campaignId}` almacena un único `primaryRegistrationId`, una lista sin duplicados de `helperRegistrationIds` y una revisión para controlar concurrencia. Solamente `SUPER_ADMIN` puede cambiar el equipo; `CAMPAIGN_ADMIN` puede consultarlo. Los candidatos son participantes activos de esa campaña. Buscar por teléfono ocurre en el servidor; el número no se devuelve en los resultados. La colección permanece cerrada al cliente en Firestore Rules. Asignar equipo **no** crea cuentas Firebase, claims ni grants `organizerUsers`: el acceso administrativo desde la cuenta participante está pendiente de implementación.
+
+La navegación, página y endpoints de revisión por congregación dejan de funcionar en el flujo nuevo; los enlaces antiguos de invitación tampoco generan grants nuevos. No se borran registros, invitaciones ni grants históricos. El tipo legacy `CONGREGATION_RESPONSIBLE`, el servicio de revisión, el componente de revisión y los campos `approvalStatus` siguen en código/datos por compatibilidad y se retirarán en una migración separada y auditada. No hay «Modo organización» en la PWA en esta entrega.
