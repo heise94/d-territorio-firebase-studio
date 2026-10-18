@@ -11,7 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { logoutParticipant } from "../lib/participant-logout";
-import { formatPersonName } from "../lib/presentation";
+
 
 export function ParticipantProfile({
   fullName,
@@ -68,7 +68,7 @@ export function ParticipantProfile({
         <dl className="space-y-4">
           <div>
             <dt className="text-sm text-slate-600">Nombre</dt>
-            <dd className="break-words text-lg font-bold">{formatPersonName(fullName)}</dd>
+            <dd className="break-words text-lg font-bold">{fullName}</dd>
           </div>
           <div>
             <dt className="text-sm text-slate-600">Congregación</dt>

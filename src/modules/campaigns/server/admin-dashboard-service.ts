@@ -23,6 +23,7 @@ import {
   adminUpdateParticipantNameSchema,
 } from "../schemas/admin-dashboard-schemas";
 import { formatPersonName } from "../lib/presentation";
+import { reserveAvailabilityPlaces } from "./availability-capacity";
 import { phoneSchema } from "../schemas/participant-auth";
 import { AuthError } from "./auth/service";
 import { requireCampaignAccess } from "./campaign-access";
@@ -527,6 +528,7 @@ export class CampaignAdminDashboardService {
       const now = Timestamp.now();
 
       // Apply block availability changes
+      await reserveAvailabilityPlaces(tx, this.db, campaignId, parsed.data.blockChanges.filter((change) => change.available && !previousAvailabilities[change.blockId]).map((change) => change.blockId));
       for (const change of parsed.data.blockChanges) {
         const docId = availabilityId(registrationId, change.blockId);
         const docRef = this.db
@@ -591,7 +593,7 @@ export class CampaignAdminDashboardService {
       throw new AuthError(400, "Inscripción inválida.");
     const parsed = adminUpdateParticipantNameSchema.safeParse(input);
     if (!parsed.success) throw new AuthError(400, "Nombre inválido.");
-    const fullName = formatPersonName(parsed.data.fullName);
+    const fullName = parsed.data.fullName.trim().replace(/\s+/g, " ");
     return this.db.runTransaction(async (tx) => {
       const registrationRef = this.db.collection(campaignCollections.campaignRegistrations).doc(registrationId);
       const registration = await tx.get(registrationRef);
@@ -600,7 +602,7 @@ export class CampaignAdminDashboardService {
       const profileRef = this.db.collection(campaignCollections.participants).doc(registration.data()!.participantId);
       const profile = await tx.get(profileRef);
       if (!profile.exists) throw new AuthError(404, "Cuenta del participante no disponible.");
-      tx.update(profileRef, { fullName, updatedAt: Timestamp.now() });
+      tx.update(profileRef, { fullName, preserveNameCase: true, updatedAt: Timestamp.now() });
       tx.create(this.db.collection(campaignCollections.auditLogs).doc(), {
         campaignId,
         actorId: access.uid,

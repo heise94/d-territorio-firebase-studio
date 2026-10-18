@@ -50,6 +50,12 @@ export function DashboardParticipants({
 }) {
   const [draft, setDraft] = useState(filters);
   useEffect(() => setDraft(filters), [filters]);
+  useEffect(() => {
+    const q = draft.q?.trim() ?? "";
+    if ((q.length > 0 && q.length < 3) || q === (filters.q ?? "")) return;
+    const timer = setTimeout(() => onFilters({ ...draft, q, page: 1 }), 300);
+    return () => clearTimeout(timer);
+  }, [draft.q, filters.q]);
 
   const change = (key: keyof AdminParticipantFilters, value: string) =>
     setDraft((previous) => ({ ...previous, [key]: value || undefined }));

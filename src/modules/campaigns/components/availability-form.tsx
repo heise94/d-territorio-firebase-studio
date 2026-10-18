@@ -9,7 +9,8 @@ import type { MaxTurns, RegistrationView } from "../domain/registration";
 import type { PairRequestDTO, PairRequestView } from "../domain/pair-request";
 import { saveRegistrationSchema } from "../schemas/registration-schemas";
 import { PairRequestSheet } from "./pair-request-sheet";
-import { formatPersonName } from "../lib/presentation";
+import { AvailabilitySummary } from "./availability-summary";
+
 
 function dayName(date: string) {
   const formatted = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${date}T12:00:00`)).replace(",", "");
@@ -28,6 +29,7 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     const response = await campaignFetch(`/api/campanas/participant/campaigns/${campaignId}`, { cache: "no-store" });
@@ -69,7 +71,7 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
-      apply(await load()); await loadPairs(); setSaved(true);
+      apply(await load()); await loadPairs(); setSaved(true); setEditing(false);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "No pudimos guardar tu disponibilidad.");
     } finally { setSaving(false); }
@@ -84,6 +86,14 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
   const dirty = maxTurns !== (view.campaign.registration?.maxTurns ?? 1) || selected.size !== initial.size ||
     [...selected].some((id) => !initial.has(id));
   const pairFor = (id: string) => pairs.find((pair) => pair.timeBlock?.id === id && ["pending", "accepted"].includes(pair.status));
+
+  if (view.campaign.registration && !editing) return <section className="space-y-4 pb-20">
+    <header><h1 className="text-4xl font-bold tracking-tight">Mi disponibilidad</h1><p className="mt-2 text-[var(--campaign-muted)]">Estos son los horarios que has indicado. Tu asignación definitiva aparecerá en Mi programa.</p></header>
+    {saved && <p role="status" className="rounded-xl bg-[var(--campaign-mint)] p-4">✓ Disponibilidad guardada</p>}
+    <AvailabilitySummary days={view.days.map((day) => ({ ...day, blocks: day.blocks.map((block) => ({ ...block, companions: pairs.filter((pair) => (pair.timeBlock?.id === block.id || (!pair.timeBlock && pair.sharedBlocks.some((shared) => shared.id === block.id))) && ["pending", "accepted"].includes(pair.status)).map((pair) => `${pair.other.fullName} · ${pair.status === "accepted" ? "Confirmado" : pair.direction === "sent" ? "Esperando confirmación" : "Solicitud recibida"}`) })) }))} />
+    <p className="campaign-surface p-4"><b>Máximo de turnos:</b> {view.campaign.registration.maxTurns ?? "Sin límite"}</p>
+    {editable && <button type="button" className="campaign-primary w-full" onClick={() => setEditing(true)}>Editar disponibilidad</button>}
+  </section>;
 
   return <form onSubmit={save} className="space-y-4 pb-20" aria-busy={saving}>
     <header className="space-y-2">
@@ -100,6 +110,7 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
         </div>
         {day.blocks.map((block) => {
           const checked = selected.has(block.id);
+          const closed = block.selectionClosed && !initial.has(block.id);
           const pair = pairFor(block.id);
           const coverageMessage = block.coverageState === "covered"
             ? { label: "Cupos cubiertos", className: "availability-state--covered" }
@@ -114,8 +125,8 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
               ? "availability-block--last-slots"
               : "";
           return <article key={block.id} className={`availability-block rounded-2xl border px-3 py-2 shadow-sm ${coverageCardClass} ${checked ? "availability-block--selected border-[var(--campaign-primary)] bg-[#f5fcfa]" : "border-[var(--campaign-line)] bg-white"}`}>
-            <label className="flex min-h-[64px] cursor-pointer items-center gap-3">
-              <input type="checkbox" className="peer sr-only" checked={checked} onChange={(event) => {
+            <label className={`flex min-h-[64px] items-center gap-3 ${closed ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+              <input type="checkbox" className="peer sr-only" checked={checked} disabled={closed} onChange={(event) => {
                 const next = new Set(selected);
                 event.target.checked ? next.add(block.id) : next.delete(block.id);
                 setSelected(next); setSaved(false);
@@ -123,11 +134,12 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
               <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--campaign-primary)] peer-focus-visible:ring-offset-2 ${checked ? "border-[var(--campaign-primary)] bg-[var(--campaign-primary)] text-white" : "border-slate-400"}`}>
                 {checked && <Check aria-hidden="true" className="h-6 w-6" />}
               </span>
-              <span className="min-w-0 flex-1"><b className="text-lg leading-tight">{block.startTime} – {block.endTime}</b><span className="block text-sm text-[var(--campaign-muted)]">Puedo participar</span></span>
+              <span className="min-w-0 flex-1"><b className="text-lg leading-tight">{block.startTime} – {block.endTime}</b><span className="block text-sm text-[var(--campaign-muted)]">{block.selectionClosed && !initial.has(block.id) ? "Inscripción completa" : "Puedo participar"}</span></span>
               {coverageMessage && <span className={`availability-state ${coverageMessage.className}`}>{coverageMessage.label}</span>}
             </label>
+            {block.coverageState === "covered" && <p className="pb-2 text-sm text-[var(--campaign-muted)]">{block.selectionClosed ? "Este horario ya cuenta con apoyo y posibles reemplazos." : "Cupos cubiertos. Si deseas, puedes ofrecerte como apoyo de reemplazo."}</p>}
             {checked && <div className="border-t border-[var(--campaign-line)] pt-1">
-              {pair ? <p className="flex min-h-11 items-center gap-2 text-sm"><UsersRound aria-hidden="true" className="h-4 w-4" /><span><b>{formatPersonName(pair.other.fullName)}</b> · {pair.status === "accepted" ? "Confirmado" : "Esperando confirmación"}</span></p> :
+              {pair ? <p className="flex min-h-11 items-center gap-2 text-sm"><UsersRound aria-hidden="true" className="h-4 w-4" /><span><b>{pair.other.fullName}</b> · {pair.status === "accepted" ? "Confirmado" : "Esperando confirmación"}</span></p> :
                 <button type="button" className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[var(--campaign-primary-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--campaign-primary)]" onClick={() => {
                   if (view.campaign.companionRequestsEnabled) setPairBlock({ id: block.id, label: `${dayName(day.date)} · ${block.startTime}–${block.endTime}` });
                   else setCompanionNotice(true);
@@ -142,6 +154,7 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
     </section>
     {saved && <p role="status" className="rounded-xl bg-[var(--campaign-mint)] p-4 font-semibold text-[var(--campaign-primary-strong)]">✓ Disponibilidad guardada</p>}
     {error && <p role="alert" className="text-red-700">{error}</p>}
+    {view.campaign.registration && <button type="button" className="campaign-secondary w-full" disabled={saving} onClick={() => { apply(view); setEditing(false); setError(""); }}>Volver al resumen</button>}
     {editable && (dirty || saving) && <button className="campaign-primary sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-10 w-full text-lg shadow-lg" disabled={saving}>{saving ? "Guardando…" : "Guardar disponibilidad"}</button>}
     <Dialog open={companionNotice} onOpenChange={setCompanionNotice}><DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-2xl"><DialogHeader>
       <DialogTitle>Esta opción estará disponible más adelante</DialogTitle>

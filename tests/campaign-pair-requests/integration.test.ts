@@ -322,6 +322,23 @@ test("Aceptar solo receptor; accepted obligatorio no cancelable unilateralmente"
   assert.equal(view.requests[0].sharedBlocks.length, 1);
   assert.equal(view.requests[0].availabilityConflict, false);
 });
+test("Solicitud por horario agrega disponibilidad al aceptar y respeta cupos más dos apoyos", async () => {
+  const campaign = "block-capacity";
+  await setup(campaign);
+  await registrations.save(b.token, campaign, selection(campaign, ["late"]));
+  await db.collection("points").doc(campaign).set({ campaignId: campaign, active: true, minParticipants: 1, maxParticipants: 1 });
+  await db.collection("blockPoints").doc(campaign).set({ campaignId: campaign, timeBlockId: `${campaign}-early`, pointId: campaign, active: true });
+  const request = await pairs.mutate(a.token, campaign, { action: "create", recipientRegistrationId: reg(campaign, b), timeBlockId: `${campaign}-early` });
+  await assert.rejects(act(b.token, campaign, request.id, "accept"), /cupos y apoyos de reemplazo/);
+  assert.equal((await db.collection("pairRequests").doc(request.id).get()).data()?.status, "pending");
+  await registrations.save(c.token, campaign, selection(campaign, ["late"]));
+  assert.equal((await act(b.token, campaign, request.id, "accept")).status, "accepted");
+  const view = await registrations.view(b.token, campaign);
+  const block = view.days[0].blocks.find((block) => block.id === `${campaign}-early`)!;
+  assert.equal(block.selected, true);
+  assert.equal(block.selectionClosed, true);
+});
+
 test("Aceptación incompatible concurrente: solo una accepted, otra permanece pending", async () => {
   await setup("concurrent");
   const ab = await create(a.token, "concurrent", b);

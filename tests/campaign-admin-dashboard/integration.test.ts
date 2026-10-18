@@ -580,14 +580,16 @@ test("Organizador puede corregir solo el nombre y conserva el teléfono", async 
     new NextRequest(`http://localhost/api/campanas/admin/campaigns/${campaign}/participants/${reg(0)}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, Origin: "http://localhost", "Content-Type": "application/json" },
-      body: JSON.stringify({ fullName: "jAvIeR hEiSe" }),
+      body: JSON.stringify({ fullName: "Arlet de Heise" }),
     }),
     { params: Promise.resolve({ campaignId: campaign, registrationId: reg(0) }) },
   );
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).fullName, "Javier Heise");
+  assert.equal((await response.json()).fullName, "Arlet de Heise");
   const after = (await db.collection("participants").doc("person-0").get()).data();
-  assert.equal(after?.fullName, "Javier Heise");
+  assert.equal(after?.fullName, "Arlet de Heise");
+  assert.equal(after?.preserveNameCase, true);
+  assert.equal((await service.detail(token, campaign, reg(0))).fullName, "Arlet de Heise");
   assert.equal(after?.phoneNormalized, phone);
   await assert.rejects(service.updateParticipantName(ordinaryToken, campaign, reg(0), { fullName: "Otro Nombre" }), denied(403));
   await assert.rejects(service.updateParticipantName(token, campaign, reg(0), { fullName: "x" }), denied(400));

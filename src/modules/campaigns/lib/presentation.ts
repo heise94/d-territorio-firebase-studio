@@ -47,3 +47,8 @@ export function formatPersonName(input: string): string {
     )
     .join(" ");
 }
+
+/** An organizer's explicit spelling takes precedence over automatic casing. */
+export function participantName(profile: { fullName: string; preserveNameCase?: boolean }): string {
+  return profile.preserveNameCase ? profile.fullName : formatPersonName(profile.fullName);
+}

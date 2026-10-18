@@ -12,11 +12,12 @@ import type {
 } from "../domain/registration";
 import type { PairRequest } from "../domain/pair-request";
 import { campaignCollections as names } from "../lib/paths";
-import { formatPersonName } from "../lib/presentation";
+import { participantName } from "../lib/presentation";
 import { AuthError } from "./auth/service";
 
 export interface OperationalProfile {
   fullName: string;
+  preserveNameCase?: boolean;
   congregationId?: string;
   active: boolean;
   phoneNormalized?: string;
@@ -83,6 +84,7 @@ export async function readDashboardSource(
       {
         fieldMask: [
           "fullName",
+          "preserveNameCase",
           "congregationId",
           "active",
           ...(phones ? ["phoneNormalized"] : []),
@@ -92,7 +94,7 @@ export async function readDashboardSource(
     for (const doc of docs)
       if (doc.exists) {
         const profile = doc.data() as OperationalProfile;
-        profiles.set(doc.id, { ...profile, fullName: formatPersonName(profile.fullName) });
+        profiles.set(doc.id, { ...profile, fullName: participantName(profile) });
       }
   }
   // The organizer may enroll an existing account in a different congregation

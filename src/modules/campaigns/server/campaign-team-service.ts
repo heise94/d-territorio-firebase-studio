@@ -5,7 +5,7 @@ import type { CampaignRegistration } from "../domain/registration";
 import type { Participant } from "../domain/participant";
 import type { Congregation } from "../domain/types";
 import { campaignCollections as names } from "../lib/paths";
-import { formatPersonName } from "../lib/presentation";
+import { participantName } from "../lib/presentation";
 import { campaignDocumentIdSchema } from "../schemas/registration-schemas";
 import { AuthError } from "./auth/service";
 import { requireCampaignAccess } from "./campaign-access";
@@ -50,7 +50,7 @@ export class CampaignTeamService {
       : undefined;
     return {
       registrationId,
-      name: profile ? formatPersonName(profile.fullName) : "Participante no disponible",
+      name: profile ? participantName(profile) : "Participante no disponible",
       congregation: congregation?.name ?? "Sin congregación",
     };
   }
@@ -77,7 +77,7 @@ export class CampaignTeamService {
       candidates = profiles.filter(({ profile }) => profile?.active === true)
         .map(({ registrationId, profile }) => ({
           registrationId,
-          name: formatPersonName(profile!.fullName),
+          name: participantName(profile!),
           congregation: congregations.get(profile!.congregationId ?? "") ?? "Sin congregación",
           phone: profile!.phoneNormalized,
         }))

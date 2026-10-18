@@ -89,7 +89,7 @@ export function ParticipantCampaigns() {
               {campaign.status !== "registration_open"
                 ? "Revisar disponibilidad"
                 : campaign.registration
-                  ? "Editar mi disponibilidad"
+                  ? "Ver mi disponibilidad"
                   : "Ingresar mi disponibilidad"}<ChevronRight className="ml-auto h-5 w-5" />
             </Link>
             {campaign.organization && (

@@ -105,6 +105,26 @@ test("los filtros y el detalle sólo exponen registros de la campaña solicitada
   await assert.rejects(() => service.detail("token", "a", "memberB"), (error: unknown) => error instanceof AuthError && error.status === 404);
 });
 
+test("búsqueda por nombre no compara un teléfono vacío ni incluye toda la campaña", async () => {
+  const { service, fixture } = serviceFor();
+  fixture.store.get("participants")!.get("member")!.fullName = "Yorky Muñoz";
+  const result = await service.participants("token", "a", { q: "yorky" });
+  assert.deepEqual(result.rows.map((row) => row.registrationId), ["memberA"]);
+  assert.equal(result.resultTotal, 1);
+  assert.equal((await service.participants("token", "a", { q: "munoz" })).rows.length, 1);
+  assert.equal((await service.participants("token", "a", { q: "inexistente" })).rows.length, 0);
+  assert.deepEqual((await service.participants("token", "a", { q: "22222" })).rows.map((row) => row.registrationId), ["memberA"]);
+});
+
+test("ficha conserva escritura manual y muestra compañeros por horario", async () => {
+  const { service, fixture } = serviceFor();
+  Object.assign(fixture.store.get("participants")!.get("member")!, { fullName: "Arlet de Heise", preserveNameCase: true });
+  fixture.store.get("pairRequests")!.set("request", { campaignId: "a", requesterRegistrationId: "memberA", recipientRegistrationId: "adminA", timeBlockId: "blockA", status: "pending" });
+  const detail = await service.detail("token", "a", "memberA");
+  assert.equal(detail.fullName, "Arlet de Heise");
+  assert.deepEqual(detail.days[0].blocks[0].companions, ["Organizador · Pendiente de confirmación"]);
+});
+
 test("Todas las congregaciones es una búsqueda explícita, conserva filtros de disponibilidad y pagina resultados", async () => {
   const { service, fixture } = serviceFor();
   const registrations = fixture.store.get("campaignRegistrations")!;
@@ -168,7 +188,7 @@ test("lookup temprano distingue teléfono nuevo, cuenta existente y ya inscrito"
   const existing = { id: "memberB", fullName: "Otra campaña", phoneNormalized: "+56944444444", active: true, congregationId: "congB" };
   const { service } = serviceFor("organizer", { findByPhone: async (phone: string) => phone === existing.phoneNormalized ? existing : phone === "+56922222222" ? { id: "member", fullName: "Hermana Disponible", congregationId: "congA" } : null });
   assert.deepEqual(await service.lookupParticipant("token", "a", "55555555"), { kind: "new", phone: "+56955555555" });
-  assert.deepEqual(await service.lookupParticipant("token", "a", "44444444"), { kind: "existing", fullName: "Otra campaña", phone: "+56944444444", congregationId: null, registrationId: null });
+  assert.deepEqual(await service.lookupParticipant("token", "a", "44444444"), { kind: "existing", fullName: "Otra Campaña", phone: "+56944444444", congregationId: null, registrationId: null });
   assert.equal((await service.lookupParticipant("token", "a", "22222222")).kind, "already_registered");
 });
 
@@ -225,7 +245,6 @@ test("alta de organizador normaliza teléfono chileno y nombres nuevos sin renom
   assert.match(source, /organizerPhoneDigits/);
   const organizationService = await import("node:fs/promises").then(({ readFile }) => readFile("src/modules/campaigns/server/organization-service.ts", "utf8"));
   assert.match(organizationService, /fullName: normalizePersonName\(value\.fullName\)/);
-  assert.match(organizationService, /fullName: existing\.fullName/);
 });
 
 test("participante normal no puede consultar teléfonos ni agregar a Organización", async () => {

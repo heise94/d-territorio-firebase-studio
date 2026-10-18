@@ -360,7 +360,7 @@ export async function getPersonalProgram(
                 description: point.description,
                 companionName: (() => {
                   const name = cell.slots[index === 0 ? 1 : 0]?.fullName;
-                  return name ? formatPersonName(name) : null;
+                  return name || null;
                 })(),
               });
             }

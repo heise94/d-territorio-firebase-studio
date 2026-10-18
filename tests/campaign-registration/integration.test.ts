@@ -336,6 +336,36 @@ test("Cobertura concurrente: completo acepta a ambos, override/fallback y reserv
   await assert.rejects(service.save(c.token, "open", input()));
   assert.ok((await db.collection("campaignAssignments").get()).empty);
 });
+test("Límite real conserva dos apoyos y serializa nuevas selecciones concurrentes", async () => {
+  await campaign("limit");
+  await db.collection("points").doc("limit-point").set({ campaignId: "limit", active: true, minParticipants: 16, maxParticipants: 16 });
+  await db.collection("blockPoints").doc("limit-point").set({ campaignId: "limit", timeBlockId: "limit-block", pointId: "limit-point", active: true });
+  const batch = db.batch();
+  for (let i = 0; i < 17; i++) {
+    const id = `limit-seed-${i}`;
+    batch.set(db.collection("campaignRegistrations").doc(id), { campaignId: "limit", participantId: id, registrationStatus: "active" });
+    batch.set(db.collection("availabilities").doc(id), { campaignId: "limit", registrationId: id, timeBlockId: "limit-block", available: true });
+  }
+  await batch.commit();
+  const before = await service.view(a.token, "limit");
+  assert.equal(before.days[0].blocks[0].selectionClosed, false);
+  assert.equal(before.days[0].blocks[0].coverageState, "covered");
+  const results = await Promise.allSettled([a, b, c].map((person) => service.save(person.token, "limit", input(["limit-block"]))));
+  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+  assert.equal(results.filter((result) => result.status === "rejected").length, 2);
+  for (const result of results) if (result.status === "rejected") assert.match(result.reason.message, /cupos y apoyos de reemplazo/);
+  const winner = [a, b, c][results.findIndex((result) => result.status === "fulfilled")];
+  await service.save(winner.token, "limit", input(["limit-block"], 3));
+  const after = await service.view(winner.token, "limit");
+  assert.equal(after.days[0].blocks[0].selectionClosed, true);
+  assert.equal(after.days[0].blocks[0].selected, true);
+  assert.equal("availableCount" in after.days[0].blocks[0], false);
+  const rows = await db.collection("availabilities").where("campaignId", "==", "limit").get();
+  assert.equal(rows.docs.filter((doc) => doc.data().available).length, 18);
+  await service.save(winner.token, "limit", input([]));
+  assert.equal((await service.view(a.token, "limit")).days[0].blocks[0].selectionClosed, false);
+});
+
 test("Sin capacidad ni horarios: DTO claro, sin marcar completo ni inventar capacidad", async () => {
   await campaign("undefined-capacity", "registration_open", undefined);
   // Default arguments use 2, so remove explicitly to exercise missing configuration.

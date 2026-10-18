@@ -102,12 +102,19 @@ export function PairRequests({ campaignId }: { campaignId: string }) {
       setLoading(false);
     }
   }
-  async function search(event: FormEvent) {
-    event.preventDefault();
+  useEffect(() => {
+    searchVersion.current++;
+    setBusy(false);
+    if (query.trim().length < 3) return;
+    const timer = setTimeout(() => void search(), 300);
+    return () => { clearTimeout(timer); searchVersion.current++; };
+  }, [query, url]);
+  async function search(event?: FormEvent) {
+    event?.preventDefault();
     setError("");
     setMessage("");
-    if (!pairSearchSchema.safeParse(query).success) {
-      setError("Escribe al menos dos caracteres del nombre (máximo 80).");
+    if (query.trim().length < 3 || !pairSearchSchema.safeParse(query).success) {
+      setError("Escribe al menos tres letras del nombre (máximo 80).");
       return;
     }
     const version = ++searchVersion.current;
@@ -129,11 +136,11 @@ export function PairRequests({ campaignId }: { campaignId: string }) {
         setSearched(true);
       }
     } catch (failure) {
-      setError(
+      if (version === searchVersion.current) setError(
         failure instanceof Error ? failure.message : "No pudimos buscar.",
       );
     } finally {
-      setBusy(false);
+      if (version === searchVersion.current) setBusy(false);
     }
   }
   async function mutate(
@@ -229,7 +236,7 @@ export function PairRequests({ campaignId }: { campaignId: string }) {
               Nombre del hermano o hermana
               <input
                 value={query}
-                minLength={2}
+                minLength={3}
                 maxLength={80}
                 onChange={(event) => {
                   setQuery(event.target.value);

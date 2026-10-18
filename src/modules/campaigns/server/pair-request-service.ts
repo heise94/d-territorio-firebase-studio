@@ -21,7 +21,8 @@ import {
   type SharedBlock,
 } from "../domain/pair-request";
 import { campaignCollections as collections } from "../lib/paths";
-import { formatPersonName } from "../lib/presentation";
+import { participantName } from "../lib/presentation";
+import { reserveAvailabilityPlaces } from "./availability-capacity";
 import {
   pairMutationSchema,
   pairSearchSchema,
@@ -123,7 +124,7 @@ export class PairRequestService {
         ).data()?.name
       : "";
     return {
-      fullName: participant ? formatPersonName(participant.fullName) : "Participante no disponible",
+      fullName: participant ? participantName(participant) : "Participante no disponible",
       congregation: congregation ?? "",
       active: participant?.active === true,
     };
@@ -585,15 +586,13 @@ export class PairRequestService {
                 409,
                 "Ambas personas deben mantener su inscripción y perfil activos.",
               );
+            let addRecipientAvailability = false;
             if (stored.timeBlockId) {
               await this.block(tx, campaignId, stored.timeBlockId);
               if (!await this.hasAvailability(tx, campaignId, stored.requesterRegistrationId, stored.timeBlockId))
                 throw new AuthError(409, "El horario ya no está disponible para quien envió la solicitud.");
               if (!await this.hasAvailability(tx, campaignId, stored.recipientRegistrationId, stored.timeBlockId)) {
-                tx.set(this.db.collection(collections.availabilities).doc(availabilityId(stored.recipientRegistrationId, stored.timeBlockId)), {
-                  id: availabilityId(stored.recipientRegistrationId, stored.timeBlockId), campaignId, registrationId: stored.recipientRegistrationId,
-                  timeBlockId: stored.timeBlockId, available: true, createdAt: now, updatedAt: now,
-                });
+                addRecipientAvailability = true;
               }
             }
             const locks = [
@@ -609,6 +608,13 @@ export class PairRequestService {
                 409,
                 "Uno de ustedes ya tiene otro vínculo aceptado en esta campaña.",
               );
+            if (addRecipientAvailability && stored.timeBlockId) {
+              await reserveAvailabilityPlaces(tx, this.db, campaignId, [stored.timeBlockId]);
+              tx.set(this.db.collection(collections.availabilities).doc(availabilityId(stored.recipientRegistrationId, stored.timeBlockId)), {
+                id: availabilityId(stored.recipientRegistrationId, stored.timeBlockId), campaignId, registrationId: stored.recipientRegistrationId,
+                timeBlockId: stored.timeBlockId, available: true, createdAt: now, updatedAt: now,
+              });
+            }
             for (const lock of locks)
               tx.create(lock, {
                 campaignId,

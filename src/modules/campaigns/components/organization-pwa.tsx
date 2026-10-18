@@ -16,6 +16,7 @@ import {
   organizerPhoneDigits,
 } from "../schemas/participant-auth";
 import { joinShareUrl } from "../lib/public-join";
+import { AvailabilitySummary } from "./availability-summary";
 type Block = {
   id: string;
   startTime: string;
@@ -27,6 +28,7 @@ type Block = {
   missing?: number;
   state?: string;
   count?: number;
+  companions?: string[];
 };
 type Day = {
   id: string;
@@ -368,24 +370,7 @@ function People({
             <br />
             {max(detail.maxTurns)}
           </p>
-          <p>
-            <b>Disponibilidad</b>
-            <br />
-            {detail.days
-              .flatMap((d) =>
-                d.blocks
-                  .filter((b) => b.available)
-                  .map((b) => `${date(d.date)} · ${b.startTime}–${b.endTime}`),
-              )
-              .join(" · ") || "No ha indicado horarios."}
-          </p>
-          <p>
-            <b>Compañero acordado</b>
-            <br />
-            {detail.partner
-              ? `${detail.partner.fullName} · ${detail.partner.congregation}`
-              : "Sin compañero"}
-          </p>
+          <div><h3 className="mb-2 font-bold">Disponibilidad</h3><AvailabilitySummary days={detail.days.map((day) => ({ ...day, blocks: day.blocks.map((block) => ({ ...block, selected: block.available === true })) }))} /></div>
         </article>
         <button
           className="campaign-primary w-full"
@@ -522,17 +507,20 @@ function PeopleV2({
     () =>
       new URLSearchParams(
         Object.entries(f)
+          .map(([k, v]) => [k, k === "q" && String(v).trim().length < 3 ? "" : v])
           .filter(([, v]) => v !== "" && v !== false && v !== 1)
-          .map(([k, v]) => [k, String(v)]),
+          .map(([k, v]) => [String(k), String(v)]),
       ).toString(),
     [f],
   );
-  const load = () =>
+  const load = (signal?: AbortSignal) =>
     campaignFetch(
       `/api/campanas/organization/campaigns/${id}/participants${query ? `?${query}` : ""}`,
+      { signal },
     )
       .then(async (r) => {
         const b = await r.json();
+        if (signal?.aborted) return;
         if (!r.ok) throw Error(b.error);
         setRows((previous) => (b.page > 1 ? [...previous, ...b.rows] : b.rows));
         setDays(b.days);
@@ -542,10 +530,11 @@ function PeopleV2({
         setHasMore(b.hasMore);
         setError("");
       })
-      .catch((e: Error) => setError(e.message));
+      .catch((e: Error) => { if (!signal?.aborted) setError(e.message); });
   useEffect(() => {
-    const t = setTimeout(() => void load(), f.q ? 220 : 0);
-    return () => clearTimeout(t);
+    const controller = new AbortController();
+    const t = setTimeout(() => void load(controller.signal), f.q ? 300 : 0);
+    return () => { clearTimeout(t); controller.abort(); };
   }, [query]);
   useEffect(
     () =>
@@ -615,24 +604,7 @@ function PeopleV2({
             <br />
             {max(detail.maxTurns)}
           </p>
-          <p>
-            <b>Disponibilidad</b>
-            <br />
-            {detail.days
-              .flatMap((d) =>
-                d.blocks
-                  .filter((b) => b.available)
-                  .map((b) => `${date(d.date)} · ${b.startTime}–${b.endTime}`),
-              )
-              .join(" · ") || "No ha indicado horarios."}
-          </p>
-          <p>
-            <b>Compañero acordado</b>
-            <br />
-            {detail.partner
-              ? `${detail.partner.fullName} · ${detail.partner.congregation}`
-              : "Sin compañero"}
-          </p>
+          <div><h3 className="mb-2 font-bold">Disponibilidad</h3><AvailabilitySummary days={detail.days.map((day) => ({ ...day, blocks: day.blocks.map((block) => ({ ...block, selected: block.available === true })) }))} /></div>
         </article>
         <button
           className="campaign-primary w-full"
@@ -652,7 +624,7 @@ function PeopleV2({
     .filter((d) => !f.dayId || d.id === f.dayId)
     .flatMap((d) => d.blocks);
   const hasExplicitSearch = Boolean(
-    f.q || f.congregationId || f.dayId || f.blockId || f.showAllCongregations,
+    f.q.trim().length >= 3 || f.congregationId || f.dayId || f.blockId || f.showAllCongregations,
   );
   const update = (values: Partial<typeof f>) =>
     setF((current) => ({ ...current, ...values, page: 1 }));
@@ -862,24 +834,28 @@ function Partner({
     [rows, setRows] = useState<Row[]>([]),
     [msg, setMsg] = useState("");
   useEffect(() => {
-    if (!q) return setRows([]);
+    setRows([]);
+    if (q.trim().length < 3) return;
+    const controller = new AbortController();
     const t = setTimeout(
       () =>
         void campaignFetch(
           `/api/campanas/organization/campaigns/${id}/participants?q=${encodeURIComponent(q)}`,
+          { signal: controller.signal },
         )
           .then(async (r) => {
             const b = await r.json();
+            if (controller.signal.aborted) return;
             if (!r.ok) throw Error(b.error);
             setRows(
               b.rows.filter((x: Row) => x.registrationId !== d.registrationId),
             );
           })
-          .catch((e: Error) => setMsg(e.message)),
-      220,
+          .catch((e: Error) => { if (!controller.signal.aborted) setMsg(e.message); }),
+      300,
     );
-    return () => clearTimeout(t);
-  }, [q]);
+    return () => { clearTimeout(t); controller.abort(); };
+  }, [q, id, d.registrationId]);
   const choose = (recipientRegistrationId?: string) =>
     void campaignFetch(
       `/api/campanas/organization/campaigns/${id}/participants/${d.registrationId}/companion`,

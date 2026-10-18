@@ -17,6 +17,7 @@ import { calculateBlockCapacity } from "../domain/point-capacity";
 import type { ParticipantDTO } from "../domain/participant";
 import {
   participantCoverageState,
+  participantSelectionClosed,
   type Availability,
   type CampaignRegistration,
   type CampaignSummary,
@@ -28,6 +29,7 @@ import {
   saveRegistrationSchema,
 } from "../schemas/registration-schemas";
 import { AuthError, ParticipantAuthService } from "./auth/service";
+import { reserveAvailabilityPlaces } from "./availability-capacity";
 
 export const registrationId = (campaignId: string, participantId: string) =>
   createHash("sha256")
@@ -256,6 +258,7 @@ export class CampaignRegistrationService {
                   endTime: block.endTime,
                   label: block.label ?? "",
                   selected: selected.has(block.id),
+                  selectionClosed: participantSelectionClosed(counts.get(block.id) ?? 0, calculateBlockCapacity(campaignId, block.id, config.points, config.blockPoints).minParticipants),
                   coverageState: participantCoverageState(
                     counts.get(block.id) ?? 0,
                     calculateBlockCapacity(
@@ -336,11 +339,13 @@ export class CampaignRegistrationService {
             400,
             "Demasiados horarios para guardar en una operación. Contacta a la organización.",
           );
+        await reserveAvailabilityPlaces(tx, this.db, campaignId, [...selected].filter((id) => !previous.get(id)?.available));
         const now = Timestamp.now();
         const registration: CampaignRegistration = {
           id,
           campaignId,
           participantId: participant.id,
+          ...(existing?.congregationId ? { congregationId: existing.congregationId } : {}),
           maxTurns: parsed.data.maxTurns,
           registrationStatus: "active",
           // Preserve historical reviews without letting them gate participation.

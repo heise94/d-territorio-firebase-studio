@@ -6,7 +6,9 @@ import type { CampaignRegistration, Availability, MaxTurns } from "../domain/reg
 import type { Campaign, CampaignDay, Congregation, Point, TimeBlock, BlockPoint } from "../domain/types";
 import { calculateBlockCapacity } from "../domain/point-capacity";
 import { campaignCollections as names } from "../lib/paths";
-import { formatPersonName } from "../lib/presentation";
+import { participantName } from "../lib/presentation";
+import { matchesParticipantSearch } from "../lib/participant-search";
+import { reserveAvailabilityPlaces } from "./availability-capacity";
 import { normalizePersonName, phoneSchema, pinSchema } from "../schemas/participant-auth";
 import { campaignDocumentIdSchema } from "../schemas/registration-schemas";
 import { AuthError, ParticipantAuthService } from "./auth/service";
@@ -129,7 +131,7 @@ export class CampaignOrganizationService {
     const registrations = new Map(registrationDocs.docs.map((doc) => [doc.id, { ...doc.data(), id: doc.id } as CampaignRegistration]));
     const participantIds = [...new Set([...registrations.values()].map((row) => row.participantId))];
     const profileDocs = participantIds.length ? await tx.getAll(...participantIds.map((id) => this.db.collection(names.participants).doc(id))) : [];
-    const profiles = new Map(profileDocs.filter((doc) => doc.exists).map((doc) => { const profile = doc.data() as Participant; return [doc.id, { ...profile, id: doc.id, fullName: formatPersonName(profile.fullName) }]; }));
+    const profiles = new Map(profileDocs.filter((doc) => doc.exists).map((doc) => { const profile = doc.data() as Participant; return [doc.id, { ...profile, id: doc.id, fullName: participantName(profile) }]; }));
     const associatedIds = new Set(associationDocs.docs.map((doc) => doc.data().congregationId as string));
     const congregationIds = [...new Set([...associatedIds, ...[...profiles.values()].map((profile) => profile.congregationId).filter((id): id is string => !!id), ...[...registrations.values()].map((row) => row.congregationId).filter((id): id is string => !!id)])];
     const congregationDocs = congregationIds.length ? await tx.getAll(...congregationIds.map((id) => this.db.collection(names.congregations).doc(id))) : [];
@@ -301,8 +303,7 @@ export class CampaignOrganizationService {
       const matchingRows = all.filter((row) => {
         const selected = source.selections.get(row.registrationId) ?? new Set<string>();
         const profile = source.profiles.get(source.registrations.get(row.registrationId)?.participantId ?? "");
-        const q = filters.q.toLocaleLowerCase("es");
-        return (!q || row.fullName.toLocaleLowerCase("es").includes(q) || profile?.phoneNormalized?.includes(filters.q.replace(/\D/g, ""))) && (!filters.congregationId || row.congregationId === filters.congregationId) && (!filters.blockId || selected.has(filters.blockId)) && (!filters.dayId || [...selected].some((id) => source.activeBlocks.get(id)?.campaignDayId === filters.dayId));
+        return matchesParticipantSearch(row.fullName, profile?.phoneNormalized, filters.q) && (!filters.congregationId || row.congregationId === filters.congregationId) && (!filters.blockId || selected.has(filters.blockId)) && (!filters.dayId || [...selected].some((id) => source.activeBlocks.get(id)?.campaignDayId === filters.dayId));
       }).sort((a,b) => a.fullName.localeCompare(b.fullName, "es"));
       const pageSize = 20;
       const rows = hasFilter ? matchingRows.slice((filters.page - 1) * pageSize, filters.page * pageSize) : [];
@@ -318,7 +319,14 @@ export class CampaignOrganizationService {
       const published = new Set(assignments.docs.filter((doc) => doc.data().status === "published").map((doc) => doc.data().timeBlockId as string));
       const partnerId = source.acceptedPartners.get(registrationId); const partner = partnerId ? this.person(source, partnerId) : null;
       return { registrationId, fullName: row.profile.fullName, phone: row.profile.phoneNormalized, congregation: row.congregation, congregationId: row.congregationId, maxTurns: row.registration.maxTurns, partner: partner ? { fullName: partner.profile.fullName, congregation: partner.congregation } : null,
-        days: this.days(source).map((day) => ({ ...day, blocks: day.blocks.map((block) => ({ ...block, available: source.selections.get(registrationId)?.has(block.id) ?? false, published: published.has(block.id) })) })) };
+        days: this.days(source).map((day) => ({ ...day, blocks: day.blocks.map((block) => ({ ...block, available: source.selections.get(registrationId)?.has(block.id) ?? false, published: published.has(block.id),
+          companions: source.pairs.filter((pair) => (pair.status === "accepted" || pair.status === "pending") && (!pair.timeBlockId || pair.timeBlockId === block.id) && [pair.requesterRegistrationId, pair.recipientRegistrationId].includes(registrationId)).map((pair) => {
+            const otherId = pair.requesterRegistrationId === registrationId ? pair.recipientRegistrationId : pair.requesterRegistrationId;
+            const other = source.registrations.get(otherId);
+            const profile = other ? source.profiles.get(other.participantId) : null;
+            return `${profile?.fullName ?? "Participante no disponible"} · ${pair.status === "accepted" ? "Confirmado" : "Pendiente de confirmación"}`;
+          }),
+        })) })) };
     });
   }
 
@@ -332,6 +340,7 @@ export class CampaignOrganizationService {
       const published = new Set(assignments.docs.filter((doc) => doc.data().status === "published").map((doc) => doc.data().timeBlockId as string));
       const old = source.selections.get(registrationId) ?? new Set<string>();
       for (const blockId of published) if (old.has(blockId) && !selected.has(blockId)) throw new AuthError(400, "Este hermano ya tiene un turno publicado en este horario.");
+      await reserveAvailabilityPlaces(tx, this.db, campaignId, [...selected].filter((id) => !old.has(id)));
       const now = Timestamp.now();
       for (const blockId of new Set([...old, ...selected])) {
         const id = availabilityId(registrationId, blockId);
@@ -402,7 +411,7 @@ export class CampaignOrganizationService {
     const preferred = registration?.congregationId ?? existing.congregationId;
     return {
       kind: registration ? "already_registered" as const : "existing" as const,
-      fullName: formatPersonName(existing.fullName),
+      fullName: participantName(existing),
       phone: parsed.data,
       congregationId: preferred && source.associatedCongregations.has(preferred) ? preferred : null,
       registrationId: registration?.id ?? null,
@@ -427,8 +436,8 @@ export class CampaignOrganizationService {
         const source = await validate(tx);
         const currentDoc = await tx.get(this.db.collection(names.campaignRegistrations).doc(registrationId(campaignId, existing.id)));
         const current = currentDoc.exists ? { id: currentDoc.id } : [...source.registrations.values()].find((row) => row.participantId === existing.id);
-        if (value.action === "create") return { kind: current ? "already_registered" as const : "existing" as const, registrationId: current?.id ?? null, fullName: formatPersonName(existing.fullName) };
-        if (current) return { kind: "already_registered" as const, registrationId: current.id, fullName: formatPersonName(existing.fullName) };
+        if (value.action === "create") return { kind: current ? "already_registered" as const : "existing" as const, registrationId: current?.id ?? null, fullName: participantName(existing) };
+        if (current) return { kind: "already_registered" as const, registrationId: current.id, fullName: participantName(existing) };
         return this.addRegistration(tx, campaignId, existing, value, actor.id, "organization_add_existing_participant");
       });
     }
@@ -444,7 +453,7 @@ export class CampaignOrganizationService {
     });
   }
 
-  private addRegistration(
+  private async addRegistration(
     tx: Transaction,
     campaignId: string,
     participant: Participant,
@@ -453,6 +462,7 @@ export class CampaignOrganizationService {
     event: "organization_create_participant" | "organization_add_existing_participant",
   ) {
     const id = registrationId(campaignId, participant.id), now = Timestamp.now();
+    await reserveAvailabilityPlaces(tx, this.db, campaignId, value.selectedBlockIds);
     const registration: CampaignRegistration = { id, campaignId, participantId: participant.id, congregationId: value.congregationId, maxTurns: value.maxTurns as MaxTurns, registrationStatus: "active", createdAt: now, updatedAt: now };
     tx.create(this.db.collection(names.campaignRegistrations).doc(id), registration);
     for (const blockId of value.selectedBlockIds) {

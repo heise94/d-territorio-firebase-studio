@@ -1,10 +1,11 @@
 import type { Timestamp } from "firebase-admin/firestore";
-import { formatPersonName } from "../lib/presentation";
+import { participantName } from "../lib/presentation";
 
 /** Server-side identity. Never serialize this entity to a browser. */
 export interface Participant {
   id: string;
   fullName: string;
+  preserveNameCase?: boolean;
   phoneNormalized: string;
   congregationId?: string;
   pinHash: string;
@@ -35,7 +36,7 @@ export interface DeviceSession {
 export function participantDTO(participant: Participant): ParticipantDTO {
   return {
     id: participant.id,
-    fullName: formatPersonName(participant.fullName),
+    fullName: participantName(participant),
     ...(participant.congregationId
       ? { congregationId: participant.congregationId }
       : {}),

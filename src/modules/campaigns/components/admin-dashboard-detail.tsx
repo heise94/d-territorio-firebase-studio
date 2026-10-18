@@ -16,7 +16,7 @@ import type {
 import { formatHumanDate } from "./campaign-schedule-settings";
 import { useAuth } from "@/hooks/use-auth";
 import { campaignFetch } from "../lib/campaign-fetch";
-import { formatPersonName } from "../lib/presentation";
+
 import type { AdminParticipantList } from "../domain/admin-dashboard";
 
 export function DashboardDetail({
@@ -295,7 +295,7 @@ export function DashboardDetail({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => void saveName()} disabled={nameSaving || !editedName.trim() || formatPersonName(editedName) === formatPersonName(detail.fullName)} className="inline-flex min-h-9 items-center rounded-lg bg-teal-800 px-4 text-xs font-semibold text-white disabled:opacity-50">{nameSaving ? "Guardando…" : "Guardar nombre"}</button>
+                <button type="button" onClick={() => void saveName()} disabled={nameSaving || !editedName.trim() || editedName.trim() === detail.fullName} className="inline-flex min-h-9 items-center rounded-lg bg-teal-800 px-4 text-xs font-semibold text-white disabled:opacity-50">{nameSaving ? "Guardando…" : "Guardar nombre"}</button>
                 {nameMessage && <span role="status" className="text-xs text-teal-800">{nameMessage}</span>}
                 {nameError && <span role="alert" className="text-xs text-red-700">{nameError}</span>}
               </div>
@@ -537,19 +537,27 @@ function OrganizerPairRequest({ campaignId, registrationId, timeBlockId, onSent 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  async function search() {
-    if (!user || query.trim().length < 2) { setError("Escribe al menos dos letras para buscar."); return; }
+  useEffect(() => {
+    setRows([]); setRecipientRegistrationId(""); setBusy(false);
+    if (!open || query.trim().length < 3) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => void search(controller.signal), 300);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [query, open, campaignId, registrationId]);
+  async function search(signal?: AbortSignal) {
+    if (!user || query.trim().length < 3) { setError("Escribe al menos tres letras para buscar."); return; }
     setBusy(true); setError(""); setMessage("");
     try {
       const token = await user.getIdToken(true);
-      const response = await campaignFetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/participants?status=active&page=1`, { headers: { Authorization: `Bearer ${token}`, "X-Campaign-Search": encodeURIComponent(query.trim()) } });
+      const response = await campaignFetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/participants?status=active&page=1`, { signal, headers: { Authorization: `Bearer ${token}`, "X-Campaign-Search": encodeURIComponent(query.trim()) } });
       const body = await response.json();
+      if (signal?.aborted) return;
       if (!response.ok) throw new Error(body.error ?? "No se pudo buscar participantes.");
       setRows((body as AdminParticipantList).rows.filter((row) => row.registrationId !== registrationId));
       setRecipientRegistrationId("");
       if (!body.rows.length) setMessage("No encontramos participantes con ese nombre en esta campaña.");
-    } catch (failure) { setError(failure instanceof Error ? failure.message : "No se pudo buscar participantes."); }
-    finally { setBusy(false); }
+    } catch (failure) { if (!signal?.aborted) setError(failure instanceof Error ? failure.message : "No se pudo buscar participantes."); }
+    finally { if (!signal?.aborted) setBusy(false); }
   }
 
   async function send() {

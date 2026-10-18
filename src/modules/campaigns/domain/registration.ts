@@ -76,6 +76,7 @@ export interface RegistrationView {
       label: string;
       selected: boolean;
       coverageState: ParticipantCoverageState;
+      selectionClosed?: boolean;
     }[];
   }[];
   unavailableSelectionCount: number;
@@ -92,6 +93,11 @@ export function participantCoverageState(
   if (missing <= 3) return "last_slots";
   if (missing <= 8) return "normal";
   return "needs_support";
+}
+
+/** Two extra volunteers are accepted as possible replacements. No configured target means no cap. */
+export function participantSelectionClosed(available: number, required: number): boolean {
+  return required > 0 && available >= required + 2;
 }
 
 export function calculateCoverage(
