@@ -285,7 +285,7 @@ function People({
     [total, setTotal] = useState(0),
     [f, setF] = useState({ q: "", congregationId: "", dayId: "", blockId: "" }),
     [detail, setDetail] = useState<Detail | null>(null),
-    [mode, setMode] = useState<"list" | "availability" | "partner">("list"),
+    [mode, setMode] = useState<"list" | "availability">("list"),
     [error, setError] = useState("");
   const query = useMemo(
     () =>
@@ -338,19 +338,6 @@ function People({
         }}
       />
     );
-  if (detail && mode === "partner")
-    return (
-      <Partner
-        id={id}
-        d={detail}
-        back={() => setMode("list")}
-        saved={() => {
-          setMode("list");
-          setDetail(null);
-          void load();
-        }}
-      />
-    );
   if (detail)
     return (
       <section className="space-y-4">
@@ -377,12 +364,6 @@ function People({
           onClick={() => setMode("availability")}
         >
           Editar disponibilidad
-        </button>
-        <button
-          className="campaign-secondary w-full"
-          onClick={() => setMode("partner")}
-        >
-          Gestionar compañero
         </button>
       </section>
     );
@@ -490,7 +471,7 @@ function PeopleV2({
     page: 1,
   });
   const [detail, setDetail] = useState<Detail | null>(null),
-    [mode, setMode] = useState<"list" | "availability" | "partner">("list"),
+    [mode, setMode] = useState<"list" | "availability">("list"),
     [error, setError] = useState("");
   const searchKey = useMemo(
     () =>
@@ -572,19 +553,6 @@ function PeopleV2({
         }}
       />
     );
-  if (detail && mode === "partner")
-    return (
-      <Partner
-        id={id}
-        d={detail}
-        back={() => setMode("list")}
-        saved={() => {
-          setMode("list");
-          setDetail(null);
-          void load();
-        }}
-      />
-    );
   if (detail)
     return (
       <section className="space-y-4">
@@ -611,12 +579,6 @@ function PeopleV2({
           onClick={() => setMode("availability")}
         >
           Editar disponibilidad
-        </button>
-        <button
-          className="campaign-secondary w-full"
-          onClick={() => setMode("partner")}
-        >
-          Gestionar compañero
         </button>
       </section>
     );
@@ -816,95 +778,6 @@ function Availability({
       <button className="campaign-primary w-full" onClick={save}>
         Guardar cambios
       </button>
-    </section>
-  );
-}
-function Partner({
-  id,
-  d,
-  back,
-  saved,
-}: {
-  id: string;
-  d: Detail;
-  back: () => void;
-  saved: () => void;
-}) {
-  const [q, setQ] = useState(""),
-    [rows, setRows] = useState<Row[]>([]),
-    [msg, setMsg] = useState("");
-  useEffect(() => {
-    setRows([]);
-    if (q.trim().length < 3) return;
-    const controller = new AbortController();
-    const t = setTimeout(
-      () =>
-        void campaignFetch(
-          `/api/campanas/organization/campaigns/${id}/participants?q=${encodeURIComponent(q)}`,
-          { signal: controller.signal },
-        )
-          .then(async (r) => {
-            const b = await r.json();
-            if (controller.signal.aborted) return;
-            if (!r.ok) throw Error(b.error);
-            setRows(
-              b.rows.filter((x: Row) => x.registrationId !== d.registrationId),
-            );
-          })
-          .catch((e: Error) => { if (!controller.signal.aborted) setMsg(e.message); }),
-      300,
-    );
-    return () => { clearTimeout(t); controller.abort(); };
-  }, [q, id, d.registrationId]);
-  const choose = (recipientRegistrationId?: string) =>
-    void campaignFetch(
-      `/api/campanas/organization/campaigns/${id}/participants/${d.registrationId}/companion`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          recipientRegistrationId ? { recipientRegistrationId } : {},
-        ),
-      },
-    )
-      .then(async (r) => {
-        const b = await r.json();
-        if (!r.ok) throw Error(b.error);
-        saved();
-      })
-      .catch((e: Error) => setMsg(e.message));
-  return (
-    <section className="space-y-4">
-      <button onClick={back} className="font-semibold text-teal-800">
-        <ChevronLeft className="inline" />
-        Ficha
-      </button>
-      <h2 className="text-xl font-bold">Gestionar compañero</h2>
-      {d.partner && (
-        <button className="campaign-secondary w-full" onClick={() => choose()}>
-          Quitar a {d.partner.fullName}
-        </button>
-      )}
-      <input
-        className={field}
-        placeholder="Buscar por nombre o teléfono"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-      />
-      {rows.map((r) => (
-        <button
-          key={r.registrationId}
-          className="campaign-surface flex w-full justify-between p-4 text-left"
-          onClick={() => choose(r.registrationId)}
-        >
-          <span>
-            <b className="block">{r.fullName}</b>
-            <span>{r.congregation}</span>
-          </span>
-          <span>Elegir</span>
-        </button>
-      ))}
-      {msg && <p role="alert">{msg}</p>}
     </section>
   );
 }

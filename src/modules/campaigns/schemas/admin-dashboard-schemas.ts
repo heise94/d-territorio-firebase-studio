@@ -39,6 +39,12 @@ export const adminUpdateParticipantNameSchema = z.object({
 export const adminCreatePairRequestSchema = z.object({
   recipientRegistrationId: campaignDocumentIdSchema,
   timeBlockId: campaignDocumentIdSchema,
+  acceptImmediately: z.boolean().optional().default(false),
+}).strict();
+
+export const adminAcceptPairRequestSchema = z.object({
+  action: z.literal("accept"),
+  requestId: campaignDocumentIdSchema,
 }).strict();
 
 export type AdminUpdateAvailabilityInput = z.infer<

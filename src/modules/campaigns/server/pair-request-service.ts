@@ -258,6 +258,44 @@ export class PairRequestService {
     const row = doc.data() as Availability | undefined;
     return row?.campaignId === campaignId && row.registrationId === registration && row.timeBlockId === timeBlockId && row.available === true;
   }
+  /** The same safe acceptance transition used for a recipient and for an explicit admin confirmation. */
+  private async acceptPending(
+    tx: Transaction,
+    campaignId: string,
+    request: PairRequest,
+    now: Timestamp,
+  ) {
+    const [requesterDoc, recipientDoc] = await Promise.all([
+      tx.get(this.registrations().doc(request.requesterRegistrationId)),
+      tx.get(this.registrations().doc(request.recipientRegistrationId)),
+    ]);
+    const requester = requesterDoc.data() as CampaignRegistration | undefined;
+    const recipient = recipientDoc.data() as CampaignRegistration | undefined;
+    if (!requester || !recipient || requester.campaignId !== campaignId || recipient.campaignId !== campaignId || requester.registrationStatus !== "active" || recipient.registrationStatus !== "active" || !(await this.person(tx, requester)).active || !(await this.person(tx, recipient)).active)
+      throw new AuthError(409, "Ambas personas deben mantener su inscripción y perfil activos.");
+    let addRecipientAvailability = false;
+    if (request.timeBlockId) {
+      await this.block(tx, campaignId, request.timeBlockId);
+      if (!await this.hasAvailability(tx, campaignId, request.requesterRegistrationId, request.timeBlockId))
+        throw new AuthError(409, "El horario ya no está disponible para quien envió la solicitud.");
+      addRecipientAvailability = !await this.hasAvailability(tx, campaignId, request.recipientRegistrationId, request.timeBlockId);
+    }
+    const locks = [request.requesterRegistrationId, request.recipientRegistrationId]
+      .sort()
+      .map((id) => this.locks().doc(acceptedPairKey(campaignId, id, request.timeBlockId)));
+    const [first, second] = await Promise.all(locks.map((lock) => tx.get(lock)));
+    if (first.exists || second.exists)
+      throw new AuthError(409, "Uno de ustedes ya tiene otro vínculo aceptado en esta campaña.");
+    if (addRecipientAvailability && request.timeBlockId) {
+      await reserveAvailabilityPlaces(tx, this.db, campaignId, [request.timeBlockId]);
+      tx.set(this.db.collection(collections.availabilities).doc(availabilityId(request.recipientRegistrationId, request.timeBlockId)), {
+        id: availabilityId(request.recipientRegistrationId, request.timeBlockId), campaignId, registrationId: request.recipientRegistrationId,
+        timeBlockId: request.timeBlockId, available: true, createdAt: now, updatedAt: now,
+      });
+    }
+    for (const lock of locks)
+      tx.create(lock, { campaignId, requestId: request.id, ...(request.timeBlockId ? { timeBlockId: request.timeBlockId } : {}), createdAt: now });
+  }
 
   async createByOrganizer(token: string, campaignId: string, requesterRegistrationId: string, input: unknown) {
     if (!campaignDocumentIdSchema.safeParse(campaignId).success || !campaignDocumentIdSchema.safeParse(requesterRegistrationId).success)
@@ -265,7 +303,7 @@ export class PairRequestService {
     const parsed = adminCreatePairRequestSchema.safeParse(input);
     if (!parsed.success) throw new AuthError(400, "Selecciona un participante y horario válidos.");
     const access = await requireCampaignAccess(this.db, token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"]);
-    const { recipientRegistrationId, timeBlockId } = parsed.data;
+    const { recipientRegistrationId, timeBlockId, acceptImmediately } = parsed.data;
     if (recipientRegistrationId === requesterRegistrationId)
       throw new AuthError(400, "No puedes enviar una solicitud a la misma persona.");
 
@@ -307,14 +345,33 @@ export class PairRequestService {
 
       const now = Timestamp.now();
       const ref = this.requests().doc();
-      const request: PairRequest = { id: ref.id, campaignId, requesterRegistrationId, recipientRegistrationId, timeBlockId, status: "pending", createdAt: now, updatedAt: now };
+      const request: PairRequest = { id: ref.id, campaignId, requesterRegistrationId, recipientRegistrationId, timeBlockId, status: acceptImmediately ? "accepted" : "pending", createdAt: now, updatedAt: now, ...(acceptImmediately ? { respondedAt: now } : {}) };
+      if (acceptImmediately) await this.acceptPending(tx, campaignId, request, now);
       tx.create(ref, request);
       tx.set(relationRef, { campaignId, requestId: ref.id, updatedAt: now });
-      tx.create(this.db.collection(collections.auditLogs).doc(), { event: "pair_request_created_by_organizer", actorId: access.uid, campaignId, entityId: ref.id, createdAt: now });
-      writeDomainNotification(tx, this.db, ref.id, recipient.participantId, campaignId, "pair_request_created", "Tienes una solicitud para participar juntos. Revisa la aplicación.", { requestId: ref.id }, now, "/campanas", "Solicitud para participar juntos");
-      return { id: ref.id, status: "pending" as const };
+      tx.create(this.db.collection(collections.auditLogs).doc(), { event: acceptImmediately ? "pair_request_accepted_by_organizer" : "pair_request_created_by_organizer", actorId: access.uid, campaignId, entityId: ref.id, createdAt: now });
+      if (!acceptImmediately) writeDomainNotification(tx, this.db, ref.id, recipient.participantId, campaignId, "pair_request_created", "Tienes una solicitud para participar juntos. Revisa la aplicación.", { requestId: ref.id }, now, "/campanas", "Solicitud para participar juntos");
+      return { id: ref.id, status: request.status };
     });
     return result;
+  }
+  async acceptByOrganizer(token: string, campaignId: string, registrationId: string, requestId: string) {
+    if (!campaignDocumentIdSchema.safeParse(campaignId).success || !campaignDocumentIdSchema.safeParse(registrationId).success || !campaignDocumentIdSchema.safeParse(requestId).success)
+      throw new AuthError(400, "Solicitud inválida.");
+    const access = await requireCampaignAccess(this.db, token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"]);
+    return this.db.runTransaction(async (tx) => {
+      const campaign = (await tx.get(this.db.collection(collections.campaigns).doc(campaignId))).data() as Campaign | undefined;
+      if (!campaign || campaign.status !== "registration_open") throw new AuthError(409, "Las inscripciones ya se cerraron.");
+      const ref = this.requests().doc(requestId);
+      const request = (await tx.get(ref)).data() as PairRequest | undefined;
+      if (!request || request.campaignId !== campaignId || request.status !== "pending" || (request.requesterRegistrationId !== registrationId && request.recipientRegistrationId !== registrationId))
+        throw new AuthError(404, "Solicitud pendiente no disponible.");
+      const now = Timestamp.now();
+      await this.acceptPending(tx, campaignId, request, now);
+      tx.update(ref, { status: "accepted", respondedAt: now, updatedAt: now });
+      tx.create(this.db.collection(collections.auditLogs).doc(), { event: "pair_request_accepted_by_organizer", actorId: access.uid, campaignId, entityId: request.id, createdAt: now });
+      return { id: request.id, status: "accepted" as const };
+    });
   }
   async view(token: string, campaignId: string): Promise<PairRequestView> {
     return this.auth.withParticipantTransaction(
@@ -561,68 +618,7 @@ export class PairRequestService {
             );
             notificationRecipient = requester.data()?.participantId;
           }
-          if (data.action === "accept") {
-            const requester = (
-              await tx.get(
-                this.registrations().doc(stored.requesterRegistrationId),
-              )
-            ).data() as CampaignRegistration | undefined;
-            const recipient = (
-              await tx.get(
-                this.registrations().doc(stored.recipientRegistrationId),
-              )
-            ).data() as CampaignRegistration | undefined;
-            if (
-              !requester ||
-              !recipient ||
-              requester.campaignId !== campaignId ||
-              recipient.campaignId !== campaignId ||
-              requester.registrationStatus !== "active" ||
-              recipient.registrationStatus !== "active" ||
-              !(await this.person(tx, requester)).active ||
-              !(await this.person(tx, recipient)).active
-            )
-              throw new AuthError(
-                409,
-                "Ambas personas deben mantener su inscripción y perfil activos.",
-              );
-            let addRecipientAvailability = false;
-            if (stored.timeBlockId) {
-              await this.block(tx, campaignId, stored.timeBlockId);
-              if (!await this.hasAvailability(tx, campaignId, stored.requesterRegistrationId, stored.timeBlockId))
-                throw new AuthError(409, "El horario ya no está disponible para quien envió la solicitud.");
-              if (!await this.hasAvailability(tx, campaignId, stored.recipientRegistrationId, stored.timeBlockId)) {
-                addRecipientAvailability = true;
-              }
-            }
-            const locks = [
-              stored.requesterRegistrationId,
-              stored.recipientRegistrationId,
-            ]
-              .sort()
-              .map((id) => this.locks().doc(acceptedPairKey(campaignId, id, stored.timeBlockId)));
-            const first = await tx.get(locks[0]),
-              second = await tx.get(locks[1]);
-            if (first.exists || second.exists)
-              throw new AuthError(
-                409,
-                "Uno de ustedes ya tiene otro vínculo aceptado en esta campaña.",
-              );
-            if (addRecipientAvailability && stored.timeBlockId) {
-              await reserveAvailabilityPlaces(tx, this.db, campaignId, [stored.timeBlockId]);
-              tx.set(this.db.collection(collections.availabilities).doc(availabilityId(stored.recipientRegistrationId, stored.timeBlockId)), {
-                id: availabilityId(stored.recipientRegistrationId, stored.timeBlockId), campaignId, registrationId: stored.recipientRegistrationId,
-                timeBlockId: stored.timeBlockId, available: true, createdAt: now, updatedAt: now,
-              });
-            }
-            for (const lock of locks)
-              tx.create(lock, {
-                campaignId,
-                requestId: stored.id,
-                ...(stored.timeBlockId ? { timeBlockId: stored.timeBlockId } : {}),
-                createdAt: now,
-              });
-          }
+          if (data.action === "accept") await this.acceptPending(tx, campaignId, stored, now);
           request = {
             ...stored,
             status:

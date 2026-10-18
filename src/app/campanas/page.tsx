@@ -6,6 +6,7 @@ import { campaignsAdminDb } from "@/modules/campaigns/server/firebase-admin";
 import { campaignCollections } from "@/modules/campaigns/lib/paths";
 import { APP_VERSION_LABEL } from "@/modules/campaigns/lib/app-version";
 import { CampaignUpdateFooter } from "@/modules/campaigns/components/campaign-update-footer";
+import { PairInbox } from "@/modules/campaigns/components/pair-inbox";
 
 export const dynamic = "force-dynamic";
 export default async function CampaignParticipantPage() {
@@ -31,6 +32,7 @@ export default async function CampaignParticipantPage() {
           }
         />
       </header>
+      <PairInbox compact />
       <ParticipantCampaigns />
       <CampaignUpdateFooter label={APP_VERSION_LABEL} />
       <ParticipantNavigation active="Inicio" />

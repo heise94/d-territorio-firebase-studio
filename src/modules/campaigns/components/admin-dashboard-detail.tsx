@@ -515,6 +515,7 @@ export function DashboardDetail({
                           Sin horarios activos en común.
                         </p>
                       )}
+                      {pair.status === "pending" && <OrganizerPairAcceptance campaignId={campaignId} registrationId={detail.registrationId} requestId={pair.id} onSaved={onSaved} />}
                     </li>
                   ))}
                 </ul>
@@ -536,6 +537,7 @@ function OrganizerPairRequest({ campaignId, registrationId, timeBlockId, onSent 
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [acceptImmediately, setAcceptImmediately] = useState(false);
 
   useEffect(() => {
     setRows([]); setRecipientRegistrationId(""); setBusy(false);
@@ -565,10 +567,10 @@ function OrganizerPairRequest({ campaignId, registrationId, timeBlockId, onSent 
     setBusy(true); setError(""); setMessage("");
     try {
       const token = await user.getIdToken(true);
-      const response = await campaignFetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/participants/${encodeURIComponent(registrationId)}/pair-requests`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ recipientRegistrationId, timeBlockId }) });
+      const response = await campaignFetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/participants/${encodeURIComponent(registrationId)}/pair-requests`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ recipientRegistrationId, timeBlockId, acceptImmediately }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "No se pudo enviar la solicitud.");
-      setMessage("Solicitud enviada. La otra persona podrá aceptarla o rechazarla desde Inicio en la PWA.");
+      setMessage(acceptImmediately ? "Compañero confirmado de inmediato." : "Solicitud enviada. La otra persona podrá aceptarla o rechazarla desde Inicio en la PWA.");
       setOpen(false);
       onSent();
     } catch (failure) { setError(failure instanceof Error ? failure.message : "No se pudo enviar la solicitud."); }
@@ -579,9 +581,30 @@ function OrganizerPairRequest({ campaignId, registrationId, timeBlockId, onSent 
     {!open ? <button type="button" onClick={() => { setOpen(true); setError(""); }} className="text-[11px] font-semibold text-teal-800 underline">Solicitar compañero</button> : <div className="space-y-2">
       <p className="text-[11px] text-slate-600">La otra persona recibirá una solicitud y podrá aceptar, agregar este horario o rechazarla.</p>
       <div className="flex gap-1.5"><input aria-label="Buscar participante por nombre" className="h-8 min-w-0 flex-1 rounded border border-slate-300 px-2 text-xs" placeholder="Nombre del compañero" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void search(); } }} /><button type="button" disabled={busy} onClick={() => void search()} className="rounded bg-slate-200 px-2 text-xs font-medium disabled:opacity-50">Buscar</button></div>
-      {rows.length > 0 && <><label className="sr-only" htmlFor={`pair-candidate-${timeBlockId}`}>Selecciona compañero</label><select id={`pair-candidate-${timeBlockId}`} className="h-9 w-full rounded border border-slate-300 bg-white px-2 text-xs" value={recipientRegistrationId} onChange={(event) => setRecipientRegistrationId(event.target.value)}><option value="">Selecciona una persona</option>{rows.map((row) => <option key={row.registrationId} value={row.registrationId}>{row.fullName} · {row.congregation}</option>)}</select><button type="button" disabled={busy || !recipientRegistrationId} onClick={() => void send()} className="rounded bg-teal-800 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{busy ? "Enviando…" : "Enviar solicitud"}</button></>}
+      {rows.length > 0 && <><label className="sr-only" htmlFor={`pair-candidate-${timeBlockId}`}>Selecciona compañero</label><select id={`pair-candidate-${timeBlockId}`} className="h-9 w-full rounded border border-slate-300 bg-white px-2 text-xs" value={recipientRegistrationId} onChange={(event) => setRecipientRegistrationId(event.target.value)}><option value="">Selecciona una persona</option>{rows.map((row) => <option key={row.registrationId} value={row.registrationId}>{row.fullName} · {row.congregation}</option>)}</select><label className="flex items-start gap-2 text-[11px] text-slate-700"><input type="checkbox" checked={acceptImmediately} onChange={(event) => setAcceptImmediately(event.target.checked)} className="mt-0.5" />Ya conversaron: marcar como aceptada de inmediato</label><button type="button" disabled={busy || !recipientRegistrationId} onClick={() => void send()} className="rounded bg-teal-800 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{busy ? "Guardando…" : acceptImmediately ? "Confirmar compañero" : "Enviar solicitud"}</button></>}
       <button type="button" onClick={() => setOpen(false)} className="ml-2 text-xs text-slate-600 underline">Cancelar</button>
     </div>}
     {message && <p role="status" className="mt-1 text-[11px] text-teal-800">{message}</p>}{error && <p role="alert" className="mt-1 text-[11px] text-red-700">{error}</p>}
   </div>;
+}
+
+function OrganizerPairAcceptance({ campaignId, registrationId, requestId, onSaved }: { campaignId: string; registrationId: string; requestId: string; onSaved: () => void }) {
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function accept() {
+    if (!user) return;
+    setBusy(true); setError("");
+    try {
+      const token = await user.getIdToken(true);
+      const response = await campaignFetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/participants/${encodeURIComponent(registrationId)}/pair-requests`, {
+        method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ action: "accept", requestId }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "No se pudo confirmar el compañero.");
+      onSaved();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "No se pudo confirmar el compañero."); }
+    finally { setBusy(false); }
+  }
+  return <div className="pt-1"><button type="button" disabled={busy} onClick={() => void accept()} className="rounded bg-teal-800 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50">{busy ? "Confirmando…" : "Marcar como aceptada"}</button>{error && <p role="alert" className="mt-1 text-[11px] text-red-700">{error}</p>}</div>;
 }

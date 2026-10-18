@@ -267,6 +267,8 @@ test("la interfaz conserva datos editables, salida sin logout y carga diferida d
   assert.doesNotMatch(source, /readOnly=\{lookup\?\.kind!=="new"\}/);
   assert.match(source, /Salir del modo organización/);
   assert.match(source, /\/coverage`/);
-  assert.doesNotMatch(participantHome, /ParticipantNextTurn|PairInbox/);
+  assert.doesNotMatch(participantHome, /ParticipantNextTurn/);
+  assert.match(participantHome, /PairInbox compact/);
+  assert.doesNotMatch(source, /Gestionar compañero|\/companion/);
   assert.doesNotMatch(profile, /organization\/campaigns/);
 });

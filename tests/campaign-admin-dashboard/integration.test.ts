@@ -618,3 +618,32 @@ test("Organizador crea solicitud pendiente con aviso al destinatario, sin autoac
   assert.equal(notices.docs[0].data().type, "pair_request_created");
   assert.equal((await db.collection("availabilities").doc(availabilityId(reg(6), "block-0")).get()).exists, false);
 });
+
+test("Organizador puede confirmar de inmediato un vínculo manual y completar la disponibilidad necesaria", async () => {
+  token = await fixtureToken();
+  await db.collection("availabilities").doc(availabilityId(reg(7), "block-0")).set({
+    campaignId: campaign, registrationId: reg(7), timeBlockId: "block-0", available: true,
+  });
+  const pairs = new PairRequestService(db, new ParticipantAuthService(db, "local-test-only-secret-long-enough"));
+  const result = await pairs.createByOrganizer(token, campaign, reg(7), {
+    recipientRegistrationId: reg(8), timeBlockId: "block-0", acceptImmediately: true,
+  });
+  assert.equal(result.status, "accepted");
+  assert.equal((await db.collection("pairRequests").doc(result.id).get()).data()?.status, "accepted");
+  assert.equal((await db.collection("availabilities").doc(availabilityId(reg(8), "block-0")).get()).data()?.available, true);
+  const notices = await db.collection("campaignNotifications").where("metadata.requestId", "==", result.id).get();
+  assert.equal(notices.size, 0);
+});
+
+test("Organizador puede confirmar una solicitud manual pendiente sin permitir duplicados", async () => {
+  token = await fixtureToken();
+  await db.collection("availabilities").doc(availabilityId(reg(9), "block-0")).set({
+    campaignId: campaign, registrationId: reg(9), timeBlockId: "block-0", available: true,
+  });
+  const pairs = new PairRequestService(db, new ParticipantAuthService(db, "local-test-only-secret-long-enough"));
+  const pending = await pairs.createByOrganizer(token, campaign, reg(9), { recipientRegistrationId: reg(10), timeBlockId: "block-0" });
+  const accepted = await pairs.acceptByOrganizer(token, campaign, reg(9), pending.id);
+  assert.equal(accepted.status, "accepted");
+  await assert.rejects(pairs.acceptByOrganizer(token, campaign, reg(9), pending.id), denied(404));
+  await assert.rejects(pairs.acceptByOrganizer(ordinaryToken, campaign, reg(9), pending.id), denied(403));
+});
