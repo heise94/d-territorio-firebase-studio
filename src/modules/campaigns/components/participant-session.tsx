@@ -3,6 +3,7 @@ import { campaignFetch } from "../lib/campaign-fetch";
 
 import { useEffect, useState, type FormEvent } from "react";
 import { changePinSchema } from "../schemas/participant-auth";
+import { formatPersonName } from "../lib/presentation";
 
 export function ParticipantSessionControls({ fullName }: { fullName: string }) {
   const [error, setError] = useState("");
@@ -80,7 +81,7 @@ export function ParticipantSessionControls({ fullName }: { fullName: string }) {
       className="mt-5 space-y-3 rounded-2xl border border-slate-200 bg-white p-4"
       aria-label="Mi sesión"
     >
-      <p className="font-semibold">Hola, {fullName}</p>
+      <p className="font-semibold">Hola, {formatPersonName(fullName)}</p>
       <button
         type="button"
         disabled={busy}

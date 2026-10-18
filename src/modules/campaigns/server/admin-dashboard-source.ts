@@ -12,6 +12,7 @@ import type {
 } from "../domain/registration";
 import type { PairRequest } from "../domain/pair-request";
 import { campaignCollections as names } from "../lib/paths";
+import { formatPersonName } from "../lib/presentation";
 import { AuthError } from "./auth/service";
 
 export interface OperationalProfile {
@@ -89,7 +90,10 @@ export async function readDashboardSource(
       },
     );
     for (const doc of docs)
-      if (doc.exists) profiles.set(doc.id, doc.data() as OperationalProfile);
+      if (doc.exists) {
+        const profile = doc.data() as OperationalProfile;
+        profiles.set(doc.id, { ...profile, fullName: formatPersonName(profile.fullName) });
+      }
   }
   // The organizer may enroll an existing account in a different congregation
   // for this campaign. Present the campaign-specific choice without changing

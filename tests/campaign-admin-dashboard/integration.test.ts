@@ -20,11 +20,14 @@ import {
   campaignsAdminDb,
 } from "../../src/modules/campaigns/server/firebase-admin";
 import { CampaignAdminDashboardService } from "../../src/modules/campaigns/server/admin-dashboard-service";
-import { AuthError } from "../../src/modules/campaigns/server/auth/service";
+import { AuthError, ParticipantAuthService } from "../../src/modules/campaigns/server/auth/service";
+import { PairRequestService } from "../../src/modules/campaigns/server/pair-request-service";
+import { availabilityId } from "../../src/modules/campaigns/server/registration-service";
 import { orderedCoverageDays } from "../../src/modules/campaigns/domain/admin-dashboard";
 import { GET as overviewGET } from "../../src/app/api/campanas/admin/campaigns/[campaignId]/overview/route";
 import { GET as participantsGET } from "../../src/app/api/campanas/admin/campaigns/[campaignId]/participants/route";
 import { GET as detailGET } from "../../src/app/api/campanas/admin/campaigns/[campaignId]/participants/[registrationId]/route";
+import { PATCH as detailPATCH } from "../../src/app/api/campanas/admin/campaigns/[campaignId]/participants/[registrationId]/route";
 import {
   seedDashboardFixture,
   fixtureCampaign as campaign,
@@ -567,4 +570,49 @@ test("Revocación real de sesión Firebase invalida ID token anterior", async ()
   await new Promise((resolve) => setTimeout(resolve, 1100));
   await getAuth(campaignsAdminApp()).revokeRefreshTokens("dashboard-organizer");
   await assert.rejects(service.overview(old, campaign), denied(401));
+});
+
+test("Organizador puede corregir solo el nombre y conserva el teléfono", async () => {
+  token = await fixtureToken();
+  const before = await db.collection("participants").doc("person-0").get();
+  const phone = before.data()?.phoneNormalized;
+  const response = await detailPATCH(
+    new NextRequest(`http://localhost/api/campanas/admin/campaigns/${campaign}/participants/${reg(0)}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, Origin: "http://localhost", "Content-Type": "application/json" },
+      body: JSON.stringify({ fullName: "jAvIeR hEiSe" }),
+    }),
+    { params: Promise.resolve({ campaignId: campaign, registrationId: reg(0) }) },
+  );
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).fullName, "Javier Heise");
+  const after = (await db.collection("participants").doc("person-0").get()).data();
+  assert.equal(after?.fullName, "Javier Heise");
+  assert.equal(after?.phoneNormalized, phone);
+  await assert.rejects(service.updateParticipantName(ordinaryToken, campaign, reg(0), { fullName: "Otro Nombre" }), denied(403));
+  await assert.rejects(service.updateParticipantName(token, campaign, reg(0), { fullName: "x" }), denied(400));
+});
+
+test("Organizador crea solicitud pendiente con aviso al destinatario, sin autoaceptar", async () => {
+  token = await fixtureToken();
+  await db.collection("availabilities").doc(availabilityId(reg(5), "block-0")).set({
+    campaignId: campaign,
+    registrationId: reg(5),
+    timeBlockId: "block-0",
+    available: true,
+  });
+  const pairs = new PairRequestService(db, new ParticipantAuthService(db, "local-test-only-secret-long-enough"));
+  const result = await pairs.createByOrganizer(token, campaign, reg(5), {
+    recipientRegistrationId: reg(6),
+    timeBlockId: "block-0",
+  });
+  assert.equal(result.status, "pending");
+  const stored = (await db.collection("pairRequests").doc(result.id).get()).data();
+  assert.equal(stored?.requesterRegistrationId, reg(5));
+  assert.equal(stored?.recipientRegistrationId, reg(6));
+  assert.equal(stored?.status, "pending");
+  const notices = await db.collection("campaignNotifications").where("participantId", "==", "person-6").where("metadata.requestId", "==", result.id).get();
+  assert.equal(notices.size, 1);
+  assert.equal(notices.docs[0].data().type, "pair_request_created");
+  assert.equal((await db.collection("availabilities").doc(availabilityId(reg(6), "block-0")).get()).exists, false);
 });

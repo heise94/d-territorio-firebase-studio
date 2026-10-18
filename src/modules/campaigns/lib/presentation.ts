@@ -26,3 +26,24 @@ export function registrationStatusLabel(status: string) {
     )[status] ?? "Estado no disponible"
   );
 }
+
+/** Consistent display casing for participant names without changing stored records. */
+export function formatPersonName(input: string): string {
+  return input
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((word) =>
+      word
+        .split(/([-’'])/u)
+        .map((part) =>
+          /^[-’']$/u.test(part)
+            ? part
+            : part
+              ? part.charAt(0).toLocaleUpperCase("es-CL") + part.slice(1).toLocaleLowerCase("es-CL")
+              : part,
+        )
+        .join(""),
+    )
+    .join(" ");
+}

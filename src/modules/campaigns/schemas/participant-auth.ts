@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatPersonName } from "../lib/presentation";
 
 export function normalizeChileanPhone(input: string): string {
   const compact = input.trim().replace(/\D/g, "");
@@ -19,25 +20,7 @@ export function organizerPhoneDigits(input: string): string {
   return digits.slice(0, 8);
 }
 
-export function normalizePersonName(input: string): string {
-  return input
-    .trim()
-    .replace(/\s+/g, " ")
-    .split(" ")
-    .map((word) =>
-      word
-        .split(/([-’'])/u)
-        .map((part) =>
-          /^[-’']$/u.test(part)
-            ? part
-            : part
-              ? part.charAt(0).toLocaleUpperCase("es-CL") + part.slice(1).toLocaleLowerCase("es-CL")
-              : part,
-        )
-        .join(""),
-    )
-    .join(" ");
-}
+export { formatPersonName as normalizePersonName } from "../lib/presentation";
 
 export const phoneSchema = z
   .string()
@@ -61,7 +44,7 @@ export const loginSchema = z
   .strict();
 export const registrationSchema = loginSchema
   .extend({
-    fullName: z.string().trim().min(2, "Ingresa tu nombre.").max(120),
+    fullName: z.string().trim().min(2, "Ingresa tu nombre.").max(120).transform(formatPersonName),
     congregationId: z
       .string()
       .regex(/^[A-Za-z0-9_-]{1,128}$/)

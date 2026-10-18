@@ -2,6 +2,7 @@ import "server-only";
 import { Timestamp, type Transaction } from "firebase-admin/firestore";
 import { z } from "zod";
 import { campaignCollections as names } from "../lib/paths";
+import { formatPersonName } from "../lib/presentation";
 import { canTransitionCampaignStatus } from "../domain/campaign-status";
 import {
   publicationConflictMessage,
@@ -357,8 +358,10 @@ export async function getPersonalProgram(
                 pointName: point.name,
                 locationText: point.locationText,
                 description: point.description,
-                companionName:
-                  cell.slots[index === 0 ? 1 : 0]?.fullName ?? null,
+                companionName: (() => {
+                  const name = cell.slots[index === 0 ? 1 : 0]?.fullName;
+                  return name ? formatPersonName(name) : null;
+                })(),
               });
             }
         result.campaigns.push({

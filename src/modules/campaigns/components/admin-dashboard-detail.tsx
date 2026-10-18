@@ -16,6 +16,8 @@ import type {
 import { formatHumanDate } from "./campaign-schedule-settings";
 import { useAuth } from "@/hooks/use-auth";
 import { campaignFetch } from "../lib/campaign-fetch";
+import { formatPersonName } from "../lib/presentation";
+import type { AdminParticipantList } from "../domain/admin-dashboard";
 
 export function DashboardDetail({
   open,
@@ -44,6 +46,10 @@ export function DashboardDetail({
   const [initialMaxTurns, setInitialMaxTurns] = useState<number | null>(null);
   const [maxTurns, setMaxTurns] = useState<number | null>(null);
   const [reason, setReason] = useState("");
+  const [editedName, setEditedName] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameMessage, setNameMessage] = useState("");
+  const [nameError, setNameError] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -60,6 +66,9 @@ export function DashboardDetail({
       setInitialMaxTurns(detail.maxTurns ?? null);
       setMaxTurns(detail.maxTurns ?? null);
       setReason("");
+      setEditedName(detail.fullName);
+      setNameMessage("");
+      setNameError("");
       setSaveError("");
       setSaveSuccess("");
     } else {
@@ -121,6 +130,30 @@ export function DashboardDetail({
     setReason("");
     setSaveError("");
     setSaveSuccess("");
+  };
+
+  const saveName = async () => {
+    if (!detail || !user || !editedName.trim()) return;
+    setNameSaving(true);
+    setNameError("");
+    setNameMessage("");
+    try {
+      const token = await user.getIdToken(true);
+      const response = await campaignFetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/participants/${encodeURIComponent(detail.registrationId)}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName: editedName }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "No se pudo guardar el nombre.");
+      setEditedName(body.fullName);
+      setNameMessage("Nombre actualizado.");
+      onSaved();
+    } catch (failure) {
+      setNameError(failure instanceof Error ? failure.message : "No se pudo guardar el nombre.");
+    } finally {
+      setNameSaving(false);
+    }
   };
 
   const handleSave = async () => {
@@ -230,9 +263,8 @@ export function DashboardDetail({
               <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 text-sm">
                 <div>
                   <span className="block text-xs text-slate-500">Nombre</span>
-                  <span className="font-semibold text-slate-900">
-                    {detail.fullName}
-                  </span>
+                  <label htmlFor="participant-full-name" className="sr-only">Nombre del participante</label>
+                  <input id="participant-full-name" className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2 font-semibold text-slate-900" value={editedName} onChange={(event) => setEditedName(event.target.value)} />
                 </div>
                 <div>
                   <span className="block text-xs text-slate-500">
@@ -247,6 +279,7 @@ export function DashboardDetail({
                   <span className="font-semibold text-slate-900">
                     {detail.phone ?? "No disponible"}
                   </span>
+                  <span className="block text-[11px] text-slate-500">No editable</span>
                 </div>
                 <div>
                   <span className="block text-xs text-slate-500">
@@ -260,6 +293,11 @@ export function DashboardDetail({
                     {detail.profileActive ? "Activo" : "Inactivo"}
                   </span>
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => void saveName()} disabled={nameSaving || !editedName.trim() || formatPersonName(editedName) === formatPersonName(detail.fullName)} className="inline-flex min-h-9 items-center rounded-lg bg-teal-800 px-4 text-xs font-semibold text-white disabled:opacity-50">{nameSaving ? "Guardando…" : "Guardar nombre"}</button>
+                {nameMessage && <span role="status" className="text-xs text-teal-800">{nameMessage}</span>}
+                {nameError && <span role="alert" className="text-xs text-red-700">{nameError}</span>}
               </div>
             </section>
 
@@ -359,22 +397,20 @@ export function DashboardDetail({
                           const isProtected = publishedAssignmentBlockIds.has(block.id);
 
                           return (
-                            <label
-                              key={block.id}
-                              className={`flex items-start gap-2.5 rounded border p-2 text-xs transition-colors ${
+                            <div key={block.id} className={`rounded border p-2 text-xs transition-colors ${
                                 isChecked
                                   ? "border-teal-200 bg-teal-50/50 text-slate-900"
                                   : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                              } ${isProtected ? "cursor-not-allowed opacity-90" : "cursor-pointer"}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                disabled={isProtected && isChecked}
-                                onChange={() => toggleBlock(block.id)}
-                                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-800 focus:ring-teal-700 disabled:opacity-50"
-                              />
-                              <div className="flex-1">
+                              }`}>
+                              <label className={`flex items-start gap-2.5 ${isProtected ? "cursor-not-allowed opacity-90" : "cursor-pointer"}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={isProtected && isChecked}
+                                  onChange={() => toggleBlock(block.id)}
+                                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-800 focus:ring-teal-700 disabled:opacity-50"
+                                />
+                                <div className="flex-1">
                                 <span className="font-semibold">
                                   {block.startTime}–{block.endTime}
                                 </span>
@@ -388,8 +424,10 @@ export function DashboardDetail({
                                     Turno publicado asignado (protegido)
                                   </span>
                                 )}
-                              </div>
-                            </label>
+                                </div>
+                              </label>
+                              {isChecked && <OrganizerPairRequest campaignId={campaignId} registrationId={detail.registrationId} timeBlockId={block.id} onSent={onSaved} />}
+                            </div>
                           );
                         })}
                       </div>
@@ -487,4 +525,55 @@ export function DashboardDetail({
       </SheetContent>
     </Sheet>
   );
+}
+
+function OrganizerPairRequest({ campaignId, registrationId, timeBlockId, onSent }: { campaignId: string; registrationId: string; timeBlockId: string; onSent: () => void }) {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [rows, setRows] = useState<AdminParticipantList["rows"]>([]);
+  const [recipientRegistrationId, setRecipientRegistrationId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  async function search() {
+    if (!user || query.trim().length < 2) { setError("Escribe al menos dos letras para buscar."); return; }
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const token = await user.getIdToken(true);
+      const response = await campaignFetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/participants?status=active&page=1`, { headers: { Authorization: `Bearer ${token}`, "X-Campaign-Search": encodeURIComponent(query.trim()) } });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "No se pudo buscar participantes.");
+      setRows((body as AdminParticipantList).rows.filter((row) => row.registrationId !== registrationId));
+      setRecipientRegistrationId("");
+      if (!body.rows.length) setMessage("No encontramos participantes con ese nombre en esta campaña.");
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "No se pudo buscar participantes."); }
+    finally { setBusy(false); }
+  }
+
+  async function send() {
+    if (!user || !recipientRegistrationId) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const token = await user.getIdToken(true);
+      const response = await campaignFetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/participants/${encodeURIComponent(registrationId)}/pair-requests`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ recipientRegistrationId, timeBlockId }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "No se pudo enviar la solicitud.");
+      setMessage("Solicitud enviada. La otra persona podrá aceptarla o rechazarla desde Inicio en la PWA.");
+      setOpen(false);
+      onSent();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "No se pudo enviar la solicitud."); }
+    finally { setBusy(false); }
+  }
+
+  return <div className="mt-2 border-t border-slate-200 pt-2">
+    {!open ? <button type="button" onClick={() => { setOpen(true); setError(""); }} className="text-[11px] font-semibold text-teal-800 underline">Solicitar compañero</button> : <div className="space-y-2">
+      <p className="text-[11px] text-slate-600">La otra persona recibirá una solicitud y podrá aceptar, agregar este horario o rechazarla.</p>
+      <div className="flex gap-1.5"><input aria-label="Buscar participante por nombre" className="h-8 min-w-0 flex-1 rounded border border-slate-300 px-2 text-xs" placeholder="Nombre del compañero" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void search(); } }} /><button type="button" disabled={busy} onClick={() => void search()} className="rounded bg-slate-200 px-2 text-xs font-medium disabled:opacity-50">Buscar</button></div>
+      {rows.length > 0 && <><label className="sr-only" htmlFor={`pair-candidate-${timeBlockId}`}>Selecciona compañero</label><select id={`pair-candidate-${timeBlockId}`} className="h-9 w-full rounded border border-slate-300 bg-white px-2 text-xs" value={recipientRegistrationId} onChange={(event) => setRecipientRegistrationId(event.target.value)}><option value="">Selecciona una persona</option>{rows.map((row) => <option key={row.registrationId} value={row.registrationId}>{row.fullName} · {row.congregation}</option>)}</select><button type="button" disabled={busy || !recipientRegistrationId} onClick={() => void send()} className="rounded bg-teal-800 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{busy ? "Enviando…" : "Enviar solicitud"}</button></>}
+      <button type="button" onClick={() => setOpen(false)} className="ml-2 text-xs text-slate-600 underline">Cancelar</button>
+    </div>}
+    {message && <p role="status" className="mt-1 text-[11px] text-teal-800">{message}</p>}{error && <p role="alert" className="mt-1 text-[11px] text-red-700">{error}</p>}
+  </div>;
 }

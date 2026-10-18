@@ -87,6 +87,7 @@ export async function seedDashboardFixture() {
     locationName: "Lugar ficticio",
     locationDetails: "Solo emuladores",
     status: "registration_open",
+    companionRequestsEnabled: true,
     defaultCapacityPerBlock: 16,
     maxPoints: 4,
     createdAt: now,

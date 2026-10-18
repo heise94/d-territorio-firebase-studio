@@ -20,7 +20,9 @@ import { campaignDocumentIdSchema } from "../schemas/registration-schemas";
 import {
   adminParticipantFiltersSchema,
   adminUpdateAvailabilitySchema,
+  adminUpdateParticipantNameSchema,
 } from "../schemas/admin-dashboard-schemas";
+import { formatPersonName } from "../lib/presentation";
 import { phoneSchema } from "../schemas/participant-auth";
 import { AuthError } from "./auth/service";
 import { requireCampaignAccess } from "./campaign-access";
@@ -580,6 +582,34 @@ export class CampaignAdminDashboardService {
         message: "Disponibilidad actualizada exitosamente.",
         updatedAt: new Date().toISOString(),
       };
+    });
+  }
+
+  async updateParticipantName(token: string, campaignId: string, registrationId: string, input: unknown) {
+    const access = await this.authorize(token, campaignId);
+    if (!campaignDocumentIdSchema.safeParse(registrationId).success)
+      throw new AuthError(400, "Inscripción inválida.");
+    const parsed = adminUpdateParticipantNameSchema.safeParse(input);
+    if (!parsed.success) throw new AuthError(400, "Nombre inválido.");
+    const fullName = formatPersonName(parsed.data.fullName);
+    return this.db.runTransaction(async (tx) => {
+      const registrationRef = this.db.collection(campaignCollections.campaignRegistrations).doc(registrationId);
+      const registration = await tx.get(registrationRef);
+      if (!registration.exists || registration.data()?.campaignId !== campaignId)
+        throw new AuthError(404, "Inscripción no encontrada en esta campaña.");
+      const profileRef = this.db.collection(campaignCollections.participants).doc(registration.data()!.participantId);
+      const profile = await tx.get(profileRef);
+      if (!profile.exists) throw new AuthError(404, "Cuenta del participante no disponible.");
+      tx.update(profileRef, { fullName, updatedAt: Timestamp.now() });
+      tx.create(this.db.collection(campaignCollections.auditLogs).doc(), {
+        campaignId,
+        actorId: access.uid,
+        action: "admin_update_participant_name",
+        entityId: registrationId,
+        metadata: { field: "fullName" },
+        createdAt: Timestamp.now(),
+      });
+      return { success: true as const, fullName };
     });
   }
 }

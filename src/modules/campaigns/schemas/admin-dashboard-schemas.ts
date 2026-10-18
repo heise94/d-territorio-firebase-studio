@@ -32,6 +32,15 @@ export const adminUpdateAvailabilitySchema = z
   })
   .strict();
 
+export const adminUpdateParticipantNameSchema = z.object({
+  fullName: z.string().trim().min(2, "Ingresa el nombre.").max(120),
+}).strict();
+
+export const adminCreatePairRequestSchema = z.object({
+  recipientRegistrationId: campaignDocumentIdSchema,
+  timeBlockId: campaignDocumentIdSchema,
+}).strict();
+
 export type AdminUpdateAvailabilityInput = z.infer<
   typeof adminUpdateAvailabilitySchema
 >;

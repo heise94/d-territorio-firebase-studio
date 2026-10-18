@@ -6,6 +6,7 @@ import type {
 } from "../domain/registration";
 import type { Participant } from "../domain/participant";
 import { campaignCollections } from "../lib/paths";
+import { formatPersonName } from "../lib/presentation";
 import { AuthError } from "./auth/service";
 import { requireCampaignAccess } from "./campaign-access";
 
@@ -71,7 +72,7 @@ export class CongregationReviewService {
       )
       .map(({ registration, profile, availableBlocks }) => ({
         registrationId: registration.id,
-        fullName: profile?.fullName ?? "Participante no disponible",
+        fullName: profile ? formatPersonName(profile.fullName) : "Participante no disponible",
         phone: profile?.phoneNormalized ?? "",
         available: registration.registrationStatus === "active",
         availableBlocks,

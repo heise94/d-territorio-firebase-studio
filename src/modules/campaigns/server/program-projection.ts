@@ -6,6 +6,7 @@ import type {
   ProgramView,
 } from "../domain/program";
 import type { PlannerSource } from "./planner-source";
+import { formatPersonName } from "../lib/presentation";
 
 /** Deterministic, minimal projection. No credentials, phones or raw availabilities. */
 export function projectProgram(
@@ -37,7 +38,7 @@ export function projectProgram(
       hours: block ? `${block.startTime}–${block.endTime}` : "",
       point: source.points.get(pointId)?.name ?? "",
       person: reg
-        ? (source.profiles.get(reg.participantId)?.fullName ?? "")
+        ? formatPersonName(source.profiles.get(reg.participantId)?.fullName ?? "")
         : "",
     });
   }
@@ -269,7 +270,7 @@ export function projectProgram(
                 ? {
                     assignmentId: a.id,
                     registrationId: a.registrationId,
-                    fullName: profile?.fullName ?? "Persona no disponible",
+                    fullName: profile ? formatPersonName(profile.fullName) : "Persona no disponible",
                     congregation: profile?.congregationId
                       ? (source.congregations.get(profile.congregationId)
                           ?.name ?? "")

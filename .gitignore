@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/.audit-participant-0118.mjs
 
 # next.js
 /.next/

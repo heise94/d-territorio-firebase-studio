@@ -10,6 +10,7 @@ import type {
   ParticipantDTO,
 } from "../../domain/participant";
 import { participantDTO } from "../../domain/participant";
+import { formatPersonName } from "../../lib/presentation";
 import { campaignCollections } from "../../lib/paths";
 import {
   changePinSchema,
@@ -144,7 +145,7 @@ export class ParticipantAuthService {
     const timestamp = Timestamp.fromMillis(this.now());
     const participant: Participant = {
       id: ref.id,
-      fullName: data.fullName,
+      fullName: formatPersonName(data.fullName),
       phoneNormalized: data.phone,
       pinHash,
       ...(data.congregationId ? { congregationId: data.congregationId } : {}),

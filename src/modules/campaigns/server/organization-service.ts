@@ -6,6 +6,7 @@ import type { CampaignRegistration, Availability, MaxTurns } from "../domain/reg
 import type { Campaign, CampaignDay, Congregation, Point, TimeBlock, BlockPoint } from "../domain/types";
 import { calculateBlockCapacity } from "../domain/point-capacity";
 import { campaignCollections as names } from "../lib/paths";
+import { formatPersonName } from "../lib/presentation";
 import { normalizePersonName, phoneSchema, pinSchema } from "../schemas/participant-auth";
 import { campaignDocumentIdSchema } from "../schemas/registration-schemas";
 import { AuthError, ParticipantAuthService } from "./auth/service";
@@ -128,7 +129,7 @@ export class CampaignOrganizationService {
     const registrations = new Map(registrationDocs.docs.map((doc) => [doc.id, { ...doc.data(), id: doc.id } as CampaignRegistration]));
     const participantIds = [...new Set([...registrations.values()].map((row) => row.participantId))];
     const profileDocs = participantIds.length ? await tx.getAll(...participantIds.map((id) => this.db.collection(names.participants).doc(id))) : [];
-    const profiles = new Map(profileDocs.filter((doc) => doc.exists).map((doc) => [doc.id, { ...doc.data(), id: doc.id } as Participant]));
+    const profiles = new Map(profileDocs.filter((doc) => doc.exists).map((doc) => { const profile = doc.data() as Participant; return [doc.id, { ...profile, id: doc.id, fullName: formatPersonName(profile.fullName) }]; }));
     const associatedIds = new Set(associationDocs.docs.map((doc) => doc.data().congregationId as string));
     const congregationIds = [...new Set([...associatedIds, ...[...profiles.values()].map((profile) => profile.congregationId).filter((id): id is string => !!id), ...[...registrations.values()].map((row) => row.congregationId).filter((id): id is string => !!id)])];
     const congregationDocs = congregationIds.length ? await tx.getAll(...congregationIds.map((id) => this.db.collection(names.congregations).doc(id))) : [];
@@ -401,7 +402,7 @@ export class CampaignOrganizationService {
     const preferred = registration?.congregationId ?? existing.congregationId;
     return {
       kind: registration ? "already_registered" as const : "existing" as const,
-      fullName: existing.fullName,
+      fullName: formatPersonName(existing.fullName),
       phone: parsed.data,
       congregationId: preferred && source.associatedCongregations.has(preferred) ? preferred : null,
       registrationId: registration?.id ?? null,
@@ -426,8 +427,8 @@ export class CampaignOrganizationService {
         const source = await validate(tx);
         const currentDoc = await tx.get(this.db.collection(names.campaignRegistrations).doc(registrationId(campaignId, existing.id)));
         const current = currentDoc.exists ? { id: currentDoc.id } : [...source.registrations.values()].find((row) => row.participantId === existing.id);
-        if (value.action === "create") return { kind: current ? "already_registered" as const : "existing" as const, registrationId: current?.id ?? null, fullName: existing.fullName };
-        if (current) return { kind: "already_registered" as const, registrationId: current.id, fullName: existing.fullName };
+        if (value.action === "create") return { kind: current ? "already_registered" as const : "existing" as const, registrationId: current?.id ?? null, fullName: formatPersonName(existing.fullName) };
+        if (current) return { kind: "already_registered" as const, registrationId: current.id, fullName: formatPersonName(existing.fullName) };
         return this.addRegistration(tx, campaignId, existing, value, actor.id, "organization_add_existing_participant");
       });
     }

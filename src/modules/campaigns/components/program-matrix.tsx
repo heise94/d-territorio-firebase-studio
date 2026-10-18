@@ -1,5 +1,6 @@
 import type { ProgramView } from "../domain/program";
 import styles from "./program.module.css";
+import { formatPersonName } from "../lib/presentation";
 
 export function ProgramMatrix({ view }: { view: ProgramView }) {
   return (
@@ -60,7 +61,7 @@ export function ProgramMatrix({ view }: { view: ProgramView }) {
                           cell.slots.map((person, index) => (
                             <div key={index} className={styles.slot}>
                               <span>
-                                {index + 1}. {person?.fullName ?? "Pendiente"}
+                                {index + 1}. {person ? formatPersonName(person.fullName) : "Pendiente"}
                               </span>
                               {person?.congregation && (
                                 <small className="block">

@@ -9,12 +9,29 @@ import {
   registrationId,
   availabilityId,
 } from "../../src/modules/campaigns/server/registration-service";
+import { formatPersonName } from "../../src/modules/campaigns/lib/presentation";
+import { registrationSchema } from "../../src/modules/campaigns/schemas/participant-auth";
 
 test("MaxTurns: 1/2/3/null y rechazo de números/textos arbitrarios", () => {
   for (const value of [1, 2, 3, null])
     assert.ok(maxTurnsSchema.safeParse(value).success);
   for (const value of [0, -1, 4, 1.5, "2", "sin limite", undefined, false])
     assert.ok(!maxTurnsSchema.safeParse(value).success);
+});
+test("Nombres se guardan con formato uniforme y preservan tildes, ñ y guiones", () => {
+  for (const input of ["JAVIER HEISE", "javier heise", "jAvIeR hEiSe"])
+    assert.equal(formatPersonName(input), "Javier Heise");
+  assert.equal(formatPersonName("MARÍA JOSÉ PÉREZ"), "María José Pérez");
+  assert.equal(formatPersonName("iñigo muñoz-urrutia"), "Iñigo Muñoz-Urrutia");
+  const parsed = registrationSchema.safeParse({
+    phone: "+56987654321",
+    pin: "1234",
+    confirmPin: "1234",
+    fullName: "JAVIER HEISE",
+    congregationId: "maquehue",
+  });
+  assert.ok(parsed.success);
+  if (parsed.success) assert.equal(parsed.data.fullName, "Javier Heise");
 });
 test("Schemas: no IDs de identidad/inscripción inyectados ni bloques duplicados", () => {
   const input = {

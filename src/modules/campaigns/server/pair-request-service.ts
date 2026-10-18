@@ -21,14 +21,17 @@ import {
   type SharedBlock,
 } from "../domain/pair-request";
 import { campaignCollections as collections } from "../lib/paths";
+import { formatPersonName } from "../lib/presentation";
 import {
   pairMutationSchema,
   pairSearchSchema,
 } from "../schemas/pair-request-schemas";
 import { campaignDocumentIdSchema } from "../schemas/registration-schemas";
+import { adminCreatePairRequestSchema } from "../schemas/admin-dashboard-schemas";
 import { AuthError, ParticipantAuthService } from "./auth/service";
 import { availabilityId, registrationId } from "./registration-service";
 import { writeDomainNotification } from "./notification-events";
+import { requireCampaignAccess } from "./campaign-access";
 
 /** Internal sentinels, not a second PairRequest model or a participant-facing collection. */
 export const pairLockCollection = "campaignPairRequestLocks";
@@ -120,7 +123,7 @@ export class PairRequestService {
         ).data()?.name
       : "";
     return {
-      fullName: participant?.fullName ?? "Participante no disponible",
+      fullName: participant ? formatPersonName(participant.fullName) : "Participante no disponible",
       congregation: congregation ?? "",
       active: participant?.active === true,
     };
@@ -253,6 +256,64 @@ export class PairRequestService {
     const doc = await tx.get(this.db.collection(collections.availabilities).doc(availabilityId(registration, timeBlockId)));
     const row = doc.data() as Availability | undefined;
     return row?.campaignId === campaignId && row.registrationId === registration && row.timeBlockId === timeBlockId && row.available === true;
+  }
+
+  async createByOrganizer(token: string, campaignId: string, requesterRegistrationId: string, input: unknown) {
+    if (!campaignDocumentIdSchema.safeParse(campaignId).success || !campaignDocumentIdSchema.safeParse(requesterRegistrationId).success)
+      throw new AuthError(400, "Inscripción inválida.");
+    const parsed = adminCreatePairRequestSchema.safeParse(input);
+    if (!parsed.success) throw new AuthError(400, "Selecciona un participante y horario válidos.");
+    const access = await requireCampaignAccess(this.db, token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"]);
+    const { recipientRegistrationId, timeBlockId } = parsed.data;
+    if (recipientRegistrationId === requesterRegistrationId)
+      throw new AuthError(400, "No puedes enviar una solicitud a la misma persona.");
+
+    const result = await this.db.runTransaction(async (tx) => {
+      const campaign = (await tx.get(this.db.collection(collections.campaigns).doc(campaignId))).data() as Campaign | undefined;
+      if (!campaign || campaign.status !== "registration_open" || campaign.companionRequestsEnabled !== true)
+        throw new AuthError(409, "Las solicitudes de compañero no están disponibles en esta campaña.");
+      const [requesterDoc, recipientDoc] = await Promise.all([
+        tx.get(this.registrations().doc(requesterRegistrationId)),
+        tx.get(this.registrations().doc(recipientRegistrationId)),
+      ]);
+      const requester = requesterDoc.data() as CampaignRegistration | undefined;
+      const recipient = recipientDoc.data() as CampaignRegistration | undefined;
+      if (!requester || !recipient || requester.campaignId !== campaignId || recipient.campaignId !== campaignId || requester.registrationStatus !== "active" || recipient.registrationStatus !== "active")
+        throw new AuthError(404, "Ambas personas deben estar inscritas activamente en esta campaña.");
+      if (requester.participantId === recipient.participantId)
+        throw new AuthError(400, "No puedes enviar una solicitud a la misma persona.");
+      const [requesterProfile, recipientProfile] = await Promise.all([
+        tx.get(this.db.collection(collections.participants).doc(requester.participantId)),
+        tx.get(this.db.collection(collections.participants).doc(recipient.participantId)),
+      ]);
+      if (requesterProfile.data()?.active !== true || recipientProfile.data()?.active !== true)
+        throw new AuthError(409, "Ambos perfiles deben estar activos.");
+      await this.block(tx, campaignId, timeBlockId);
+      if (!await this.hasAvailability(tx, campaignId, requesterRegistrationId, timeBlockId))
+        throw new AuthError(409, "El participante debe tener este horario en su disponibilidad.");
+
+      const relationRef = this.locks().doc(pairRelationKey(campaignId, requesterRegistrationId, recipientRegistrationId, timeBlockId));
+      const relation = (await tx.get(relationRef)).data();
+      if (relation?.requestId) {
+        const previous = (await tx.get(this.requests().doc(String(relation.requestId)))).data() as PairRequest | undefined;
+        if (previous?.status === "pending" || previous?.status === "accepted")
+          throw new AuthError(409, "Ya existe una solicitud pendiente o aceptada entre ustedes para este horario.");
+      }
+      const lockRefs = [requesterRegistrationId, recipientRegistrationId].sort().map((id) => this.locks().doc(acceptedPairKey(campaignId, id, timeBlockId)));
+      const [firstLock, secondLock] = await Promise.all(lockRefs.map((ref) => tx.get(ref)));
+      if (firstLock.exists || secondLock.exists)
+        throw new AuthError(409, "Uno de los participantes ya tiene un compañero confirmado para este horario.");
+
+      const now = Timestamp.now();
+      const ref = this.requests().doc();
+      const request: PairRequest = { id: ref.id, campaignId, requesterRegistrationId, recipientRegistrationId, timeBlockId, status: "pending", createdAt: now, updatedAt: now };
+      tx.create(ref, request);
+      tx.set(relationRef, { campaignId, requestId: ref.id, updatedAt: now });
+      tx.create(this.db.collection(collections.auditLogs).doc(), { event: "pair_request_created_by_organizer", actorId: access.uid, campaignId, entityId: ref.id, createdAt: now });
+      writeDomainNotification(tx, this.db, ref.id, recipient.participantId, campaignId, "pair_request_created", "Tienes una solicitud para participar juntos. Revisa la aplicación.", { requestId: ref.id }, now, "/campanas", "Solicitud para participar juntos");
+      return { id: ref.id, status: "pending" as const };
+    });
+    return result;
   }
   async view(token: string, campaignId: string): Promise<PairRequestView> {
     return this.auth.withParticipantTransaction(

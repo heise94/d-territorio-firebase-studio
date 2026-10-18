@@ -9,6 +9,7 @@ import type { MaxTurns, RegistrationView } from "../domain/registration";
 import type { PairRequestDTO, PairRequestView } from "../domain/pair-request";
 import { saveRegistrationSchema } from "../schemas/registration-schemas";
 import { PairRequestSheet } from "./pair-request-sheet";
+import { formatPersonName } from "../lib/presentation";
 
 function dayName(date: string) {
   const formatted = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${date}T12:00:00`)).replace(",", "");
@@ -126,7 +127,7 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
               {coverageMessage && <span className={`availability-state ${coverageMessage.className}`}>{coverageMessage.label}</span>}
             </label>
             {checked && <div className="border-t border-[var(--campaign-line)] pt-1">
-              {pair ? <p className="flex min-h-11 items-center gap-2 text-sm"><UsersRound aria-hidden="true" className="h-4 w-4" /><span><b>{pair.other.fullName}</b> · {pair.status === "accepted" ? "Confirmado" : "Esperando confirmación"}</span></p> :
+              {pair ? <p className="flex min-h-11 items-center gap-2 text-sm"><UsersRound aria-hidden="true" className="h-4 w-4" /><span><b>{formatPersonName(pair.other.fullName)}</b> · {pair.status === "accepted" ? "Confirmado" : "Esperando confirmación"}</span></p> :
                 <button type="button" className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[var(--campaign-primary-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--campaign-primary)]" onClick={() => {
                   if (view.campaign.companionRequestsEnabled) setPairBlock({ id: block.id, label: `${dayName(day.date)} · ${block.startTime}–${block.endTime}` });
                   else setCompanionNotice(true);
