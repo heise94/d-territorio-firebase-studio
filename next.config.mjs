@@ -1,5 +1,8 @@
 import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { buildRelease } from "./src/modules/campaigns/lib/build-release.mjs";
+import { essentialCampaignPrecache } from "./src/modules/campaigns/lib/pwa-precache.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -9,7 +12,7 @@ const release = buildRelease();
 /** @type {import('@ducanh2912/next-pwa').PWAConfig} */
 const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
-  register: true,
+  register: false,
   cacheStartUrl: false,
   dynamicStartUrl: false,
   reloadOnOnline: false,
@@ -18,6 +21,12 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   extendDefaultRuntimeCaching: true,
   workboxOptions: {
     skipWaiting: false,
+    additionalManifestEntries: [
+      // Also changes sw.js on EVERY build, even when only application code changes.
+      { url: "/campanas-offline.html", revision: release.buildId },
+      { url: "/campanas-icon-192.png", revision: createHash("sha256").update(readFileSync(new URL("./public/campanas-icon-192.png", import.meta.url))).digest("hex") },
+    ],
+    manifestTransforms: [essentialCampaignPrecache],
     runtimeCaching: [
       {
         // Never cache participant pages, RSC responses or identity/session API responses.

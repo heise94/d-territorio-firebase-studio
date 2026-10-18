@@ -18,7 +18,9 @@ test("el actualizador usa modal propio y mensajes humanos", async () => {
   assert.match(source, /Nueva versión disponible/);
   assert.match(source, /Actualizar ahora/);
   assert.match(source, /Ahora no/);
-  assert.match(source, /registration\.update\(\)/);
+  const monitor = await read("src/modules/campaigns/lib/pwa-update-monitor.ts");
+  assert.match(monitor, /registration\.update\(\)/);
+  assert.match(source, /Hay una actualización disponible/);
   assert.match(source, /SKIP_WAITING/);
   assert.doesNotMatch(source, /window\.confirm|window\.alert/);
 });

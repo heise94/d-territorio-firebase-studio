@@ -1,9 +1,7 @@
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { ParticipantAuthForm } from "@/modules/campaigns/components/participant-auth-form";
-import { getCurrentParticipant } from "@/modules/campaigns/server/auth/session";
+import { CampaignLoading } from "@/modules/campaigns/components/campaign-loading";
 
-export const dynamic = "force-dynamic";
-export default async function ParticipantLoginPage() {
-  if (await getCurrentParticipant()) redirect("/campanas");
-  return <ParticipantAuthForm />;
+export default function ParticipantLoginPage() {
+  return <Suspense fallback={<CampaignLoading />}><ParticipantAuthForm /></Suspense>;
 }

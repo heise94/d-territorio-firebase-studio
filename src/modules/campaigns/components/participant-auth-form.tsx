@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { loginSchema, registrationSchema } from "../schemas/participant-auth";
+import { ParticipantEntryRedirect } from "./participant-entry-redirect";
 
 const inputClass =
   "mt-1 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base focus:outline-none focus:ring-2 focus:ring-teal-700";
@@ -105,6 +106,7 @@ export function ParticipantAuthForm({
 
   return (
     <main className="mx-auto max-w-md px-5 py-10">
+      <ParticipantEntryRedirect destination={searchParams.get("modo") === "organizacion" ? "/campanas/organizacion" : searchParams.get("campana") ? `/campanas/disponibilidad/${encodeURIComponent(searchParams.get("campana")!)}` : "/campanas"} />
       <p className="font-semibold text-teal-700">Campaña exhibidores</p>
       <h1 className="mt-3 text-2xl font-bold">
         {register ? "Crear mi cuenta" : "Ingresar"}

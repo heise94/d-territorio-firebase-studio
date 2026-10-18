@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { isAppleMobile, isInstallDismissed } from "../lib/pwa-support";
 import { waitForCampaignUpdate } from "../lib/pwa-update";
 import { participantLogoutDestination } from "../lib/participant-logout";
+import { checkCampaignRegistration, monitorCampaignUpdates } from "../lib/pwa-update-monitor";
 
 type InstallPrompt = Event & {
   prompt(): Promise<void>;
@@ -93,41 +94,29 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
     standalone.addEventListener("change", refresh);
     let cleanupWorker = () => {};
     let mounted = true;
-    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+    const registerWorker = () => {
+      if (!mounted || !("serviceWorker" in navigator) || process.env.NODE_ENV !== "production") return;
       void navigator.serviceWorker
-        .register("/sw.js", { scope: "/" })
+        .register("/sw.js", { scope: "/", updateViaCache: "none" })
         .then((registration) => {
           if (!mounted) return;
           registrationRef.current = registration;
-          const tracked = new Set<ServiceWorker>();
-          const check = () => {
-            if (registration.waiting && navigator.serviceWorker.controller) {
-              setWaiting(registration.waiting);
-              setShowUpdate(true);
-            }
-          };
-          const update = () => {
-            const worker = registration.installing;
-            if (worker && !tracked.has(worker)) {
-              tracked.add(worker);
-              worker.addEventListener("statechange", check);
-            }
-          };
-          update();
-          check();
-          registration.addEventListener("updatefound", update);
-          cleanupWorker = () => {
-            registration.removeEventListener("updatefound", update);
-            tracked.forEach((worker) =>
-              worker.removeEventListener("statechange", check),
-            );
-          };
-          void registration.update().catch(() => {});
+          cleanupWorker = monitorCampaignUpdates(registration, navigator.serviceWorker, {
+            onReady: (worker) => { setWaiting(worker); setShowUpdate(true); },
+            isOnline: () => navigator.onLine,
+            isVisible: () => document.visibilityState === "visible",
+            windowEvents: window, documentEvents: document,
+          });
         })
         .catch(() => {});
-    }
+    };
+    // Let the initial page and its critical resources finish before installing.
+    const registrationTimer = document.readyState === "complete" ? window.setTimeout(registerWorker, 0) : null;
+    if (registrationTimer === null) window.addEventListener("load", registerWorker, { once: true });
     return () => {
       mounted = false;
+      if (registrationTimer !== null) window.clearTimeout(registrationTimer);
+      window.removeEventListener("load", registerWorker);
       updateAttempt.current?.cancel();
       window.removeEventListener("online", refresh);
       window.removeEventListener("offline", refresh);
@@ -183,11 +172,12 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
       const registration = registrationRef.current ?? await navigator.serviceWorker.getRegistration("/");
       if (!registration) throw new Error("unavailable");
       registrationRef.current = registration;
-      await registration.update();
-      if (registration.waiting && navigator.serviceWorker.controller) {
+      const state = await checkCampaignRegistration(registration);
+      if (registration.waiting && (navigator.serviceWorker.controller || registration.active)) {
         setWaiting(registration.waiting);
         setShowUpdate(true);
-      } else setMessage("✓ Estás usando la última versión");
+      } else if (state === "installing") setMessage("Se está descargando una actualización. Te avisaremos cuando esté lista.");
+      else setMessage("✓ Estás usando la última versión");
     } catch {
       setMessage("No pudimos buscar actualizaciones. Revisa tu conexión e inténtalo nuevamente.");
     } finally {
@@ -219,6 +209,10 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
     );
   return (
     <>
+      {waiting && !showUpdate && <aside role="status" aria-live="polite" className="sticky top-0 z-40 flex flex-wrap items-center justify-center gap-3 border-b border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-950">
+        <p className="font-semibold">Hay una actualización disponible</p>
+        <button type="button" className="rounded-xl bg-teal-800 px-4 py-2 font-semibold text-white" onClick={() => setShowUpdate(true)}>Ver actualización</button>
+      </aside>}
       {showUpdate && waiting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4" role="presentation">
           <section role="dialog" aria-modal="true" aria-labelledby="campaign-update-title" className="w-full max-w-sm rounded-3xl bg-white p-6 text-slate-900 shadow-2xl">

@@ -865,7 +865,7 @@ test("Worker único, NetworkOnly privado; actualización manual y ningún permis
   assert.match(config, /cacheStartUrl: false/);
   assert.match(config, /dynamicStartUrl: false/);
   assert.match(config, /NetworkOnly/);
-  assert.match(ui, /window.confirm/);
+  assert.match(ui, /Nueva versión disponible/);
   assert.match(ui, /SKIP_WAITING/);
   assert.match(ui, /isInstallDismissed/);
   assert.match(ui, /beforeinstallprompt/);

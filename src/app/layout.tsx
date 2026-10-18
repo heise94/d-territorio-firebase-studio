@@ -1,9 +1,12 @@
 
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { AuthProvider } from '@/hooks/use-auth';
+import { AppAuthProvider } from '@/components/app-auth-provider';
+import { Inter } from 'next/font/google';
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from '@/hooks/use-theme';
+
+const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' });
 
 export const metadata: Metadata = {
   title: 'D-TERRITORIO',
@@ -25,17 +28,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-      </head>
-      <body className="font-body antialiased">
+      <body className={`${inter.className} ${inter.variable} antialiased`}>
         <ThemeProvider>
-          <AuthProvider>
+          <AppAuthProvider>
             {children}
             <Toaster />
-          </AuthProvider>
+          </AppAuthProvider>
         </ThemeProvider>
       </body>
     </html>

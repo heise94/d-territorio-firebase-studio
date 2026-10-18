@@ -66,7 +66,7 @@ test("join link is canonical in production and stays in staging during review", 
 
 test("Organización usa el enlace público de la campaña y ofrece compartir o copiar", async () => {
   const source = await readFile("src/modules/campaigns/components/organization-pwa.tsx", "utf8");
-  assert.match(source, /joinShareUrl\(window\.location\.origin,campaignId\)/);
+  assert.match(source, /joinShareUrl\(window\.location\.origin,\s*campaignId\)/);
   assert.match(source, /navigator\.share/);
   assert.match(source, /navigator\.clipboard\.writeText/);
   assert.match(source, /Enlace copiado/);
