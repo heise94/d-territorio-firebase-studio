@@ -434,6 +434,12 @@ export class CampaignAdminDashboardService {
             ),
           };
         });
+      const companionByBlockId = new Map<string, string>();
+      for (const pair of pairRequests) {
+        if (pair.status !== "accepted") continue;
+        for (const block of pair.sharedBlocks)
+          companionByBlockId.set(block.blockId, pair.otherName);
+      }
       return {
         ...row,
         phone: phoneDoc[0].data()?.phoneNormalized ?? null,
@@ -448,6 +454,9 @@ export class CampaignAdminDashboardService {
             const avail = availability(source, blockId);
             return {
               ...avail,
+              ...(companionByBlockId.has(blockId)
+                ? { companionName: companionByBlockId.get(blockId)! }
+                : {}),
               assignedPublished: publishedAssignmentBlockIds.includes(blockId),
             };
           })

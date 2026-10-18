@@ -92,6 +92,7 @@ export interface AdminAvailability {
   endTime: string | null;
   label: string;
   active: boolean;
+  companionName?: string;
   assignedPublished?: boolean;
 }
 export interface AdminPairDetail {

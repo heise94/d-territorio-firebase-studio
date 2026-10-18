@@ -366,6 +366,10 @@ test("Ficha: teléfono autorizado, disponibilidad histórica y accepted obligato
   assert.equal(detail.availability.filter((block) => !block.active).length, 3);
   assert.equal(detail.accepted?.otherRegistrationId, reg(1));
   assert.equal(detail.pairRequests[0].sharedBlocks.length, 3);
+  assert.equal(
+    detail.availability.find((block) => block.blockId === "block-0")?.companionName,
+    "Persona 1",
+  );
   noSecrets(detail);
 });
 test("Conflicto accepted visible sin cancelar ni modificar disponibilidades", async () => {

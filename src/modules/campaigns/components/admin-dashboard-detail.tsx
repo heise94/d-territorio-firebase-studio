@@ -395,6 +395,7 @@ export function DashboardDetail({
                         {day.blocks.map((block) => {
                           const isChecked = selectedBlocks.has(block.id);
                           const isProtected = publishedAssignmentBlockIds.has(block.id);
+                          const savedAvailability = detail.availability.find((item) => item.blockId === block.id);
 
                           return (
                             <div key={block.id} className={`rounded border p-2 text-xs transition-colors ${
@@ -414,6 +415,11 @@ export function DashboardDetail({
                                 <span className="font-semibold">
                                   {block.startTime}–{block.endTime}
                                 </span>
+                                {savedAvailability?.companionName && (
+                                  <span className="block text-[11px] font-medium text-teal-800 mt-0.5">
+                                    Acordado con {savedAvailability.companionName}
+                                  </span>
+                                )}
                                 {block.label && (
                                   <span className="text-slate-500 ml-1">
                                     ({block.label})
