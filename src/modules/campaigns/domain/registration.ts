@@ -18,6 +18,9 @@ export interface CampaignRegistration {
   registrationStatus: RegistrationStatus;
   /** Legacy value retained for historical records; absent from participant DTOs. */
   approvalStatus?: RegistrationApprovalStatus;
+  /** Campaign-scoped safeguarding metadata; never copied to the global profile. */
+  isMinor?: boolean;
+  guardianRegistrationId?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

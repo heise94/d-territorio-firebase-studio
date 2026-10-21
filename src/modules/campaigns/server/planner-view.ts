@@ -78,11 +78,17 @@ export function plannerPerson(
               source.profiles.get(other.participantId)?.active !== true,
           }
         : null,
+    isMinor: registration?.isMinor === true,
+    guardianRegistrationId: registration?.guardianRegistrationId ?? null,
+    guardianName: registration?.guardianRegistrationId
+      ? (source.profiles.get(source.registrations.get(registration.guardianRegistrationId)?.participantId ?? "")?.fullName ?? null)
+      : null,
   };
 }
 export function projectPlanner(
   source: PlannerSource,
   requestedBlockId?: string,
+  canAssignSupport = false,
 ): PlannerView {
   const blocks = [...source.activeBlocks.values()]
     .map((block) => ({
@@ -145,10 +151,7 @@ export function projectPlanner(
           item.timeBlockId === selected && item.pointId === id && item.active,
       );
       const own = assigned.filter((assignment) => assignment.pointId === id);
-      const slots: [PlannerAssignment | null, PlannerAssignment | null] = [
-        null,
-        null,
-      ];
+      const slots: [PlannerAssignment | null, PlannerAssignment | null, PlannerAssignment | null] = [null, null, null];
       for (const assignment of own) {
         const person = plannerPerson(
           source,
@@ -211,8 +214,9 @@ export function projectPlanner(
           warnings,
           availabilityOverride: assignment.availabilityOverride === true,
           maxTurnsOverride: assignment.maxTurnsOverride === true,
+          capacityOverride: assignment.capacityOverride === true,
         };
-        if (assignment.slotNumber !== 1 && assignment.slotNumber !== 2)
+        if (![1, 2, 3].includes(assignment.slotNumber))
           warnings.push("Slot inválido.");
         else if (slots[assignment.slotNumber - 1])
           warnings.push("Conflicto: slot ocupado más de una vez.");
@@ -272,6 +276,7 @@ export function projectPlanner(
       source.campaign.status === "planning" &&
       !!selected &&
       source.activeBlocks.has(selected),
+    canAssignSupport,
     points: block ? points : [],
     available,
     exceptions,

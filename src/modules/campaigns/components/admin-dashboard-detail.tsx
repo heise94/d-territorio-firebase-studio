@@ -50,6 +50,8 @@ export function DashboardDetail({
   const [nameSaving, setNameSaving] = useState(false);
   const [nameMessage, setNameMessage] = useState("");
   const [nameError, setNameError] = useState("");
+  const [isMinor, setIsMinor] = useState(false);
+  const [guardianRegistrationId, setGuardianRegistrationId] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -67,6 +69,8 @@ export function DashboardDetail({
       setMaxTurns(detail.maxTurns ?? null);
       setReason("");
       setEditedName(detail.fullName);
+      setIsMinor(detail.isMinor);
+      setGuardianRegistrationId(detail.guardianRegistrationId ?? "");
       setNameMessage("");
       setNameError("");
       setSaveError("");
@@ -142,11 +146,17 @@ export function DashboardDetail({
       const response = await campaignFetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/participants/${encodeURIComponent(detail.registrationId)}`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName: editedName }),
+        body: JSON.stringify({
+          fullName: editedName,
+          ...(detail.canManageSafeguarding ? {
+            isMinor,
+            guardianRegistrationId: isMinor ? guardianRegistrationId || null : null,
+          } : {}),
+        }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "No se pudo guardar el nombre.");
-      setEditedName(body.fullName);
+      setEditedName(body.fullName ?? editedName);
       setNameMessage("Nombre actualizado.");
       onSaved();
     } catch (failure) {
@@ -266,6 +276,22 @@ export function DashboardDetail({
                   <label htmlFor="participant-full-name" className="sr-only">Nombre del participante</label>
                   <input id="participant-full-name" className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2 font-semibold text-slate-900" value={editedName} onChange={(event) => setEditedName(event.target.value)} />
                 </div>
+                {detail.canManageSafeguarding ? <div className="col-span-2 space-y-2 border-t border-slate-200 pt-3">
+                  <label className="flex items-center gap-2 font-medium">
+                    <input type="checkbox" checked={isMinor} onChange={(event) => {
+                      setIsMinor(event.target.checked);
+                      if (!event.target.checked) setGuardianRegistrationId("");
+                    }} />
+                    Menor de edad
+                  </label>
+                  {isMinor && <label className="block">
+                    <span className="block text-xs text-slate-500">Padre o madre responsable</span>
+                    <select className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2" value={guardianRegistrationId} onChange={(event) => setGuardianRegistrationId(event.target.value)}>
+                      <option value="">Selecciona al padre o madre inscrito/a</option>
+                      {(detail.guardianCandidates ?? []).map((candidate) => <option key={candidate.registrationId} value={candidate.registrationId}>{candidate.fullName}</option>)}
+                    </select>
+                  </label>}
+                </div> : <div className="col-span-2 border-t border-slate-200 pt-3 text-xs text-slate-600">Resguardo de menor: {detail.isMinor ? "Sí" : "No"}</div>}
                 <div>
                   <span className="block text-xs text-slate-500">
                     Congregación
@@ -295,7 +321,7 @@ export function DashboardDetail({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => void saveName()} disabled={nameSaving || !editedName.trim() || editedName.trim() === detail.fullName} className="inline-flex min-h-9 items-center rounded-lg bg-teal-800 px-4 text-xs font-semibold text-white disabled:opacity-50">{nameSaving ? "Guardando…" : "Guardar nombre"}</button>
+                <button type="button" onClick={() => void saveName()} disabled={nameSaving || !editedName.trim() || (detail.canManageSafeguarding && isMinor && !guardianRegistrationId) || (editedName.trim() === detail.fullName && (!detail.canManageSafeguarding || (isMinor === detail.isMinor && guardianRegistrationId === (detail.guardianRegistrationId ?? ""))))} className="inline-flex min-h-9 items-center rounded-lg bg-teal-800 px-4 text-xs font-semibold text-white disabled:opacity-50">{nameSaving ? "Guardando…" : "Guardar datos"}</button>
                 {nameMessage && <span role="status" className="text-xs text-teal-800">{nameMessage}</span>}
                 {nameError && <span role="alert" className="text-xs text-red-700">{nameError}</span>}
               </div>

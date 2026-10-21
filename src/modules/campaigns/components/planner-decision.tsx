@@ -17,7 +17,7 @@ import { plannerButton } from "./planner-points";
 export interface PlannerDecision {
   action: "create" | "move" | "cancel";
   pointId: string;
-  slotNumber: 1 | 2;
+  slotNumber: 1 | 2 | 3;
   person: PlannerPerson;
   assignment?: PlannerAssignment;
 }
@@ -38,17 +38,20 @@ export function PlannerDecisionDialog({
   close: () => void;
   submit: (
     pointId: string,
-    slotNumber: 1 | 2,
+    slotNumber: 1 | 2 | 3,
     overrides: {
       registrationId: string;
       availability: boolean;
       maxTurns: boolean;
+      capacity: boolean;
     }[],
+    adultSupportRegistrationId?: string,
   ) => void;
 }) {
   const [pointId, setPoint] = useState(decision.pointId),
     [slotNumber, setSlot] = useState(decision.slotNumber),
-    [confirmed, setConfirmed] = useState<string[]>([]);
+    [confirmed, setConfirmed] = useState<string[]>([]),
+    [adultSupportRegistrationId, setAdultSupportRegistrationId] = useState("");
   const label =
     decision.action === "cancel"
       ? "Liberar"
@@ -78,6 +81,17 @@ export function PlannerDecisionDialog({
           </DialogDescription>
         </DialogHeader>
         <p className="font-medium">{unitLabel}</p>
+        {decision.action === "create" && decision.person.isMinor && (
+          <div className="space-y-2 rounded bg-amber-50 p-3 text-sm">
+            <p>Menor de edad · responsable: {decision.person.guardianName ?? "no disponible"}</p>
+            <label className="block">Hermana adulta que acompañará al menor
+              <select className="mt-1 w-full rounded border p-2" value={adultSupportRegistrationId} onChange={(e) => setAdultSupportRegistrationId(e.target.value)}>
+                <option value="">Selecciona una hermana adulta</option>
+                {[...view.available, ...view.exceptions].filter((person) => !person.isMinor && person.registrationId !== decision.person.guardianRegistrationId && person.registrationId !== decision.person.registrationId).map((person) => <option key={person.registrationId} value={person.registrationId}>{person.fullName}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
         {decision.person.accepted && (
           <p className="text-sm text-teal-900">
             El vínculo obligatorio se{" "}
@@ -119,12 +133,13 @@ export function PlannerDecisionDialog({
                 value={slotNumber}
                 disabled={saving}
                 onChange={(e) => {
-                  setSlot(Number(e.target.value) as 1 | 2);
+                  setSlot(Number(e.target.value) as 1 | 2 | 3);
                   setConfirmed([]);
                 }}
               >
                 <option value={1}>1</option>
                 <option value={2}>2</option>
+                {view.canAssignSupport && <option value={3}>3 · Apoyo adicional</option>}
               </select>
             </label>
             <p className="text-sm">
@@ -134,8 +149,7 @@ export function PlannerDecisionDialog({
           </>
         ) : decision.action === "create" ? (
           <p>
-            {view.points.find((point) => point.id === pointId)?.name} · Slot{" "}
-            {slotNumber} · {view.block?.date} {view.block?.startTime}
+            {view.points.find((point) => point.id === pointId)?.name} · {slotNumber === 3 ? "Apoyo adicional" : `Lugar ${slotNumber}`} · {view.block?.date} {view.block?.startTime}
           </p>
         ) : (
           <p>
@@ -197,7 +211,9 @@ export function PlannerDecisionDialog({
                     registrationId + ":availability",
                   ),
                   maxTurns: confirmed.includes(registrationId + ":maxTurns"),
+                  capacity: confirmed.includes(registrationId + ":capacity"),
                 })),
+                adultSupportRegistrationId || undefined,
               )
             }
           >

@@ -27,6 +27,11 @@ export async function seedPlannerFixture() {
     now = Timestamp.now();
   await db.collection("pairRequests").doc("corrupt").delete();
   const auth = getAuth(campaignsAdminApp());
+  try { await auth.getUser("planner-super-admin"); } catch {
+    await auth.createUser({ uid: "planner-super-admin", email: "planner-super@example.test", password: fixturePassword });
+  }
+  await auth.updateUser("planner-super-admin", { disabled: false });
+  await auth.setCustomUserClaims("planner-super-admin", { super_admin: true });
   try {
     await auth.getUser("planner-organizer-2");
   } catch {
@@ -109,5 +114,6 @@ export async function seedPlannerFixture() {
   return {
     ...credentials,
     secondToken: await fixtureToken("organizer-planner-2@example.test"),
+    superToken: await fixtureToken("planner-super@example.test"),
   };
 }

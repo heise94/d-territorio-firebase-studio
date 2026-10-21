@@ -8,7 +8,7 @@ export interface Assignment {
   timeBlockId: string;
   pointId: string;
   registrationId: string;
-  slotNumber: 1 | 2;
+  slotNumber: 1 | 2 | 3;
   status: "draft" | "published" | "cancelled";
   createdBy: string;
   createdAt: Timestamp;
@@ -16,6 +16,7 @@ export interface Assignment {
   version: number;
   maxTurnsOverride: boolean;
   availabilityOverride: boolean;
+  capacityOverride?: boolean;
   sourceChangeRequestId?: string;
   publishedInVersion?: number;
   cancelledInVersion?: number;
@@ -37,17 +38,21 @@ export interface PlannerPerson {
     blockAvailabilityConflict: boolean;
     participationConflict: boolean;
   };
+  isMinor: boolean;
+  guardianRegistrationId: string | null;
+  guardianName: string | null;
 }
 export interface PlannerAssignment {
   id: string;
   registrationId: string;
   pointId: string;
-  slotNumber: 1 | 2;
+  slotNumber: 1 | 2 | 3;
   version: number;
   person: PlannerPerson;
   warnings: string[];
   availabilityOverride: boolean;
   maxTurnsOverride: boolean;
+  capacityOverride?: boolean;
 }
 export interface PlannerBlock {
   id: string;
@@ -62,12 +67,13 @@ export interface PlannerView {
   blocks: PlannerBlock[];
   block: (PlannerBlock & { capacity: number | null; active: boolean }) | null;
   mutable: boolean;
+  canAssignSupport: boolean;
   points: {
     id: string;
     name: string;
     globalActive: boolean;
     active: boolean;
-    slots: [PlannerAssignment | null, PlannerAssignment | null];
+    slots: [PlannerAssignment | null, PlannerAssignment | null, PlannerAssignment | null];
   }[];
   available: PlannerPerson[];
   exceptions: PlannerPerson[];
@@ -87,7 +93,7 @@ export interface PlannerView {
 export interface PlannerWarningDTO {
   registrationId: string;
   fullName: string;
-  kind: "availability" | "maxTurns";
+  kind: "availability" | "maxTurns" | "capacity";
   message: string;
 }
 export const plannerConflictMessage =

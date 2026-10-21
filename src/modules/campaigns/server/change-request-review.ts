@@ -65,7 +65,7 @@ export async function adminChanges(
                     (p) => p.id === currentTurn.cell.pointId,
                   )?.name ?? "",
                 companion:
-                  currentTurn.cell.slots[currentTurn.slotNumber === 1 ? 1 : 0]
+                  currentTurn.cell.slots[currentTurn.slotNumber - 1]
                     ?.fullName ?? "Pendiente",
               }
             : null,
@@ -92,7 +92,7 @@ export async function adminChanges(
                   turn.day.points.find((p) => p.id === turn.cell.pointId)
                     ?.name ?? "",
                 companion:
-                  turn.cell.slots[turn.slotNumber === 1 ? 1 : 0]?.fullName ??
+                  turn.cell.slots[turn.slotNumber - 1]?.fullName ??
                   "Pendiente",
               }
             : null,

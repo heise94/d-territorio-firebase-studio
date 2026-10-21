@@ -18,6 +18,7 @@ import {
 import { AuthError } from "./auth/service";
 import { campaignsAdminDb } from "./firebase-admin";
 import { registrationIsEligible } from "../domain/registration";
+import { calculateBlockCapacity } from "../domain/point-capacity";
 import { requireCampaignAccess } from "./campaign-access";
 import {
   activeAssignments,
@@ -181,12 +182,13 @@ export async function getPlanner(
   campaignId: string,
   block?: string,
 ) {
-  await plannerAccess(token, campaignId);
+  const access = await plannerAccess(token, campaignId);
   return campaignsAdminDb().runTransaction(
     async (tx) =>
       projectPlanner(
         await readPlannerSource(campaignsAdminDb(), tx, campaignId),
         block,
+        access.role === "SUPER_ADMIN",
       ),
     { readOnly: true },
   );
@@ -196,7 +198,8 @@ export async function setBlockPoint(
   campaignId: string,
   input: unknown,
 ) {
-  const uid = (await plannerAccess(token, campaignId)).uid,
+  const access = await plannerAccess(token, campaignId),
+    uid = access.uid,
     value = parse(blockPointInputSchema, input),
     db = campaignsAdminDb();
   await db.runTransaction(async (tx) => {
@@ -263,10 +266,12 @@ export async function createAssignment(
   campaignId: string,
   input: unknown,
 ) {
-  const uid = (await plannerAccess(token, campaignId)).uid,
+  const access = await plannerAccess(token, campaignId),
+    uid = access.uid,
     value = parse(assignmentInputSchema, input),
     db = campaignsAdminDb();
   const newIds = [
+    db.collection(names.assignments).doc().id,
     db.collection(names.assignments).doc().id,
     db.collection(names.assignments).doc().id,
   ];
@@ -278,11 +283,32 @@ export async function createAssignment(
       active = activeAssignments(source).filter(
         (item) => item.timeBlockId === value.timeBlockId,
       );
-    const old = active.filter((item) => unit.includes(item.registrationId));
+    const baseRegistration = source.registrations.get(value.registrationId);
+    if (!baseRegistration || baseRegistration.campaignId !== campaignId) throw conflict();
+    let assignmentUnit = unit;
+    if (baseRegistration.isMinor === true) {
+      if (access.role !== "SUPER_ADMIN") throw new AuthError(403, "Solo el superadministrador puede planificar la participación de un menor.");
+      if (unit.length !== 1 || !baseRegistration.guardianRegistrationId || !value.adultSupportRegistrationId)
+        throw new AuthError(400, "Para asignar a un menor, agrega también a su responsable y a una hermana adulta.");
+      const guardian = source.registrations.get(baseRegistration.guardianRegistrationId);
+      const support = source.registrations.get(value.adultSupportRegistrationId);
+      if (!guardian || guardian.campaignId !== campaignId || guardian.registrationStatus !== "active" || guardian.isMinor === true || !support || support.campaignId !== campaignId || support.registrationStatus !== "active" || support.isMinor === true || support.id === guardian.id || support.id === baseRegistration.id)
+        throw new AuthError(400, "El menor debe ir con su responsable inscrito y una hermana adulta distinta.");
+      if (unitFor(source, guardian.id, value.timeBlockId).length !== 1 || unitFor(source, support.id, value.timeBlockId).length !== 1)
+        throw new AuthError(400, "No se puede separar un vínculo de compañero ya confirmado.");
+      assignmentUnit = [value.registrationId, guardian.id, support.id];
+    } else if (value.adultSupportRegistrationId) {
+      throw new AuthError(400, "La persona de apoyo adicional solo aplica al asignar a un menor.");
+    }
+    if (value.slotNumber === 3 && access.role !== "SUPER_ADMIN")
+      throw new AuthError(400, "El tercer lugar solo puede asignarlo el superadministrador como apoyo adicional.");
+    if (value.slotNumber === 3 && unit.length === 2)
+      throw new AuthError(400, "Completa el vínculo confirmado antes de agregar apoyo adicional.");
+    const old = active.filter((item) => assignmentUnit.includes(item.registrationId));
     // An incomplete accepted unit can only be completed at its original point.
     if (
       old.length &&
-      (unit.length !== 2 ||
+      (assignmentUnit.length !== 2 ||
         old.length !== 1 ||
         old[0].pointId !== value.pointId ||
         old[0].registrationId === value.registrationId ||
@@ -291,16 +317,31 @@ export async function createAssignment(
       throw conflict();
     const flags = validatePeople(
       source,
-      unit,
+      assignmentUnit,
       value.timeBlockId,
       value.overrides,
       old,
     );
-    unit.forEach((registrationId, index) => {
+    const capacityOverride = value.slotNumber === 3 || assignmentUnit.length === 3;
+    const blockMinimum = calculateBlockCapacity(campaignId, value.timeBlockId, [...source.points.values()], [...source.blockPoints.values()]).minParticipants;
+    const availablePeopleCount = [...source.registrations.values()].filter((registration) =>
+      registration.registrationStatus === "active" && registrationIsEligible(registration) &&
+      source.profiles.get(registration.participantId)?.active === true &&
+      source.selections.get(registration.id)?.has(value.timeBlockId),
+    ).length;
+    const alreadyCovered = blockMinimum > 0 && availablePeopleCount >= blockMinimum;
+    const capacityConfirmed = value.overrides.some((item) => item.registrationId === value.registrationId && item.capacity);
+    if (capacityOverride && alreadyCovered && access.role === "SUPER_ADMIN" && !capacityConfirmed)
+      throw new PlannerWarnings([{
+        registrationId: value.registrationId,
+        fullName: plannerPerson(source, value.registrationId, value.timeBlockId).fullName,
+        kind: "capacity",
+        message: "Este horario ya cuenta con la cobertura necesaria. ¿Confirmas agregar un lugar adicional de apoyo?",
+      }]);
+    const targetSlots = assignmentUnit.length === 3 ? [1, 2, 3] : assignmentUnit.length === 2 ? (value.slotNumber === 1 ? [1, 2] : [2, 1]) : [value.slotNumber];
+    assignmentUnit.forEach((registrationId, index) => {
       if (old.some((item) => item.registrationId === registrationId)) return;
-      const slotNumber = (
-        index === 0 ? value.slotNumber : value.slotNumber === 1 ? 2 : 1
-      ) as 1 | 2;
+      const slotNumber = targetSlots[index];
       if (
         active.some(
           (item) =>
@@ -310,7 +351,7 @@ export async function createAssignment(
       )
         throw conflict();
     });
-    unit.forEach((registrationId, index) => {
+    assignmentUnit.forEach((registrationId, index) => {
       const previous = old.find(
         (item) => item.registrationId === registrationId,
       );
@@ -329,9 +370,7 @@ export async function createAssignment(
         }
         return;
       }
-      const slotNumber = (
-        index === 0 ? value.slotNumber : value.slotNumber === 1 ? 2 : 1
-      ) as 1 | 2;
+      const slotNumber = targetSlots[index] as 1 | 2 | 3;
       const assignment: Assignment = {
         id: newIds[index],
         campaignId,
@@ -345,6 +384,7 @@ export async function createAssignment(
         updatedAt: Timestamp.now(),
         version: 1,
         ...flags.get(registrationId)!,
+        ...(capacityOverride && alreadyCovered ? { capacityOverride: true } : {}),
       };
       tx.create(
         db.collection(names.assignments).doc(assignment.id),
@@ -355,8 +395,10 @@ export async function createAssignment(
         timeBlockId: value.timeBlockId,
         pointId: value.pointId,
         slotNumber,
+        ...(assignmentUnit.length === 3 ? { minorSafeguardingGroup: "minor_guardian_adult_support" } : {}),
       });
       overrideAudits(tx, campaignId, uid, assignment);
+      if (capacityOverride && alreadyCovered) audit(tx, campaignId, uid, "capacity_override", assignment.id, { registrationId, timeBlockId: value.timeBlockId, pointId: value.pointId });
     });
     revision(tx, source);
   });
@@ -367,7 +409,8 @@ export async function changeAssignment(
   id: string,
   input: unknown,
 ) {
-  const uid = (await plannerAccess(token, campaignId)).uid,
+  const access = await plannerAccess(token, campaignId),
+    uid = access.uid,
     value = parse(assignmentChangeSchema, input),
     db = campaignsAdminDb();
   await db.runTransaction(async (tx) => {
@@ -376,12 +419,24 @@ export async function changeAssignment(
     const primary = activeAssignments(source).find((item) => item.id === id);
     if (!primary || (primary.version ?? 1) !== value.expectedVersion)
       throw conflict();
-    const unit = unitFor(source, primary.registrationId, primary.timeBlockId),
-      own = activeAssignments(source).filter(
+    if (value.action === "move" && value.slotNumber === 3 && access.role !== "SUPER_ADMIN")
+      throw new AuthError(403, "Solo el superadministrador puede usar el tercer lugar de apoyo.");
+    let unit = unitFor(source, primary.registrationId, primary.timeBlockId);
+    const currentBlockAssignments = activeAssignments(source).filter((item) => item.timeBlockId === primary.timeBlockId && item.pointId === primary.pointId);
+    const minor = currentBlockAssignments.map((item) => source.registrations.get(item.registrationId)).find((registration) => registration?.isMinor === true && [registration.id, registration.guardianRegistrationId, currentBlockAssignments.find((candidate) => candidate.slotNumber === 3)?.registrationId].includes(primary.registrationId));
+    const safeguardingGroup = !!minor;
+    if (minor) {
+      const support = currentBlockAssignments.find((item) => item.slotNumber === 3);
+      if (!minor.guardianRegistrationId || !support || !currentBlockAssignments.some((item) => item.registrationId === minor.guardianRegistrationId)) throw conflict();
+      unit = [minor.id, minor.guardianRegistrationId, support.registrationId];
+    }
+    const own = activeAssignments(source).filter(
         (item) =>
           item.timeBlockId === primary.timeBlockId &&
           unit.includes(item.registrationId),
       );
+    if (safeguardingGroup && value.action === "move")
+      throw new AuthError(409, "Para mover a un menor, libera el grupo completo y vuelve a asignarlo con su responsable y hermana adulta.");
     if (value.action === "cancel") {
       for (const item of own) {
         tx.update(db.collection(names.assignments).doc(item.id), {
@@ -396,6 +451,21 @@ export async function changeAssignment(
       }
     } else {
       destination(source, primary.timeBlockId, value.pointId);
+      const blockMinimum = calculateBlockCapacity(campaignId, primary.timeBlockId, [...source.points.values()], [...source.blockPoints.values()]).minParticipants;
+      const availablePeopleCount = [...source.registrations.values()].filter((registration) =>
+        registration.registrationStatus === "active" && registrationIsEligible(registration) &&
+        source.profiles.get(registration.participantId)?.active === true &&
+        source.selections.get(registration.id)?.has(primary.timeBlockId),
+      ).length;
+      const capacityOverride = value.slotNumber === 3 && blockMinimum > 0 && availablePeopleCount >= blockMinimum;
+      const capacityConfirmed = value.overrides.some((item) => item.registrationId === primary.registrationId && item.capacity);
+      if (capacityOverride && !capacityConfirmed)
+        throw new PlannerWarnings([{
+          registrationId: primary.registrationId,
+          fullName: plannerPerson(source, primary.registrationId, primary.timeBlockId).fullName,
+          kind: "capacity",
+          message: "El horario ya cuenta con la cobertura necesaria. ¿Confirmas agregar este lugar adicional de apoyo?",
+        }]);
       if (
         own.length !== unit.length ||
         (unit.length === 2 &&
@@ -413,12 +483,11 @@ export async function changeAssignment(
       const targets = own.map((item) => ({
         ...item,
         pointId: value.pointId,
-        slotNumber: (item.id === primary.id
+        slotNumber: (safeguardingGroup ? item.slotNumber : item.id === primary.id
           ? value.slotNumber
-          : value.slotNumber === 1
-            ? 2
-            : 1) as 1 | 2,
+          : value.slotNumber === 1 ? 2 : 1) as 1 | 2 | 3,
         ...flags.get(item.registrationId)!,
+        ...(capacityOverride ? { capacityOverride: true } : {}),
         version: (item.version ?? 1) + 1,
         updatedAt: Timestamp.now(),
       }));
@@ -440,6 +509,7 @@ export async function changeAssignment(
           slotNumber: target.slotNumber,
           availabilityOverride: target.availabilityOverride,
           maxTurnsOverride: target.maxTurnsOverride,
+          ...(target.capacityOverride ? { capacityOverride: true } : {}),
           version: target.version,
           updatedAt: target.updatedAt,
         });
@@ -456,6 +526,7 @@ export async function changeAssignment(
           target,
           own.find((item) => item.id === target.id),
         );
+        if (capacityOverride) audit(tx, campaignId, uid, "capacity_override", target.id, { registrationId: target.registrationId, timeBlockId: target.timeBlockId, pointId: target.pointId });
       }
     }
     revision(tx, source);

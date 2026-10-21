@@ -20,7 +20,7 @@ export function snapshotTurns(snapshot: ProgramSnapshot) {
       block.cells.flatMap((cell) =>
         cell.slots.flatMap((person, index) =>
           person
-            ? [{ day, block, cell, person, slotNumber: (index + 1) as 1 | 2 }]
+            ? [{ day, block, cell, person, slotNumber: (index + 1) as 1 | 2 | 3 }]
             : [],
         ),
       ),
@@ -174,7 +174,7 @@ export function resultingSnapshot(
   for (const day of next.days)
     for (const block of day.blocks)
       for (const cell of block.cells)
-        cell.slots = ([1, 2] as const).map((slot) => {
+        cell.slots = ([1, 2, 3] as const).map((slot) => {
           const row = assignments.find(
             (a) =>
               a.status === "published" &&

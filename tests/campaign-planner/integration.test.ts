@@ -34,6 +34,7 @@ import {
 import { AuthError } from "../../src/modules/campaigns/server/auth/service";
 import { canTransitionCampaignStatus } from "../../src/modules/campaigns/domain/campaign-status";
 import { plannerConflictMessage } from "../../src/modules/campaigns/domain/planner";
+import { projectProgram } from "../../src/modules/campaigns/server/program-projection";
 import { GET } from "../../src/app/api/campanas/admin/campaigns/[campaignId]/planner/route";
 import { POST as assignPOST } from "../../src/app/api/campanas/admin/campaigns/[campaignId]/assignments/route";
 import { POST as pointPOST } from "../../src/app/api/campanas/admin/campaigns/[campaignId]/block-points/route";
@@ -55,6 +56,7 @@ const db = campaignsAdminDb();
 let env: RulesTestEnvironment,
   token: string,
   secondToken: string,
+  superToken: string,
   ordinaryToken: string;
 const denied = (status: number) => (error: unknown) =>
   error instanceof AuthError && error.status === status;
@@ -113,7 +115,7 @@ before(async () => {
   await env.clearFirestore();
 });
 beforeEach(async () => {
-  ({ token, secondToken, ordinaryToken } = await seedPlannerFixture());
+  ({ token, secondToken, superToken, ordinaryToken } = await seedPlannerFixture());
 });
 after(async () => {
   await env?.cleanup();
@@ -890,4 +892,39 @@ test("Reserva/punto incompleto y dos documentos corruptos no cuentan doble turno
   assert.ok(view.conflicts.some((text) => /persona duplicada/.test(text)));
   assert.equal(view.metrics.incompletePoints, 2);
   assert.equal(view.metrics.reserve, view.available.length);
+});
+
+test("Solo SUPER_ADMIN agrega un tercer apoyo y confirma advertencia de cobertura", async () => {
+  await assert.rejects(createAssignment(token, campaign, input(3, "point-0", 3)), denied(400));
+  const extra = input(3, "point-0", 3);
+  await assert.rejects(createAssignment(superToken, campaign, extra), (error) =>
+    error instanceof PlannerWarnings && error.warnings.some((warning) => warning.kind === "capacity"),
+  );
+  await createAssignment(superToken, campaign, {
+    ...extra,
+    overrides: [{ registrationId: reg(3), capacity: true }],
+  });
+  const view = await getPlanner(superToken, campaign);
+  assert.equal(view.points.find((point) => point.id === "point-0")!.slots[2]!.registrationId, reg(3));
+  assert.ok((await db.collection("auditLogs").where("campaignId", "==", campaign).get()).docs.some((doc) => doc.data().action === "capacity_override"));
+});
+
+test("Menor solo se asigna con responsable y persona adulta en los tres lugares", async () => {
+  await db.collection("campaignRegistrations").doc(reg(3)).update({ isMinor: true, guardianRegistrationId: reg(4) });
+  await assert.rejects(createAssignment(superToken, campaign, input(3)), denied(400));
+  const value = {
+    ...input(3),
+    adultSupportRegistrationId: reg(5),
+    overrides: [{ registrationId: reg(3), capacity: true }],
+  };
+  await createAssignment(superToken, campaign, value);
+  const point = (await getPlanner(superToken, campaign)).points.find((item) => item.id === "point-0")!;
+  assert.deepEqual(point.slots.map((slot) => slot?.registrationId), [reg(3), reg(4), reg(5)]);
+  const source = await db.runTransaction((tx) => readPlannerSource(db, tx, campaign), { readOnly: true });
+  const program = projectProgram(source);
+  assert.deepEqual(program.snapshot.days[0].blocks[0].cells[0].slots.map((person) => person?.registrationId), [reg(3), reg(4), reg(5)]);
+  assert.ok(!program.blockingErrors.some((issue) => issue.code === "minor_safeguarding_incomplete"));
+  const childAssignment = (await current()).find((item) => item.registrationId === reg(3))!;
+  await changeAssignment(superToken, campaign, childAssignment.id, { action: "cancel", expectedVersion: 1 });
+  assert.equal((await current()).length, 0, "releasing any member must release the full safeguarding group");
 });

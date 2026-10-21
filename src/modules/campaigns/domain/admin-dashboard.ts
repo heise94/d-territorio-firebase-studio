@@ -74,6 +74,8 @@ export interface AdminParticipantRow {
   maxTurns: MaxTurns;
   registrationStatus: RegistrationStatus;
   profileActive: boolean;
+  isMinor: boolean;
+  guardianRegistrationId: string | null;
   accepted: AdminAcceptedLink | null;
   pendingSent: number;
   pendingReceived: number;
@@ -111,6 +113,8 @@ export interface AdminParticipantDetail extends AdminParticipantRow {
   pairRequests: AdminPairDetail[];
   createdAt?: string;
   publishedAssignmentBlockIds?: string[];
+  guardianCandidates: { registrationId: string; fullName: string }[];
+  canManageSafeguarding: boolean;
   updatedAt: string;
 }
 export function orderedCoverageDays(

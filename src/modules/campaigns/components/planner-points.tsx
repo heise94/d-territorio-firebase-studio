@@ -15,7 +15,7 @@ export function PlannerPoints({
   saving: boolean;
   selected: string;
   activate: (pointId: string, active: boolean) => void;
-  assign: (pointId: string, slotNumber: 1 | 2) => void;
+  assign: (pointId: string, slotNumber: 1 | 2 | 3) => void;
   change: (assignment: PlannerAssignment, action: "move" | "cancel") => void;
   complete: (assignment: PlannerAssignment) => void;
 }) {
@@ -26,8 +26,8 @@ export function PlannerPoints({
     >
       <h2 className="text-xl font-bold">Puntos / Asignaciones</h2>
       <p className="text-sm text-slate-600">
-        Dos slots por punto. Selecciona una persona; tú decides el punto y el
-        slot.
+        Dos lugares de equipo base por punto. El superadministrador puede agregar
+        un lugar de apoyo cuando sea necesario.
       </p>
       {view.points.map((point) => (
         <article key={point.id} className="space-y-3 rounded border p-3">
@@ -58,10 +58,11 @@ export function PlannerPoints({
             </p>
           )}
           {(point.active || point.slots.some(Boolean)) && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               {point.slots.map((assignment, index) => (
+                index === 2 && !view.canAssignSupport && !assignment ? null : (
                 <div key={index} className="space-y-2 rounded bg-slate-50 p-3">
-                  <p className="text-sm font-semibold">Slot {index + 1}</p>
+                  <p className="text-sm font-semibold">{index === 2 ? "Apoyo adicional" : `Lugar ${index + 1}`}</p>
                   {assignment ? (
                     <>
                       <p className="font-medium">
@@ -77,7 +78,7 @@ export function PlannerPoints({
                         </p>
                       )}
                       {(assignment.availabilityOverride ||
-                        assignment.maxTurnsOverride) && (
+                        assignment.maxTurnsOverride || assignment.capacityOverride) && (
                         <p className="text-xs text-amber-800">
                           Excepción registrada:{" "}
                           {assignment.availabilityOverride
@@ -86,6 +87,7 @@ export function PlannerPoints({
                           {assignment.maxTurnsOverride
                             ? "máximo de turnos"
                             : ""}
+                          {assignment.capacityOverride ? "cupo de apoyo adicional" : ""}
                         </p>
                       )}
                       {assignment.warnings.map((warning) => (
@@ -144,13 +146,14 @@ export function PlannerPoints({
                           !point.active ||
                           !point.globalActive
                         }
-                        onClick={() => assign(point.id, (index + 1) as 1 | 2)}
+                        onClick={() => assign(point.id, (index + 1) as 1 | 2 | 3)}
                       >
-                        Asignar slot {index + 1}
+                        Asignar {index === 2 ? "apoyo adicional" : `lugar ${index + 1}`}
                       </button>
                     </>
                   )}
                 </div>
+                )
               ))}
             </div>
           )}

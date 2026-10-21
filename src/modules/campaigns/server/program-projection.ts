@@ -63,7 +63,7 @@ export function projectProgram(
       reg?.campaignId !== campaignId ||
       reg.registrationStatus !== "active" ||
       source.profiles.get(reg.participantId)?.active !== true ||
-      ![1, 2].includes(a.slotNumber);
+      ![1, 2, 3].includes(a.slotNumber);
     if (invalid)
       issue(
         "invalid_assignment",
@@ -195,6 +195,17 @@ export function projectProgram(
         );
     }
   }
+  for (const assignment of assignments) {
+    const minor = source.registrations.get(assignment.registrationId);
+    if (minor?.isMinor !== true) continue;
+    const group = assignments.filter((item) => item.timeBlockId === assignment.timeBlockId && item.pointId === assignment.pointId);
+    const guardian = group.find((item) => item.registrationId === minor.guardianRegistrationId);
+    const support = group.find((item) => item.slotNumber === 3);
+    const guardianRegistration = guardian ? source.registrations.get(guardian.registrationId) : null;
+    const supportRegistration = support ? source.registrations.get(support.registrationId) : null;
+    if (group.length !== 3 || assignment.slotNumber !== 1 || !guardian || guardianRegistration?.isMinor === true || guardian.slotNumber !== 2 || !support || support.slotNumber !== 3 || supportRegistration?.isMinor === true)
+      issue("minor_safeguarding_incomplete", "La asignación de un menor requiere a su padre o madre responsable y a una hermana adulta en el mismo punto y horario.", assignment.id, assignment.timeBlockId, assignment.pointId, assignment.registrationId);
+  }
   const days = [...source.days.values()]
     .filter((d) => d.active && d.campaignId === campaignId)
     .sort(
@@ -253,7 +264,7 @@ export function projectProgram(
           label: block.label ?? "",
           cells: points.map((point) => {
             const active = validDestination(block.id, point.id);
-            const slots = ([1, 2] as const).map((slot) => {
+            const slots = ([1, 2, 3] as const).map((slot) => {
               const a = active
                 ? assignments.find(
                     (a) =>
@@ -278,6 +289,7 @@ export function projectProgram(
                   }
                 : null;
             }) as [
+              import("../domain/program").ProgramPerson | null,
               import("../domain/program").ProgramPerson | null,
               import("../domain/program").ProgramPerson | null,
             ];

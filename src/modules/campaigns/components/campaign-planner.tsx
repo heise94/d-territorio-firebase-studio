@@ -152,7 +152,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
     setWarnings([]);
     setDecisionError("");
   }
-  function assign(pointId: string, slotNumber: 1 | 2) {
+  function assign(pointId: string, slotNumber: 1 | 2 | 3) {
     const person = [...view!.available, ...view!.exceptions].find(
       (item) => item.registrationId === selected,
     );
@@ -169,12 +169,14 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
   }
   async function submit(
     pointId: string,
-    slotNumber: 1 | 2,
+    slotNumber: 1 | 2 | 3,
     overrides: {
       registrationId: string;
       availability: boolean;
       maxTurns: boolean;
+      capacity: boolean;
     }[],
+    adultSupportRegistrationId?: string,
   ) {
     if (!decision || !view?.block) return;
     setDecisionError("");
@@ -186,6 +188,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
               pointId,
               slotNumber,
               registrationId: decision.person.registrationId,
+              adultSupportRegistrationId,
               overrides,
             }
           : {

@@ -32,7 +32,7 @@ export interface ProgramSnapshot {
       cells: {
         pointId: string;
         active: boolean;
-        slots: [ProgramPerson | null, ProgramPerson | null];
+        slots: [ProgramPerson | null, ProgramPerson | null, ProgramPerson | null];
       }[];
     }[];
   }[];

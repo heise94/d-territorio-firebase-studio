@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { campaignDocumentIdSchema as id } from "./registration-schemas";
-const slot = z.union([z.literal(1), z.literal(2)]);
+const slot = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 const overrides = z
   .array(
     z
@@ -8,10 +8,11 @@ const overrides = z
         registrationId: id,
         availability: z.boolean().default(false),
         maxTurns: z.boolean().default(false),
+        capacity: z.boolean().default(false),
       })
       .strict(),
   )
-  .max(2)
+  .max(3)
   .default([])
   .refine(
     (items) =>
@@ -26,6 +27,7 @@ export const assignmentInputSchema = z
     timeBlockId: id,
     pointId: id,
     registrationId: id,
+    adultSupportRegistrationId: id.optional(),
     slotNumber: slot,
     overrides,
   })

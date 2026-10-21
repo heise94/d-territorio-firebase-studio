@@ -89,10 +89,11 @@ export function CampaignSummary({ campaignId }: { campaignId: string }) {
       (sum, cell) => sum + cell.slots.filter(Boolean).length,
       0,
     );
-    return { ...day, total, assigned, missing: total - assigned };
+    return { ...day, total, assigned, extra: Math.max(0, assigned - total), missing: Math.max(0, total - assigned) };
   });
   const total = days.reduce((sum, day) => sum + day.total, 0);
   const assigned = days.reduce((sum, day) => sum + day.assigned, 0);
+  const extra = days.reduce((sum, day) => sum + day.extra, 0);
   return (
     <main className="mx-auto max-w-7xl space-y-7 p-5 lg:p-9">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -135,11 +136,12 @@ export function CampaignSummary({ campaignId }: { campaignId: string }) {
           {shareMessage}
         </p>
       )}
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-4">
         {[
           ["Turnos asignados", `${assigned} de ${total}`],
-          ["Turnos por asignar", String(total - assigned)],
+          ["Turnos por asignar", String(Math.max(0, total - assigned))],
           ["Solicitudes pendientes", String(pendingCount)],
+          ["Apoyos adicionales", String(extra)],
         ].map(([label, value]) => (
           <article
             key={label}
@@ -163,9 +165,7 @@ export function CampaignSummary({ campaignId }: { campaignId: string }) {
               className="grid gap-3 p-5 md:grid-cols-[1fr_100px_120px_auto] md:items-center"
             >
               <p className="font-semibold">{day.label || day.date}</p>
-              <p>
-                {day.assigned} / {day.total}
-              </p>
+              <p>{day.assigned} / {day.total}{day.extra > 0 ? ` · ${day.extra} apoyo${day.extra === 1 ? "" : "s"} adicional${day.extra === 1 ? "" : "es"}` : ""}</p>
               <p
                 className={
                   day.missing

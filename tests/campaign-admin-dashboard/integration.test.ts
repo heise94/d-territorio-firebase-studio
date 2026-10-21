@@ -31,6 +31,7 @@ import { PATCH as detailPATCH } from "../../src/app/api/campanas/admin/campaigns
 import {
   seedDashboardFixture,
   fixtureCampaign as campaign,
+  fixturePassword,
   fixturePhone,
   fixtureRegistration as reg,
   fixtureToken,
@@ -597,6 +598,28 @@ test("Organizador puede corregir solo el nombre y conserva el teléfono", async 
   assert.equal(after?.phoneNormalized, phone);
   await assert.rejects(service.updateParticipantName(ordinaryToken, campaign, reg(0), { fullName: "Otro Nombre" }), denied(403));
   await assert.rejects(service.updateParticipantName(token, campaign, reg(0), { fullName: "x" }), denied(400));
+});
+
+test("Marcado de menor exige responsable adulto inscrito en la misma campaña", async () => {
+  token = await fixtureToken();
+  assert.equal((await service.detail(token, campaign, reg(0))).canManageSafeguarding, false);
+  await assert.rejects(service.updateParticipantName(token, campaign, reg(0), { isMinor: true, guardianRegistrationId: reg(1) }), denied(403));
+  const auth = getAuth(campaignsAdminApp());
+  try { await auth.createUser({ uid: "dashboard-safeguarding-super", email: "safeguarding-super@example.test", password: fixturePassword }); } catch { /* already seeded by a prior focused run */ }
+  await auth.updateUser("dashboard-safeguarding-super", { disabled: false });
+  await auth.setCustomUserClaims("dashboard-safeguarding-super", { super_admin: true });
+  const superToken = await fixtureToken("safeguarding-super@example.test");
+  await assert.rejects(service.updateParticipantName(superToken, campaign, reg(0), { isMinor: true }), denied(400));
+  await service.updateParticipantName(superToken, campaign, reg(0), { isMinor: true, guardianRegistrationId: reg(1) });
+  const registration = (await db.collection("campaignRegistrations").doc(reg(0)).get()).data();
+  assert.equal(registration?.isMinor, true);
+  assert.equal(registration?.guardianRegistrationId, reg(1));
+  const detail = await service.detail(superToken, campaign, reg(0));
+  assert.equal(detail.canManageSafeguarding, true);
+  assert.equal(detail.isMinor, true);
+  assert.equal(detail.guardianRegistrationId, reg(1));
+  assert.ok(detail.guardianCandidates.some((candidate) => candidate.registrationId === reg(1)));
+  await assert.rejects(service.updateParticipantName(superToken, campaign, reg(0), { isMinor: true, guardianRegistrationId: "reg-foreign" }), denied(400));
 });
 
 test("Organizador crea solicitud pendiente con aviso al destinatario, sin autoaceptar", async () => {

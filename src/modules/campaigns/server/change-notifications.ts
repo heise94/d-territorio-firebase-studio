@@ -50,8 +50,8 @@ export function affectedRegistrations(
           t.block.startTime,
           t.block.endTime,
           point,
-          t.cell.slots[t.slotNumber === 1 ? 1 : 0]?.registrationId ?? null,
-          t.cell.slots[t.slotNumber === 1 ? 1 : 0]?.fullName ?? null,
+          t.cell.slots[t.slotNumber - 1]?.registrationId ?? null,
+          t.cell.slots[t.slotNumber - 1]?.fullName ?? null,
         ]),
       );
       result.set(t.person.registrationId, rows);

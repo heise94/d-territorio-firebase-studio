@@ -33,8 +33,10 @@ export const adminUpdateAvailabilitySchema = z
   .strict();
 
 export const adminUpdateParticipantNameSchema = z.object({
-  fullName: z.string().trim().min(2, "Ingresa el nombre.").max(120),
-}).strict();
+  fullName: z.string().trim().min(2, "Ingresa el nombre.").max(120).optional(),
+  isMinor: z.boolean().optional(),
+  guardianRegistrationId: campaignDocumentIdSchema.nullable().optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, "No hay cambios.");
 
 export const adminCreatePairRequestSchema = z.object({
   recipientRegistrationId: campaignDocumentIdSchema,

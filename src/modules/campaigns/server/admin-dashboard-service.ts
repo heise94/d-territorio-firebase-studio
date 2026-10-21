@@ -108,6 +108,8 @@ function rows(source: DashboardSource): AdminParticipantRow[] {
         maxTurns: registration.maxTurns,
         registrationStatus: registration.registrationStatus,
         profileActive: profile?.active === true,
+        isMinor: registration.isMinor === true,
+        guardianRegistrationId: registration.guardianRegistrationId ?? null,
         accepted:
           accepted && otherId && conflict
             ? {
@@ -380,7 +382,7 @@ export class CampaignAdminDashboardService {
     campaignId: string,
     id: string,
   ): Promise<AdminParticipantDetail> {
-    await this.authorize(token, campaignId);
+    const access = await this.authorize(token, campaignId);
     if (!campaignDocumentIdSchema.safeParse(id).success)
       throw new AuthError(400, "Inscripción inválida.");
     return this.db.runTransaction(async (tx) => {
@@ -442,6 +444,16 @@ export class CampaignAdminDashboardService {
       }
       return {
         ...row,
+        canManageSafeguarding: access.role === "SUPER_ADMIN",
+        guardianCandidates: [...source.registrations.values()]
+          .filter((candidate) =>
+            candidate.id !== id && candidate.registrationStatus === "active" && candidate.isMinor !== true,
+          )
+          .map((candidate) => ({
+            registrationId: candidate.id,
+            fullName: source.profiles.get(candidate.participantId)?.fullName ?? "Participante no disponible",
+          }))
+          .sort((a, b) => a.fullName.localeCompare(b.fullName, "es")),
         phone: phoneDoc[0].data()?.phoneNormalized ?? null,
         createdAt: registration.createdAt
           ? (typeof (registration.createdAt as unknown as { toDate?: () => Date }).toDate === "function"
@@ -602,7 +614,9 @@ export class CampaignAdminDashboardService {
       throw new AuthError(400, "Inscripción inválida.");
     const parsed = adminUpdateParticipantNameSchema.safeParse(input);
     if (!parsed.success) throw new AuthError(400, "Nombre inválido.");
-    const fullName = parsed.data.fullName.trim().replace(/\s+/g, " ");
+    if ((parsed.data.isMinor !== undefined || parsed.data.guardianRegistrationId !== undefined) && access.role !== "SUPER_ADMIN")
+      throw new AuthError(403, "Solo el superadministrador puede modificar los datos de resguardo de menores.");
+    const fullName = parsed.data.fullName?.trim().replace(/\s+/g, " ");
     return this.db.runTransaction(async (tx) => {
       const registrationRef = this.db.collection(campaignCollections.campaignRegistrations).doc(registrationId);
       const registration = await tx.get(registrationRef);
@@ -611,7 +625,29 @@ export class CampaignAdminDashboardService {
       const profileRef = this.db.collection(campaignCollections.participants).doc(registration.data()!.participantId);
       const profile = await tx.get(profileRef);
       if (!profile.exists) throw new AuthError(404, "Cuenta del participante no disponible.");
-      tx.update(profileRef, { fullName, preserveNameCase: true, updatedAt: Timestamp.now() });
+      const registrationData = registration.data()!;
+      const isMinor = parsed.data.isMinor ?? registrationData.isMinor === true;
+      const guardianId = parsed.data.isMinor === false
+        ? null
+        : parsed.data.guardianRegistrationId ?? registrationData.guardianRegistrationId ?? null;
+      const safeguardingChanged = parsed.data.isMinor !== undefined || parsed.data.guardianRegistrationId !== undefined;
+      if (safeguardingChanged && isMinor && !guardianId)
+        throw new AuthError(400, "Selecciona a su padre o madre responsable.");
+      if (safeguardingChanged && guardianId) {
+        if (guardianId === registrationId)
+          throw new AuthError(400, "El responsable debe ser otra persona adulta.");
+        const guardianRef = this.db.collection(campaignCollections.campaignRegistrations).doc(guardianId);
+        const guardian = await tx.get(guardianRef);
+        if (!guardian.exists || guardian.data()?.campaignId !== campaignId || guardian.data()?.registrationStatus !== "active" || guardian.data()?.isMinor === true)
+          throw new AuthError(400, "El responsable debe ser una persona adulta inscrita en esta campaña.");
+      }
+      if (fullName) tx.update(profileRef, { fullName, preserveNameCase: true, updatedAt: Timestamp.now() });
+      if (safeguardingChanged)
+        tx.update(registrationRef, {
+          isMinor,
+          ...(guardianId ? { guardianRegistrationId: guardianId } : { guardianRegistrationId: null }),
+          updatedAt: Timestamp.now(),
+        });
       tx.create(this.db.collection(campaignCollections.auditLogs).doc(), {
         campaignId,
         actorId: access.uid,
