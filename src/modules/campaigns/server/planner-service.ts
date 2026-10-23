@@ -274,6 +274,7 @@ export async function createAssignment(
     db.collection(names.assignments).doc().id,
     db.collection(names.assignments).doc().id,
     db.collection(names.assignments).doc().id,
+    db.collection(names.assignments).doc().id,
   ];
   await db.runTransaction(async (tx) => {
     const source = await readPlannerSource(db, tx, campaignId);
@@ -300,10 +301,18 @@ export async function createAssignment(
     } else if (value.adultSupportRegistrationId) {
       throw new AuthError(400, "La persona de apoyo adicional solo aplica al asignar a un menor.");
     }
-    if (value.slotNumber === 3 && access.role !== "SUPER_ADMIN")
-      throw new AuthError(400, "El tercer lugar solo puede asignarlo el superadministrador como apoyo adicional.");
-    if (value.slotNumber === 3 && unit.length === 2)
+    if (value.slotNumber >= 3 && access.role !== "SUPER_ADMIN")
+      throw new AuthError(400, "Los lugares adicionales solo puede asignarlos el superadministrador como apoyo.");
+    if (value.slotNumber >= 3 && unit.length === 2)
       throw new AuthError(400, "Completa el vínculo confirmado antes de agregar apoyo adicional.");
+    if (
+      value.slotNumber === 4 &&
+      !active.some(
+        (assignment) =>
+          assignment.pointId === value.pointId && assignment.slotNumber === 3,
+      )
+    )
+      throw new AuthError(409, "Agrega primero el tercer integrante de apoyo.");
     const old = active.filter((item) => assignmentUnit.includes(item.registrationId));
     // An incomplete accepted unit can only be completed at its original point.
     if (
@@ -322,7 +331,7 @@ export async function createAssignment(
       value.overrides,
       old,
     );
-    const capacityOverride = value.slotNumber === 3 || assignmentUnit.length === 3;
+    const capacityOverride = value.slotNumber >= 3 || assignmentUnit.length === 3;
     const blockMinimum = calculateBlockCapacity(campaignId, value.timeBlockId, [...source.points.values()], [...source.blockPoints.values()]).minParticipants;
     const availablePeopleCount = [...source.registrations.values()].filter((registration) =>
       registration.registrationStatus === "active" && registrationIsEligible(registration) &&
@@ -370,7 +379,7 @@ export async function createAssignment(
         }
         return;
       }
-      const slotNumber = targetSlots[index] as 1 | 2 | 3;
+      const slotNumber = targetSlots[index] as 1 | 2 | 3 | 4;
       const assignment: Assignment = {
         id: newIds[index],
         campaignId,
@@ -419,8 +428,8 @@ export async function changeAssignment(
     const primary = activeAssignments(source).find((item) => item.id === id);
     if (!primary || (primary.version ?? 1) !== value.expectedVersion)
       throw conflict();
-    if (value.action === "move" && value.slotNumber === 3 && access.role !== "SUPER_ADMIN")
-      throw new AuthError(403, "Solo el superadministrador puede usar el tercer lugar de apoyo.");
+    if (value.action === "move" && value.slotNumber >= 3 && access.role !== "SUPER_ADMIN")
+      throw new AuthError(403, "Solo el superadministrador puede usar los lugares de apoyo.");
     let unit = unitFor(source, primary.registrationId, primary.timeBlockId);
     const currentBlockAssignments = activeAssignments(source).filter((item) => item.timeBlockId === primary.timeBlockId && item.pointId === primary.pointId);
     const minor = currentBlockAssignments.map((item) => source.registrations.get(item.registrationId)).find((registration) => registration?.isMinor === true && [registration.id, registration.guardianRegistrationId, currentBlockAssignments.find((candidate) => candidate.slotNumber === 3)?.registrationId].includes(primary.registrationId));
@@ -457,7 +466,7 @@ export async function changeAssignment(
         source.profiles.get(registration.participantId)?.active === true &&
         source.selections.get(registration.id)?.has(primary.timeBlockId),
       ).length;
-      const capacityOverride = value.slotNumber === 3 && blockMinimum > 0 && availablePeopleCount >= blockMinimum;
+      const capacityOverride = value.slotNumber >= 3 && blockMinimum > 0 && availablePeopleCount >= blockMinimum;
       const capacityConfirmed = value.overrides.some((item) => item.registrationId === primary.registrationId && item.capacity);
       if (capacityOverride && !capacityConfirmed)
         throw new PlannerWarnings([{
@@ -485,7 +494,7 @@ export async function changeAssignment(
         pointId: value.pointId,
         slotNumber: (safeguardingGroup ? item.slotNumber : item.id === primary.id
           ? value.slotNumber
-          : value.slotNumber === 1 ? 2 : 1) as 1 | 2 | 3,
+          : value.slotNumber === 1 ? 2 : 1) as 1 | 2 | 3 | 4,
         ...flags.get(item.registrationId)!,
         ...(capacityOverride ? { capacityOverride: true } : {}),
         version: (item.version ?? 1) + 1,

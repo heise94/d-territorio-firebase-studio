@@ -63,7 +63,7 @@ export function projectProgram(
       reg?.campaignId !== campaignId ||
       reg.registrationStatus !== "active" ||
       source.profiles.get(reg.participantId)?.active !== true ||
-      ![1, 2, 3].includes(a.slotNumber);
+      ![1, 2, 3, 4].includes(a.slotNumber);
     if (invalid)
       issue(
         "invalid_assignment",
@@ -203,7 +203,7 @@ export function projectProgram(
     const support = group.find((item) => item.slotNumber === 3);
     const guardianRegistration = guardian ? source.registrations.get(guardian.registrationId) : null;
     const supportRegistration = support ? source.registrations.get(support.registrationId) : null;
-    if (group.length !== 3 || assignment.slotNumber !== 1 || !guardian || guardianRegistration?.isMinor === true || guardian.slotNumber !== 2 || !support || support.slotNumber !== 3 || supportRegistration?.isMinor === true)
+    if (group.length < 3 || assignment.slotNumber !== 1 || !guardian || guardianRegistration?.isMinor === true || guardian.slotNumber !== 2 || !support || support.slotNumber !== 3 || supportRegistration?.isMinor === true)
       issue("minor_safeguarding_incomplete", "La asignación de un menor requiere a su padre o madre responsable y a una hermana adulta en el mismo punto y horario.", assignment.id, assignment.timeBlockId, assignment.pointId, assignment.registrationId);
   }
   const days = [...source.days.values()]
@@ -264,7 +264,7 @@ export function projectProgram(
           label: block.label ?? "",
           cells: points.map((point) => {
             const active = validDestination(block.id, point.id);
-            const slots = ([1, 2, 3] as const).map((slot) => {
+            const slots = ([1, 2, 3, 4] as const).map((slot) => {
               const a = active
                 ? assignments.find(
                     (a) =>
@@ -289,6 +289,7 @@ export function projectProgram(
                   }
                 : null;
             }) as [
+              import("../domain/program").ProgramPerson | null,
               import("../domain/program").ProgramPerson | null,
               import("../domain/program").ProgramPerson | null,
               import("../domain/program").ProgramPerson | null,

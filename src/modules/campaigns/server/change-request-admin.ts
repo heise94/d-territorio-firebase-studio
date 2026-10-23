@@ -115,9 +115,20 @@ async function resolution(
       a.pointId === original.pointId &&
       !removed.some((r) => r.id === a.id),
   );
-  const free = (
-    [original.slotNumber, original.slotNumber === 1 ? 2 : 1] as (1 | 2)[]
-  ).filter((slot) => !occupied.some((a) => a.slotNumber === slot));
+  const replacementSlots: (1 | 2 | 3 | 4)[] =
+    incoming.length === 1
+      ? [original.slotNumber]
+      : original.slotNumber <= 2
+        ? [original.slotNumber, original.slotNumber === 1 ? 2 : 1]
+        : [
+            original.slotNumber,
+            ...([1, 2, 3, 4] as const).filter(
+              (slot) => slot !== original.slotNumber,
+            ),
+          ];
+  const free = replacementSlots.filter(
+    (slot) => !occupied.some((a) => a.slotNumber === slot),
+  );
   if (incoming.length > free.length)
     throw new AuthError(
       422,

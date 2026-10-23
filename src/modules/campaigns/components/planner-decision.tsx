@@ -16,8 +16,9 @@ import {
 import { plannerButton } from "./planner-points";
 export interface PlannerDecision {
   action: "create" | "move" | "cancel";
+  blockId: string;
   pointId: string;
-  slotNumber: 1 | 2 | 3;
+  slotNumber: 1 | 2 | 3 | 4;
   person: PlannerPerson;
   assignment?: PlannerAssignment;
 }
@@ -38,7 +39,7 @@ export function PlannerDecisionDialog({
   close: () => void;
   submit: (
     pointId: string,
-    slotNumber: 1 | 2 | 3,
+    slotNumber: 1 | 2 | 3 | 4,
     overrides: {
       registrationId: string;
       availability: boolean;
@@ -133,13 +134,14 @@ export function PlannerDecisionDialog({
                 value={slotNumber}
                 disabled={saving}
                 onChange={(e) => {
-                  setSlot(Number(e.target.value) as 1 | 2 | 3);
+                  setSlot(Number(e.target.value) as 1 | 2 | 3 | 4);
                   setConfirmed([]);
                 }}
               >
                 <option value={1}>1</option>
                 <option value={2}>2</option>
                 {view.canAssignSupport && <option value={3}>3 · Apoyo adicional</option>}
+                {view.canAssignSupport && <option value={4}>4 · Apoyo adicional</option>}
               </select>
             </label>
             <p className="text-sm">
@@ -149,7 +151,7 @@ export function PlannerDecisionDialog({
           </>
         ) : decision.action === "create" ? (
           <p>
-            {view.points.find((point) => point.id === pointId)?.name} · {slotNumber === 3 ? "Apoyo adicional" : `Lugar ${slotNumber}`} · {view.block?.date} {view.block?.startTime}
+            {view.points.find((point) => point.id === pointId)?.name} · {slotNumber >= 3 ? "Apoyo adicional" : `Lugar ${slotNumber}`} · {view.block?.date} {view.block?.startTime}
           </p>
         ) : (
           <p>
@@ -194,6 +196,9 @@ export function PlannerDecisionDialog({
             className={plannerButton}
             disabled={
               saving ||
+              (decision.action === "create" &&
+                decision.person.isMinor &&
+                !adultSupportRegistrationId) ||
               warnings.some(
                 (warning) =>
                   !confirmed.includes(

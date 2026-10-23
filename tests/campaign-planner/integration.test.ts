@@ -909,6 +909,36 @@ test("Solo SUPER_ADMIN agrega un tercer apoyo y confirma advertencia de cobertur
   assert.ok((await db.collection("auditLogs").where("campaignId", "==", campaign).get()).docs.some((doc) => doc.data().action === "capacity_override"));
 });
 
+test("SUPER_ADMIN puede agregar un cuarto integrante después del apoyo", async () => {
+  await assert.rejects(
+    createAssignment(token, campaign, input(4, "point-0", 4)),
+    denied(400),
+  );
+  const third = input(3, "point-0", 3);
+  await createAssignment(superToken, campaign, {
+    ...third,
+    overrides: [{ registrationId: reg(3), capacity: true }],
+  });
+  const fourth = input(4, "point-0", 4);
+  await createAssignment(superToken, campaign, {
+    ...fourth,
+    overrides: [{ registrationId: reg(4), capacity: true }],
+  });
+  const point = (await getPlanner(superToken, campaign)).points.find(
+    (item) => item.id === "point-0",
+  )!;
+  assert.equal(point.slots[3]?.registrationId, reg(4));
+  const source = await db.runTransaction(
+    (tx) => readPlannerSource(db, tx, campaign),
+    { readOnly: true },
+  );
+  assert.equal(
+    projectProgram(source).snapshot.days[0].blocks[0].cells[0].slots[3]
+      ?.registrationId,
+    reg(4),
+  );
+});
+
 test("Menor solo se asigna con responsable y persona adulta en los tres lugares", async () => {
   await db.collection("campaignRegistrations").doc(reg(3)).update({ isMinor: true, guardianRegistrationId: reg(4) });
   await assert.rejects(createAssignment(superToken, campaign, input(3)), denied(400));
@@ -919,10 +949,10 @@ test("Menor solo se asigna con responsable y persona adulta en los tres lugares"
   };
   await createAssignment(superToken, campaign, value);
   const point = (await getPlanner(superToken, campaign)).points.find((item) => item.id === "point-0")!;
-  assert.deepEqual(point.slots.map((slot) => slot?.registrationId), [reg(3), reg(4), reg(5)]);
+  assert.deepEqual(point.slots.map((slot) => slot?.registrationId), [reg(3), reg(4), reg(5), undefined]);
   const source = await db.runTransaction((tx) => readPlannerSource(db, tx, campaign), { readOnly: true });
   const program = projectProgram(source);
-  assert.deepEqual(program.snapshot.days[0].blocks[0].cells[0].slots.map((person) => person?.registrationId), [reg(3), reg(4), reg(5)]);
+  assert.deepEqual(program.snapshot.days[0].blocks[0].cells[0].slots.map((person) => person?.registrationId), [reg(3), reg(4), reg(5), undefined]);
   assert.ok(!program.blockingErrors.some((issue) => issue.code === "minor_safeguarding_incomplete"));
   const childAssignment = (await current()).find((item) => item.registrationId === reg(3))!;
   await changeAssignment(superToken, campaign, childAssignment.id, { action: "cancel", expectedVersion: 1 });

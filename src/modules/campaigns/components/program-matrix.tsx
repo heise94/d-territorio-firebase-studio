@@ -25,7 +25,7 @@ export function ProgramMatrix({ view }: { view: ProgramView }) {
           <div className={styles.scroll}>
             <table className={styles.matrix}>
               <caption className="sr-only">
-                Programa del {day.date}: horarios y puntos, hasta tres lugares por punto
+                Programa del {day.date}: horarios y puntos, hasta cuatro lugares por punto
               </caption>
               <thead>
                 <tr>

@@ -8,7 +8,7 @@ export interface Assignment {
   timeBlockId: string;
   pointId: string;
   registrationId: string;
-  slotNumber: 1 | 2 | 3;
+  slotNumber: 1 | 2 | 3 | 4;
   status: "draft" | "published" | "cancelled";
   createdBy: string;
   createdAt: Timestamp;
@@ -27,6 +27,7 @@ export interface PlannerPerson {
   fullName: string;
   congregation: string;
   assignedTurns: number;
+  assignedToday: number;
   maxTurns: MaxTurns;
   available: boolean;
   profileActive: boolean;
@@ -46,7 +47,7 @@ export interface PlannerAssignment {
   id: string;
   registrationId: string;
   pointId: string;
-  slotNumber: 1 | 2 | 3;
+  slotNumber: 1 | 2 | 3 | 4;
   version: number;
   person: PlannerPerson;
   warnings: string[];
@@ -73,7 +74,12 @@ export interface PlannerView {
     name: string;
     globalActive: boolean;
     active: boolean;
-    slots: [PlannerAssignment | null, PlannerAssignment | null, PlannerAssignment | null];
+    slots: [
+      PlannerAssignment | null,
+      PlannerAssignment | null,
+      PlannerAssignment | null,
+      PlannerAssignment | null,
+    ];
   }[];
   available: PlannerPerson[];
   exceptions: PlannerPerson[];

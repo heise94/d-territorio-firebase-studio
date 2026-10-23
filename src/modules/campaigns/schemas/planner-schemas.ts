@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { campaignDocumentIdSchema as id } from "./registration-schemas";
-const slot = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+const slot = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]);
 const overrides = z
   .array(
     z
@@ -12,7 +12,7 @@ const overrides = z
       })
       .strict(),
   )
-  .max(3)
+  .max(4)
   .default([])
   .refine(
     (items) =>

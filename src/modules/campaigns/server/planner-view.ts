@@ -53,6 +53,16 @@ export function plannerPerson(
         .filter((assignment) => assignment.registrationId === id)
         .map((assignment) => assignment.timeBlockId),
     ).size,
+    assignedToday: new Set(
+      activeAssignments(source)
+        .filter(
+          (assignment) =>
+            assignment.registrationId === id &&
+            source.blocks.get(assignment.timeBlockId)?.campaignDayId ===
+              source.blocks.get(blockId)?.campaignDayId,
+        )
+        .map((assignment) => assignment.timeBlockId),
+    ).size,
     maxTurns: registration?.maxTurns ?? null,
     accepted:
       otherId && pair
@@ -151,7 +161,12 @@ export function projectPlanner(
           item.timeBlockId === selected && item.pointId === id && item.active,
       );
       const own = assigned.filter((assignment) => assignment.pointId === id);
-      const slots: [PlannerAssignment | null, PlannerAssignment | null, PlannerAssignment | null] = [null, null, null];
+      const slots: [
+        PlannerAssignment | null,
+        PlannerAssignment | null,
+        PlannerAssignment | null,
+        PlannerAssignment | null,
+      ] = [null, null, null, null];
       for (const assignment of own) {
         const person = plannerPerson(
           source,
@@ -216,7 +231,7 @@ export function projectPlanner(
           maxTurnsOverride: assignment.maxTurnsOverride === true,
           capacityOverride: assignment.capacityOverride === true,
         };
-        if (![1, 2, 3].includes(assignment.slotNumber))
+        if (![1, 2, 3, 4].includes(assignment.slotNumber))
           warnings.push("Slot inválido.");
         else if (slots[assignment.slotNumber - 1])
           warnings.push("Conflicto: slot ocupado más de una vez.");

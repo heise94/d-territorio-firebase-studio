@@ -16,6 +16,8 @@ import {
   Users,
   Wrench,
   ChevronLeft,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 const icons = {
@@ -41,6 +43,7 @@ export function AdminDesktopShell({
 }) {
   const pathname = usePathname();
   const { user } = useAuth();
+  const [collapsed, setCollapsed] = useState(false);
   const [access, setAccess] = useState<{
     uid: string;
     campaignId: string;
@@ -86,12 +89,23 @@ export function AdminDesktopShell({
       window.removeEventListener("focus", refreshAccess);
     };
   }, [campaignId, user]);
+  useEffect(() => {
+    setCollapsed(window.sessionStorage.getItem("campaign-admin-sidebar-collapsed") === "true");
+  }, []);
+  function toggleSidebar() {
+    setCollapsed((current) => {
+      const next = !current;
+      window.sessionStorage.setItem("campaign-admin-sidebar-collapsed", String(next));
+      return next;
+    });
+  }
   return (
-    <div className="campaign-admin-shell min-h-screen bg-[#f6f5f1] text-slate-900 lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
-      <aside className="hidden min-h-screen bg-gradient-to-b from-[#004b4e] via-[#006268] to-[#063f45] p-4 text-white lg:block">
+    <div className={`campaign-admin-shell min-h-screen bg-[#f6f5f1] text-slate-900 lg:grid ${collapsed ? "lg:grid-cols-[76px_minmax(0,1fr)]" : "lg:grid-cols-[240px_minmax(0,1fr)]"}`}>
+      <aside className={`hidden min-h-screen bg-gradient-to-b from-[#004b4e] via-[#006268] to-[#063f45] p-4 text-white lg:block ${collapsed ? "px-3" : ""}`}>
         <Link
           href="/campanas/admin"
-          className="mb-10 flex items-center gap-3 px-3 pt-4 text-xl font-bold"
+          className={`mb-7 flex items-center gap-3 px-3 pt-4 text-xl font-bold ${collapsed ? "justify-center px-0" : ""}`}
+          title={collapsed ? "Campaña exhibidores" : undefined}
         >
           <Image
             src="/campanas-icon-192.png"
@@ -100,19 +114,21 @@ export function AdminDesktopShell({
             height={40}
             className="h-10 w-10 rounded-xl"
           />
-          Campaña exhibidores
+          {!collapsed && "Campaña exhibidores"}
         </Link>
-        <p className="px-3 pb-3 text-xs font-bold uppercase tracking-[.16em] text-teal-100/70">
-          {campaignId ? "Campaña" : "Plataforma"}
-        </p>
+        <div className={`mb-3 flex items-center ${collapsed ? "justify-center" : "justify-between px-3"}`}>
+          {!collapsed && <p className="text-xs font-bold uppercase tracking-[.16em] text-teal-100/70">{campaignId ? "Campaña" : "Plataforma"}</p>}
+          <button onClick={toggleSidebar} className="grid h-9 w-9 place-items-center rounded-lg text-teal-50/80 transition hover:bg-white/10" aria-label={collapsed ? "Expandir menú" : "Contraer menú"} title={collapsed ? "Expandir menú" : "Contraer menú"}>{collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}</button>
+        </div>
         {!campaignId ? (
           <nav>
             <Link
               href="/campanas/admin"
-              className="flex items-center gap-3 rounded-xl bg-white/15 px-3 py-3 text-sm font-semibold"
+              className={`flex items-center gap-3 rounded-xl bg-white/15 px-3 py-3 text-sm font-semibold ${collapsed ? "justify-center px-0" : ""}`}
+              title={collapsed ? "Campañas" : undefined}
             >
               <ClipboardList size={20} />
-              Campañas
+              {!collapsed && "Campañas"}
             </Link>
           </nav>
         ) : (
@@ -129,10 +145,11 @@ export function AdminDesktopShell({
                     key={label}
                     href={target}
                     aria-current={active ? "page" : undefined}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${active ? "bg-white/15 shadow-sm" : "text-teal-50/85 hover:bg-white/10"}`}
+                    className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${collapsed ? "justify-center px-0" : ""} ${active ? "bg-white/15 shadow-sm" : "text-teal-50/85 hover:bg-white/10"}`}
+                    title={collapsed ? label : undefined}
                   >
                     <Icon size={20} />
-                    {label}
+                    {!collapsed && label}
                   </Link>
                 );
               },
