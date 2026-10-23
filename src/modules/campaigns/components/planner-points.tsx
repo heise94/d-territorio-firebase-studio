@@ -38,9 +38,18 @@ function PointCard({ point, view, saving, activate, openSlot, change }: {
   const editable = view.mutable && point.active && point.globalActive;
   const canAdd = editable && filled < 4 && (filled < 2 || view.canAssignSupport);
   const status = !point.active ? { label: "No activo", style: "bg-slate-100 text-slate-500" } : filled === 0 ? { label: "Sin asignar", style: "bg-slate-100 text-slate-600" } : filled === 1 ? { label: "Incompleto", style: "bg-amber-50 text-amber-800" } : filled === 2 ? { label: "Cubierto", style: "bg-emerald-50 text-emerald-800" } : { label: "Con apoyo", style: "bg-sky-50 text-sky-800" };
+  const surface = !point.active
+    ? "border-slate-200 bg-slate-50 opacity-75"
+    : filled === 0
+      ? "border-slate-200 bg-white"
+      : filled === 1
+        ? "border-[#CFE58A] bg-[#F2FAD7]"
+        : filled === 2
+          ? "border-emerald-200 bg-emerald-50"
+          : "border-sky-200 bg-sky-50";
 
   return (
-    <article className={`min-h-[118px] rounded-xl border p-2.5 shadow-sm ${point.active ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50 opacity-75"}`}>
+    <article className={`min-h-[118px] rounded-xl border p-2.5 shadow-sm ${surface}`}>
       <header className="flex items-start justify-between gap-1"><div className="flex min-w-0 items-center gap-1.5"><MapPin size={14} className="shrink-0 text-teal-700" /><h3 className="truncate text-xs font-black text-slate-900" title={point.name}>{point.name}</h3></div><label className="flex shrink-0 items-center" title={point.active ? "Desactivar punto en este horario" : "Activar punto en este horario"}><input type="checkbox" className="h-3.5 w-3.5 accent-teal-700" checked={point.active} disabled={saving || !view.mutable || (!point.globalActive && !point.active)} onChange={(event) => activate(point.id, event.target.checked)} aria-label={`Activar ${point.name}`} /></label></header>
       <span className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-bold ${status.style}`}>{status.label}</span>
       {!point.globalActive ? <p className="mt-2 text-[10px] leading-4 text-slate-500">Inactivo en la configuración general.</p> : <div className="mt-1.5 space-y-1">{point.slots.filter(Boolean).map((assignment) => <PersonLine key={assignment!.id} assignment={assignment!} busy={saving} mutable={editable} change={change} />)}{canAdd && <button type="button" className="mt-1 inline-flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-teal-300 px-1.5 py-1 text-[10px] font-bold text-teal-800 transition hover:bg-teal-50 disabled:opacity-40" disabled={saving} onClick={() => openSlot(point.id, (filled + 1) as 1 | 2 | 3 | 4)}><Plus size={12} /> Añadir</button>}{point.active && !filled && <p className="pt-1 text-[10px] text-slate-400">Aún sin hermano asignado</p>}</div>}

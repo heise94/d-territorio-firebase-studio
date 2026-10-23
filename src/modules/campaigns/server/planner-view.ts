@@ -287,10 +287,9 @@ export function projectPlanner(
             active: source.activeBlocks.has(selected),
           }
         : null,
-    mutable:
-      source.campaign.status === "planning" &&
-      !!selected &&
-      source.activeBlocks.has(selected),
+    // Access was already verified by the planner service. Campaign status and
+    // participant-facing day visibility never turn the planner read-only.
+    mutable: !!selected && source.activeBlocks.has(selected),
     canAssignSupport,
     points: block ? points : [],
     available,

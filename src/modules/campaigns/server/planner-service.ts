@@ -48,10 +48,6 @@ function parse<T extends z.ZodTypeAny>(schema: T, input: unknown): z.output<T> {
     throw new AuthError(400, "Datos de planificación inválidos.");
   return result.data;
 }
-function planning(source: PlannerSource) {
-  if (source.campaign.status !== "planning")
-    throw new AuthError(409, "La campaña debe estar en planificación.");
-}
 function destination(source: PlannerSource, block: string, point: string) {
   if (
     !source.activeBlocks.has(block) ||
@@ -204,8 +200,6 @@ export async function setBlockPoint(
     db = campaignsAdminDb();
   await db.runTransaction(async (tx) => {
     const source = await readPlannerSource(db, tx, campaignId);
-    if (source.campaign.status === "completed")
-      throw new AuthError(409, "La campaña ya está finalizada.");
     const id = blockPointId(value.timeBlockId, value.pointId),
       old = source.blockPoints.get(id);
     if (
@@ -278,7 +272,6 @@ export async function createAssignment(
   ];
   await db.runTransaction(async (tx) => {
     const source = await readPlannerSource(db, tx, campaignId);
-    planning(source);
     destination(source, value.timeBlockId, value.pointId);
     const unit = unitFor(source, value.registrationId, value.timeBlockId),
       active = activeAssignments(source).filter(
@@ -424,7 +417,6 @@ export async function changeAssignment(
     db = campaignsAdminDb();
   await db.runTransaction(async (tx) => {
     const source = await readPlannerSource(db, tx, campaignId);
-    planning(source);
     const primary = activeAssignments(source).find((item) => item.id === id);
     if (!primary || (primary.version ?? 1) !== value.expectedVersion)
       throw conflict();

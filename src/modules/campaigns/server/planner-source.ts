@@ -17,6 +17,12 @@ export async function readPlannerSource(
   campaignId: string,
 ) {
   const base = await readDashboardSource(db, tx, campaignId);
+  // Planning is an administrative workspace. A future or temporarily hidden
+  // campaign day must remain planifiable; participant-facing availability keeps
+  // using its own active-day filtering.
+  const plannerBlocks = new Map(
+    [...base.blocks].filter(([, block]) => block.active),
+  );
   const query = (name: string) =>
     tx.get(db.collection(name).where("campaignId", "==", campaignId));
   const lockRef = db.collection(plannerLockCollection).doc(campaignId);
@@ -28,6 +34,7 @@ export async function readPlannerSource(
   ]);
   return {
     ...base,
+    activeBlocks: plannerBlocks,
     lockRef,
     revision: Number(lock.data()?.revision ?? 0),
     points: new Map(

@@ -335,7 +335,6 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
             ].map(([label, value, note]) => <article key={String(label)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="text-xl font-black text-slate-950">{value}</p><p className="text-[10px] text-slate-500">{note}</p></article>)}
           </section>
 
-          {!anchor.mutable && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Solo lectura. Para modificar asignaciones la campaña debe estar en planificación y el día activo.</p>}
           <p role="status" className="text-sm text-slate-500">{saving ? "Guardando planificación…" : saved || (loading ? "Actualizando planificación…" : "El panel se actualiza mientras trabajas.")}</p>
           {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
 

@@ -746,9 +746,8 @@ test("Claim actual retirado y cuenta deshabilitada niegan mutación", async () =
     token = await fixtureToken();
   }
 });
-test("Rules deny explícito de planner, incluso campaign_admin", async () => {
+test("Rules deny escrituras directas de asignaciones y datos privados", async () => {
   for (const name of [
-    "blockPoints",
     "campaignAssignments",
     "campaignPlannerLocks",
     "participants",
@@ -824,25 +823,42 @@ test("Lectura sin N+1 por participante: consultas fijas y field masks", async ()
     masks.flat().every((field) => !/phone|hash|session|pin/i.test(field)),
   );
 });
-test("Assignment rechazada en open/published/active/completed y sin salto draft→planning", async () => {
-  for (const status of [
-    "registration_open",
-    "published",
-    "active",
-    "completed",
-  ]) {
+test("Planificación editable para administradores sin depender del estado de campaña", async () => {
+  for (const [index, status] of [
+    [30, "draft"],
+    [31, "registration_open"],
+    [32, "planning"],
+    [33, "published"],
+    [34, "active"],
+    [35, "completed"],
+  ] as const) {
     await db.collection("campaigns").doc(campaign).update({ status });
-    await assert.rejects(
-      createAssignment(token, campaign, input()),
-      denied(409),
+    assert.equal((await getPlanner(token, campaign)).mutable, true);
+    await createAssignment(
+      token,
+      campaign,
+      input(index, `point-${index % 3}`, index < 33 ? 1 : 2),
     );
-    assert.equal((await getPlanner(token, campaign)).mutable, false);
   }
   await db.collection("campaigns").doc(campaign).update({ status: "draft" });
   await assert.rejects(
     changePlannerStatus(token, campaign, { status: "planning" }),
     denied(409),
   );
+});
+test("Planificación permite preparar un bloque de un día futuro o inactivo", async () => {
+  await db.collection("campaigns").doc(campaign).update({ status: "registration_open" });
+  const view = await getPlanner(token, campaign, "block-6");
+  assert.equal(view.block?.id, "block-6");
+  assert.equal(view.mutable, true);
+  await setBlockPoint(token, campaign, {
+    timeBlockId: "block-6",
+    pointId: "point-0",
+    active: true,
+  });
+  await createAssignment(token, campaign, input(0, "point-0", 1, "block-6"));
+  const planned = await getPlanner(token, campaign, "block-6");
+  assert.equal(planned.points.find((point) => point.id === "point-0")?.slots.filter(Boolean).length, 2);
 });
 test("Audita max_turns_override específico y no acepta mover entre bloques por PATCH", async () => {
   await createAssignment(token, campaign, input(6));
