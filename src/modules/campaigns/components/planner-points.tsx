@@ -6,64 +6,44 @@ import type { PlannerAssignment, PlannerView } from "../domain/planner";
 export const plannerButton =
   "inline-flex items-center justify-center gap-2 rounded-xl border border-teal-700 px-3 py-2 text-sm font-semibold text-teal-900 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-40";
 
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
+const shortName = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).join(" ");
 
-function AssignmentSlot({
-  assignment,
-  slotNumber,
-  allowAdditional,
-  busy,
-  mutable,
-  openSlot,
-  change,
-}: {
-  assignment: PlannerAssignment | null;
-  slotNumber: 1 | 2 | 3 | 4;
-  allowAdditional: boolean;
+function PersonLine({ assignment, busy, mutable, change }: {
+  assignment: PlannerAssignment;
   busy: boolean;
   mutable: boolean;
-  openSlot: (slotNumber: 1 | 2 | 3 | 4) => void;
   change: (assignment: PlannerAssignment, action: "move" | "cancel") => void;
 }) {
-  const isAdditional = slotNumber >= 3;
-  if (isAdditional && !allowAdditional && !assignment) return null;
-  if (!assignment)
-    return (
-      <button
-        type="button"
-        onClick={() => openSlot(slotNumber)}
-        disabled={busy || !mutable}
-        className="flex min-h-20 w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-left text-sm font-semibold text-slate-600 transition hover:border-teal-400 hover:bg-teal-50 disabled:opacity-50"
-      >
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-teal-700 shadow-sm"><Plus size={19} /></span>
-        <span><span className="block">Añadir {isAdditional ? "apoyo" : "hermano"}</span><span className="text-xs font-normal text-slate-400">{isAdditional ? `Lugar adicional ${slotNumber - 2}` : `Lugar ${slotNumber}`}</span></span>
-      </button>
-    );
   const { person } = assignment;
   return (
-    <article className="min-h-20 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="flex gap-2">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-teal-100 text-xs font-bold text-teal-800">{initials(person.fullName)}</div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold text-slate-900">{person.fullName}</p>
-          <p className="truncate text-xs text-slate-500">{person.congregation}</p>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {person.assignedToday > 1 && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Ya asignado hoy</span>}
-            {person.accepted && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-800">Compañero acordado</span>}
-            {person.isMinor && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-800">Menor</span>}
-            {person.guardianName && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">Responsable</span>}
-          </div>
-        </div>
-      </div>
-      {person.isMinor && person.guardianName && <p className="mt-2 flex items-center gap-1 text-xs text-violet-800"><ShieldCheck size={13} /> Responsable: {person.guardianName}</p>}
-      <div className="mt-3 flex gap-3"><button className="text-xs font-semibold text-teal-800 disabled:opacity-40" disabled={busy || !mutable} onClick={() => change(assignment, "move")}>Cambiar</button><button className="text-xs font-semibold text-slate-500 disabled:opacity-40" disabled={busy || !mutable} onClick={() => change(assignment, "cancel")}>Quitar</button></div>
+    <div className="group/person flex min-w-0 items-center gap-1.5">
+      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-teal-100 text-[8px] font-black text-teal-800">{initials(person.fullName)}</span>
+      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-700" title={person.fullName}>{shortName(person.fullName)}</span>
+      {person.isMinor && <ShieldCheck size={12} className="shrink-0 text-violet-700" aria-label="Menor" />}
+      {mutable && <span className="hidden shrink-0 gap-1 group-hover/person:flex"><button type="button" disabled={busy} onClick={() => change(assignment, "move")} className="text-[10px] font-bold text-teal-800 hover:underline">Cambiar</button><button type="button" disabled={busy} onClick={() => change(assignment, "cancel")} className="text-[10px] font-bold text-slate-500 hover:underline">Quitar</button></span>}
+    </div>
+  );
+}
+
+function PointCard({ point, view, saving, activate, openSlot, change }: {
+  point: PlannerView["points"][number];
+  view: PlannerView;
+  saving: boolean;
+  activate: (pointId: string, active: boolean) => void;
+  openSlot: (pointId: string, slotNumber: 1 | 2 | 3 | 4) => void;
+  change: (assignment: PlannerAssignment, action: "move" | "cancel") => void;
+}) {
+  const filled = point.slots.filter(Boolean).length;
+  const editable = view.mutable && point.active && point.globalActive;
+  const canAdd = editable && filled < 4 && (filled < 2 || view.canAssignSupport);
+  const status = !point.active ? { label: "No activo", style: "bg-slate-100 text-slate-500" } : filled === 0 ? { label: "Sin asignar", style: "bg-slate-100 text-slate-600" } : filled === 1 ? { label: "Incompleto", style: "bg-amber-50 text-amber-800" } : filled === 2 ? { label: "Cubierto", style: "bg-emerald-50 text-emerald-800" } : { label: "Con apoyo", style: "bg-sky-50 text-sky-800" };
+
+  return (
+    <article className={`min-h-[118px] rounded-xl border p-2.5 shadow-sm ${point.active ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50 opacity-75"}`}>
+      <header className="flex items-start justify-between gap-1"><div className="flex min-w-0 items-center gap-1.5"><MapPin size={14} className="shrink-0 text-teal-700" /><h3 className="truncate text-xs font-black text-slate-900" title={point.name}>{point.name}</h3></div><label className="flex shrink-0 items-center" title={point.active ? "Desactivar punto en este horario" : "Activar punto en este horario"}><input type="checkbox" className="h-3.5 w-3.5 accent-teal-700" checked={point.active} disabled={saving || !view.mutable || (!point.globalActive && !point.active)} onChange={(event) => activate(point.id, event.target.checked)} aria-label={`Activar ${point.name}`} /></label></header>
+      <span className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-bold ${status.style}`}>{status.label}</span>
+      {!point.globalActive ? <p className="mt-2 text-[10px] leading-4 text-slate-500">Inactivo en la configuración general.</p> : <div className="mt-1.5 space-y-1">{point.slots.filter(Boolean).map((assignment) => <PersonLine key={assignment!.id} assignment={assignment!} busy={saving} mutable={editable} change={change} />)}{canAdd && <button type="button" className="mt-1 inline-flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-teal-300 px-1.5 py-1 text-[10px] font-bold text-teal-800 transition hover:bg-teal-50 disabled:opacity-40" disabled={saving} onClick={() => openSlot(point.id, (filled + 1) as 1 | 2 | 3 | 4)}><Plus size={12} /> Añadir</button>}{point.active && !filled && <p className="pt-1 text-[10px] text-slate-400">Aún sin hermano asignado</p>}</div>}
     </article>
   );
 }
@@ -75,34 +55,5 @@ export function PlannerPoints({ view, saving, activate, openSlot, change }: {
   openSlot: (pointId: string, slotNumber: 1 | 2 | 3 | 4) => void;
   change: (assignment: PlannerAssignment, action: "move" | "cancel") => void;
 }) {
-  return (
-    <section className="space-y-4" aria-label="Puntos y asignaciones">
-      <div><h3 className="text-lg font-bold text-slate-950">Puntos de este horario</h3><p className="text-sm text-slate-500">Completa los dos lugares base y añade apoyo solo cuando haga falta.</p></div>
-      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-        {view.points.map((point) => {
-          const filled = point.slots.filter(Boolean).length;
-          const showThird = view.canAssignSupport && (filled >= 2 || !!point.slots[2]);
-          const showFourth = view.canAssignSupport && (filled >= 3 || !!point.slots[3]);
-          const editable = view.mutable && point.active && point.globalActive;
-          return (
-            <article key={point.id} className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${point.active ? "border-slate-200" : "border-slate-200 opacity-75"}`}>
-              <header className="flex items-start justify-between gap-3 border-b border-slate-100 p-4">
-                <div className="flex min-w-0 gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-800"><MapPin size={20} /></span><div className="min-w-0"><h4 className="truncate font-bold text-slate-950">{point.name}</h4><p className="text-xs text-slate-500">{filled} {filled === 1 ? "asignado" : "asignados"} · {point.active ? "Activo" : "No activo"}</p></div></div>
-                <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-600"><input type="checkbox" className="h-4 w-4 accent-teal-700" checked={point.active} disabled={saving || !view.mutable || (!point.globalActive && !point.active)} onChange={(event) => activate(point.id, event.target.checked)} />Activo</label>
-              </header>
-              {!point.globalActive && <p className="mx-4 mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Este punto está inactivo en la configuración general.</p>}
-              {(point.active || filled > 0) && <div className="space-y-2 p-4">
-                {point.slots.slice(0, 2).map((assignment, index) => <AssignmentSlot key={index} assignment={assignment} slotNumber={(index + 1) as 1 | 2} allowAdditional={false} busy={saving} mutable={editable} openSlot={(slot) => openSlot(point.id, slot)} change={change} />)}
-                {showThird && <AssignmentSlot assignment={point.slots[2]} slotNumber={3} allowAdditional={view.canAssignSupport} busy={saving} mutable={editable} openSlot={(slot) => openSlot(point.id, slot)} change={change} />}
-                {showFourth && <AssignmentSlot assignment={point.slots[3]} slotNumber={4} allowAdditional={view.canAssignSupport} busy={saving} mutable={editable} openSlot={(slot) => openSlot(point.id, slot)} change={change} />}
-                {view.canAssignSupport && filled >= 2 && !showThird && <button className="w-full rounded-xl border border-dashed border-teal-300 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-50" disabled={saving || !editable} onClick={() => openSlot(point.id, 3)}><Plus size={16} className="mr-1 inline" /> Añadir tercer integrante</button>}
-                {view.canAssignSupport && filled >= 3 && !showFourth && <button className="w-full rounded-xl border border-dashed border-teal-300 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-50" disabled={saving || !editable} onClick={() => openSlot(point.id, 4)}><Plus size={16} className="mr-1 inline" /> Añadir cuarto integrante</button>}
-              </div>}
-              {point.active && filled < 2 && <p className="border-t border-amber-100 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-900">Falta completar el equipo base.</p>}
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
+  return <div className="overflow-x-auto px-2 py-2" aria-label="Puntos y asignaciones"><div className="grid min-w-max grid-flow-col auto-cols-[148px] gap-2">{view.points.map((point) => <PointCard key={point.id} point={point} view={view} saving={saving} activate={activate} openSlot={openSlot} change={change} />)}</div></div>;
 }

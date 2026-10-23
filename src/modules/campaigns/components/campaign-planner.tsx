@@ -282,6 +282,23 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
     available: [...dayPeople.values()].filter((person) => person.available).length,
     pairs: [...dayPeople.values()].filter((person) => person.accepted && person.assignedToday === 0).length / 2,
   };
+  const withoutTurn = candidates.filter((person) => person.assignedToday === 0);
+  const withTurn = candidates.filter((person) => person.assignedToday > 0);
+  const candidateRow = (person: PlannerPerson) => (
+    <li key={person.registrationId}>
+      <button
+        className="w-full rounded-xl border border-slate-200 p-2.5 text-left transition hover:border-teal-400 hover:bg-teal-50 disabled:opacity-50"
+        disabled={saving || !person.profileActive || !targetView?.mutable}
+        onClick={() => targetView && target && start({ action: "create", blockId: targetView.block!.id, person, pointId: target.pointId, slotNumber: target.slotNumber })}
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-teal-100 text-xs font-bold text-teal-800">{person.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span>
+          <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-slate-900">{person.fullName}</span><span className="block truncate text-xs text-slate-500">{person.congregation}</span><span className="mt-1 flex flex-wrap gap-1">{person.assignedToday > 0 && <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Ya participa hoy</span>}{person.accepted && <span className="rounded-full bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-800">🔗 Con {person.accepted.otherName}</span>}{person.isMinor && <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800">Menor · {person.guardianName ?? "responsable pendiente"}</span>}</span></span>
+          <span className="shrink-0 rounded-lg border border-teal-700 px-2 py-1 text-[11px] font-bold text-teal-800">Asignar</span>
+        </div>
+      </button>
+    </li>
+  );
 
   return (
     <main className="mx-auto max-w-[1920px] space-y-5 p-4 sm:p-6 lg:p-8">
@@ -299,20 +316,15 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
 
       {anchor && (
         <>
-          <section className="rounded-2xl border border-teal-100 bg-gradient-to-r from-teal-50 via-white to-emerald-50 p-4 shadow-sm sm:p-5">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-teal-700 text-white"><CalendarDays size={22} /></span>
-              <button className={plannerButton} disabled={saving || dayIndex <= 0} onClick={() => { const previous = days[dayIndex - 1]; setDayId(previous.id); setBlockId(anchor.blocks.find((block) => block.dayId === previous.id)?.id ?? ""); }}><ChevronLeft size={18} /> Anterior</button>
-              <label className="min-w-[220px] flex-1 text-sm font-semibold text-slate-700">Día
-                <select className="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base font-bold text-slate-900" value={dayId} disabled={saving} onChange={(event) => { const nextDay = event.target.value; setDayId(nextDay); setBlockId(anchor.blocks.find((block) => block.dayId === nextDay)?.id ?? ""); }}>
-                  {days.map((day) => <option key={day.id} value={day.id}>{spanishDate(day.date)}</option>)}
-                </select>
-              </label>
-              <button className={plannerButton} disabled={saving || dayIndex >= days.length - 1} onClick={() => { const next = days[dayIndex + 1]; setDayId(next.id); setBlockId(anchor.blocks.find((block) => block.dayId === next.id)?.id ?? ""); }}>Siguiente <ChevronRight size={18} /></button>
+          <section className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+            <div className="grid items-center gap-2 sm:grid-cols-[auto_minmax(260px,1fr)_auto]">
+              <button className={plannerButton} disabled={saving || dayIndex <= 0} onClick={() => { const previous = days[dayIndex - 1]; setDayId(previous.id); setBlockId(anchor.blocks.find((block) => block.dayId === previous.id)?.id ?? ""); }}><ChevronLeft size={18} /> Día anterior</button>
+              <label className="relative flex items-center justify-center gap-2 text-center text-base font-black text-slate-950"><CalendarDays size={18} className="text-teal-700" /><span className="sr-only">Día</span><select className="appearance-none bg-transparent pr-4 text-center text-base font-black text-slate-950 outline-none" value={dayId} disabled={saving} onChange={(event) => { const nextDay = event.target.value; setDayId(nextDay); setBlockId(anchor.blocks.find((block) => block.dayId === nextDay)?.id ?? ""); }}>{days.map((day) => <option key={day.id} value={day.id}>{spanishDate(day.date)}</option>)}</select></label>
+              <button className={plannerButton} disabled={saving || dayIndex >= days.length - 1} onClick={() => { const next = days[dayIndex + 1]; setDayId(next.id); setBlockId(anchor.blocks.find((block) => block.dayId === next.id)?.id ?? ""); }}>Día siguiente <ChevronRight size={18} /></button>
             </div>
           </section>
 
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
             {[
               ["Bloques", metrics.blocks, "horarios del día"],
               ["Puntos activos", metrics.activePoints, "por bloque"],
@@ -320,27 +332,36 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
               ["Asignaciones", metrics.assigned, "personas ubicadas"],
               ["Pendientes", metrics.open, "lugares base abiertos"],
               ["Disponibles", metrics.available, `${metrics.pairs || 0} con compañero pendiente`],
-            ].map(([label, value, note]) => <article key={String(label)} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-2xl font-black text-slate-950">{value}</p><p className="text-xs text-slate-500">{note}</p></article>)}
+            ].map(([label, value, note]) => <article key={String(label)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="text-xl font-black text-slate-950">{value}</p><p className="text-[10px] text-slate-500">{note}</p></article>)}
           </section>
 
           {!anchor.mutable && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Solo lectura. Para modificar asignaciones la campaña debe estar en planificación y el día activo.</p>}
           <p role="status" className="text-sm text-slate-500">{saving ? "Guardando planificación…" : saved || (loading ? "Actualizando planificación…" : "El panel se actualiza mientras trabajas.")}</p>
           {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
 
-          <div className="grid items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
-            <section className="space-y-5">
-              {dayViews.map((view) => (
-                <article key={view.block?.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70 shadow-sm">
-                  <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
-                    <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-700"><Clock3 size={20} /></span><div><h2 className="text-lg font-black text-slate-950">{view.block?.startTime} – {view.block?.endTime}</h2><p className="text-sm text-slate-500">{view.block?.label || "Bloque horario"} · {view.metrics.available} disponibles</p></div></div>
-                    <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800">{view.metrics.incompletePoints} puntos por completar</span>
-                  </header>
-                  <div className="p-4 sm:p-5"><PlannerPoints view={view} saving={saving || loading} activate={(pointId, active) => void activate(view, pointId, active)} openSlot={(pointId, slotNumber) => openSlot(view, pointId, slotNumber)} change={(assignment, action) => start({ action, blockId: view.block!.id, person: assignment.person, assignment, pointId: assignment.pointId, slotNumber: assignment.slotNumber })} /></div>
-                </article>
-              ))}
+          <div className="relative">
+            <section className={`overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm transition-all ${target ? "2xl:mr-[376px]" : ""}`}>
+              <div className="min-w-[1140px] divide-y divide-slate-200">
+                {dayViews.map((view, index) => {
+                  const activePoints = view.points.filter((point) => point.active);
+                  const covered = activePoints.filter((point) => point.slots.filter(Boolean).length >= 2).length;
+                  const rowTone = !activePoints.length ? "bg-slate-50" : covered === activePoints.length ? "bg-emerald-50/80" : "bg-amber-50/75";
+                  return (
+                    <article key={view.block?.id} className="grid grid-cols-[146px_minmax(0,1fr)]">
+                      <header className={`flex min-h-[140px] flex-col justify-center border-r border-slate-200 px-4 ${rowTone}`}>
+                        <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500"><Clock3 size={13} /> Bloque {index + 1}</span>
+                        <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950">{view.block?.startTime}<br />– {view.block?.endTime}</h2>
+                        <p className="mt-2 text-xs font-semibold text-slate-600">{covered}/{activePoints.length} puntos cubiertos</p>
+                        <span className={`mt-2 inline-flex w-fit rounded-full px-2 py-1 text-[10px] font-bold ${covered === activePoints.length && activePoints.length ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{covered === activePoints.length && activePoints.length ? "Completo" : "Por completar"}</span>
+                      </header>
+                      <PlannerPoints view={view} saving={saving || loading} activate={(pointId, active) => void activate(view, pointId, active)} openSlot={(pointId, slotNumber) => openSlot(view, pointId, slotNumber)} change={(assignment, action) => start({ action, blockId: view.block!.id, person: assignment.person, assignment, pointId: assignment.pointId, slotNumber: assignment.slotNumber })} />
+                    </article>
+                  );
+                })}
+              </div>
             </section>
 
-            <aside className="sticky top-4 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <aside className={`z-20 mt-4 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg 2xl:absolute 2xl:right-0 2xl:top-0 2xl:mt-0 2xl:w-[360px] ${target ? "2xl:block" : "2xl:hidden"}`}>
               {target && targetView && targetPoint ? (
                 <>
                   <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-teal-700">Añadir a</p><h2 className="mt-1 font-black text-slate-950">{targetPoint.name}</h2><p className="mt-1 text-sm text-slate-500">{targetView.block?.startTime} – {targetView.block?.endTime} · Lugar {target.slotNumber}</p></div><button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" onClick={() => setTarget(null)} aria-label="Cerrar selector"><X size={20} /></button></div>
@@ -348,14 +369,13 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
                   <button className="text-sm font-semibold text-teal-800" onClick={() => setShowExceptions((current) => !current)}>{showExceptions ? "Ver solo disponibles" : "Usar excepción de disponibilidad"}</button>
                   {showExceptions && <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Estas personas no marcaron este horario. El sistema pedirá una confirmación explícita.</p>}
                   <p className="text-xs text-slate-500">Primero aparecen quienes aún no tienen asignación este día. Los ya usados hoy quedan identificados.</p>
-                  <ul className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-                  {candidates.map((person) => <li key={person.registrationId}><button className="w-full rounded-xl border border-slate-200 p-3 text-left transition hover:border-teal-400 hover:bg-teal-50" disabled={saving || !person.profileActive || !targetView.mutable} onClick={() => start({ action: "create", blockId: targetView.block!.id, person, pointId: target.pointId, slotNumber: target.slotNumber })}><div className="flex gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-teal-100 text-xs font-bold text-teal-800">{person.fullName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-slate-900">{person.fullName}</span><span className="block truncate text-xs text-slate-500">{person.congregation}</span><span className="mt-1 flex flex-wrap gap-1">{person.assignedToday > 0 && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Ya asignado hoy</span>}{person.accepted && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-800">Asignar juntos: {person.accepted.otherName}</span>}{person.isMinor && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-800">Menor · {person.guardianName ?? "responsable pendiente"}</span>}</span></span></div></button></li>)}
-                  </ul>
+                  <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+                    {!!withoutTurn.length && <section><div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-black text-slate-900">Sin turno hoy ({withoutTurn.length})</h3></div><ul className="space-y-2">{withoutTurn.map(candidateRow)}</ul></section>}
+                    {!!withTurn.length && <section><div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-black text-slate-900">Ya participan hoy ({withTurn.length})</h3></div><ul className="space-y-2">{withTurn.map(candidateRow)}</ul></section>}
+                  </div>
                   {!candidates.length && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">No hay hermanos disponibles para este bloque con esos criterios.</p>}
                 </>
-              ) : (
-                <div className="py-10 text-center"><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-teal-50 text-teal-800"><Users size={24} /></span><h2 className="mt-3 font-black text-slate-950">Selecciona un lugar</h2><p className="mt-2 text-sm text-slate-500">Pulsa “Añadir” en un punto para ver solo los hermanos disponibles en ese horario.</p></div>
-              )}
+              ) : <div className="py-10 text-center"><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-teal-50 text-teal-800"><Users size={24} /></span><h2 className="mt-3 font-black text-slate-950">Selecciona un lugar</h2><p className="mt-2 text-sm text-slate-500">Pulsa “Añadir” en un punto para ver solo los hermanos disponibles en ese horario.</p></div>}
             </aside>
           </div>
         </>
