@@ -13,6 +13,7 @@ const release = buildRelease();
 const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
   register: false,
+  scope: "/campanas",
   cacheStartUrl: false,
   dynamicStartUrl: false,
   reloadOnOnline: false,
@@ -28,6 +29,15 @@ const withPWA = require("@ducanh2912/next-pwa").default({
     ],
     manifestTransforms: [essentialCampaignPrecache],
     runtimeCaching: [
+      {
+        // FIRST: never apply the participant offline fallback to Admin HTML/RSC/API.
+        urlPattern: ({ url }) =>
+          url.pathname === "/campanas/admin" ||
+          url.pathname.startsWith("/campanas/admin/") ||
+          url.pathname === "/api/campanas/admin" ||
+          url.pathname.startsWith("/api/campanas/admin/"),
+        handler: "NetworkOnly",
+      },
       {
         // Never cache participant pages, RSC responses or identity/session API responses.
         urlPattern: ({ url }) =>

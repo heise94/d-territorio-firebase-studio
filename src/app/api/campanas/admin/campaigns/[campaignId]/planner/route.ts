@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
-import { getPlanner } from "@/modules/campaigns/server/planner-service";
+import { getPlanner, getPlannerDay } from "@/modules/campaigns/server/planner-service";
 import {
-  plannerBody,
   plannerFailure,
 } from "@/modules/campaigns/server/planner-http";
 import {
@@ -15,10 +14,11 @@ export async function GET(
   context: { params: Promise<{ campaignId: string }> },
 ) {
   try {
-    const result = await getPlanner(
+    const daily = request.nextUrl.searchParams.has("dayId");
+    const result = await (daily ? getPlannerDay : getPlanner)(
       organizerToken(request),
       (await context.params).campaignId,
-      request.nextUrl.searchParams.get("blockId") ?? undefined,
+      request.nextUrl.searchParams.get(daily ? "dayId" : "blockId") || undefined,
     );
     return dashboardResponse(result ?? { saved: true });
   } catch (error) {

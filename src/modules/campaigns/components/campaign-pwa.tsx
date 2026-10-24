@@ -6,6 +6,7 @@ import { isAppleMobile, isInstallDismissed } from "../lib/pwa-support";
 import { waitForCampaignUpdate } from "../lib/pwa-update";
 import { participantLogoutDestination } from "../lib/participant-logout";
 import { checkCampaignRegistration, monitorCampaignUpdates } from "../lib/pwa-update-monitor";
+import { campaignWorkerScope, migrateLegacyCampaignWorker, waitForActiveCampaignWorker } from "../lib/pwa-registration";
 
 type InstallPrompt = Event & {
   prompt(): Promise<void>;
@@ -97,7 +98,7 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
     const registerWorker = () => {
       if (!mounted || !("serviceWorker" in navigator) || process.env.NODE_ENV !== "production") return;
       void navigator.serviceWorker
-        .register("/sw.js", { scope: "/", updateViaCache: "none" })
+        .register("/sw.js", { scope: campaignWorkerScope, updateViaCache: "none" })
         .then((registration) => {
           if (!mounted) return;
           registrationRef.current = registration;
@@ -107,6 +108,15 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
             isVisible: () => document.visibilityState === "visible",
             windowEvents: window, documentEvents: document,
           });
+          // Prepare the replacement before retiring the exact legacy worker.
+          void waitForActiveCampaignWorker(registration).then(async () => {
+            window.dispatchEvent(new Event("campanas-worker-ready"));
+            // Preserve an opted-in legacy push subscription until PushSettings
+            // successfully rebinds this device's token to the scoped worker.
+            const legacy = await navigator.serviceWorker.getRegistration("/");
+            if (await legacy?.pushManager.getSubscription()) return;
+            await migrateLegacyCampaignWorker(navigator.serviceWorker, window.location.origin);
+          }).catch(() => {});
         })
         .catch(() => {});
     };
@@ -169,7 +179,7 @@ export function CampaignPwa({ children }: { children: ReactNode }) {
     setMessage("");
     try {
       if (!navigator.onLine || !("serviceWorker" in navigator)) throw new Error("unavailable");
-      const registration = registrationRef.current ?? await navigator.serviceWorker.getRegistration("/");
+      const registration = registrationRef.current ?? await navigator.serviceWorker.getRegistration(campaignWorkerScope);
       if (!registration) throw new Error("unavailable");
       registrationRef.current = registration;
       const state = await checkCampaignRegistration(registration);

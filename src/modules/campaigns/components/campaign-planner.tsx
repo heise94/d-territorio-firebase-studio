@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -14,8 +14,10 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { campaignFetch } from "../lib/campaign-fetch";
 import { campaignStatusLabels } from "../lib/presentation";
+import { loadPlannerDay, PlannerHttpError, plannerResponse, plannerViewAfterFailure } from "../lib/planner-day-client";
 import type {
   PlannerAssignment,
+  PlannerDayView,
   PlannerPerson,
   PlannerView,
   PlannerWarningDTO,
@@ -32,16 +34,6 @@ type PlannerTarget = {
   slotNumber: 1 | 2 | 3 | 4;
 };
 
-class PlannerHttpError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public warnings: PlannerWarningDTO[] = [],
-  ) {
-    super(message);
-  }
-}
-
 const spanishDate = (value: string) =>
   new Intl.DateTimeFormat("es-CL", {
     weekday: "long",
@@ -54,10 +46,9 @@ const personKey = (person: PlannerPerson) =>
 
 export function CampaignPlanner({ campaignId }: { campaignId: string }) {
   const { user } = useAuth();
-  const [anchor, setAnchor] = useState<PlannerView | null>(null);
-  const [dayViews, setDayViews] = useState<PlannerView[]>([]);
+  const [anchor, setAnchor] = useState<PlannerDayView | null>(null);
+  const dayViews = anchor?.blocks ?? [];
   const [dayId, setDayId] = useState("");
-  const [blockId, setBlockId] = useState("");
   const [target, setTarget] = useState<PlannerTarget | null>(null);
   const [query, setQuery] = useState("");
   const [showExceptions, setShowExceptions] = useState(false);
@@ -72,22 +63,8 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
   const mutation = useRef(false);
   const base = `/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}`;
 
-  const fetchView = useCallback(
-    async (token: string, selectedBlockId: string, signal: AbortSignal) => {
-      const response = await campaignFetch(
-        `${base}/planner${selectedBlockId ? `?blockId=${encodeURIComponent(selectedBlockId)}` : ""}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-          signal,
-        },
-      );
-      const data = await response.json();
-      if (!response.ok) throw new PlannerHttpError(data.error, response.status);
-      return data as PlannerView;
-    },
-    [base],
-  );
+  // Never carry private data across a changed identity or campaign.
+  useEffect(() => { setAnchor(null); setDayId(""); }, [user, campaignId]);
 
   const refresh = useCallback(async () => {
     pending.current?.abort();
@@ -95,48 +72,43 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
     pending.current = controller;
     if (!user) {
       setAnchor(null);
-      setDayViews([]);
       setLoading(false);
       return;
     }
     setLoading(true);
+    const timeout = window.setTimeout(() => {
+      if (pending.current !== controller) return;
+      controller.abort("timeout");
+      setError("No pudimos actualizar la planificación. Reintentar");
+      setLoading(false);
+    }, 30000);
+    controller.signal.addEventListener("abort", () => window.clearTimeout(timeout), { once: true });
     try {
-      const token = await user.getIdToken(true);
-      const first = await fetchView(token, blockId, controller.signal);
+      const token = await user.getIdToken();
+      const day = await loadPlannerDay(campaignFetch, base, token, dayId, controller.signal);
       if (controller.signal.aborted) return;
-      const selectedDay = dayId || first.block?.dayId || "";
-      const blocks = first.blocks.filter((block) => block.dayId === selectedDay);
-      const views = await Promise.all(
-        blocks.map((block) =>
-          block.id === first.block?.id
-            ? Promise.resolve(first)
-            : fetchView(token, block.id, controller.signal),
-        ),
-      );
-      if (controller.signal.aborted) return;
-      setAnchor(first);
-      setDayId(selectedDay);
-      setDayViews(views);
+      setAnchor(day);
       setError("");
     } catch (failure) {
       if (!controller.signal.aborted) {
-        if (failure instanceof PlannerHttpError && [401, 403].includes(failure.status)) {
-          setAnchor(null);
-          setDayViews([]);
-        }
-        setError(failure instanceof Error ? failure.message : "No se pudo actualizar la planificación.");
+        setAnchor((previous) => plannerViewAfterFailure(previous, failure));
+        setTarget(null);
+        setDecision(null);
+        setError(failure instanceof PlannerHttpError ? failure.message : "No pudimos actualizar la planificación. Reintentar");
       }
     } finally {
+      window.clearTimeout(timeout);
+      if (pending.current === controller) pending.current = null;
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [user, fetchView, blockId, dayId]);
+  }, [user, base, dayId]);
 
   useEffect(() => {
     setTarget(null);
     setDecision(null);
     void refresh();
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible" && !mutation.current) void refresh();
+      if (document.visibilityState === "visible" && !mutation.current && !pending.current) void refresh();
     }, 20000);
     return () => {
       pending.current?.abort();
@@ -145,7 +117,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
   }, [refresh]);
 
   async function write(path: string, method: string, input: unknown) {
-    if (!user || mutation.current) return false;
+    if (!user || mutation.current || loading || error) return false;
     mutation.current = true;
     setSaving(true);
     setSaved("");
@@ -153,14 +125,12 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
       const response = await campaignFetch(base + path, {
         method,
         headers: {
-          Authorization: `Bearer ${await user.getIdToken(true)}`,
+          Authorization: `Bearer ${await user.getIdToken()}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(input),
       });
-      const data = await response.json();
-      if (!response.ok)
-        throw new PlannerHttpError(data.error, response.status, data.warnings ?? []);
+      await plannerResponse(response);
       setSaved("Planificación guardada.");
       await refresh();
       return true;
@@ -184,12 +154,14 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
   }
 
   function start(value: PlannerDecision) {
+    if (loading || error) return;
     setDecision(value);
     setWarnings([]);
     setDecisionError("");
   }
 
   function openSlot(block: PlannerView, pointId: string, slotNumber: 1 | 2 | 3 | 4) {
+    if (loading || error) return;
     setTarget({ blockId: block.block!.id, pointId, slotNumber });
     setShowExceptions(false);
     setQuery("");
@@ -243,16 +215,8 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
     }
   }
 
-  const days = useMemo(
-    () =>
-      anchor
-        ? [...new Map(anchor.blocks.map((block) => [block.dayId, block.date])).entries()].map(
-            ([id, date]) => ({ id, date }),
-          )
-        : [],
-    [anchor],
-  );
-  const dayIndex = Math.max(0, days.findIndex((day) => day.id === dayId));
+  const days = anchor?.days ?? [];
+  const dayIndex = Math.max(0, days.findIndex((day) => day.id === anchor?.day?.id));
   const targetView = target
     ? dayViews.find((view) => view.block?.id === target.blockId) ?? null
     : null;
@@ -288,7 +252,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
     <li key={person.registrationId}>
       <button
         className="w-full rounded-xl border border-slate-200 p-2.5 text-left transition hover:border-teal-400 hover:bg-teal-50 disabled:opacity-50"
-        disabled={saving || !person.profileActive || !targetView?.mutable}
+        disabled={saving || loading || !!error || !person.profileActive || !targetView?.mutable}
         onClick={() => targetView && target && start({ action: "create", blockId: targetView.block!.id, person, pointId: target.pointId, slotNumber: target.slotNumber })}
       >
         <div className="flex items-center gap-2.5">
@@ -314,13 +278,15 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
         </div>
       </div>
 
+      {!anchor && loading && <p role="status" className="rounded-xl border bg-white p-6">Cargando planificación del día…</p>}
+      {error && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p>{error}</p>{anchor && <p>Seguimos mostrando la última planificación cargada.</p>}<button className={plannerButton} disabled={loading} onClick={() => void refresh()}>Reintentar</button></div>}
       {anchor && (
         <>
           <section className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
             <div className="grid items-center gap-2 sm:grid-cols-[auto_minmax(260px,1fr)_auto]">
-              <button className={plannerButton} disabled={saving || dayIndex <= 0} onClick={() => { const previous = days[dayIndex - 1]; setDayId(previous.id); setBlockId(anchor.blocks.find((block) => block.dayId === previous.id)?.id ?? ""); }}><ChevronLeft size={18} /> Día anterior</button>
-              <label className="relative flex items-center justify-center gap-2 text-center text-base font-black text-slate-950"><CalendarDays size={18} className="text-teal-700" /><span className="sr-only">Día</span><select className="appearance-none bg-transparent pr-4 text-center text-base font-black text-slate-950 outline-none" value={dayId} disabled={saving} onChange={(event) => { const nextDay = event.target.value; setDayId(nextDay); setBlockId(anchor.blocks.find((block) => block.dayId === nextDay)?.id ?? ""); }}>{days.map((day) => <option key={day.id} value={day.id}>{spanishDate(day.date)}</option>)}</select></label>
-              <button className={plannerButton} disabled={saving || dayIndex >= days.length - 1} onClick={() => { const next = days[dayIndex + 1]; setDayId(next.id); setBlockId(anchor.blocks.find((block) => block.dayId === next.id)?.id ?? ""); }}>Día siguiente <ChevronRight size={18} /></button>
+              <button className={plannerButton} disabled={saving || loading || dayIndex <= 0} onClick={() => setDayId(days[dayIndex - 1].id)}><ChevronLeft size={18} /> Día anterior</button>
+              <label className="relative flex items-center justify-center gap-2 text-center text-base font-black text-slate-950"><CalendarDays size={18} className="text-teal-700" /><span className="sr-only">Día</span><select className="appearance-none bg-transparent pr-4 text-center text-base font-black text-slate-950 outline-none" value={anchor.day?.id ?? ""} disabled={saving || loading} onChange={(event) => setDayId(event.target.value)}>{days.map((day) => <option key={day.id} value={day.id}>{spanishDate(day.date)}</option>)}</select></label>
+              <button className={plannerButton} disabled={saving || loading || dayIndex >= days.length - 1} onClick={() => setDayId(days[dayIndex + 1].id)}>Día siguiente <ChevronRight size={18} /></button>
             </div>
           </section>
 
@@ -336,7 +302,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
           </section>
 
           <p role="status" className="text-sm text-slate-500">{saving ? "Guardando planificación…" : saved || (loading ? "Actualizando planificación…" : "El panel se actualiza mientras trabajas.")}</p>
-          {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
+          {!dayViews.length && <p className="rounded-xl border bg-white p-6">Este día todavía no tiene bloques activos para planificar.</p>}
 
           <div className="relative">
             <section className={`overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm transition-all ${target ? "2xl:mr-[376px]" : ""}`}>

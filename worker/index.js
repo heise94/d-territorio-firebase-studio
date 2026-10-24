@@ -4,6 +4,8 @@ import { safeNotificationRoute } from "../src/modules/campaigns/domain/notificat
 
 // This module is imported by next-pwa's generated worker, not a second registration.
 self.addEventListener("message", (event) => {
+  if (event.data?.type === "CAMPAIGNS_WORKER_IDENTITY")
+    event.ports?.[0]?.postMessage({ type: "CAMPAIGNS_WORKER_IDENTITY", application: "campanas-exhibidores" });
   if (event.data?.type === "CAMPAIGNS_LOGOUT")
     event.waitUntil(
       (async () => {

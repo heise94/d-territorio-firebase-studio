@@ -7,7 +7,7 @@ const read = (path: string) => readFile(`${root}/${path}`, "utf8");
 
 test("la versión de la PWA proviene de una única fuente", async () => {
   const version = await read("src/modules/campaigns/lib/app-version.ts");
-  const page = await read("src/app/campanas/page.tsx");
+  const page = await read("src/app/campanas/(participant)/page.tsx");
   assert.match(version, /NEXT_PUBLIC_APP_VERSION/);
   assert.match(page, /APP_VERSION_LABEL/);
   assert.doesNotMatch(page, /v1\.0\.3/);

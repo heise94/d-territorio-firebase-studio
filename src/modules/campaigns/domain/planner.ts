@@ -102,5 +102,13 @@ export interface PlannerWarningDTO {
   kind: "availability" | "maxTurns" | "capacity";
   message: string;
 }
+export interface PlannerDayView {
+  campaign: PlannerView["campaign"];
+  days: { id: string; date: string }[];
+  day: { id: string; date: string } | null;
+  blocks: PlannerView[];
+  summary: { blocks: number; assigned: number; activePoints: number };
+  updatedAt: string;
+}
 export const plannerConflictMessage =
   "La planificación cambió mientras trabajabas. Actualiza el bloque e intenta nuevamente.";

@@ -2,7 +2,7 @@ import "../../../../src/app/globals.css";
 import CampaignLayout, {
   metadata,
   viewport,
-} from "../../../../src/app/campanas/layout";
+} from "../../../../src/app/campanas/(participant)/layout";
 export { metadata, viewport };
 export default function Layout({ children }) {
   return (

@@ -3,8 +3,15 @@ import { useEffect, useState } from "react";
 import { app } from "@/lib/firebase";
 import { campaignFetch } from "../lib/campaign-fetch";
 import { isAppleMobile } from "../lib/pwa-support";
+import { campaignWorkerScope, migrateLegacyCampaignWorker } from "../lib/pwa-registration";
 
 export function PushSettings() {
+  const [workerRevision, setWorkerRevision] = useState(0);
+  useEffect(() => {
+    const ready = () => setWorkerRevision((value) => value + 1);
+    window.addEventListener("campanas-worker-ready", ready);
+    return () => window.removeEventListener("campanas-worker-ready", ready);
+  }, []);
   const [state, setState] = useState("Revisando notificaciones…"),
     [supported, setSupported] = useState(false);
   const [enabled, setEnabled] = useState(false),
@@ -62,8 +69,8 @@ export function PushSettings() {
       });
       // Refresh a rotated token only for an already opted-in device. Never prompt here.
       if (status.enabled && Notification.permission === "granted") {
-        const registration = await navigator.serviceWorker.getRegistration("/");
-        if (registration?.active) {
+        const registration = await navigator.serviceWorker.getRegistration(campaignWorkerScope);
+        if (registration?.active && registration.scope === new URL(campaignWorkerScope, window.location.origin).href) {
           const fcmToken = await messaging.getToken(client, {
             vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
             serviceWorkerRegistration: registration,
@@ -80,6 +87,7 @@ export function PushSettings() {
             throw new Error(
               "No pudimos actualizar las notificaciones de este dispositivo.",
             );
+          await migrateLegacyCampaignWorker(navigator.serviceWorker, window.location.origin).catch(() => {});
         }
       }
       if (!live) return;
@@ -100,7 +108,7 @@ export function PushSettings() {
       live = false;
       stopForeground?.();
     };
-  }, [configured]);
+  }, [configured, workerRevision]);
   async function toggle() {
     setBusy(true);
     setError("");
@@ -132,8 +140,8 @@ export function PushSettings() {
         );
         return;
       }
-      const registration = await navigator.serviceWorker.getRegistration("/");
-      if (!registration?.active)
+      const registration = await navigator.serviceWorker.getRegistration(campaignWorkerScope);
+      if (!registration?.active || registration.scope !== new URL(campaignWorkerScope, window.location.origin).href)
         throw new Error(
           "La aplicación todavía no está preparada para push. Intenta después de actualizarla.",
         );

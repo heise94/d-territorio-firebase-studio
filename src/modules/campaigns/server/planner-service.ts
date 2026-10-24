@@ -28,7 +28,15 @@ import {
   readPlannerSource,
   type PlannerSource,
 } from "./planner-source";
-import { plannerPerson, projectPlanner } from "./planner-view";
+import { plannerPerson, projectPlanner, projectPlannerDay } from "./planner-view";
+
+export async function getPlannerDay(token: string, campaignId: string, dayId?: string) {
+  const access = await plannerAccess(token, campaignId);
+  return campaignsAdminDb().runTransaction(async (tx) => {
+    const source = await readPlannerSource(campaignsAdminDb(), tx, campaignId);
+    return projectPlannerDay(source, dayId, access.role === "SUPER_ADMIN");
+  }, { readOnly: true });
+}
 
 export class PlannerWarnings extends AuthError {
   constructor(public warnings: PlannerWarningDTO[]) {

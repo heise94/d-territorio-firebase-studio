@@ -1,15 +1,12 @@
-import type { Metadata, Viewport } from "next";
-import { CampaignPwa } from "@/modules/campaigns/components/campaign-pwa";
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Campaña exhibidores",
   applicationName: "Campaña exhibidores",
   description: "Organización de campañas especiales de predicación.",
-  manifest: "/campanas.webmanifest",
-  icons: { apple: "/campanas-apple-touch-icon.png", icon: "/campanas-icon-192.png" },
-  appleWebApp: { capable: true, title: "Exhibidores", statusBarStyle: "default" },
+  // Also clear the generic manifest inherited from the application root.
+  manifest: null,
 };
-export const viewport: Viewport = { themeColor: "#0f766e" };
 
 export default function CampaignsLayout({
   children,
@@ -18,7 +15,7 @@ export default function CampaignsLayout({
 }>) {
   return (
     <div className="min-h-screen bg-[var(--campaign-background)] text-[var(--campaign-ink)]">
-      <CampaignPwa>{children}</CampaignPwa>
+      {children}
     </div>
   );
 }

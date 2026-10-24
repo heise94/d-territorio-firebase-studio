@@ -2,6 +2,7 @@ import "server-only";
 import { registrationIsEligible } from "../domain/registration";
 import type {
   PlannerAssignment,
+  PlannerDayView,
   PlannerPerson,
   PlannerView,
 } from "../domain/planner";
@@ -12,6 +13,28 @@ import {
   acceptedUnit,
   type PlannerSource,
 } from "./planner-source";
+
+/** All block projections share the same transaction snapshot; no I/O here. */
+export function projectPlannerDay(source: PlannerSource, requestedDayId?: string, canAssignSupport = false): PlannerDayView {
+  const days = [...source.days.values()].map((day) => ({ id: day.id, date: day.date }))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  const day = requestedDayId ? days.find((item) => item.id === requestedDayId) : days[0];
+  if (requestedDayId && !day) throw new AuthError(404, "Día no disponible en esta campaña.");
+  const updatedAt = new Date().toISOString();
+  const blocks = [...source.activeBlocks.values()]
+    .filter((block) => block.campaignDayId === day?.id)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.id.localeCompare(b.id))
+    .map((block) => ({ ...projectPlanner(source, block.id, canAssignSupport), updatedAt }));
+  return {
+    campaign: { id: source.campaignId, name: source.campaign.name, status: source.campaign.status },
+    days, day: day ?? null, blocks, updatedAt,
+    summary: {
+      blocks: blocks.length,
+      assigned: blocks.reduce((sum, block) => sum + block.metrics.assigned, 0),
+      activePoints: blocks.reduce((sum, block) => sum + block.metrics.activePoints, 0),
+    },
+  };
+}
 
 export function plannerPerson(
   source: PlannerSource,
