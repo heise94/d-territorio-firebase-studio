@@ -44,6 +44,24 @@ export async function fixtureToken(email = fixtureEmail) {
   );
   return (await response.json()).idToken as string;
 }
+/** A phone + PIN administrator gets a scoped claim in a custom token only. */
+export async function fixtureScopedOrganizerToken(uid: string) {
+  assertLocal();
+  const customToken = await getAuth(campaignsAdminApp()).createCustomToken(uid, {
+    campaign_admin: true,
+    campaign_participant_admin: true,
+  });
+  const response = await fetch(
+    `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=local-fixture-key`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: customToken, returnSecureToken: true }),
+    },
+  );
+  assert.equal(response.status, 200, "Auth Emulator must mint scoped ID token");
+  return (await response.json()).idToken as string;
+}
 export async function seedDashboardFixture() {
   assertLocal();
   const db = campaignsAdminDb(),

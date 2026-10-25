@@ -10,6 +10,7 @@ import {
   fixtureCampaign,
   fixtureEmail,
   fixturePassword,
+  fixtureScopedOrganizerToken,
   fixtureToken,
   fixtureRegistration,
 } from "../campaign-admin-dashboard/fixture";
@@ -45,6 +46,17 @@ export async function seedPlannerFixture() {
   await auth.setCustomUserClaims("planner-organizer-2", {
     campaign_admin: true,
   });
+  try {
+    await auth.getUser("planner-phone-pin-organizer");
+  } catch {
+    await auth.createUser({
+      uid: "planner-phone-pin-organizer",
+      email: "phone-pin-planner@example.test",
+      password: fixturePassword,
+    });
+  }
+  await auth.updateUser("planner-phone-pin-organizer", { disabled: false });
+  await auth.setCustomUserClaims("planner-phone-pin-organizer", {});
   for (const collection of [
     "campaignAssignments",
     "blockPoints",
@@ -58,6 +70,12 @@ export async function seedPlannerFixture() {
   const batch = db.batch();
   batch.set(db.collection("organizerUsers").doc("fixture-planner-campaign-admin"), {
     uid: "planner-organizer-2",
+    role: "CAMPAIGN_ADMIN",
+    campaignId: fixtureCampaign,
+    active: true,
+  });
+  batch.set(db.collection("organizerUsers").doc("fixture-planner-phone-pin-admin"), {
+    uid: "planner-phone-pin-organizer",
     role: "CAMPAIGN_ADMIN",
     campaignId: fixtureCampaign,
     active: true,
@@ -114,6 +132,7 @@ export async function seedPlannerFixture() {
   return {
     ...credentials,
     secondToken: await fixtureToken("organizer-planner-2@example.test"),
+    phonePinToken: await fixtureScopedOrganizerToken("planner-phone-pin-organizer"),
     superToken: await fixtureToken("planner-super@example.test"),
   };
 }

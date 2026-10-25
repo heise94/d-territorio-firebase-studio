@@ -56,6 +56,7 @@ const db = campaignsAdminDb();
 let env: RulesTestEnvironment,
   token: string,
   secondToken: string,
+  phonePinToken: string,
   superToken: string,
   ordinaryToken: string;
 const denied = (status: number) => (error: unknown) =>
@@ -115,7 +116,7 @@ before(async () => {
   await env.clearFirestore();
 });
 beforeEach(async () => {
-  ({ token, secondToken, superToken, ordinaryToken } = await seedPlannerFixture());
+  ({ token, secondToken, phonePinToken, superToken, ordinaryToken } = await seedPlannerFixture());
 });
 after(async () => {
   await env?.cleanup();
@@ -702,6 +703,18 @@ test("Todas las lecturas y mutaciones rechazan cookie/token sin claim", async ()
       expected,
     );
   }
+});
+test("Token administrativo de teléfono y PIN puede asignar sin claim persistente", async () => {
+  const auth = getAuth(campaignsAdminApp());
+  assert.deepEqual(
+    (await auth.getUser("planner-phone-pin-organizer")).customClaims ?? {},
+    {},
+  );
+  const response = await assignPOST(
+    request("assignments", "POST", input(), phonePinToken),
+    context(),
+  );
+  assert.equal(response.status, 200);
 });
 test("HTTP 409 humanizado y 422 con advertencias individuales", async () => {
   await createAssignment(token, campaign, input());
