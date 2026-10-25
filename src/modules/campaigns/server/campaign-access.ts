@@ -50,6 +50,9 @@ export async function participantCampaignAdminAccess(
       .where("participantId", "==", participantId)
       .get(),
   ]);
+  const superAdmin = grants.docs
+    .map((doc) => doc.data() as OrganizerUser)
+    .some((grant) => grant.active === true && grant.role === "SUPER_ADMIN");
   const allowedCampaignIds = new Set(
     grants.docs
       .map((doc) => doc.data() as OrganizerUser)
@@ -74,7 +77,7 @@ export async function participantCampaignAdminAccess(
       team?.primaryRegistrationId === registration.id ||
       team?.helperRegistrationIds?.includes(registration.id)
     )
-      return campaignId;
+      return { campaignId, superAdmin };
   }
   return null;
 }

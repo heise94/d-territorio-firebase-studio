@@ -24,11 +24,11 @@ export async function POST(request: NextRequest) {
     const participant = await getCurrentParticipant();
     if (!participant)
       throw new AuthError(401, "Ingresa con tu teléfono y PIN para continuar.");
-    const campaignId = await participantCampaignAdminAccess(
+    const access = await participantCampaignAdminAccess(
       campaignsAdminDb(),
       participant.id,
     );
-    if (!campaignId)
+    if (!access)
       throw new AuthError(403, "Tu cuenta no tiene acceso a la administración de una campaña.");
     // No email or password is created. Firebase Auth receives only this
     // short-lived, server-signed custom token after the participant session.
@@ -36,12 +36,13 @@ export async function POST(request: NextRequest) {
       participant.id,
       {
         campaign_admin: true,
-        campaign_participant_admin: true,
-        campaign_ids: [campaignId],
+        campaign_participant_admin: !access.superAdmin,
+        campaign_ids: [access.campaignId],
+        ...(access.superAdmin ? { super_admin: true } : {}),
       },
     );
     return NextResponse.json(
-      { token, campaignId },
+      { token, campaignId: access.campaignId },
       { headers: { "Cache-Control": "private, no-store", Vary: "Cookie" } },
     );
   } catch (error) {
