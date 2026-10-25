@@ -27,6 +27,7 @@ declare module "pdfkit" {
     lineWidth(width: number): this;
     rect(x: number, y: number, width: number, height: number): this;
     stroke(): this;
+    fill(): this;
     text(text: string, x: number, y: number, options?: TextOptions): this;
     heightOfString(text: string, options?: TextOptions): number;
     bufferedPageRange(): { start: number; count: number };

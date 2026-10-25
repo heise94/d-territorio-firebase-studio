@@ -772,7 +772,7 @@ test("Overrides requieren boolean true: strings truthy no autorizan", async () =
   await hasError("unavailable");
   await hasError("max_turns");
 });
-test("Nombres largos y acentos con ocho puntos mantienen páginas razonables", async () => {
+test("Nombres largos y acentos con ocho puntos mantienen una página por día", async () => {
   await db.collection("participants").doc("person-0").update({
     fullName:
       "María José Fernández de los Ángeles Rodríguez Valdés Participante Ficticia de Prueba",
@@ -783,8 +783,9 @@ test("Nombres largos y acentos con ocho puntos mantienen páginas razonables", a
     .update({
       name: "Punto peatonal ficticio de la plaza principal de la localidad",
     });
-  const bytes = await renderProgramPdf(await getProgram(token, campaign));
-  assert.ok(pdfPageCount(bytes) >= 6 && pdfPageCount(bytes) <= 12);
+  const view = await getProgram(token, campaign);
+  const bytes = await renderProgramPdf(view);
+  assert.equal(pdfPageCount(bytes), view.snapshot.days.length);
   await writeFile("/tmp/campaign-phase7-pdf/long-names.pdf", bytes);
 });
 test("Rules niegan get/list/write ProgramVersions incluso campaign_admin", async () => {
@@ -819,18 +820,19 @@ test("GET personal sin cookie devuelve 401 incluso bearer admin; respuestas priv
   assert.match(response.headers.get("cache-control")!, /private, no-store/);
   assert.equal(response.headers.get("vary"), "Cookie");
 });
-test("PDF descargable protegido: application/pdf, filename borrador/v1, válido y sin teléfonos", async () => {
+test("PDF diario descargable: una página por día, tabla horizontal y sin etiquetas técnicas", async () => {
   const draft = await pdfGET(request("program/pdf"), context());
   assert.equal(draft.status, 200);
   assert.equal(draft.headers.get("content-type"), "application/pdf");
-  assert.match(draft.headers.get("content-disposition")!, /-borrador.pdf/);
+  assert.doesNotMatch(draft.headers.get("content-disposition")!, /borrador/i);
   const draftBytes = Buffer.from(await draft.arrayBuffer());
   assert.match(draftBytes.subarray(0, 8).toString(), /%PDF-/);
   assert.ok(draftBytes.length > 10000);
   const dir = "/tmp/campaign-phase7-pdf";
   await mkdir(dir, { recursive: true });
   await writeFile(`${dir}/draft.pdf`, draftBytes);
-  assert.equal(pdfSubject(draftBytes), "BORRADOR — NO DISTRIBUIR");
+  assert.equal(pdfSubject(draftBytes), "Programa diario de campaña");
+  assert.equal(pdfPageCount(draftBytes), (await getProgram(token, campaign)).snapshot.days.length);
   await publish();
   const response = await pdfGET(request("program/pdf"), context());
   assert.match(response.headers.get("content-disposition")!, /-v1.pdf/);
@@ -838,9 +840,8 @@ test("PDF descargable protegido: application/pdf, filename borrador/v1, válido 
   const bytes = Buffer.from(await response.arrayBuffer());
   assert.notDeepEqual(bytes, draftBytes);
   await writeFile(`${dir}/published.pdf`, bytes);
-  assert.match(pdfSubject(bytes), /Publicado · v1/);
-  assert.doesNotMatch(pdfSubject(bytes), /BORRADOR/);
-  assert.equal(pdfPageCount(bytes), 6);
+  assert.equal(pdfSubject(bytes), "Programa diario de campaña");
+  assert.equal(pdfPageCount(bytes), (await getProgram(token, campaign)).snapshot.days.length);
   assert.match(bytes.toString("latin1"), /\/MediaBox \[0 0 841\.89 595\.28\]/);
   assert.match(
     programPdfFilename(await getProgram(token, campaign)),
