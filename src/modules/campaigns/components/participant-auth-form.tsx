@@ -85,8 +85,11 @@ export function ParticipantAuthForm({
       if (!reply.ok) throw new Error(result.error);
       formElement.reset();
       const campaignId = searchParams.get("campana");
+      const mode = searchParams.get("modo");
       router.replace(
-        !register && searchParams.get("modo") === "organizacion"
+        !register && mode === "administracion"
+          ? "/campanas/admin/acceso"
+          : !register && mode === "organizacion"
           ? "/campanas/organizacion"
           : campaignId
             ? `/campanas/disponibilidad/${encodeURIComponent(campaignId)}`
@@ -106,7 +109,7 @@ export function ParticipantAuthForm({
 
   return (
     <main className="mx-auto max-w-md px-5 py-10">
-      <ParticipantEntryRedirect destination={searchParams.get("modo") === "organizacion" ? "/campanas/organizacion" : searchParams.get("campana") ? `/campanas/disponibilidad/${encodeURIComponent(searchParams.get("campana")!)}` : "/campanas"} />
+      <ParticipantEntryRedirect destination={searchParams.get("modo") === "administracion" ? "/campanas/admin/acceso" : searchParams.get("modo") === "organizacion" ? "/campanas/organizacion" : searchParams.get("campana") ? `/campanas/disponibilidad/${encodeURIComponent(searchParams.get("campana")!)}` : "/campanas"} />
       <p className="font-semibold text-teal-700">Campaña exhibidores</p>
       <h1 className="mt-3 text-2xl font-bold">
         {register ? "Crear mi cuenta" : "Ingresar"}

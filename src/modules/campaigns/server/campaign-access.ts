@@ -13,11 +13,70 @@ async function verifiedUid(idToken: string) {
     const decoded = await getAuth(campaignsAdminApp()).verifyIdToken(idToken, true);
     const user = await getAuth(campaignsAdminApp()).getUser(decoded.uid);
     if (user.disabled) throw new AuthError(403, "La cuenta administrativa está desactivada.");
-    return { uid: decoded.uid, superAdmin: user.customClaims?.super_admin === true, campaignAdmin: user.customClaims?.campaign_admin === true };
+    // Participant organizers authenticate with a Firebase custom token issued
+    // only after their phone + PIN session has been verified server-side. The
+    // token carries the scoped campaign admission; the Firestore grant below
+    // remains the authority for the campaign and role.
+    return {
+      uid: decoded.uid,
+      superAdmin:
+        decoded.super_admin === true || user.customClaims?.super_admin === true,
+      campaignAdmin:
+        decoded.campaign_admin === true ||
+        user.customClaims?.campaign_admin === true,
+    };
   } catch (error) {
     if (error instanceof AuthError) throw error;
     throw new AuthError(401, "Tu sesión administrativa no es válida. Ingresa nuevamente.");
   }
+}
+
+/**
+ * Finds the single campaign that a phone/PIN participant may administer.
+ * A team membership alone is deliberately insufficient: an explicit,
+ * revocable CAMPAIGN_ADMIN grant is also required.
+ */
+export async function participantCampaignAdminAccess(
+  db: Firestore,
+  participantId: string,
+) {
+  const [grants, registrations] = await Promise.all([
+    db
+      .collection(campaignCollections.organizerUsers)
+      .where("uid", "==", participantId)
+      .get(),
+    db
+      .collection(campaignCollections.campaignRegistrations)
+      .where("participantId", "==", participantId)
+      .get(),
+  ]);
+  const allowedCampaignIds = new Set(
+    grants.docs
+      .map((doc) => doc.data() as OrganizerUser)
+      .filter(
+        (grant) =>
+          grant.active === true &&
+          grant.role === "CAMPAIGN_ADMIN" &&
+          typeof grant.campaignId === "string",
+      )
+      .map((grant) => grant.campaignId!),
+  );
+  for (const registration of registrations.docs) {
+    const campaignId = registration.data().campaignId;
+    if (typeof campaignId !== "string" || !allowedCampaignIds.has(campaignId))
+      continue;
+    const team = (
+      await db.collection(campaignCollections.campaignTeams).doc(campaignId).get()
+    ).data() as
+      | { primaryRegistrationId?: string | null; helperRegistrationIds?: string[] }
+      | undefined;
+    if (
+      team?.primaryRegistrationId === registration.id ||
+      team?.helperRegistrationIds?.includes(registration.id)
+    )
+      return campaignId;
+  }
+  return null;
 }
 
 /**
