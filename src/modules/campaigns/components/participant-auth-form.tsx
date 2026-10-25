@@ -16,6 +16,7 @@ export function ParticipantAuthForm({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const administrationMode = searchParams.get("modo") === "administracion";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [congregations, setCongregations] = useState<
@@ -109,13 +110,13 @@ export function ParticipantAuthForm({
 
   return (
     <main className="mx-auto max-w-md px-5 py-10">
-      <ParticipantEntryRedirect destination={searchParams.get("modo") === "administracion" ? "/campanas/admin/acceso" : searchParams.get("modo") === "organizacion" ? "/campanas/organizacion" : searchParams.get("campana") ? `/campanas/disponibilidad/${encodeURIComponent(searchParams.get("campana")!)}` : "/campanas"} />
+      {!administrationMode && <ParticipantEntryRedirect destination={searchParams.get("modo") === "organizacion" ? "/campanas/organizacion" : searchParams.get("campana") ? `/campanas/disponibilidad/${encodeURIComponent(searchParams.get("campana")!)}` : "/campanas"} />}
       <p className="font-semibold text-teal-700">Campaña exhibidores</p>
       <h1 className="mt-3 text-2xl font-bold">
-        {register ? "Crear mi cuenta" : "Ingresar"}
+        {register ? "Crear mi cuenta" : administrationMode ? "Administración de campaña" : "Ingresar"}
       </h1>
       <p className="mt-2 text-sm leading-6 text-slate-600">
-        {register ? "Completa tus datos una sola vez. Después podrás ingresar con tu teléfono y PIN." : "Ingresa con tu teléfono y PIN."}
+        {register ? "Completa tus datos una sola vez. Después podrás ingresar con tu teléfono y PIN." : administrationMode ? "Ingresa con tu teléfono y PIN para administrar la campaña donde estás autorizado/a." : "Ingresa con tu teléfono y PIN."}
       </p>
       <form
         onSubmit={submit}
