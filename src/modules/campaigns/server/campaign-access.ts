@@ -33,8 +33,8 @@ async function verifiedUid(idToken: string) {
 
 /**
  * Finds the single campaign that a phone/PIN participant may administer.
- * A team membership alone is deliberately insufficient: an explicit,
- * revocable CAMPAIGN_ADMIN grant is also required.
+ * Team helpers are explicit, campaign-scoped administrators. Their membership
+ * is revocable from the campaign team and never grants platform permissions.
  */
 export async function participantCampaignAdminAccess(
   db: Firestore,
@@ -66,17 +66,15 @@ export async function participantCampaignAdminAccess(
   );
   for (const registration of registrations.docs) {
     const campaignId = registration.data().campaignId;
-    if (typeof campaignId !== "string" || !allowedCampaignIds.has(campaignId))
-      continue;
+    if (typeof campaignId !== "string") continue;
     const team = (
       await db.collection(campaignCollections.campaignTeams).doc(campaignId).get()
     ).data() as
       | { primaryRegistrationId?: string | null; helperRegistrationIds?: string[] }
       | undefined;
-    if (
-      team?.primaryRegistrationId === registration.id ||
-      team?.helperRegistrationIds?.includes(registration.id)
-    )
+    const isPrimary = team?.primaryRegistrationId === registration.id;
+    const isHelper = team?.helperRegistrationIds?.includes(registration.id) === true;
+    if ((isPrimary && allowedCampaignIds.has(campaignId)) || isHelper)
       return { campaignId, superAdmin };
   }
   return null;
@@ -93,12 +91,8 @@ export async function requireCampaignAccess(
   allowed: OrganizerRole[],
 ): Promise<CampaignAccess> {
   const identity = await verifiedUid(idToken);
-  // The scoped document is authoritative for *where* access applies. The
-  // revocable Firebase claim remains the global administrative admission gate.
-  if (!identity.campaignAdmin && !identity.superAdmin)
-    throw new AuthError(403, "Tu cuenta no tiene autorización administrativa de Campañas.");
-  if (identity.superAdmin && allowed.includes("SUPER_ADMIN"))
-    return { uid: identity.uid, role: "SUPER_ADMIN", campaignId };
+  // Verified identity plus an active Firestore role/team membership is the
+  // authority. Claims can lag behind a recently granted or revoked role.
   const grants = await db
     .collection(campaignCollections.organizerUsers)
     .where("uid", "==", identity.uid)
@@ -108,8 +102,30 @@ export async function requireCampaignAccess(
     row.active === true && allowed.includes(row.role) &&
     (row.role === "SUPER_ADMIN" || row.campaignId === campaignId),
   );
-  if (!match)
+  if (!match) {
+    if (allowed.includes("CAMPAIGN_ADMIN")) {
+      const registration = await db
+        .collection(campaignCollections.campaignRegistrations)
+        .where("participantId", "==", identity.uid)
+        .get();
+      const member = registration.docs.find((doc) =>
+        doc.data().campaignId === campaignId && doc.data().registrationStatus === "active",
+      );
+      if (member) {
+        const [teamDoc, profileDoc] = await Promise.all([
+          db.collection(campaignCollections.campaignTeams).doc(campaignId).get(),
+          db.collection(campaignCollections.participants).doc(identity.uid).get(),
+        ]);
+        const team = teamDoc.data() as { helperRegistrationIds?: string[] } | undefined;
+        if (
+          profileDoc.data()?.active === true &&
+          team?.helperRegistrationIds?.includes(member.id)
+        )
+          return { uid: identity.uid, role: "CAMPAIGN_ADMIN", campaignId };
+      }
+    }
     throw new AuthError(403, "No tienes acceso a esta campaña.");
+  }
   if (match.role === "CONGREGATION_RESPONSIBLE" && !match.congregationId)
     throw new AuthError(403, "La responsabilidad de congregación no está configurada.");
   return {

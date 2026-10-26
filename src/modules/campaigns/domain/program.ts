@@ -61,6 +61,14 @@ export interface ProgramView {
   blockingErrors: ProgramIssue[];
   warnings: ProgramIssue[];
   assignmentCount: number;
+  /** Current planner preview for admins after publication; snapshots stay immutable. */
+  update?: {
+    hasChanges: boolean;
+    plannerRevision: string;
+    assignmentCount: number;
+    blockingErrors: ProgramIssue[];
+    warnings: ProgramIssue[];
+  };
 }
 export interface ProgramVersion {
   id: string;

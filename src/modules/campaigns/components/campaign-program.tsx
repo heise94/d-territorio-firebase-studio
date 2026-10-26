@@ -78,9 +78,10 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
         throw new Error(data.error);
       }
       if (!controller.signal.aborted) {
-        if (previewRevision.current !== data.plannerRevision)
+        const revision = data.update?.plannerRevision ?? data.plannerRevision;
+        if (previewRevision.current !== revision)
           setConfirmed(false);
-        previewRevision.current = data.plannerRevision;
+        previewRevision.current = revision;
         setView(data);
         if (data.mode === "published") {
           const response = await campaignFetch(`${base}/program/versions`, {
@@ -127,7 +128,7 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          expectedPlannerRevision: view.plannerRevision,
+          expectedPlannerRevision: view.mode === "draft" ? view.plannerRevision : view.update?.plannerRevision,
           confirmWarnings: confirmed,
         }),
       });
@@ -137,6 +138,7 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
       setDialog(false);
       setConfirmed(false);
       pause.current = false;
+      await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo publicar.");
       setDialog(false);
@@ -275,6 +277,27 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
               items={view.blockingErrors}
             />
             <Issues title="Advertencias" items={view.warnings} />
+            {view.mode === "published" && view.update?.hasChanges && !selectedVersion && (
+              <section className="space-y-3 rounded-xl border border-teal-200 bg-teal-50 p-4">
+                <p className="font-semibold">Hay cambios de planificación pendientes de publicar.</p>
+                <p>La versión actual seguirá disponible en el historial. Al publicar, los participantes verán una nueva versión.</p>
+                <Issues title="Errores que bloquean la actualización" items={view.update.blockingErrors} />
+                <Issues title="Advertencias de la actualización" items={view.update.warnings} />
+                {view.update.warnings.length > 0 && (
+                  <label className="flex items-start gap-3">
+                    <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-1 h-5 w-5" />
+                    He revisado las advertencias y deseo publicar de todas formas.
+                  </label>
+                )}
+                <button
+                  className={button}
+                  disabled={busy || loading || !!view.update.blockingErrors.length || (!!view.update.warnings.length && !confirmed) || view.campaignStatus === "completed"}
+                  onClick={() => { request.current?.abort(); pause.current = true; setDialog(true); }}
+                >
+                  Publicar nueva versión
+                </button>
+              </section>
+            )}
             {view.mode === "draft" && (
               <>
                 {view.warnings.length > 0 && (
@@ -321,11 +344,13 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
         }}
       >
         <AlertDialogContent>
-          <AlertDialogTitle>Publicar programa oficial v1</AlertDialogTitle>
+          <AlertDialogTitle>
+            {view?.mode === "published" ? `Publicar nueva versión v${(history?.currentVersion ?? view.version ?? 1) + 1}` : "Publicar programa oficial v1"}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            Se guardará una versión inmutable del programa. Los participantes
-            verán sus turnos y el planificador quedará en solo lectura. Esta
-            acción no puede deshacerse en Fase 7.
+            Se guardará una nueva versión inmutable del programa. La versión
+            anterior permanecerá en el historial y los participantes afectados
+            recibirán un aviso de sus cambios.
           </AlertDialogDescription>
           {view?.warnings.length ? (
             <p>{view.warnings.length} advertencias revisadas y confirmadas.</p>
@@ -337,7 +362,7 @@ export function CampaignProgram({ campaignId }: { campaignId: string }) {
               disabled={busy}
               onClick={() => void publish()}
             >
-              {busy ? "Publicando…" : "Confirmar publicación v1"}
+              {busy ? "Publicando…" : view?.mode === "published" ? "Confirmar nueva versión" : "Confirmar publicación v1"}
             </button>
           </div>
         </AlertDialogContent>

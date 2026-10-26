@@ -1,10 +1,10 @@
 import "server-only";
 import { campaignsAdminDb } from "./firebase-admin";
-import { authorizeCampaignDashboard } from "./admin-dashboard-authorization";
+import { requireCampaignAccess } from "./campaign-access";
 import { campaignCollections as names } from "../lib/paths";
 import { AuthError } from "./auth/service";
 export async function programHistory(token: string, campaignId: string) {
-  await authorizeCampaignDashboard(token);
+  await requireCampaignAccess(campaignsAdminDb(), token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"]);
   const db = campaignsAdminDb();
   return db.runTransaction(
     async (tx) => {

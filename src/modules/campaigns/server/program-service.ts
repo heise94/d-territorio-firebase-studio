@@ -20,6 +20,7 @@ import { readPlannerSource } from "./planner-source";
 import { projectProgram } from "./program-projection";
 import { turnId } from "./program-turn-locator";
 import { writeDomainNotification } from "./notification-events";
+import { affectedRegistrations } from "./change-notifications";
 
 const conflict = () => new AuthError(409, publicationConflictMessage);
 export class ProgramValidationError extends AuthError {
@@ -101,13 +102,31 @@ export async function getProgram(
           ),
         );
       }
-      if (["published", "active", "completed"].includes(campaign.status))
-        return {
-          ...publishedView(
-            await readVersion(tx, campaign.currentProgramVersionId, campaignId),
-          ),
-          campaignStatus: campaign.status,
+      if (["published", "active", "completed"].includes(campaign.status)) {
+        const current = await readVersion(tx, campaign.currentProgramVersionId, campaignId);
+        const source = await draftSource(tx, campaignId);
+        const previewSource = {
+          ...source,
+          assignments: source.assignments
+            .filter((assignment) => assignment.status !== "cancelled")
+            .map((assignment) => ({ ...assignment, status: "published" as const })),
         };
+        const preview = projectProgram(previewSource, { published: true, allowEmpty: true });
+        const hasChanges = JSON.stringify(preview.snapshot) !== JSON.stringify(current.snapshot) ||
+          JSON.stringify(preview.warnings) !== JSON.stringify(current.warnings) ||
+          preview.assignmentCount !== current.assignmentCount;
+        return {
+          ...publishedView(current),
+          campaignStatus: campaign.status,
+          update: {
+            hasChanges,
+            plannerRevision: preview.plannerRevision!,
+            assignmentCount: preview.assignmentCount,
+            blockingErrors: preview.blockingErrors,
+            warnings: preview.warnings,
+          },
+        };
+      }
       return projectProgram(await draftSource(tx, campaignId));
     },
     { readOnly: true },
@@ -126,21 +145,28 @@ export async function publishProgram(
   try {
     return await db.runTransaction(async (tx) => {
       const source = await draftSource(tx, campaignId);
-      const versionRef = db
-        .collection(names.programVersions)
-        .doc(programVersionId(campaignId));
-      const previous = await tx.get(versionRef);
-      if (
-        previous.exists ||
-        !canTransitionCampaignStatus(
-          source.campaign.status,
-          "published",
-          "publication",
-        ) ||
-        source.campaign.status !== "planning"
-      )
+      const currentStatus = source.campaign.status;
+      const firstPublication = currentStatus === "planning";
+      if (!firstPublication && !["published", "active"].includes(currentStatus))
         throw conflict();
-      const view = projectProgram(source);
+      if (firstPublication && !canTransitionCampaignStatus(currentStatus, "published", "publication"))
+        throw conflict();
+      const campaignDoc = await tx.get(db.collection(names.campaigns).doc(campaignId));
+      if (!campaignDoc.exists) throw new AuthError(404, "Campaña no disponible.");
+      let previousVersion: ProgramVersion | null = null;
+      if (!firstPublication) {
+        previousVersion = await readVersion(tx, campaignDoc.data()!.currentProgramVersionId, campaignId);
+      }
+      const nextVersion = firstPublication ? 1 : previousVersion!.version + 1;
+      const versionRef = db.collection(names.programVersions).doc(programVersionId(campaignId, nextVersion));
+      if ((await tx.get(versionRef)).exists) throw conflict();
+      const publicationSource = firstPublication ? source : {
+        ...source,
+        assignments: source.assignments
+          .filter((assignment) => assignment.status !== "cancelled")
+          .map((assignment) => ({ ...assignment, status: "published" as const })),
+      };
+      const view = projectProgram(publicationSource, firstPublication ? {} : { published: true, allowEmpty: true });
       if (view.plannerRevision !== parsed.data.expectedPlannerRevision)
         throw conflict();
       if (
@@ -148,11 +174,16 @@ export async function publishProgram(
         (view.warnings.length && !parsed.data.confirmWarnings)
       )
         throw new ProgramValidationError(view);
+      if (previousVersion &&
+        JSON.stringify(view.snapshot) === JSON.stringify(previousVersion.snapshot) &&
+        JSON.stringify(view.warnings) === JSON.stringify(previousVersion.warnings) &&
+        view.assignmentCount === previousVersion.assignmentCount)
+        throw conflict();
       const now = Timestamp.now();
       const version: ProgramVersion = {
         id: versionRef.id,
         campaignId,
-        version: 1,
+        version: nextVersion,
         status: "published",
         sourcePlannerRevision: view.plannerRevision!,
         publishedAt: now,
@@ -163,12 +194,12 @@ export async function publishProgram(
         assignmentCount: view.assignmentCount,
       };
       tx.create(versionRef, version);
-      const publishedParticipants = new Set(
-        source.assignments
-          .filter((a) => a.status === "draft")
-          .map((a) => source.registrations.get(a.registrationId)?.participantId)
-          .filter((id): id is string => !!id),
-      );
+      const affected = firstPublication
+        ? new Set(source.assignments.filter((a) => a.status === "draft").map((a) => a.registrationId))
+        : new Set(affectedRegistrations(previousVersion!.snapshot, version.snapshot));
+      const publishedParticipants = new Set([...affected]
+        .map((registrationId) => source.registrations.get(registrationId)?.participantId)
+        .filter((id): id is string => !!id));
       for (const participantId of publishedParticipants)
         writeDomainNotification(
           tx,
@@ -176,49 +207,50 @@ export async function publishProgram(
           versionRef.id,
           participantId,
           campaignId,
-          "program_published",
-          "El programa fue publicado. Revisa tus turnos.",
-          { version: 1 },
+          firstPublication ? "program_published" : "assignment_changed",
+          firstPublication ? "El programa fue publicado. Revisa tus turnos." : "Tu programa fue actualizado. Revisa tus turnos.",
+          { version: nextVersion },
           now,
           "/campanas/mi-programa",
-          "Programa publicado",
+          firstPublication ? "Programa publicado" : "Tu programa fue actualizado",
         );
       for (const a of source.assignments.filter((a) => a.status === "draft"))
         tx.update(db.collection(names.assignments).doc(a.id), {
           status: "published",
           version: a.version + 1,
           updatedAt: now,
+          publishedInVersion: nextVersion,
         });
       tx.update(db.collection(names.campaigns).doc(campaignId), {
-        status: "published",
-        publishedAt: now,
+        ...(firstPublication ? { status: "published", publishedAt: now } : {}),
         currentProgramVersionId: versionRef.id,
-        programVersion: 1,
+        programVersion: nextVersion,
+        updatedProgramAt: now,
         updatedAt: now,
       });
       tx.set(source.lockRef, { revision: source.revision + 1, updatedAt: now });
       tx.create(db.collection(names.auditLogs).doc(), {
         campaignId,
         actorId: uid,
-        action: "program_published",
+        action: firstPublication ? "program_published" : "program_version_created",
         entityId: versionRef.id,
         metadata: {
           programVersionId: versionRef.id,
-          version: 1,
+          version: nextVersion,
           assignmentCount: view.assignmentCount,
           publishedAt: now,
         },
         createdAt: now,
       });
-      tx.create(db.collection(names.auditLogs).doc(), {
-        campaignId,
-        actorId: uid,
-        action: "campaign_status_changed",
-        entityId: campaignId,
-        metadata: { from: "planning", to: "published" },
-        createdAt: now,
-      });
-      return publishedView(version);
+      if (firstPublication) tx.create(db.collection(names.auditLogs).doc(), {
+          campaignId,
+          actorId: uid,
+          action: "campaign_status_changed",
+          entityId: campaignId,
+          metadata: { from: "planning", to: "published" },
+          createdAt: now,
+        });
+      return { ...publishedView(version), campaignStatus: currentStatus === "planning" ? "published" : currentStatus };
     });
   } catch (error) {
     if (

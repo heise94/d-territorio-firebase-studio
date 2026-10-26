@@ -1,7 +1,8 @@
 import "server-only";
 import { getAuth } from "firebase-admin/auth";
 import { AuthError } from "./auth/service";
-import { campaignsAdminApp } from "./firebase-admin";
+import { campaignsAdminApp, campaignsAdminDb } from "./firebase-admin";
+import { campaignCollections } from "../lib/paths";
 
 /** Existing Firebase Auth and claim, including current user record; never participant cookie. */
 export async function authorizeCampaignDashboard(idToken: string) {
@@ -15,13 +16,22 @@ export async function authorizeCampaignDashboard(idToken: string) {
     const decoded = await auth.verifyIdToken(idToken, true);
     const uid = decoded.uid;
     const user = await getAuth(campaignsAdminApp()).getUser(uid);
+    const grant = await campaignsAdminDb()
+      .collection(campaignCollections.organizerUsers)
+      .where("uid", "==", uid)
+      .get();
+    const hasActiveGrant = grant.docs.some((doc) => {
+      const row = doc.data();
+      return (
+        row.active === true &&
+        ["SUPER_ADMIN", "CAMPAIGN_ADMIN"].includes(row.role)
+      );
+    });
     if (
       user.disabled ||
       (user.customClaims?.campaign_admin !== true &&
-        !(
-          decoded.campaign_admin === true &&
-          decoded.campaign_participant_admin === true
-        ))
+        !(decoded.campaign_admin === true && decoded.campaign_participant_admin === true) &&
+        !hasActiveGrant)
     )
       throw new AuthError(
         403,
