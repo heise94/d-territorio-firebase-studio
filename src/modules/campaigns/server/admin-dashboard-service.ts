@@ -445,6 +445,7 @@ export class CampaignAdminDashboardService {
       return {
         ...row,
         canManageSafeguarding: access.role === "SUPER_ADMIN",
+        canOverrideAvailabilityCapacity: access.role === "SUPER_ADMIN",
         guardianCandidates: [...source.registrations.values()]
           .filter((candidate) =>
             candidate.id !== id && candidate.registrationStatus === "active" && candidate.isMinor !== true,
@@ -549,7 +550,15 @@ export class CampaignAdminDashboardService {
       const now = Timestamp.now();
 
       // Apply block availability changes
-      await reserveAvailabilityPlaces(tx, this.db, campaignId, parsed.data.blockChanges.filter((change) => change.available && !previousAvailabilities[change.blockId]).map((change) => change.blockId));
+      const capacityOverrides = await reserveAvailabilityPlaces(
+        tx,
+        this.db,
+        campaignId,
+        parsed.data.blockChanges
+          .filter((change) => change.available && !previousAvailabilities[change.blockId])
+          .map((change) => change.blockId),
+        access.role === "SUPER_ADMIN",
+      );
       for (const change of parsed.data.blockChanges) {
         const docId = availabilityId(registrationId, change.blockId);
         const docRef = this.db
@@ -596,6 +605,7 @@ export class CampaignAdminDashboardService {
           newMaxTurns,
           reason: parsed.data.reason ?? null,
           previousAvailabilities,
+          ...(capacityOverrides.length ? { capacityOverrides } : {}),
         },
         createdAt: new Date().toISOString(),
       });

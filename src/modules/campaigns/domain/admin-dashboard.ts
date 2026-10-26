@@ -115,6 +115,7 @@ export interface AdminParticipantDetail extends AdminParticipantRow {
   publishedAssignmentBlockIds?: string[];
   guardianCandidates: { registrationId: string; fullName: string }[];
   canManageSafeguarding: boolean;
+  canOverrideAvailabilityCapacity: boolean;
   updatedAt: string;
 }
 export function orderedCoverageDays(

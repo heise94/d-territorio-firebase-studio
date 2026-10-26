@@ -78,9 +78,12 @@ function drawCellText(
   height: number,
 ) {
   const isEmpty = lines.length === 1 && lines[0] === "Sin asignar";
-  const size = fontForCell(doc, lines, width, height);
+  const displayLines = isEmpty
+    ? lines
+    : lines.map((line, index) => `${index + 1}. ${line}`);
+  const size = fontForCell(doc, displayLines, width, height);
   let top = y;
-  for (const line of lines) {
+  for (const line of displayLines) {
     const lineHeight = doc.font("regular").fontSize(size).heightOfString(line, {
       width,
       lineGap: 0.8,

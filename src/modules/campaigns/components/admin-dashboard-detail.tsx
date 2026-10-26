@@ -90,6 +90,11 @@ export function DashboardDetail({
   const publishedAssignmentBlockIds = useMemo(() => {
     return new Set(detail?.publishedAssignmentBlockIds ?? []);
   }, [detail?.publishedAssignmentBlockIds]);
+  const blockCoverage = useMemo(() => {
+    return new Map(
+      overview?.days.flatMap((day) => day.blocks.map((block) => [block.id, block.coverage] as const)) ?? [],
+    );
+  }, [overview]);
 
   // Calculate changes
   const hasAvailabilityChanges = useMemo(() => {
@@ -422,6 +427,8 @@ export function DashboardDetail({
                           const isChecked = selectedBlocks.has(block.id);
                           const isProtected = publishedAssignmentBlockIds.has(block.id);
                           const savedAvailability = detail.availability.find((item) => item.blockId === block.id);
+                          const coverage = blockCoverage.get(block.id);
+                          const blockAlreadyCovered = coverage?.isFull === true;
 
                           return (
                             <div key={block.id} className={`rounded border p-2 text-xs transition-colors ${
@@ -454,6 +461,11 @@ export function DashboardDetail({
                                 {isProtected && (
                                   <span className="block text-[11px] font-medium text-amber-800 mt-0.5">
                                     Turno publicado asignado (protegido)
+                                  </span>
+                                )}
+                                {detail.canOverrideAvailabilityCapacity && blockAlreadyCovered && (
+                                  <span className="block text-[11px] font-medium text-amber-800 mt-0.5">
+                                    Este horario ya está cubierto. Puedes habilitarlo igualmente; cualquier disponibilidad extra quedará registrada para la organización.
                                   </span>
                                 )}
                                 </div>
