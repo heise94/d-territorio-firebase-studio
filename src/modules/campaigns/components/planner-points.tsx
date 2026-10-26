@@ -87,3 +87,38 @@ export function PlannerPoints({ view, saving, activate, openSlot, change }: {
 }) {
   return <div className="min-w-0 overflow-x-auto px-1.5 py-1.5" aria-label="Puntos y asignaciones"><div className="grid min-w-[920px] gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(view.points.length, 1)}, minmax(108px, 1fr))` }}>{view.points.map((point) => <PointCard key={point.id} point={point} view={view} saving={saving} activate={activate} openSlot={openSlot} change={change} />)}</div></div>;
 }
+
+/**
+ * Daily planning board: points are read vertically and time blocks horizontally,
+ * matching the printable program. Each cell retains the same per-block actions.
+ */
+export function PlannerScheduleMatrix({ views, saving, activate, openSlot, change }: {
+  views: PlannerView[];
+  saving: boolean;
+  activate: (view: PlannerView, pointId: string, active: boolean) => void;
+  openSlot: (view: PlannerView, pointId: string, slotNumber: 1 | 2 | 3 | 4) => void;
+  change: (view: PlannerView, assignment: PlannerAssignment, action: "move" | "cancel") => void;
+}) {
+  const pointRows = new Map<string, { id: string; name: string }>();
+  for (const view of views) for (const point of view.points)
+    if (!pointRows.has(point.id)) pointRows.set(point.id, { id: point.id, name: point.name });
+  const points = [...pointRows.values()];
+  return (
+    <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm" aria-label="Tablero diario de planificación">
+      <div className="min-w-[1040px]">
+        <div className="grid border-b border-teal-800 bg-teal-700 text-white" style={{ gridTemplateColumns: `150px repeat(${Math.max(views.length, 1)}, minmax(170px, 1fr))` }}>
+          <div className="px-4 py-3 text-sm font-black">Punto</div>
+          {views.map((view) => <div key={view.block?.id} className="border-l border-teal-500 px-3 py-3 text-center"><p className="text-sm font-black">{view.block?.startTime}–{view.block?.endTime}</p><p className="mt-0.5 text-[10px] font-semibold text-teal-100">{view.block?.label || "Horario"}</p></div>)}
+        </div>
+        {points.map((row, rowIndex) => <div key={row.id} className="grid border-b border-slate-200 last:border-b-0" style={{ gridTemplateColumns: `150px repeat(${Math.max(views.length, 1)}, minmax(170px, 1fr))` }}>
+          <div className={`flex min-h-[138px] items-center border-r border-slate-200 px-4 text-sm font-black text-slate-900 ${rowIndex % 2 ? "bg-[#EFF9F7]" : "bg-white"}`}>{row.name}</div>
+          {views.map((view) => {
+            const point = view.points.find((item) => item.id === row.id);
+            if (!point) return <div key={view.block?.id} className="border-r border-slate-200 bg-slate-50" />;
+            return <div key={view.block?.id} className="border-r border-slate-200 p-2 last:border-r-0"><PointCard point={point} view={view} saving={saving} activate={(pointId, active) => activate(view, pointId, active)} openSlot={(pointId, slotNumber) => openSlot(view, pointId, slotNumber)} change={(assignment, action) => change(view, assignment, action)} /></div>;
+          })}
+        </div>)}
+      </div>
+    </section>
+  );
+}

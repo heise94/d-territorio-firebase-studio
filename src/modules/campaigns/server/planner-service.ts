@@ -31,10 +31,12 @@ import {
 import { plannerPerson, projectPlanner, projectPlannerDay } from "./planner-view";
 
 export async function getPlannerDay(token: string, campaignId: string, dayId?: string) {
-  const access = await plannerAccess(token, campaignId);
+  await plannerAccess(token, campaignId);
   return campaignsAdminDb().runTransaction(async (tx) => {
     const source = await readPlannerSource(campaignsAdminDb(), tx, campaignId);
-    return projectPlannerDay(source, dayId, access.role === "SUPER_ADMIN");
+    // Campaign administrators have the same operational planning tools as the
+    // primary administrator. Creating campaigns remains a platform-only task.
+    return projectPlannerDay(source, dayId, true);
   }, { readOnly: true });
 }
 
@@ -186,13 +188,13 @@ export async function getPlanner(
   campaignId: string,
   block?: string,
 ) {
-  const access = await plannerAccess(token, campaignId);
+  await plannerAccess(token, campaignId);
   return campaignsAdminDb().runTransaction(
     async (tx) =>
       projectPlanner(
         await readPlannerSource(campaignsAdminDb(), tx, campaignId),
         block,
-        access.role === "SUPER_ADMIN",
+        true,
       ),
     { readOnly: true },
   );
@@ -302,8 +304,6 @@ export async function createAssignment(
     } else if (value.adultSupportRegistrationId) {
       throw new AuthError(400, "La persona de apoyo adicional solo aplica al asignar a un menor.");
     }
-    if (value.slotNumber >= 3 && access.role !== "SUPER_ADMIN")
-      throw new AuthError(400, "Los lugares adicionales solo puede asignarlos el superadministrador como apoyo.");
     if (value.slotNumber >= 3 && unit.length === 2)
       throw new AuthError(400, "Completa el vínculo confirmado antes de agregar apoyo adicional.");
     if (
@@ -341,7 +341,7 @@ export async function createAssignment(
     ).length;
     const alreadyCovered = blockMinimum > 0 && availablePeopleCount >= blockMinimum;
     const capacityConfirmed = value.overrides.some((item) => item.registrationId === value.registrationId && item.capacity);
-    if (capacityOverride && alreadyCovered && access.role === "SUPER_ADMIN" && !capacityConfirmed)
+    if (capacityOverride && alreadyCovered && !capacityConfirmed)
       throw new PlannerWarnings([{
         registrationId: value.registrationId,
         fullName: plannerPerson(source, value.registrationId, value.timeBlockId).fullName,
@@ -428,8 +428,6 @@ export async function changeAssignment(
     const primary = activeAssignments(source).find((item) => item.id === id);
     if (!primary || (primary.version ?? 1) !== value.expectedVersion)
       throw conflict();
-    if (value.action === "move" && value.slotNumber >= 3 && access.role !== "SUPER_ADMIN")
-      throw new AuthError(403, "Solo el superadministrador puede usar los lugares de apoyo.");
     let unit = unitFor(source, primary.registrationId, primary.timeBlockId);
     const currentBlockAssignments = activeAssignments(source).filter((item) => item.timeBlockId === primary.timeBlockId && item.pointId === primary.pointId);
     const minor = currentBlockAssignments.map((item) => source.registrations.get(item.registrationId)).find((registration) => registration?.isMinor === true && [registration.id, registration.guardianRegistrationId, currentBlockAssignments.find((candidate) => candidate.slotNumber === 3)?.registrationId].includes(primary.registrationId));

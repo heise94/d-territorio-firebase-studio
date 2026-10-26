@@ -70,7 +70,7 @@ test("accepted links count only when both people share availability that day and
   assert.deepEqual(pendingPairRequestIds([placed]), []);
 });
 
-test("planner UI stays compact, text-first and uses an on-demand right drawer", () => {
+test("planner UI uses a compact program-style matrix and an on-demand right drawer", () => {
   const planner = readFileSync("src/modules/campaigns/components/campaign-planner.tsx", "utf8");
   const points = readFileSync("src/modules/campaigns/components/planner-points.tsx", "utf8");
   assert.match(planner, /fixed inset-y-0 right-0/);
@@ -88,4 +88,8 @@ test("planner UI stays compact, text-first and uses an on-demand right drawer", 
   assert.match(points, /firstEmpty > 0/);
   assert.match(points, /min-w-\[920px\]/);
   assert.match(points, /data-point-state=/);
+  assert.match(points, /PlannerScheduleMatrix/);
+  assert.match(points, /Punto/);
+  assert.match(points, /gridTemplateColumns/);
+  assert.match(planner, /PlannerScheduleMatrix/);
 });

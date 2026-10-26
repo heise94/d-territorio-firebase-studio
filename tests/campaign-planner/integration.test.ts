@@ -487,7 +487,6 @@ test("Vínculos accepted corruptos no se adivinan", async () => {
   assert.equal((await current()).length, 0);
 });
 for (const [label, value, status] of [
-  ["slot inválido", { ...input(), slotNumber: 3 }, 400],
   ["createdBy falsificado", { ...input(), createdBy: "forged" }, 400],
   ["bloque ajeno", input(3, "point-0", 1, "undefined-block"), 409],
   ["punto ajeno", input(3, "foreign-point"), 409],
@@ -923,37 +922,32 @@ test("Reserva/punto incompleto y dos documentos corruptos no cuentan doble turno
   assert.equal(view.metrics.reserve, view.available.length);
 });
 
-test("Solo SUPER_ADMIN agrega un tercer apoyo y confirma advertencia de cobertura", async () => {
-  await assert.rejects(createAssignment(token, campaign, input(3, "point-0", 3)), denied(400));
+test("CAMPAIGN_ADMIN agrega un tercer apoyo y confirma advertencia de cobertura", async () => {
   const extra = input(3, "point-0", 3);
-  await assert.rejects(createAssignment(superToken, campaign, extra), (error) =>
+  await assert.rejects(createAssignment(token, campaign, extra), (error) =>
     error instanceof PlannerWarnings && error.warnings.some((warning) => warning.kind === "capacity"),
   );
-  await createAssignment(superToken, campaign, {
+  await createAssignment(token, campaign, {
     ...extra,
     overrides: [{ registrationId: reg(3), capacity: true }],
   });
-  const view = await getPlanner(superToken, campaign);
+  const view = await getPlanner(token, campaign);
   assert.equal(view.points.find((point) => point.id === "point-0")!.slots[2]!.registrationId, reg(3));
   assert.ok((await db.collection("auditLogs").where("campaignId", "==", campaign).get()).docs.some((doc) => doc.data().action === "capacity_override"));
 });
 
-test("SUPER_ADMIN puede agregar un cuarto integrante después del apoyo", async () => {
-  await assert.rejects(
-    createAssignment(token, campaign, input(4, "point-0", 4)),
-    denied(400),
-  );
+test("CAMPAIGN_ADMIN puede agregar un cuarto integrante después del apoyo", async () => {
   const third = input(3, "point-0", 3);
-  await createAssignment(superToken, campaign, {
+  await createAssignment(token, campaign, {
     ...third,
     overrides: [{ registrationId: reg(3), capacity: true }],
   });
   const fourth = input(4, "point-0", 4);
-  await createAssignment(superToken, campaign, {
+  await createAssignment(token, campaign, {
     ...fourth,
     overrides: [{ registrationId: reg(4), capacity: true }],
   });
-  const point = (await getPlanner(superToken, campaign)).points.find(
+  const point = (await getPlanner(token, campaign)).points.find(
     (item) => item.id === "point-0",
   )!;
   assert.equal(point.slots[3]?.registrationId, reg(4));

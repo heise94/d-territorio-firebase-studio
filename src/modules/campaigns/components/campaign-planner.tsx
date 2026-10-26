@@ -6,7 +6,6 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   Link2,
   Search,
   X,
@@ -23,7 +22,7 @@ import type {
   PlannerView,
   PlannerWarningDTO,
 } from "../domain/planner";
-import { PlannerPoints, plannerButton } from "./planner-points";
+import { PlannerScheduleMatrix, plannerButton } from "./planner-points";
 import {
   PlannerDecisionDialog,
   type PlannerDecision,
@@ -323,25 +322,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
           {!dayViews.length && <p className="rounded-xl border bg-white p-6">Este día todavía no tiene bloques activos para planificar.</p>}
 
           <div>
-            <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="min-w-[1040px] divide-y divide-slate-200">
-                {dayViews.map((view, index) => {
-                  const activePoints = view.points.filter((point) => point.active);
-                  const covered = activePoints.filter((point) => point.slots.filter(Boolean).length >= 2).length;
-                  const rowTone = !activePoints.length ? "bg-slate-50" : covered === activePoints.length ? "bg-emerald-50/80" : "bg-amber-50/75";
-                  return (
-                    <article key={view.block?.id} className="grid grid-cols-[112px_minmax(0,1fr)]">
-                      <header className={`flex min-h-[120px] flex-col justify-center border-r border-slate-200 px-3 ${rowTone}`}>
-                        <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500"><Clock3 size={13} /> Bloque {index + 1}</span>
-                        <h2 className="mt-1 text-sm font-black tracking-tight text-slate-950">{view.block?.startTime}–<br />{view.block?.endTime}</h2>
-                        <p className="mt-2 text-xs font-semibold text-slate-600">{covered}/{activePoints.length} puntos cubiertos</p>
-                      </header>
-                      <PlannerPoints view={view} saving={saving || loading} activate={(pointId, active) => void activate(view, pointId, active)} openSlot={(pointId, slotNumber) => openSlot(view, pointId, slotNumber)} change={(assignment, action) => start({ action, blockId: view.block!.id, person: assignment.person, assignment, pointId: assignment.pointId, slotNumber: assignment.slotNumber })} />
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
+            <PlannerScheduleMatrix views={dayViews} saving={saving || loading} activate={(view, pointId, active) => void activate(view, pointId, active)} openSlot={(view, pointId, slotNumber) => openSlot(view, pointId, slotNumber)} change={(view, assignment, action) => start({ action, blockId: view.block!.id, person: assignment.person, assignment, pointId: assignment.pointId, slotNumber: assignment.slotNumber })} />
 
             {target && targetView && targetPoint && <>
               <button type="button" tabIndex={-1} className="fixed inset-0 z-40 cursor-default bg-slate-950/15" aria-label="Cerrar selector de participantes" onClick={() => setTarget(null)} />
