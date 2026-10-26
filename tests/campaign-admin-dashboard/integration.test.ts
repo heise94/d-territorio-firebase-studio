@@ -11,9 +11,10 @@ import {
 import {
   initializeTestEnvironment,
   assertFails,
+  assertSucceeds,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { NextRequest } from "next/server";
 import {
   campaignsAdminApp,
@@ -549,6 +550,17 @@ test("Rules siguen negando colecciones privadas incluso al cliente campaign_admi
         ),
       ),
     );
+});
+test("Administrador de teléfono/PIN lee su campaña concreta, no una consulta global", async () => {
+  const client = env
+    .authenticatedContext("scoped-phone-admin", {
+      campaign_admin: true,
+      campaign_participant_admin: true,
+      campaign_ids: [campaign],
+    })
+    .firestore();
+  await assertSucceeds(getDoc(doc(client, "campaigns", campaign)));
+  await assertFails(getDocs(collection(client, "campaigns")));
 });
 test("Claim retirado y cuenta deshabilitada rechazan token previamente autorizado", async () => {
   const auth = getAuth(campaignsAdminApp()),

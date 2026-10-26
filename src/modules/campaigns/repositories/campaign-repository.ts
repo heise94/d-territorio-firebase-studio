@@ -47,6 +47,22 @@ const item = <T>(snapshot: { id: string; data: () => unknown }) => ({
 const clean = cleanFirestorePayload;
 
 export const campaignRepository = {
+  /**
+   * A scoped campaign administrator may only read their granted campaign.
+   * Do not implement this as a collection query: Firestore rules correctly
+   * reject a query that could return campaigns outside that grant.
+   */
+  subscribeCampaign(
+    campaignId: string,
+    callback: (campaign: Campaign | null) => void,
+    onError?: (error: unknown) => void,
+  ) {
+    return onSnapshot(
+      doc(db, campaignCollections.campaigns, campaignId),
+      (snapshot) => callback(snapshot.exists() ? item<Campaign>(snapshot) : null),
+      (error) => onError?.(error),
+    );
+  },
   subscribeCampaigns(callback: (items: Campaign[]) => void) {
     return onSnapshot(
       query(ref(campaignCollections.campaigns), orderBy("updatedAt", "desc")),
