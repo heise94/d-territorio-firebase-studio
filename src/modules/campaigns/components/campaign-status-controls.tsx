@@ -39,7 +39,10 @@ export function CampaignStatusControls({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            status: status === "draft" ? "registration_open" : "planning",
+            status:
+              status === "draft" || status === "planning"
+                ? "registration_open"
+                : "planning",
           }),
         },
       );
@@ -76,7 +79,7 @@ export function CampaignStatusControls({
           <span>Confirmo que, al cerrar inscripciones, los participantes ya no podrán modificar su disponibilidad.</span>
         </label>
       )}
-      {(status === "draft" || status === "registration_open") && (
+      {(status === "draft" || status === "registration_open" || status === "planning") && (
         <button
           className="rounded-xl bg-teal-800 px-4 py-2.5 font-semibold text-white hover:bg-teal-900 disabled:opacity-50"
           disabled={
@@ -88,7 +91,9 @@ export function CampaignStatusControls({
             ? "Guardando…"
             : status === "draft"
               ? "Abrir inscripciones"
-              : "Cerrar inscripciones e iniciar planificación"}
+              : status === "planning"
+                ? "Abrir inscripciones nuevamente"
+                : "Cerrar inscripciones e iniciar planificación"}
         </button>
       )}
       {error && (

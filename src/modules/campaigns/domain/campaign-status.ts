@@ -1,6 +1,8 @@
 import type { CampaignStatus } from "./types";
 
-// Publicación solo mediante la transacción dedicada; no hay retrocesos.
+// La publicación solo se realiza mediante la transacción dedicada. Antes de
+// publicar, el equipo puede abrir y cerrar las inscripciones cuantas veces
+// necesite sin afectar la planificación ya preparada.
 export function canTransitionCampaignStatus(
   from: CampaignStatus,
   to: CampaignStatus,
@@ -10,6 +12,7 @@ export function canTransitionCampaignStatus(
     from === to ||
     (from === "draft" && to === "registration_open") ||
     (from === "registration_open" && to === "planning") ||
+    (from === "planning" && to === "registration_open") ||
     (context === "publication" && from === "planning" && to === "published")
   );
 }

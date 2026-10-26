@@ -779,7 +779,7 @@ test("Rules deny escrituras directas de asignaciones y datos privados", async ()
       );
     }
 });
-test("Solo draft→open→planning, sin retrocesos ni fases posteriores", async () => {
+test("Permite abrir y cerrar inscripciones antes de publicar", async () => {
   assert.equal(canTransitionCampaignStatus("draft", "registration_open"), true);
   assert.equal(
     canTransitionCampaignStatus("registration_open", "planning"),
@@ -788,13 +788,14 @@ test("Solo draft→open→planning, sin retrocesos ni fases posteriores", async 
   assert.equal(canTransitionCampaignStatus("planning", "published"), false);
   assert.equal(
     canTransitionCampaignStatus("planning", "registration_open"),
-    false,
+    true,
   );
   await db.collection("campaigns").doc(campaign).update({ status: "draft" });
-  await assert.rejects(createAssignment(token, campaign, input()), denied(409));
   await changePlannerStatus(token, campaign, { status: "registration_open" });
   await changePlannerStatus(token, campaign, { status: "planning" });
   assert.equal((await getPlanner(token, campaign)).campaign.status, "planning");
+  await changePlannerStatus(token, campaign, { status: "registration_open" });
+  assert.equal((await getPlanner(token, campaign)).campaign.status, "registration_open");
   await assert.rejects(
     changePlannerStatus(token, campaign, { status: "published" }),
     denied(400),
