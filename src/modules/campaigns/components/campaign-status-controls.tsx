@@ -15,10 +15,12 @@ const statusDescriptions: Record<CampaignStatus, string> = {
 export function CampaignStatusControls({
   campaignId,
   status,
+  hasPublishedProgram = false,
   onChanged,
 }: {
   campaignId: string;
   status: CampaignStatus;
+  hasPublishedProgram?: boolean;
   onChanged: (status: CampaignStatus) => void;
 }) {
   const { user } = useAuth();
@@ -39,10 +41,9 @@ export function CampaignStatusControls({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            status:
-              status === "draft" || status === "planning"
-                ? "registration_open"
-                : "planning",
+            status: status === "registration_open"
+              ? hasPublishedProgram ? "published" : "planning"
+              : "registration_open",
           }),
         },
       );
@@ -64,8 +65,8 @@ export function CampaignStatusControls({
     <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <h2 className="text-xl font-bold">Estado de la campaña</h2>
       <div className="rounded-xl bg-teal-50 p-4">
-        <p className="font-semibold text-teal-950">{campaignStatusLabels[status]}</p>
-        <p className="mt-1 text-sm text-slate-700">{statusDescriptions[status]}</p>
+        <p className="font-semibold text-teal-950">{status === "registration_open" ? "Inscripciones abiertas" : hasPublishedProgram ? "Programa publicado · inscripciones cerradas" : campaignStatusLabels[status]}</p>
+        <p className="mt-1 text-sm text-slate-700">{status === "registration_open" ? "Los hermanos pueden crear su cuenta y registrar o actualizar su disponibilidad. El programa publicado se mantiene disponible." : hasPublishedProgram ? "El programa publicado sigue disponible. Puedes abrir las inscripciones cuando lo necesites." : statusDescriptions[status]}</p>
       </div>
       {status === "registration_open" && (
         <label className="flex items-start gap-2 text-sm text-slate-700">
@@ -79,7 +80,7 @@ export function CampaignStatusControls({
           <span>Confirmo que, al cerrar inscripciones, los participantes ya no podrán modificar su disponibilidad.</span>
         </label>
       )}
-      {(status === "draft" || status === "registration_open" || status === "planning") && (
+      {(status === "draft" || status === "registration_open" || status === "planning" || (hasPublishedProgram && status === "published")) && (
         <button
           className="rounded-xl bg-teal-800 px-4 py-2.5 font-semibold text-white hover:bg-teal-900 disabled:opacity-50"
           disabled={
@@ -91,9 +92,9 @@ export function CampaignStatusControls({
             ? "Guardando…"
             : status === "draft"
               ? "Abrir inscripciones"
-              : status === "planning"
+              : status === "planning" || status === "published"
                 ? "Abrir inscripciones nuevamente"
-                : "Cerrar inscripciones e iniciar planificación"}
+                : hasPublishedProgram ? "Cerrar inscripciones" : "Cerrar inscripciones e iniciar planificación"}
         </button>
       )}
       {error && (
@@ -101,8 +102,8 @@ export function CampaignStatusControls({
           {error}
         </p>
       )}
-      {(status === "draft" || status === "registration_open" || status === "planning") && (
-        <p className="text-sm text-slate-600">La publicación del programa se realiza después, desde «Programa».</p>
+      {(status === "draft" || status === "registration_open" || status === "planning" || hasPublishedProgram) && (
+        <p className="text-sm text-slate-600">Puedes abrir o cerrar las inscripciones sin retirar el programa publicado.</p>
       )}
     </section>
   );

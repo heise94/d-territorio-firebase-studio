@@ -37,6 +37,7 @@ const publishSchema = z
   .object({
     expectedPlannerRevision: z.string().regex(/^[a-f0-9]{64}$/),
     confirmWarnings: z.boolean().default(false),
+    confirmBlockingErrors: z.boolean().default(false),
   })
   .strict();
 export const programVersionId = (campaignId: string, version = 1) =>
@@ -102,7 +103,7 @@ export async function getProgram(
           ),
         );
       }
-      if (["published", "active", "completed"].includes(campaign.status)) {
+      if (["published", "active", "completed"].includes(campaign.status) || campaign.currentProgramVersionId) {
         const current = await readVersion(tx, campaign.currentProgramVersionId, campaignId);
         const source = await draftSource(tx, campaignId);
         const previewSource = {
@@ -146,8 +147,8 @@ export async function publishProgram(
     return await db.runTransaction(async (tx) => {
       const source = await draftSource(tx, campaignId);
       const currentStatus = source.campaign.status;
-      const firstPublication = currentStatus === "planning";
-      if (!firstPublication && !["published", "active"].includes(currentStatus))
+      const firstPublication = !source.campaign.currentProgramVersionId;
+      if (!firstPublication && !["published", "active", "registration_open"].includes(currentStatus))
         throw conflict();
       if (firstPublication && !canTransitionCampaignStatus(currentStatus, "published", "publication"))
         throw conflict();
@@ -166,11 +167,14 @@ export async function publishProgram(
           .filter((assignment) => assignment.status !== "cancelled")
           .map((assignment) => ({ ...assignment, status: "published" as const })),
       };
-      const view = projectProgram(publicationSource, firstPublication ? {} : { published: true, allowEmpty: true });
+      // Publishing is an explicit administrative decision. Keep every issue in
+      // the preview and require acknowledgement, but do not make incomplete
+      // coverage a technical lock on releasing the program.
+      const view = projectProgram(publicationSource, { published: !firstPublication, allowEmpty: true });
       if (view.plannerRevision !== parsed.data.expectedPlannerRevision)
         throw conflict();
       if (
-        view.blockingErrors.length ||
+        (view.blockingErrors.length && !parsed.data.confirmBlockingErrors) ||
         (view.warnings.length && !parsed.data.confirmWarnings)
       )
         throw new ProgramValidationError(view);
@@ -305,7 +309,7 @@ export async function getPersonalProgram(
       const published = campaigns.filter(
         (doc) =>
           doc.exists &&
-          ["published", "active", "completed"].includes(doc.data()?.status),
+          (["published", "active", "completed"].includes(doc.data()?.status) || !!doc.data()?.currentProgramVersionId),
       );
       const versions = published.length
         ? await tx.getAll(
@@ -319,7 +323,7 @@ export async function getPersonalProgram(
       const result: PersonalProgram = { campaigns: [] };
       for (const campaign of campaigns.filter((doc) => doc.exists)) {
         const data = campaign.data()!;
-        if (!["published", "active", "completed"].includes(data.status)) {
+        if (!["published", "active", "completed"].includes(data.status) && !data.currentProgramVersionId) {
           result.campaigns.push({
             name: data.name,
             published: false,

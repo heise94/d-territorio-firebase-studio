@@ -6,7 +6,6 @@ const campaignSections = [
   ["Horarios y puntos", "campana", "horarios"],
   ["Participantes", "participantes"],
   ["Planificación", "planificar"],
-  ["Programa", "programa"],
   ["Solicitudes", "cambios"],
   ["Información", "campana", "informacion"],
 ] as const;

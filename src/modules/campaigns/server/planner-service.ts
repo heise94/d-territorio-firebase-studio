@@ -555,7 +555,12 @@ export async function changePlannerStatus(
       tx.get(lock),
     ]);
     if (!campaign.exists) throw new AuthError(404, "Campaña no disponible.");
-    const from = campaign.data()!.status;
+    const current = campaign.data()!;
+    const from = current.status;
+    if (value.status === "registration_open" && from === "published" && !current.currentProgramVersionId)
+      throw conflict();
+    if (value.status === "published" && (!current.currentProgramVersionId || from !== "registration_open"))
+      throw conflict();
     if (
       from === value.status ||
       !canTransitionCampaignStatus(from, value.status)

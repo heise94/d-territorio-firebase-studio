@@ -50,7 +50,7 @@ export const assignmentChangeSchema = z.discriminatedUnion("action", [
     .strict(),
 ]);
 export const plannerStatusSchema = z
-  .object({ status: z.enum(["registration_open", "planning"]) })
+  .object({ status: z.enum(["registration_open", "planning", "published"]) })
   .strict();
 export type PlannerOverrides = z.infer<
   typeof assignmentInputSchema

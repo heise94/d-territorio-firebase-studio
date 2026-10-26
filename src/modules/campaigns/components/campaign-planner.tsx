@@ -23,6 +23,7 @@ import type {
   PlannerWarningDTO,
 } from "../domain/planner";
 import { PlannerScheduleMatrix, plannerButton } from "./planner-points";
+import { CampaignPublishControl } from "./campaign-publish-control";
 import {
   PlannerDecisionDialog,
   type PlannerDecision,
@@ -54,6 +55,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState("");
+  const [plannerRevision, setPlannerRevision] = useState(0);
   const [decision, setDecision] = useState<PlannerDecision | null>(null);
   const [warnings, setWarnings] = useState<PlannerWarningDTO[]>([]);
   const [decisionError, setDecisionError] = useState("");
@@ -130,6 +132,7 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
       });
       await plannerResponse(response);
       setSaved("Planificación guardada.");
+      setPlannerRevision((revision) => revision + 1);
       await refresh();
       return true;
     } finally {
@@ -289,10 +292,11 @@ export function CampaignPlanner({ campaignId }: { campaignId: string }) {
           {anchor && <p className="mt-1 text-sm text-slate-500">{anchor.campaign.name} · {campaignStatusLabels[anchor.campaign.status]}</p>}
         </div>
         <div className="flex gap-2">
-          <Link href={`/campanas/admin/programa/${campaignId}`} className={plannerButton}>Ver programa</Link>
           <button className={plannerButton} disabled={loading || saving} onClick={() => void refresh()}>Actualizar</button>
         </div>
       </div>
+
+      <CampaignPublishControl campaignId={campaignId} refreshKey={String(plannerRevision)} />
 
       {!anchor && loading && <p role="status" className="rounded-xl border bg-white p-6">Cargando planificación del día…</p>}
       {error && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p>{error}</p>{anchor && <p>Seguimos mostrando la última planificación cargada.</p>}<button className={plannerButton} disabled={loading} onClick={() => void refresh()}>Reintentar</button></div>}

@@ -13,6 +13,8 @@ export function canTransitionCampaignStatus(
     (from === "draft" && to === "registration_open") ||
     (from === "registration_open" && to === "planning") ||
     (from === "planning" && to === "registration_open") ||
+    (from === "published" && to === "registration_open") ||
+    (from === "registration_open" && to === "published") ||
     (context === "publication" && from === "planning" && to === "published")
   );
 }

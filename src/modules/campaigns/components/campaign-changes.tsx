@@ -202,10 +202,10 @@ export function CampaignChanges({ campaignId }: { campaignId: string }) {
   return (
     <main className="mx-auto max-w-6xl space-y-5 p-5">
       <Link
-        href={`/campanas/admin/programa/${campaignId}`}
+        href={`/campanas/admin/planificar/${campaignId}`}
         className="text-teal-800 underline"
       >
-        ← Programa general
+        ← Planificación
       </Link>
       <h1 className="text-2xl font-bold">Solicitudes de cambio</h1>
       {view && (

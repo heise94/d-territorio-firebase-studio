@@ -357,6 +357,7 @@ export function CampaignEditor({
             <CampaignStatusControls
               campaignId={campaign.id}
               status={campaign.status}
+              hasPublishedProgram={!!campaign.currentProgramVersionId}
               onChanged={(status) => setCampaign({ ...campaign, status })}
             />
           </>

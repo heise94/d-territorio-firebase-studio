@@ -119,15 +119,9 @@ export function CampaignSummary({ campaignId }: { campaignId: string }) {
           </button>
           <Link
             className="rounded-xl border bg-white px-4 py-3 font-semibold"
-            href={`/campanas/admin/programa/${campaignId}`}
-          >
-            Ver programa
-          </Link>
-          <Link
-            className="rounded-xl bg-teal-700 px-4 py-3 font-semibold text-white"
             href={`/campanas/admin/planificar/${campaignId}`}
           >
-            Ir al planificador
+            Planificación y publicación
           </Link>
         </div>
       </header>

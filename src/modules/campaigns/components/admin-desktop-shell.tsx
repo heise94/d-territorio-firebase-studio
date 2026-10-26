@@ -9,7 +9,6 @@ import { campaignNavigation } from "../lib/admin-navigation";
 import {
   CalendarDays,
   ClipboardList,
-  FileText,
   LayoutDashboard,
   MapPinned,
   Settings2,
@@ -26,7 +25,6 @@ const icons = {
   "Horarios y puntos": CalendarDays,
   Participantes: Users,
   Planificación: ClipboardList,
-  Programa: FileText,
   Solicitudes: Wrench,
   Información: MapPinned,
   "Mi congregación": Users,
