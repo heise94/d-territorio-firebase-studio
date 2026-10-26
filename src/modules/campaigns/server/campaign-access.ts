@@ -98,10 +98,15 @@ export async function requireCampaignAccess(
     .where("uid", "==", identity.uid)
     .get();
   const rows = grants.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as OrganizerUser);
-  const match = rows.find((row) =>
+  const authorized = (row: OrganizerUser) =>
     row.active === true && allowed.includes(row.role) &&
-    (row.role === "SUPER_ADMIN" || row.campaignId === campaignId),
-  );
+    (row.role === "SUPER_ADMIN" || row.campaignId === campaignId);
+  // Preserve the strongest explicit role when an account also has a
+  // campaign-scoped grant. Otherwise callers that allow capacity exceptions
+  // could accidentally receive CAMPAIGN_ADMIN due to Firestore row order.
+  const match =
+    rows.find((row) => row.role === "SUPER_ADMIN" && authorized(row)) ??
+    rows.find(authorized);
   if (!match) {
     if (allowed.includes("CAMPAIGN_ADMIN")) {
       const registration = await db
