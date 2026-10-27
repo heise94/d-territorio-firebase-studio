@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signInWithCustomToken } from "firebase/auth";
+import { browserLocalPersistence, setPersistence, signInWithCustomToken } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 
@@ -20,9 +20,23 @@ export default function CampaignAdminParticipantAccessPage() {
         });
         const result = await reply.json();
         if (!reply.ok) throw new Error(result.error);
+        await setPersistence(auth, browserLocalPersistence);
         await signInWithCustomToken(auth, result.token);
-        if (active)
-          router.replace(`/campanas/admin/resumen/${encodeURIComponent(result.campaignId)}`);
+        if (active) {
+          const candidate = new URLSearchParams(window.location.search).get("returnTo");
+          const modules = ["resumen", "campana", "participantes", "planificar", "programa", "cambios", "mi-congregacion"];
+          const target = candidate ? new URL(candidate, window.location.origin) : null;
+          const targetParts = target?.pathname.split("/");
+          const isSafeCampaignRoute = !!target &&
+            target.origin === window.location.origin &&
+            modules.includes(targetParts?.[3] ?? "") &&
+            targetParts?.[4] === encodeURIComponent(result.campaignId) &&
+            !target.pathname.includes("\\");
+          const safeReturnTo = isSafeCampaignRoute && target
+            ? `${target.pathname}${target.search}${target.hash}`
+            : `/campanas/admin/resumen/${encodeURIComponent(result.campaignId)}`;
+          router.replace(safeReturnTo);
+        }
       } catch (failure) {
         if (active)
           setError(
@@ -45,9 +59,10 @@ export default function CampaignAdminParticipantAccessPage() {
         {error ? (
           <>
             <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>
-            <a className="mt-5 inline-block text-sm font-semibold text-teal-800 underline" href="/campanas/ingresar?modo=administracion">
-              Ingresar con teléfono y PIN
-            </a>
+            <div className="mt-5 flex flex-col items-start gap-3 text-sm font-semibold">
+              <a className="text-teal-800 underline" href="/campanas/ingresar?modo=administracion">Ingresar con teléfono y PIN</a>
+              <a className="text-slate-600 underline" href="/">Volver al inicio de sesión web</a>
+            </div>
           </>
         ) : (
           <p className="mt-3 text-sm text-slate-600">Verificando tu acceso a la campaña…</p>

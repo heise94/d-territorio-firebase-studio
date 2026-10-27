@@ -200,9 +200,14 @@ export class ParticipantAuthService {
     const token = newSessionToken();
     const session = this.newSession(participant, token);
     await this.db.runTransaction(async (tx) => {
-      const fresh = (
-        await tx.get(this.participants().doc(participant.id))
-      ).data() as Participant | undefined;
+      const limitRef = this.db
+        .collection(authCollections.limits)
+        .doc(privateKey(this.secret, "login", parsed.data.phone));
+      const [freshDoc, limitDoc] = await Promise.all([
+        tx.get(this.participants().doc(participant.id)),
+        tx.get(limitRef),
+      ]);
+      const fresh = freshDoc.data() as Participant | undefined;
       if (
         !fresh?.active ||
         fresh.pinHash !== participant.pinHash ||
@@ -210,6 +215,11 @@ export class ParticipantAuthService {
       )
         throw loginFailure();
       tx.create(this.sessions().doc(session.id), session);
+      // Login throttling counts attempts before verifying the PIN so concurrent
+      // guesses stay bounded. A verified login must clear that counter, or a
+      // user who signs in successfully several times can lock themselves out.
+      if (limitDoc.exists)
+        tx.update(limitRef, { count: 0, failures: 0 });
       this.audit(tx, "participant_login", participant.id);
     });
     return { participant: participantDTO(participant), token };

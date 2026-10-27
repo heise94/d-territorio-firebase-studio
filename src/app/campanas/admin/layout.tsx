@@ -18,8 +18,13 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
       setAllowed(true);
       return;
     }
+    if (loading) return;
     if (!user) {
-      setAllowed(false);
+      // Participant administrators have a server session (phone + PIN) in
+      // addition to Firebase Auth. Re-exchange that session after refresh
+      // instead of sending them back through PIN login and its rate limit.
+      const returnTo = `${pathname}${window.location.search}`;
+      router.replace(`/campanas/admin/acceso?returnTo=${encodeURIComponent(returnTo)}`);
       return;
     }
     void user.getIdTokenResult().then((result) => {
@@ -34,11 +39,11 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
       setAllowed(claims.campaign_admin === true || claims.super_admin === true);
     }).catch(() => active && setAllowed(false));
     return () => { active = false; };
-  }, [isAccessRoute, pathname, router, user]);
+  }, [isAccessRoute, loading, pathname, router, user]);
 
   useEffect(() => {
     if (!isAccessRoute && !loading && allowed === false)
-      router.replace("/campanas/ingresar?modo=administracion");
+      router.replace(`/campanas/admin/acceso?returnTo=${encodeURIComponent(pathname + window.location.search)}`);
   }, [allowed, isAccessRoute, loading, router]);
 
   if (isAccessRoute) return <>{children}</>;
