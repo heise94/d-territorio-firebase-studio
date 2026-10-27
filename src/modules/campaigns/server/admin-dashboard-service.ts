@@ -429,6 +429,7 @@ export class CampaignAdminDashboardService {
             otherName:
               source.profiles.get(other.participantId)?.fullName ??
               "Participante no disponible",
+            timeBlock: pair.timeBlockId ? availability(source, pair.timeBlockId) : null,
             availabilityConflict: context.availabilityConflict,
             participationConflict: context.participationConflict,
             sharedBlocks: context.shared.map((blockId) =>

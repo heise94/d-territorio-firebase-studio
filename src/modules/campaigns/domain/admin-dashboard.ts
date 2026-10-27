@@ -103,6 +103,7 @@ export interface AdminPairDetail {
   direction: "sent" | "received";
   otherRegistrationId: string;
   otherName: string;
+  timeBlock?: AdminAvailability | null;
   availabilityConflict: boolean;
   participationConflict: boolean;
   sharedBlocks: AdminAvailability[];

@@ -554,12 +554,19 @@ export function DashboardDetail({
                       <p className="text-slate-500">
                         {pair.direction === "sent" ? "Solicitud enviada" : "Solicitud recibida"}
                       </p>
+                      {pair.timeBlock && (
+                        <p className="font-medium text-slate-700">
+                          {pair.timeBlock.date ? `${formatHumanDate(pair.timeBlock.date)} · ` : ""}
+                          {pair.timeBlock.startTime}–{pair.timeBlock.endTime}
+                        </p>
+                      )}
                       {pair.availabilityConflict && (
                         <p className="text-amber-800 font-medium">
                           Sin horarios activos en común.
                         </p>
                       )}
                       {pair.status === "pending" && <OrganizerPairAcceptance campaignId={campaignId} registrationId={detail.registrationId} requestId={pair.id} onSaved={onSaved} />}
+                      {pair.status === "accepted" && <OrganizerPairRemoval campaignId={campaignId} registrationId={detail.registrationId} requestId={pair.id} onRemoved={onSaved} />}
                     </li>
                   ))}
                 </ul>
@@ -651,4 +658,31 @@ function OrganizerPairAcceptance({ campaignId, registrationId, requestId, onSave
     finally { setBusy(false); }
   }
   return <div className="pt-1"><button type="button" disabled={busy} onClick={() => void accept()} className="rounded bg-teal-800 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50">{busy ? "Confirmando…" : "Marcar como aceptada"}</button>{error && <p role="alert" className="mt-1 text-[11px] text-red-700">{error}</p>}</div>;
+}
+
+function OrganizerPairRemoval({ campaignId, registrationId, requestId, onRemoved }: { campaignId: string; registrationId: string; requestId: string; onRemoved: () => void }) {
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function remove() {
+    if (!user || !window.confirm("¿Eliminar este acuerdo de compañero? Ambos hermanos quedarán sin este vínculo y podrán organizarse por separado.")) return;
+    setBusy(true);
+    setError("");
+    try {
+      const token = await user.getIdToken(true);
+      const response = await campaignFetch(`/api/campanas/admin/campaigns/${encodeURIComponent(campaignId)}/participants/${encodeURIComponent(registrationId)}/pair-requests`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "No se pudo eliminar el acuerdo.");
+      onRemoved();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "No se pudo eliminar el acuerdo.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <div className="pt-1"><button type="button" disabled={busy} onClick={() => void remove()} className="rounded border border-rose-200 bg-white px-2 py-1 text-[11px] font-semibold text-rose-800 disabled:opacity-50">{busy ? "Eliminando…" : "Eliminar acuerdo"}</button>{error && <p role="alert" className="mt-1 text-[11px] text-red-700">{error}</p>}</div>;
 }

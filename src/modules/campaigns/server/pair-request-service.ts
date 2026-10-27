@@ -373,6 +373,42 @@ export class PairRequestService {
       return { id: request.id, status: "accepted" as const };
     });
   }
+  async removeAcceptedByOrganizer(token: string, campaignId: string, registrationId: string, requestId: string) {
+    if (!campaignDocumentIdSchema.safeParse(campaignId).success || !campaignDocumentIdSchema.safeParse(registrationId).success || !campaignDocumentIdSchema.safeParse(requestId).success)
+      throw new AuthError(400, "Acuerdo inválido.");
+    const access = await requireCampaignAccess(this.db, token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"]);
+    return this.db.runTransaction(async (tx) => {
+      const requestRef = this.requests().doc(requestId);
+      const request = (await tx.get(requestRef)).data() as PairRequest | undefined;
+      if (!request || request.campaignId !== campaignId || request.status !== "accepted" || (request.requesterRegistrationId !== registrationId && request.recipientRegistrationId !== registrationId))
+        throw new AuthError(404, "Acuerdo activo no disponible.");
+      const [requesterDoc, recipientDoc] = await Promise.all([
+        tx.get(this.registrations().doc(request.requesterRegistrationId)),
+        tx.get(this.registrations().doc(request.recipientRegistrationId)),
+      ]);
+      if (requesterDoc.data()?.campaignId !== campaignId || recipientDoc.data()?.campaignId !== campaignId)
+        throw new AuthError(404, "Acuerdo activo no disponible.");
+
+      const lockRefs = [
+        this.locks().doc(acceptedPairKey(campaignId, request.requesterRegistrationId, request.timeBlockId)),
+        this.locks().doc(acceptedPairKey(campaignId, request.recipientRegistrationId, request.timeBlockId)),
+        this.locks().doc(pairRelationKey(campaignId, request.requesterRegistrationId, request.recipientRegistrationId, request.timeBlockId)),
+      ];
+      const lockDocs = await tx.getAll(...lockRefs);
+      const now = Timestamp.now();
+      tx.update(requestRef, { status: "cancelled", updatedAt: now, respondedAt: now });
+      for (const lockDoc of lockDocs)
+        if (lockDoc.exists && lockDoc.data()?.requestId === requestId) tx.delete(lockDoc.ref);
+      tx.create(this.db.collection(collections.auditLogs).doc(), {
+        event: "pair_request_removed_by_organizer",
+        actorId: access.uid,
+        campaignId,
+        entityId: requestId,
+        createdAt: now,
+      });
+      return { id: request.id, status: "cancelled" as const };
+    });
+  }
   async view(token: string, campaignId: string): Promise<PairRequestView> {
     return this.auth.withParticipantTransaction(
       token,

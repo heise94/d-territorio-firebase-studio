@@ -25,3 +25,24 @@ export async function POST(
     return dashboardFailure(error);
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ campaignId: string; registrationId: string }> },
+) {
+  try {
+    const { campaignId, registrationId } = await context.params;
+    const body = await registrationBody(request);
+    const parsed = adminAcceptPairRequestSchema.pick({ requestId: true }).safeParse(body);
+    if (!parsed.success) return dashboardResponse({ error: "Acuerdo inválido." }, 400);
+    const result = await pairRequestService().removeAcceptedByOrganizer(
+      organizerToken(request),
+      campaignId,
+      registrationId,
+      parsed.data.requestId,
+    );
+    return dashboardResponse(result);
+  } catch (error) {
+    return dashboardFailure(error);
+  }
+}
