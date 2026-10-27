@@ -105,7 +105,7 @@ function rows(source: DashboardSource): AdminParticipantRow[] {
         availableBlockCount: [
           ...(source.selections.get(registration.id) ?? []),
         ].filter((id) => source.activeBlocks.has(id)).length,
-        maxTurns: registration.maxTurns,
+        maxTurns: registration.maxTurns ?? null,
         registrationStatus: registration.registrationStatus,
         profileActive: profile?.active === true,
         isMinor: registration.isMinor === true,

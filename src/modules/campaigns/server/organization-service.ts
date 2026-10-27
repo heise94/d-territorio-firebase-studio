@@ -2,7 +2,7 @@ import "server-only";
 import { Timestamp, type Firestore, type Transaction } from "firebase-admin/firestore";
 import { z } from "zod";
 import type { Participant, ParticipantDTO } from "../domain/participant";
-import type { CampaignRegistration, Availability, MaxTurns } from "../domain/registration";
+import type { CampaignRegistration, Availability } from "../domain/registration";
 import type { Campaign, CampaignDay, Congregation, Point, TimeBlock, BlockPoint } from "../domain/types";
 import { calculateBlockCapacity } from "../domain/point-capacity";
 import { campaignCollections as names } from "../lib/paths";
@@ -48,7 +48,7 @@ const filtersSchema = z.object({
 }).strict();
 const changeSchema = z.object({
   selectedBlockIds: z.array(campaignDocumentIdSchema).max(200).refine((ids) => new Set(ids).size === ids.length, "No repitas horarios."),
-  maxTurns: z.union([z.number().int().min(1).max(3), z.null()]),
+  maxTurns: z.union([z.number().int().min(1).max(3), z.null()]).optional(),
   reason: z.string().trim().max(500).optional(),
 }).strict();
 const createSchema = z.object({
@@ -57,7 +57,7 @@ const createSchema = z.object({
   phone: phoneSchema,
   pin: pinSchema.optional(),
   congregationId: campaignDocumentIdSchema,
-  maxTurns: z.union([z.number().int().min(1).max(3), z.null()]),
+  maxTurns: z.union([z.number().int().min(1).max(3), z.null()]).optional(),
   selectedBlockIds: z.array(campaignDocumentIdSchema).max(200).refine((ids) => new Set(ids).size === ids.length, "No repitas horarios."),
 }).strict().superRefine((value, ctx) => {
   if (value.action === "create" && !value.pin)
@@ -298,7 +298,7 @@ export class CampaignOrganizationService {
       }
       const source = await this.source(tx, campaignId);
       const all = [...source.registrations.values()].filter((registration) => registration.registrationStatus === "active" && source.profiles.get(registration.participantId)?.active).map((registration) => {
-        const row = this.person(source, registration.id); return { registrationId: registration.id, fullName: row.profile.fullName, congregationId: row.congregationId, congregation: row.congregation, availableBlockCount: [...(source.selections.get(registration.id) ?? [])].filter((id) => source.activeBlocks.has(id)).length, maxTurns: registration.maxTurns };
+        const row = this.person(source, registration.id); return { registrationId: registration.id, fullName: row.profile.fullName, congregationId: row.congregationId, congregation: row.congregation, availableBlockCount: [...(source.selections.get(registration.id) ?? [])].filter((id) => source.activeBlocks.has(id)).length };
       });
       const matchingRows = all.filter((row) => {
         const selected = source.selections.get(row.registrationId) ?? new Set<string>();
@@ -318,7 +318,7 @@ export class CampaignOrganizationService {
       const assignments = await tx.get(this.db.collection(names.assignments).where("campaignId", "==", campaignId).where("registrationId", "==", registrationId));
       const published = new Set(assignments.docs.filter((doc) => doc.data().status === "published").map((doc) => doc.data().timeBlockId as string));
       const partnerId = source.acceptedPartners.get(registrationId); const partner = partnerId ? this.person(source, partnerId) : null;
-      return { registrationId, fullName: row.profile.fullName, phone: row.profile.phoneNormalized, congregation: row.congregation, congregationId: row.congregationId, maxTurns: row.registration.maxTurns, partner: partner ? { fullName: partner.profile.fullName, congregation: partner.congregation } : null,
+      return { registrationId, fullName: row.profile.fullName, phone: row.profile.phoneNormalized, congregation: row.congregation, congregationId: row.congregationId, partner: partner ? { fullName: partner.profile.fullName, congregation: partner.congregation } : null,
         days: this.days(source).map((day) => ({ ...day, blocks: day.blocks.map((block) => ({ ...block, available: source.selections.get(registrationId)?.has(block.id) ?? false, published: published.has(block.id),
           companions: source.pairs.filter((pair) => (pair.status === "accepted" || pair.status === "pending") && (!pair.timeBlockId || pair.timeBlockId === block.id) && [pair.requesterRegistrationId, pair.recipientRegistrationId].includes(registrationId)).map((pair) => {
             const otherId = pair.requesterRegistrationId === registrationId ? pair.recipientRegistrationId : pair.requesterRegistrationId;
@@ -346,7 +346,7 @@ export class CampaignOrganizationService {
         const id = availabilityId(registrationId, blockId);
         tx.set(this.db.collection(names.availabilities).doc(id), { id, campaignId, registrationId, timeBlockId: blockId, available: selected.has(blockId), updatedAt: now }, { merge: true });
       }
-      tx.update(this.db.collection(names.campaignRegistrations).doc(registrationId), { maxTurns: parsed.data.maxTurns, updatedAt: now });
+      tx.update(this.db.collection(names.campaignRegistrations).doc(registrationId), { maxTurns: null, updatedAt: now });
       tx.create(this.db.collection(names.auditLogs).doc(), { campaignId, actorParticipantId: actor.id, action: "organization_update_availability", entityId: registrationId, metadata: { reason: parsed.data.reason ?? null }, createdAt: now });
       return { ok: true, message: "Cambios guardados." };
     });
@@ -463,7 +463,7 @@ export class CampaignOrganizationService {
   ) {
     const id = registrationId(campaignId, participant.id), now = Timestamp.now();
     await reserveAvailabilityPlaces(tx, this.db, campaignId, value.selectedBlockIds);
-    const registration: CampaignRegistration = { id, campaignId, participantId: participant.id, congregationId: value.congregationId, maxTurns: value.maxTurns as MaxTurns, registrationStatus: "active", createdAt: now, updatedAt: now };
+    const registration: CampaignRegistration = { id, campaignId, participantId: participant.id, congregationId: value.congregationId, maxTurns: null, registrationStatus: "active", createdAt: now, updatedAt: now };
     tx.create(this.db.collection(names.campaignRegistrations).doc(id), registration);
     for (const blockId of value.selectedBlockIds) {
       const availability: Availability = { id: availabilityId(id, blockId), campaignId, registrationId: id, timeBlockId: blockId, available: true, createdAt: now, updatedAt: now };

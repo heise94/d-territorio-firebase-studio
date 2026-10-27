@@ -76,7 +76,7 @@ export class CongregationReviewService {
         phone: profile?.phoneNormalized ?? "",
         available: registration.registrationStatus === "active",
         availableBlocks,
-        maxTurns: registration.maxTurns,
+        maxTurns: registration.maxTurns ?? null,
         status: stateOf(registration),
         registeredAt:
           registration.createdAt?.toDate?.().toISOString?.() ?? null,

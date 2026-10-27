@@ -141,7 +141,7 @@ export function reserves(
             .filter((t) => t.person.registrationId === reg.id)
             .map((t) => t.block.id),
         ).size,
-        maxTurns: reg.maxTurns,
+        maxTurns: reg.maxTurns ?? null,
         available: true,
         accepted:
           unit && unit.length === 2

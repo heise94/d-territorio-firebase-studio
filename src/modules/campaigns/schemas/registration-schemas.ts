@@ -12,7 +12,8 @@ export const maxTurnsSchema = z.union([
 export const saveRegistrationSchema = z
   .object({
     congregationId: campaignDocumentIdSchema,
-    maxTurns: maxTurnsSchema,
+    // Accepted for old installed PWA versions; the server now stores no limit.
+    maxTurns: maxTurnsSchema.optional(),
     timeBlockIds: z.array(campaignDocumentIdSchema).max(400),
   })
   .strict()

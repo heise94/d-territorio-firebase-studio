@@ -131,15 +131,6 @@ function validatePeople(
     const old = existing.find((item) => item.registrationId === id);
     const override = overrides.find((item) => item.registrationId === id);
     const unavailable = !person.available;
-    const projectedTurns =
-      person.assignedTurns +
-      (activeAssignments(source).some(
-        (item) => item.registrationId === id && item.timeBlockId === block,
-      )
-        ? 0
-        : 1);
-    const exceeds =
-      person.maxTurns !== null && projectedTurns > person.maxTurns;
     if (unavailable && !old?.availabilityOverride && !override?.availability)
       warnings.push({
         registrationId: id,
@@ -147,19 +138,11 @@ function validatePeople(
         kind: "availability",
         message: "Esta persona no indicó disponibilidad para este horario.",
       });
-    if (exceeds && !old?.maxTurnsOverride && !override?.maxTurns)
-      warnings.push({
-        registrationId: id,
-        fullName: person.fullName,
-        kind: "maxTurns",
-        message: `Esta asignación supera el máximo de turnos indicado por el participante: ${person.maxTurns} (${projectedTurns} asignados).`,
-      });
     flags.set(id, {
       availabilityOverride:
         unavailable &&
         (!!old?.availabilityOverride || !!override?.availability),
-      maxTurnsOverride:
-        exceeds && (!!old?.maxTurnsOverride || !!override?.maxTurns),
+      maxTurnsOverride: false,
     });
   }
   if (warnings.length) throw new PlannerWarnings(warnings);

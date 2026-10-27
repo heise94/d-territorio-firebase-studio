@@ -54,7 +54,6 @@ type Detail = {
   fullName: string;
   phone: string;
   congregation: string;
-  maxTurns: number | null;
   partner: { fullName: string; congregation: string } | null;
   days: Day[];
 };
@@ -67,8 +66,6 @@ const date = (v: string) =>
     day: "numeric",
     month: "short",
   }).format(new Date(`${v}T12:00:00`));
-const max = (v: number | null) =>
-  v ? `${v} ${v === 1 ? "turno" : "turnos"}` : "Sin límite";
 export function OrganizationPwa({ campaignId }: { campaignId: string }) {
   const [tab, setTab] = useState<
       "Inicio" | "Participantes" | "Agregar" | "Cobertura"
@@ -352,11 +349,6 @@ function People({
           <h2 className="text-2xl font-bold">{detail.fullName}</h2>
           <p>{detail.congregation}</p>
           <p>{detail.phone}</p>
-          <p>
-            <b>Máximo de turnos</b>
-            <br />
-            {max(detail.maxTurns)}
-          </p>
           <div><h3 className="mb-2 font-bold">Disponibilidad</h3><AvailabilitySummary days={detail.days.map((day) => ({ ...day, blocks: day.blocks.map((block) => ({ ...block, selected: block.available === true })) }))} /></div>
         </article>
         <button
@@ -567,11 +559,6 @@ function PeopleV2({
           <h2 className="text-2xl font-bold">{detail.fullName}</h2>
           <p>{detail.congregation}</p>
           <p>{detail.phone}</p>
-          <p>
-            <b>Máximo de turnos</b>
-            <br />
-            {max(detail.maxTurns)}
-          </p>
           <div><h3 className="mb-2 font-bold">Disponibilidad</h3><AvailabilitySummary days={detail.days.map((day) => ({ ...day, blocks: day.blocks.map((block) => ({ ...block, selected: block.available === true })) }))} /></div>
         </article>
         <button
@@ -707,7 +694,6 @@ function Availability({
     d.days.flatMap((x) => x.blocks.filter((b) => b.available).map((b) => b.id)),
   );
   const [selected, setSelected] = useState<Set<string>>(initial),
-    [limit, setLimit] = useState(d.maxTurns?.toString() ?? ""),
     [message, setMessage] = useState("");
   const save = () =>
     void campaignFetch(
@@ -717,7 +703,6 @@ function Availability({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           selectedBlockIds: [...selected],
-          maxTurns: limit ? Number(limit) : null,
         }),
       },
     )
@@ -735,16 +720,6 @@ function Availability({
         Ficha
       </button>
       <h2 className="text-xl font-bold">Editar disponibilidad</h2>
-      <select
-        className={field}
-        value={limit}
-        onChange={(e) => setLimit(e.target.value)}
-      >
-        <option value="">Sin límite</option>
-        <option value="1">1 turno</option>
-        <option value="2">2 turnos</option>
-        <option value="3">3 turnos</option>
-      </select>
       {d.days.map((day) => (
         <article key={day.id} className="campaign-surface p-4">
           <b>{date(day.date)}</b>
@@ -794,7 +769,6 @@ function Add({
     [phone, setPhone] = useState(""),
     [pin, setPin] = useState(""),
     [cong, setCong] = useState(""),
-    [limit, setLimit] = useState(""),
     [selected, setSelected] = useState<Set<string>>(new Set()),
     [step, setStep] = useState<1 | 2 | 3>(1),
     [lookup, setLookup] = useState<any>(null),
@@ -856,7 +830,6 @@ function Add({
           phone: lookup.phone,
           pin: lookup.kind === "new" ? pin : undefined,
           congregationId: cong,
-          maxTurns: limit ? Number(limit) : null,
           selectedBlockIds: [...selected],
         }),
       },
@@ -954,16 +927,6 @@ function Add({
       )}
       {step === 2 && (
         <>
-          <select
-            className={field}
-            value={limit}
-            onChange={(e) => setLimit(e.target.value)}
-          >
-            <option value="">Sin límite</option>
-            <option value="1">1 turno</option>
-            <option value="2">2 turnos</option>
-            <option value="3">3 turnos</option>
-          </select>
           {o.days.map((d) => (
             <article key={d.id} className="campaign-surface p-4">
               <b>{date(d.date)}</b>
@@ -1001,10 +964,7 @@ function Add({
             <b>{name}</b>
             <p>{congs.find((c) => c.id === cong)?.name}</p>
             <p>{lookup?.phone}</p>
-            <p>
-              {selected.size} horarios · Máximo{" "}
-              {max(limit ? Number(limit) : null)}
-            </p>
+            <p>{selected.size} horarios seleccionados</p>
             <p>Compañero acordado: opcional, después desde la ficha.</p>
           </article>
           <div className="grid grid-cols-2 gap-3">

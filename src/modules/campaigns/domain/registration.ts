@@ -14,7 +14,8 @@ export interface CampaignRegistration {
   participantId: string;
   /** Congregation selected for this campaign; legacy registrations use the profile fallback. */
   congregationId?: string;
-  maxTurns: MaxTurns;
+  /** Legacy preference; absence now means there is no limit. */
+  maxTurns?: MaxTurns;
   registrationStatus: RegistrationStatus;
   /** Legacy value retained for historical records; absent from participant DTOs. */
   approvalStatus?: RegistrationApprovalStatus;
@@ -66,6 +67,8 @@ export interface CampaignSummary {
 }
 export interface RegistrationView {
   campaign: CampaignSummary;
+  /** True when availability can be guided by the currently published program. */
+  publishedProgram: boolean;
   congregationId: string | null;
   congregations: { id: string; name: string }[];
   days: {
@@ -80,6 +83,8 @@ export interface RegistrationView {
       selected: boolean;
       coverageState: ParticipantCoverageState;
       selectionClosed?: boolean;
+      /** Qualitative only: the published program still needs staffing in this block. */
+      programNeedsSupport?: boolean;
     }[];
   }[];
   unavailableSelectionCount: number;

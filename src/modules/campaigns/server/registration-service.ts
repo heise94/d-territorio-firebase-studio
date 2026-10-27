@@ -13,7 +13,8 @@ import type {
   Point,
   BlockPoint,
 } from "../domain/types";
-import { calculateBlockCapacity } from "../domain/point-capacity";
+import type { ProgramVersion } from "../domain/program";
+import { calculateBlockCapacity, getPointCapacity } from "../domain/point-capacity";
 import type { ParticipantDTO } from "../domain/participant";
 import {
   participantCoverageState,
@@ -43,7 +44,7 @@ const registrationDTO = (row?: CampaignRegistration) =>
   row
     ? {
         id: row.id,
-        maxTurns: row.maxTurns,
+        maxTurns: row.maxTurns ?? null,
         registrationStatus: row.registrationStatus,
       }
     : null;
@@ -207,6 +208,30 @@ export class CampaignRegistrationService {
           (config.campaign.status !== "registration_open" && !own)
         )
           throw new AuthError(404, "La campaña no está disponible.");
+        const publishedVersionDoc = config.campaign.currentProgramVersionId
+          ? await tx.get(this.db.collection(collections.programVersions).doc(config.campaign.currentProgramVersionId))
+          : null;
+        const publishedVersion = publishedVersionDoc?.exists
+          ? publishedVersionDoc.data() as ProgramVersion
+          : null;
+        if (config.campaign.currentProgramVersionId &&
+            (!publishedVersion || publishedVersion.campaignId !== campaignId || publishedVersion.status !== "published"))
+          throw new AuthError(503, "El programa publicado no está disponible.");
+        const programNeedsSupport = new Set<string>();
+        if (publishedVersion) {
+          const configuredMinimumByPoint = new Map(config.points.map((point) => [point.id, getPointCapacity(point).minParticipants]));
+          const requiredByPoint = new Map(publishedVersion.snapshot.days
+            .flatMap((day) => day.points)
+            .map((point) => [point.id, point.minParticipants ?? configuredMinimumByPoint.get(point.id) ?? 2]));
+          for (const day of publishedVersion.snapshot.days) {
+            for (const block of day.blocks) {
+              if (block.cells.some((cell) => cell.active &&
+                cell.slots.filter(Boolean).length < (requiredByPoint.get(cell.pointId) ?? 2))) {
+                programNeedsSupport.add(block.id);
+              }
+            }
+          }
+        }
         const registrations = await tx.get(
           this.registrations().where("campaignId", "==", campaignId),
         );
@@ -233,6 +258,7 @@ export class CampaignRegistrationService {
         );
         return {
           campaign: campaignDTO(config.campaign, own),
+          publishedProgram: !!publishedVersion,
           congregationId:
             (own?.congregationId ?? participant.congregationId) &&
             config.congregations.some(
@@ -259,6 +285,7 @@ export class CampaignRegistrationService {
                   label: block.label ?? "",
                   selected: selected.has(block.id),
                   selectionClosed: participantSelectionClosed(counts.get(block.id) ?? 0, calculateBlockCapacity(campaignId, block.id, config.points, config.blockPoints).minParticipants),
+                  programNeedsSupport: publishedVersion ? programNeedsSupport.has(block.id) : undefined,
                   coverageState: participantCoverageState(
                     counts.get(block.id) ?? 0,
                     calculateBlockCapacity(
@@ -346,7 +373,7 @@ export class CampaignRegistrationService {
           campaignId,
           participantId: participant.id,
           ...(existing?.congregationId ? { congregationId: existing.congregationId } : {}),
-          maxTurns: parsed.data.maxTurns,
+          maxTurns: null,
           registrationStatus: "active",
           // Preserve historical reviews without letting them gate participation.
           ...(existing?.approvalStatus

@@ -164,33 +164,6 @@ async function resolution(
     { ...source, assignments },
     { published: true, allowEmpty: true },
   );
-  for (const regId of incoming) {
-    const reg = source.registrations.get(regId)!;
-    const count = new Set(
-      context.turns
-        .filter((t) => t.person.registrationId === regId)
-        .map((t) => t.block.id),
-    ).size;
-    if (
-      reg.maxTurns !== null &&
-      count + 1 > reg.maxTurns &&
-      !data.maxTurnsOverrides.includes(regId) &&
-      !view.blockingErrors.some(
-        (i) => i.code === "max_turns" && i.entityId === regId,
-      )
-    ) {
-      view.blockingErrors.push({
-        code: "max_turns",
-        message:
-          "El nuevo turno supera el máximo y requiere una excepción explícita.",
-        entityId: regId,
-        person: source.profiles.get(reg.participantId)?.fullName ?? "",
-        date: "",
-        hours: "",
-        point: "",
-      });
-    }
-  }
   view.snapshot = resultingSnapshot(
     version.snapshot,
     assignments,

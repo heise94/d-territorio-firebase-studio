@@ -7,6 +7,7 @@ import type {
 } from "../domain/program";
 import type { PlannerSource } from "./planner-source";
 import { participantName } from "../lib/presentation";
+import { getPointCapacity } from "../domain/point-capacity";
 
 /** Deterministic, minimal projection. No credentials, phones or raw availabilities. */
 export function projectProgram(
@@ -131,25 +132,6 @@ export function projectProgram(
         true,
       );
   }
-  // Fase 6 marks the extra turn, not previous turns. Each distinct authorized
-  // extra block covers one excess turn; earlier valid assignments need no flag.
-  for (const id of new Set(assignments.map((a) => a.registrationId))) {
-    const rows = assignments.filter((a) => a.registrationId === id);
-    const max = source.registrations.get(id)?.maxTurns;
-    const count = new Set(rows.map((a) => a.timeBlockId)).size;
-    const authorized = new Set(
-      rows.filter((a) => a.maxTurnsOverride === true).map((a) => a.timeBlockId),
-    ).size;
-    if (max !== null && max !== undefined && count - max > authorized)
-      issue(
-        "max_turns",
-        "Se supera el máximo de turnos sin suficientes excepciones autorizadas.",
-        id,
-        rows[0]?.timeBlockId,
-        rows[0]?.pointId,
-        id,
-      );
-  }
   const paired = new Set<string>();
   for (const pair of source.pairs
     .filter((p) => p.status === "accepted")
@@ -251,6 +233,7 @@ export function projectProgram(
           name: p.name,
           locationText: p.locationText ?? "",
           description: p.description ?? "",
+          minParticipants: getPointCapacity(p).minParticipants,
         }));
       return {
         id: day.id,

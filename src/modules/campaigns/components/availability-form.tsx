@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { campaignFetch } from "../lib/campaign-fetch";
-import type { MaxTurns, RegistrationView } from "../domain/registration";
+import type { RegistrationView } from "../domain/registration";
 import type { PairRequestDTO, PairRequestView } from "../domain/pair-request";
 import { saveRegistrationSchema } from "../schemas/registration-schemas";
 import { PairRequestSheet } from "./pair-request-sheet";
@@ -21,7 +21,6 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
   const router = useRouter();
   const [view, setView] = useState<RegistrationView | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [maxTurns, setMaxTurns] = useState<MaxTurns>(1);
   const [pairs, setPairs] = useState<PairRequestDTO[]>([]);
   const [pairBlock, setPairBlock] = useState<{ id: string; label: string } | null>(null);
   const [companionNotice, setCompanionNotice] = useState(false);
@@ -44,7 +43,6 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
   }, [campaignId]);
   const apply = useCallback((next: RegistrationView) => {
     setView(next);
-    setMaxTurns(next.campaign.registration?.maxTurns ?? 1);
     setSelected(new Set(next.days.flatMap((day) => day.blocks.filter((block) => block.selected).map((block) => block.id))));
   }, []);
   useEffect(() => {
@@ -59,7 +57,7 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
     event.preventDefault();
     if (!view) return;
     setError(""); setSaved(false);
-    const input = { congregationId: view.congregationId ?? "", maxTurns, timeBlockIds: [...selected] };
+    const input = { congregationId: view.congregationId ?? "", timeBlockIds: [...selected] };
     if (!saveRegistrationSchema.safeParse(input).success) {
       setError(view.congregationId ? "Revisa los horarios seleccionados." : "Tu congregación no está incluida en esta campaña. Contacta a la organización.");
       return;
@@ -83,27 +81,32 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
   const editable = view.campaign.status === "registration_open" &&
     (!view.campaign.registration || view.campaign.registration.registrationStatus === "active");
   const initial = new Set(view.days.flatMap((day) => day.blocks.filter((block) => block.selected).map((block) => block.id)));
-  const dirty = maxTurns !== (view.campaign.registration?.maxTurns ?? 1) || selected.size !== initial.size ||
+  const dirty = selected.size !== initial.size ||
     [...selected].some((id) => !initial.has(id));
   const pairFor = (id: string) => pairs.find((pair) => pair.timeBlock?.id === id && ["pending", "accepted"].includes(pair.status));
+  const availabilityDays = view.days.map((day) => ({
+    ...day,
+    blocks: day.blocks.filter((block) =>
+      !view.publishedProgram || block.programNeedsSupport || selected.has(block.id),
+    ),
+  })).filter((day) => day.blocks.length > 0);
 
   if (view.campaign.registration && !editing) return <section className="space-y-4 pb-20">
     <header><h1 className="text-4xl font-bold tracking-tight">Mi disponibilidad</h1><p className="mt-2 text-[var(--campaign-muted)]">Estos son los horarios que has indicado. Tu asignación definitiva aparecerá en Mi programa.</p></header>
     {saved && <p role="status" className="rounded-xl bg-[var(--campaign-mint)] p-4">✓ Disponibilidad guardada</p>}
     <AvailabilitySummary days={view.days.map((day) => ({ ...day, blocks: day.blocks.map((block) => ({ ...block, companions: pairs.filter((pair) => (pair.timeBlock?.id === block.id || (!pair.timeBlock && pair.sharedBlocks.some((shared) => shared.id === block.id))) && ["pending", "accepted"].includes(pair.status)).map((pair) => `${pair.other.fullName} · ${pair.status === "accepted" ? "Confirmado" : pair.direction === "sent" ? "Esperando confirmación" : "Solicitud recibida"}`) })) }))} />
-    <p className="campaign-surface p-4"><b>Máximo de turnos:</b> {view.campaign.registration.maxTurns ?? "Sin límite"}</p>
     {editable && <button type="button" className="campaign-primary w-full" onClick={() => setEditing(true)}>Editar disponibilidad</button>}
   </section>;
 
   return <form onSubmit={save} className="space-y-4 pb-20" aria-busy={saving}>
     <header className="space-y-2">
       <h1 className="text-4xl font-bold tracking-tight">Mi disponibilidad</h1>
-      <p className="text-base leading-6 text-[var(--campaign-muted)]">Marca todos los horarios en los que podrías participar. Esto no significa que quedarás asignado en todos.</p>
+      <p className="text-base leading-6 text-[var(--campaign-muted)]">{view.publishedProgram ? "El programa ya está publicado. Aquí aparecen los horarios que aún necesitan apoyo y los que ya habías marcado." : "Marca todos los horarios en los que podrías participar. Esto no significa que quedarás asignado en todos."}</p>
       {!editable && <p className="campaign-attention">Las inscripciones están cerradas. Puedes revisar tu disponibilidad, pero no modificarla.</p>}
       {editable && !view.congregationId && <p className="campaign-attention">Tu congregación no está incluida en esta campaña. Contacta a la organización.</p>}
     </header>
     <fieldset disabled={!editable || saving} className="space-y-4">
-      {view.days.filter((day) => day.blocks.length).map((day) => <section key={day.id} className="space-y-2">
+      {availabilityDays.map((day) => <section key={day.id} className="space-y-2">
         <div className="flex min-h-[68px] items-center gap-3 rounded-2xl bg-[var(--campaign-mint)] px-4 py-2">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-[var(--campaign-primary-strong)]"><CalendarDays aria-hidden="true" className="h-5 w-5" /></span>
           <h2 className="text-lg font-bold">{dayName(day.date)}</h2>
@@ -112,16 +115,19 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
           const checked = selected.has(block.id);
           const closed = block.selectionClosed && !initial.has(block.id);
           const pair = pairFor(block.id);
-          const coverageMessage = block.coverageState === "covered"
+          const effectiveCoverageState = view.publishedProgram && block.programNeedsSupport
+            ? "needs_support"
+            : block.coverageState;
+          const coverageMessage = effectiveCoverageState === "covered"
             ? { label: "Cupos cubiertos", className: "availability-state--covered" }
-            : block.coverageState === "last_slots"
+            : effectiveCoverageState === "last_slots"
               ? { label: "Últimos cupos", className: "availability-state--last-slots" }
-              : block.coverageState === "needs_support"
+              : effectiveCoverageState === "needs_support"
                 ? { label: "Falta apoyo", className: "availability-state--needs-support" }
                 : null;
-          const coverageCardClass = block.coverageState === "needs_support"
+          const coverageCardClass = effectiveCoverageState === "needs_support"
             ? "availability-block--needs-support"
-            : block.coverageState === "last_slots"
+            : effectiveCoverageState === "last_slots"
               ? "availability-block--last-slots"
               : "";
           return <article key={block.id} className={`availability-block rounded-2xl border px-3 py-2 shadow-sm ${coverageCardClass} ${checked ? "availability-block--selected border-[var(--campaign-primary)] bg-[#f5fcfa]" : "border-[var(--campaign-line)] bg-white"}`}>
@@ -148,10 +154,8 @@ export function AvailabilityForm({ campaignId }: { campaignId: string }) {
           </article>;
         })}
       </section>)}
+      {view.publishedProgram && availabilityDays.length === 0 && <p className="campaign-surface p-4 text-[var(--campaign-muted)]">Por ahora, todos los horarios publicados están cubiertos.</p>}
     </fieldset>
-    <section className="campaign-surface p-4"><p className="font-bold">¿Cuántos turnos podrías realizar como máximo?</p><p className="mt-1 text-sm text-[var(--campaign-muted)]">Esto nos ayuda a armar mejor los equipos.</p>
-      <div className="mt-3 grid grid-cols-4 gap-2">{([1, 2, 3, null] as MaxTurns[]).map((value) => <button type="button" key={String(value)} className={maxTurns === value ? "campaign-primary min-h-12 px-2 text-sm" : "campaign-secondary min-h-12 px-2 text-sm"} onClick={() => { setMaxTurns(value); setSaved(false); }}>{value ?? "Sin límite"}</button>)}</div>
-    </section>
     {saved && <p role="status" className="rounded-xl bg-[var(--campaign-mint)] p-4 font-semibold text-[var(--campaign-primary-strong)]">✓ Disponibilidad guardada</p>}
     {error && <p role="alert" className="text-red-700">{error}</p>}
     {view.campaign.registration && <button type="button" className="campaign-secondary w-full" disabled={saving} onClick={() => { apply(view); setEditing(false); setError(""); }}>Volver al resumen</button>}

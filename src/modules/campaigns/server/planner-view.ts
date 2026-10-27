@@ -215,8 +215,6 @@ export function projectPlanner(
           warnings.push(
             "Disponibilidad no declarada, sin excepción registrada.",
           );
-        if (person.maxTurns !== null && person.assignedTurns > person.maxTurns)
-          warnings.push("Supera el máximo de turnos.");
         if (
           assigned.filter(
             (item) => item.registrationId === assignment.registrationId,

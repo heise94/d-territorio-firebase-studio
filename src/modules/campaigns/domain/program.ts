@@ -11,6 +11,8 @@ export interface ProgramPoint {
   name: string;
   locationText: string;
   description: string;
+  /** Minimum staffing captured at publication; optional for older versions. */
+  minParticipants?: number;
 }
 export interface ProgramSnapshot {
   campaign: {
