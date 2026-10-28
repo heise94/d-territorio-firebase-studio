@@ -6,9 +6,11 @@ export interface Participant {
   id: string;
   fullName: string;
   preserveNameCase?: boolean;
-  phoneNormalized: string;
+  /** Absent for accountless people entered by an organizer. */
+  phoneNormalized?: string;
   congregationId?: string;
-  pinHash: string;
+  /** Absent when an organizer records a person without creating login access. */
+  pinHash?: string;
   active: boolean;
   sessionVersion: number;
   createdAt: Timestamp;

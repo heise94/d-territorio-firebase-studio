@@ -317,6 +317,7 @@ export class ParticipantAuthService {
       await this.participants().doc(current.participant.id).get()
     ).data() as Participant;
     if (
+      !original.pinHash ||
       !(await verifyPin(this.secret, parsed.data.currentPin, original.pinHash))
     )
       throw loginFailure();

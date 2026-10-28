@@ -15,6 +15,8 @@ import { AuthError, ParticipantAuthService } from "./auth/service";
 import { availabilityId, registrationId } from "./registration-service";
 import { acceptedPairKey, pairLockCollection } from "./pair-request-service";
 import type { PairRequest } from "../domain/pair-request";
+import { getPlannerDay, createAssignment, changeAssignment, type TrustedPlannerActor } from "./planner-service";
+import { getDraftProgramForOrganization, publishProgram } from "./program-service";
 
 type TeamRecord = {
   campaignId: string;
@@ -66,6 +68,15 @@ const createSchema = z.object({
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pin"], message: "No cambies el PIN de una cuenta existente." });
 });
 const partnerSchema = z.object({ recipientRegistrationId: campaignDocumentIdSchema.optional() }).strict();
+const manualPlannerPersonSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  congregationId: campaignDocumentIdSchema,
+  phone: phoneSchema.optional(),
+  pin: pinSchema.optional(),
+  timeBlockId: campaignDocumentIdSchema,
+}).strict().superRefine((value, ctx) => {
+  if (!!value.phone !== !!value.pin) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Para crear acceso, ingresa teléfono y PIN juntos; ambos son opcionales." });
+});
 
 const humanRole = (role: OrganizationRole) => role === "CAMPAIGN_ADMIN" ? "Administrador principal" : "Ayudante";
 
@@ -97,6 +108,78 @@ export class CampaignOrganizationService {
   private async withAccess<T>(token: string, campaignId: string, operation: (tx: Transaction, participant: ParticipantDTO, access: { role: OrganizationRole; registrationId: string }) => Promise<T>) {
     return this.auth.withParticipantTransaction(token, async (tx, participant) =>
       operation(tx, participant, await this.access(tx, participant, campaignId)));
+  }
+
+  private async plannerActor(token: string, campaignId: string): Promise<TrustedPlannerActor> {
+    return this.withAccess(token, campaignId, async (_tx, participant, access) => ({ uid: participant.id, role: access.role }));
+  }
+
+  async planner(token: string, campaignId: string, dayId?: string) {
+    const actor = await this.plannerActor(token, campaignId);
+    const [view, congregations] = await Promise.all([
+      getPlannerDay("", campaignId, dayId, actor),
+      this.withAccess(token, campaignId, async (tx) => {
+        const source = await this.source(tx, campaignId);
+        return [...source.associatedCongregations].map(([id, row]) => ({ id, name: row.name })).sort((a, b) => a.name.localeCompare(b.name, "es"));
+      }),
+    ]);
+    return { ...view, congregations };
+  }
+  async assignPlanner(token: string, campaignId: string, input: unknown) {
+    const actor = await this.plannerActor(token, campaignId);
+    return createAssignment("", campaignId, input, actor);
+  }
+  async changePlannerAssignment(token: string, campaignId: string, assignmentId: string, input: unknown) {
+    const actor = await this.plannerActor(token, campaignId);
+    return changeAssignment("", campaignId, assignmentId, input, actor);
+  }
+  async draftProgram(token: string, campaignId: string) {
+    const actor = await this.plannerActor(token, campaignId);
+    return getDraftProgramForOrganization(campaignId, actor);
+  }
+  async publishDraft(token: string, campaignId: string, input: unknown) {
+    const actor = await this.plannerActor(token, campaignId);
+    return publishProgram("", campaignId, input, actor);
+  }
+  async addManualPlannerPerson(token: string, campaignId: string, input: unknown) {
+    const parsed = manualPlannerPersonSchema.safeParse(input);
+    if (!parsed.success) throw new AuthError(400, parsed.error.issues[0]?.message ?? "Revisa los datos.");
+    const value = parsed.data;
+    const actor = await this.withAccess(token, campaignId, async (tx, participant, access) => {
+      const source = await this.source(tx, campaignId);
+      if (!source.associatedCongregations.has(value.congregationId)) throw new AuthError(400, "Selecciona una congregación de esta campaña.");
+      if (!source.activeBlocks.has(value.timeBlockId)) throw new AuthError(400, "Selecciona un horario activo de esta campaña.");
+      return { participantId: participant.id, role: access.role };
+    });
+    const fullName = normalizePersonName(value.fullName);
+    let profile: Participant;
+    if (value.phone && value.pin) {
+      if (await this.auth.findByPhone(value.phone)) throw new AuthError(409, "Ese teléfono ya pertenece a una cuenta. Agrégala desde Participantes para conservar sus datos.");
+      profile = await this.auth.createForOrganizer({ fullName, phone: value.phone, pin: value.pin, congregationId: value.congregationId }, actor.participantId);
+    } else {
+      const ref = this.db.collection(names.participants).doc();
+      const now = Timestamp.now();
+      profile = { id: ref.id, fullName, congregationId: value.congregationId, ...(value.phone ? { phoneNormalized: value.phone } : {}), active: true, sessionVersion: 0, createdAt: now, updatedAt: now };
+      if (value.phone) {
+        const matches = await this.db.collection(names.participants).where("phoneNormalized", "==", value.phone).limit(1).get();
+        if (!matches.empty) throw new AuthError(409, "Ese teléfono ya está registrado.");
+      }
+      await ref.create(profile);
+    }
+    return this.withAccess(token, campaignId, async (tx, verifiedActor) => {
+      const source = await this.source(tx, campaignId);
+      if (!source.associatedCongregations.has(value.congregationId) || !source.activeBlocks.has(value.timeBlockId)) throw new AuthError(409, "La campaña cambió. Actualiza e intenta nuevamente.");
+      const id = registrationId(campaignId, profile.id);
+      const existing = await tx.get(this.db.collection(names.campaignRegistrations).doc(id));
+      if (existing.exists) throw new AuthError(409, "Esta persona ya está inscrita en la campaña.");
+      const now = Timestamp.now();
+      const registration: CampaignRegistration = { id, campaignId, participantId: profile.id, congregationId: value.congregationId, maxTurns: null, registrationStatus: "active", createdAt: now, updatedAt: now };
+      tx.create(this.db.collection(names.campaignRegistrations).doc(id), registration);
+      const availability: Availability = { id: availabilityId(id, value.timeBlockId), campaignId, registrationId: id, timeBlockId: value.timeBlockId, available: true, createdAt: now, updatedAt: now };
+      tx.create(this.db.collection(names.availabilities).doc(availability.id), availability);
+      tx.create(this.db.collection(names.auditLogs).doc(), { campaignId, actorParticipantId: verifiedActor.id, action: "organization_manual_planner_participant_created", entityId: id, metadata: { participantId: profile.id, congregationId: value.congregationId, timeBlockId: value.timeBlockId, accountCreated: !!(value.phone && value.pin) }, createdAt: now });
+      return { registrationId: id, fullName, accountCreated: !!(value.phone && value.pin) };
+    });
   }
 
   async campaigns(token: string) {

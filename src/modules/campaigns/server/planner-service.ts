@@ -29,9 +29,14 @@ import {
   type PlannerSource,
 } from "./planner-source";
 import { plannerPerson, projectPlanner, projectPlannerDay } from "./planner-view";
+import type { OrganizerRole } from "../domain/organizer";
 
-export async function getPlannerDay(token: string, campaignId: string, dayId?: string) {
-  await plannerAccess(token, campaignId);
+export type TrustedPlannerActor = { uid: string; role: OrganizerRole | "CAMPAIGN_HELPER" };
+
+export async function getPlannerDay(token: string, campaignId: string, dayId?: string, trustedActor?: TrustedPlannerActor) {
+  if (trustedActor) {
+    if (!['SUPER_ADMIN', 'CAMPAIGN_ADMIN', 'CAMPAIGN_HELPER'].includes(trustedActor.role)) throw new AuthError(403, "Sin permiso para planificar.");
+  } else await plannerAccess(token, campaignId);
   return campaignsAdminDb().runTransaction(async (tx) => {
     const source = await readPlannerSource(campaignsAdminDb(), tx, campaignId);
     // Campaign administrators have the same operational planning tools as the
@@ -170,8 +175,11 @@ export async function getPlanner(
   token: string,
   campaignId: string,
   block?: string,
+  trustedActor?: TrustedPlannerActor,
 ) {
-  await plannerAccess(token, campaignId);
+  if (trustedActor) {
+    if (!['SUPER_ADMIN', 'CAMPAIGN_ADMIN', 'CAMPAIGN_HELPER'].includes(trustedActor.role)) throw new AuthError(403, "Sin permiso para planificar.");
+  } else await plannerAccess(token, campaignId);
   return campaignsAdminDb().runTransaction(
     async (tx) =>
       projectPlanner(
@@ -252,8 +260,9 @@ export async function createAssignment(
   token: string,
   campaignId: string,
   input: unknown,
+  trustedActor?: TrustedPlannerActor,
 ) {
-  const access = await plannerAccess(token, campaignId),
+  const access = trustedActor ?? await plannerAccess(token, campaignId),
     uid = access.uid,
     value = parse(assignmentInputSchema, input),
     db = campaignsAdminDb();
@@ -401,8 +410,9 @@ export async function changeAssignment(
   campaignId: string,
   id: string,
   input: unknown,
+  trustedActor?: TrustedPlannerActor,
 ) {
-  const access = await plannerAccess(token, campaignId),
+  const access = trustedActor ?? await plannerAccess(token, campaignId),
     uid = access.uid,
     value = parse(assignmentChangeSchema, input),
     db = campaignsAdminDb();
@@ -497,6 +507,9 @@ export async function changeAssignment(
         tx.update(db.collection(names.assignments).doc(target.id), {
           pointId: target.pointId,
           slotNumber: target.slotNumber,
+          // Editing a previously published turn creates a new draft revision;
+          // participant-facing program versions remain immutable until publish.
+          status: "draft",
           availabilityOverride: target.availabilityOverride,
           maxTurnsOverride: target.maxTurnsOverride,
           ...(target.capacityOverride ? { capacityOverride: true } : {}),

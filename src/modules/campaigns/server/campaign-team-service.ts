@@ -81,7 +81,7 @@ export class CampaignTeamService {
           congregation: congregations.get(profile!.congregationId ?? "") ?? "Sin congregación",
           phone: profile!.phoneNormalized,
         }))
-        .filter((candidate) => [candidate.name, candidate.congregation, candidate.phone].some((value) => value.toLocaleLowerCase("es").includes(term)))
+        .filter((candidate) => [candidate.name, candidate.congregation, candidate.phone].some((value) => value?.toLocaleLowerCase("es").includes(term)))
         .sort((a, b) => a.name.localeCompare(b.name, "es"))
         .slice(0, 20)
         .map(({ registrationId, name, congregation }) => ({ registrationId, name, congregation }));

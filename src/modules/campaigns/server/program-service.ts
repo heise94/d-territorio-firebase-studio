@@ -21,6 +21,7 @@ import { projectProgram } from "./program-projection";
 import { turnId } from "./program-turn-locator";
 import { writeDomainNotification } from "./notification-events";
 import { affectedRegistrations } from "./change-notifications";
+import type { TrustedPlannerActor } from "./planner-service";
 
 const conflict = () => new AuthError(409, publicationConflictMessage);
 export class ProgramValidationError extends AuthError {
@@ -67,6 +68,18 @@ export function publishedView(version: ProgramVersion): ProgramView {
     assignmentCount: version.assignmentCount,
   };
 }
+/** Draft projection used by the authenticated organization workspace preview. */
+export async function getDraftProgramForOrganization(campaignId: string, actor: TrustedPlannerActor) {
+  if (!["SUPER_ADMIN", "CAMPAIGN_ADMIN", "CAMPAIGN_HELPER"].includes(actor.role)) throw new AuthError(403, "Sin permiso para consultar el borrador.");
+  const db = campaignsAdminDb();
+  return db.runTransaction(async (tx) => {
+    const source = await draftSource(tx, campaignId);
+    const publicationSource = source.campaign.currentProgramVersionId
+      ? { ...source, assignments: source.assignments.filter((assignment) => assignment.status !== "cancelled").map((assignment) => ({ ...assignment, status: "published" as const })) }
+      : source;
+    return projectProgram(publicationSource, { published: !!source.campaign.currentProgramVersionId, allowEmpty: true });
+  }, { readOnly: true });
+}
 export async function readVersion(
   tx: Transaction,
   id: string,
@@ -84,8 +97,11 @@ export async function getProgram(
   token: string,
   campaignId: string,
   selectedVersion?: number,
+  trustedActor?: TrustedPlannerActor,
 ) {
-  await requireCampaignAccess(campaignsAdminDb(), token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"]);
+  if (trustedActor) {
+    if (!["SUPER_ADMIN", "CAMPAIGN_ADMIN", "CAMPAIGN_HELPER"].includes(trustedActor.role)) throw new AuthError(403, "Sin permiso para consultar el programa.");
+  } else await requireCampaignAccess(campaignsAdminDb(), token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"]);
   const db = campaignsAdminDb();
   return db.runTransaction(
     async (tx) => {
@@ -137,8 +153,11 @@ export async function publishProgram(
   token: string,
   campaignId: string,
   input: unknown,
+  trustedActor?: TrustedPlannerActor,
 ) {
-  const uid = (await requireCampaignAccess(campaignsAdminDb(), token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"])).uid;
+  const uid = trustedActor
+    ? (trustedActor.role === "SUPER_ADMIN" || trustedActor.role === "CAMPAIGN_ADMIN" || trustedActor.role === "CAMPAIGN_HELPER" ? trustedActor.uid : (() => { throw new AuthError(403, "Sin permiso para publicar el programa."); })())
+    : (await requireCampaignAccess(campaignsAdminDb(), token, campaignId, ["SUPER_ADMIN", "CAMPAIGN_ADMIN"])).uid;
   const parsed = publishSchema.safeParse(input);
   if (!parsed.success)
     throw new AuthError(400, "Datos de publicación inválidos.");
