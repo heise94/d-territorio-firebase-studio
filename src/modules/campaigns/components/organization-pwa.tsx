@@ -18,6 +18,8 @@ import {
 } from "../schemas/participant-auth";
 import { joinShareUrl } from "../lib/public-join";
 import { AvailabilitySummary } from "./availability-summary";
+import type { PlannerAssignment, PlannerDayView, PlannerView, PlannerWarningDTO } from "../domain/planner";
+import { organizationPlannerBlock, organizationPlannerBlockLabel } from "../lib/organization-planner";
 type Block = {
   id: string;
   startTime: string;
@@ -272,23 +274,20 @@ function ShareRegistration({
   );
 }
 
-type PlanPerson = { registrationId: string; fullName: string; congregation: string; available: boolean; isMinor: boolean; guardianRegistrationId: string | null; guardianName: string | null };
-type PlanAssignment = { id: string; registrationId: string; version: number; person: PlanPerson };
-type PlanPoint = { id: string; name: string; active: boolean; globalActive: boolean; slots: (PlanAssignment | null)[] };
-type PlanBlock = { id: string; dayId: string; date: string; startTime: string; endTime: string; label: string; points: PlanPoint[]; available: PlanPerson[]; exceptions: PlanPerson[]; metrics: { assigned: number; available: number }; conflicts: string[] };
-type PlanData = { campaign: { name: string }; days: { id: string; date: string }[]; day: { id: string; date: string } | null; blocks: PlanBlock[]; congregations: { id: string; name: string }[] };
+type PlanData = PlannerDayView & { congregations: { id: string; name: string }[] };
 
 function OrganizationPlanner({ id }: { id: string }) {
   const [data, setData] = useState<PlanData | null>(null), [dayId, setDayId] = useState(""), [blockId, setBlockId] = useState(""), [pointId, setPointId] = useState(""), [personId, setPersonId] = useState(""), [search, setSearch] = useState(""), [showManual, setShowManual] = useState(false), [manual, setManual] = useState({ fullName: "", congregationId: "", phone: "", pin: "" }), [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [error, setError] = useState(""), [publishIssues, setPublishIssues] = useState<{ revision: string; items: { message: string }[] } | null>(null), [preview, setPreview] = useState(false);
+  const [pendingManual, setPendingManual] = useState<{ registrationId: string; blockId: string } | null>(null);
   const load = async (requestedDay = dayId) => {
     const response = await campaignFetch(`/api/campanas/organization/campaigns/${id}/planner${requestedDay ? `?dayId=${encodeURIComponent(requestedDay)}` : ""}`);
     const body = await response.json(); if (!response.ok) throw Error(body.error ?? "No se pudo cargar el planificador.");
     setData(body); setDayId(body.day?.id ?? "");
-    const current = body.blocks.find((block: PlanBlock) => block.id === blockId) ?? body.blocks[0];
-    setBlockId(current?.id ?? ""); setPointId((current?.points.find((point: PlanPoint) => point.active && point.globalActive) ?? current?.points[0])?.id ?? "");
+    const current = organizationPlannerBlock(body.blocks, blockId) ?? body.blocks[0];
+    setBlockId(current?.block?.id ?? ""); setPointId((current?.points.find((point: PlannerView["points"][number]) => point.id === pointId && point.active && point.globalActive) ?? current?.points.find((point: PlannerView["points"][number]) => point.active && point.globalActive) ?? current?.points[0])?.id ?? "");
   };
   useEffect(() => { void load("").catch((e: Error) => setError(e.message)); }, [id]);
-  const block = data?.blocks.find((item) => item.id === blockId) ?? null;
+  const block = data ? organizationPlannerBlock(data.blocks, blockId) : null;
   const point = block?.points.find((item) => item.id === pointId) ?? null;
   const candidates = [...(block?.available ?? []), ...(block?.exceptions ?? [])].filter((person) => !search || person.fullName.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")) || person.congregation.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")));
   const api = async (url: string, method: string, body?: unknown) => {
@@ -297,20 +296,33 @@ function OrganizationPlanner({ id }: { id: string }) {
     if (!response.ok) { const issue = Error(payload.error ?? "No se pudo guardar el cambio.") as Error & { payload?: any }; issue.payload = payload; throw issue; }
     return payload;
   };
-  const assign = async (registrationId: string, targetPointId: string, slot: number, available: boolean, confirmCapacity = false) => {
-    const overrides = [{ registrationId, availability: !available, maxTurns: false, capacity: confirmCapacity }];
+  const assign = async (registrationId: string, targetPointId: string, slot: number): Promise<boolean> => {
+    const overrides: { registrationId: string; availability: boolean; maxTurns: boolean; capacity: boolean }[] = [];
+    setBusy(true); setError(""); setMessage("");
     try {
-      await api(`/api/campanas/organization/campaigns/${id}/planner`, "POST", { timeBlockId: blockId, pointId: targetPointId, registrationId, slotNumber: slot, overrides });
-      setMessage("Asignación guardada en borrador."); setError(""); setPersonId(""); await load(dayId);
-    } catch (e) {
-      const err = e as Error & { payload?: any };
-      const capacityWarning = err.payload?.warnings?.some((warning: any) => warning.kind === "capacity");
-      if (capacityWarning && !confirmCapacity && window.confirm("Este horario ya tiene la cobertura necesaria. ¿Quieres agregar igualmente esta asignación de apoyo al borrador?")) return assign(registrationId, targetPointId, slot, available, true);
-      setError(err.message);
-    }
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          await api(`/api/campanas/organization/campaigns/${id}/planner`, "POST", { timeBlockId: blockId, pointId: targetPointId, registrationId, slotNumber: slot, overrides });
+          setMessage("Asignación guardada en borrador."); setPersonId("");
+          try { await load(dayId); } catch { setError("La asignación se guardó, pero no pudimos actualizar la pantalla. Vuelve a abrir el planificador."); }
+          return true;
+        } catch (e) {
+          const err = e as Error & { payload?: { warnings?: PlannerWarningDTO[] } };
+          const warnings = err.payload?.warnings ?? [];
+          if (!warnings.length || !window.confirm(`${warnings.map((warning) => `${warning.fullName}: ${warning.message}`).join("\n")}\n\n¿Confirmas esta excepción?`)) { setError(err.message); return false; }
+          for (const warning of warnings) {
+            let entry = overrides.find((item) => item.registrationId === warning.registrationId);
+            if (!entry) { entry = { registrationId: warning.registrationId, availability: false, maxTurns: false, capacity: false }; overrides.push(entry); }
+            entry[warning.kind] = true;
+          }
+        }
+      }
+      setError("No se pudo completar la asignación. Actualiza y vuelve a intentarlo."); return false;
+    } catch (e) { setError((e as Error).message); return false; } finally { setBusy(false); }
   };
-  const remove = async (assignment: PlanAssignment) => {
-    if (!window.confirm(`¿Liberar a ${assignment.person.fullName} de este horario? El cambio quedará en borrador.`)) return;
+  const remove = async (assignment: PlannerAssignment) => {
+    const companion = assignment.person.accepted ? ` y a ${assignment.person.accepted.otherName}, con quien tiene un acuerdo` : "";
+    if (!window.confirm(`¿Liberar a ${assignment.person.fullName}${companion} de este horario? El cambio quedará en borrador.`)) return;
     setBusy(true); try { await api(`/api/campanas/organization/campaigns/${id}/planner/${assignment.id}`, "PATCH", { action: "cancel", expectedVersion: assignment.version }); setMessage("Asignación liberada en borrador."); await load(dayId); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };
   const addManual = async (event: React.FormEvent) => {
@@ -319,12 +331,14 @@ function OrganizationPlanner({ id }: { id: string }) {
     if (freeSlot < 0) { setError("Este punto ya tiene cuatro lugares. Elige otro punto antes de registrar al hermano."); return; }
     setBusy(true); setError("");
     try {
-      const result = await api(`/api/campanas/organization/campaigns/${id}/planner/manual-participant`, "POST", { ...manual, phone: manual.phone || undefined, pin: manual.pin || undefined, timeBlockId: block.id });
-      await assign(result.registrationId, point.id, freeSlot + 1, true);
-      setManual({ fullName: "", congregationId: "", phone: "", pin: "" }); setShowManual(false);
+      const result = pendingManual ?? await api(`/api/campanas/organization/campaigns/${id}/planner/manual-participant`, "POST", { ...manual, phone: manual.phone || undefined, pin: manual.pin || undefined, timeBlockId: block.block!.id });
+      setPendingManual({ registrationId: result.registrationId, blockId: pendingManual?.blockId ?? block.block!.id });
+      setManual((current) => ({ ...current, pin: "" }));
+      if (await assign(result.registrationId, point.id, freeSlot + 1)) { setPendingManual(null); setManual({ fullName: "", congregationId: "", phone: "", pin: "" }); setShowManual(false); }
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };
   const publish = async (acknowledge = false) => {
+    if (!acknowledge && !window.confirm("¿Publicar el borrador actual para que los participantes vean el programa?")) return;
     setBusy(true); setError("");
     try {
       const draft = await api(`/api/campanas/organization/campaigns/${id}/program/draft`, "GET");
@@ -344,20 +358,20 @@ function OrganizationPlanner({ id }: { id: string }) {
   return <section className="space-y-4">
     <header className="campaign-surface space-y-3 p-4"><div><h2 className="text-xl font-bold">Planificador</h2><p className="text-sm text-slate-600">Organiza los lugares de cada turno. Los cambios se guardan en borrador.</p></div>
       <div className="grid grid-cols-2 gap-2"><label className="text-sm font-semibold">Día<select className={`${field} mt-1`} value={dayId} onChange={async (e) => { setDayId(e.target.value); setBlockId(""); try { await load(e.target.value); } catch (x) { setError((x as Error).message); } }}><option value="">Selecciona un día</option>{days.map((day) => <option key={day.id} value={day.id}>{date(day.date)}</option>)}</select></label>
-      <label className="text-sm font-semibold">Horario<select className={`${field} mt-1`} value={blockId} onChange={(e) => { setBlockId(e.target.value); const selected = blocksForDay.find((item) => item.id === e.target.value); setPointId((selected?.points.find((p) => p.active && p.globalActive) ?? selected?.points[0])?.id ?? ""); setPersonId(""); }}><option value="">Selecciona un horario</option>{blocksForDay.map((item) => <option key={item.id} value={item.id}>{item.startTime}–{item.endTime}</option>)}</select></label></div>
+      <label className="text-sm font-semibold">Horario<select className={`${field} mt-1`} value={blockId} onChange={(e) => { setBlockId(e.target.value); const selected = organizationPlannerBlock(blocksForDay, e.target.value); setPointId((selected?.points.find((p) => p.active && p.globalActive) ?? selected?.points[0])?.id ?? ""); setPersonId(""); }}><option value="">Selecciona un horario</option>{blocksForDay.filter((item) => item.block).map((item) => <option key={item.block!.id} value={item.block!.id}>{organizationPlannerBlockLabel(item)}</option>)}</select></label></div>
       <div className="grid grid-cols-3 gap-2 text-center text-sm"><div className="rounded-xl bg-slate-50 p-2"><b className="block">{block?.metrics.assigned ?? 0}</b>asignados</div><div className="rounded-xl bg-teal-50 p-2"><b className="block">{block?.metrics.available ?? 0}</b>disponibles</div><div className="rounded-xl bg-amber-50 p-2"><b className="block">{block?.points.filter((p) => p.active && p.globalActive).length ?? 0}</b>puntos</div></div>
     </header>
     <div className="flex flex-wrap gap-2"><button className="campaign-secondary flex-1" onClick={() => setPreview((v) => !v)}> {preview ? "Ocultar" : "Ver programa PDF en vivo"}</button><button className="campaign-primary flex-1" disabled={busy} onClick={() => void publish(false)}>Publicar programa</button></div>
-    {preview && <section className="campaign-surface overflow-hidden p-3"><p className="mb-2 rounded-lg bg-amber-50 p-2 text-sm font-semibold text-amber-900">Vista previa · Borrador. Aún no está publicada.</p><iframe title="Vista previa PDF del borrador" className="h-[65vh] w-full rounded-xl border" src={`/api/campanas/organization/campaigns/${id}/program/draft/pdf`} /> </section>}
+    {preview && <section className="campaign-surface overflow-hidden p-3"><p className="mb-2 rounded-lg bg-amber-50 p-2 text-sm font-semibold text-amber-900">Vista previa del programa actual, incluidos los cambios en borrador.</p><a className="mb-3 inline-flex font-semibold text-teal-800 underline" href={`/api/campanas/organization/campaigns/${id}/program/draft/pdf`} target="_blank" rel="noopener noreferrer">Abrir PDF en pantalla completa</a><iframe key={data.updatedAt} title="Vista previa PDF del borrador" className="h-[65vh] w-full rounded-xl border" src={`/api/campanas/organization/campaigns/${id}/program/draft/pdf`} /> </section>}
     {publishIssues && <section className="campaign-surface space-y-3 border-amber-300 p-4"><h3 className="font-bold">Revisión antes de publicar</h3><p className="text-sm">El programa tiene observaciones. Puedes volver a editar o confirmar la publicación con estas observaciones.</p><ul className="max-h-44 list-disc space-y-1 overflow-auto pl-5 text-sm">{publishIssues.items.slice(0, 20).map((item, i) => <li key={i}>{item.message}</li>)}</ul><div className="flex gap-2"><button className="campaign-secondary flex-1" onClick={() => setPublishIssues(null)}>Seguir editando</button><button className="campaign-primary flex-1" disabled={busy} onClick={() => void publish(true)}>Publicar de todos modos</button></div></section>}
     {message && <p role="status" className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}{error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
     {!block ? <p className="campaign-surface p-4">Selecciona un día y horario para comenzar.</p> : <>
       <section className="space-y-3">{block.points.map((item) => <article key={item.id} className="campaign-surface space-y-3 p-4"><header className="flex items-center justify-between"><div><h3 className="font-bold">{item.name}</h3><p className="text-xs text-slate-500">{item.active && item.globalActive ? "Disponible para asignaciones" : "Punto inactivo"}</p></div><select aria-label={`Punto ${item.name}`} className="sr-only" value={pointId} onChange={(e) => setPointId(e.target.value)}><option value={item.id}>{item.name}</option></select></header>
         <div className="grid grid-cols-2 gap-2">{item.slots.map((slot, index) => <div key={index} className={`min-h-20 rounded-xl border p-3 ${slot ? "border-teal-300 bg-teal-50" : "border-slate-200 bg-white"}`}><p className="text-xs font-semibold text-slate-500">Lugar {index + 1}</p>{slot ? <div className="flex items-center justify-between gap-1"><span className="text-sm font-semibold">{slot.person.fullName}</span><button className="text-sm font-semibold text-rose-700" disabled={busy} onClick={() => void remove(slot)}>Liberar</button></div> : <button className="mt-2 text-sm font-bold text-teal-800" disabled={!item.active || !item.globalActive} onClick={() => { setPointId(item.id); setPersonId(""); document.getElementById("planner-candidates")?.scrollIntoView({ behavior: "smooth" }); }}>+ Agregar</button>}</div>)}</div>
       </article>)}</section>
-      <section id="planner-candidates" className="campaign-surface space-y-3 p-4"><h3 className="font-bold">Agregar a un punto</h3><p className="text-sm text-slate-600">Selecciona una persona disponible o registra manualmente a un hermano.</p><label className="block text-sm font-semibold">Punto<select className={`${field} mt-1`} value={pointId} onChange={(e) => setPointId(e.target.value)}>{block.points.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><input className={field} placeholder="Buscar por nombre o congregación" value={search} onChange={(e) => setSearch(e.target.value)} /><select className={field} value={personId} onChange={(e) => setPersonId(e.target.value)}><option value="">Selecciona un hermano</option>{candidates.map((person) => <option key={person.registrationId} value={person.registrationId}>{person.fullName} · {person.congregation}{person.available ? "" : " · disponibilidad distinta"}</option>)}</select><button className="campaign-primary w-full" disabled={!personId || busy || !point} onClick={() => { const free = point?.slots.findIndex((slot) => !slot) ?? -1; const person = candidates.find((p) => p.registrationId === personId); if (free >= 0 && person) void assign(person.registrationId, point!.id, free + 1, person.available); else setError("Este punto ya tiene cuatro lugares ocupados."); }}>Asignar al siguiente lugar libre</button>
+      <section id="planner-candidates" className="campaign-surface space-y-3 p-4"><h3 className="font-bold">Agregar a un punto</h3><p className="text-sm text-slate-600">Selecciona una persona disponible o registra manualmente a un hermano.</p><label className="block text-sm font-semibold">Punto<select className={`${field} mt-1`} value={pointId} onChange={(e) => setPointId(e.target.value)}>{block.points.filter((p) => p.active && p.globalActive).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><input className={field} placeholder="Buscar por nombre o congregación" value={search} onChange={(e) => setSearch(e.target.value)} /><select className={field} value={personId} onChange={(e) => setPersonId(e.target.value)}><option value="">Selecciona un hermano</option>{candidates.map((person) => <option key={person.registrationId} value={person.registrationId}>{person.fullName} · {person.congregation}{person.available ? "" : " · disponibilidad distinta"}{person.accepted ? ` · junto a ${person.accepted.otherName}` : ""}</option>)}</select><button className="campaign-primary w-full" disabled={!personId || busy || !point || !point.active || !point.globalActive} onClick={() => { const free = point?.slots.findIndex((slot) => !slot) ?? -1; const person = candidates.find((p) => p.registrationId === personId); if (free >= 0 && person) { if (!person.accepted || window.confirm(`${person.fullName} tiene un acuerdo con ${person.accepted.otherName}. Se asignarán juntos. ¿Continuar?`)) void assign(person.registrationId, point!.id, free + 1); } else setError("Este punto ya tiene cuatro lugares ocupados."); }}>Asignar al siguiente lugar libre</button>
         <button className="campaign-secondary w-full" onClick={() => setShowManual((value) => !value)}>{showManual ? "Cancelar ingreso manual" : "Ingresar hermano manualmente"}</button>
-        {showManual && <form className="space-y-2 rounded-xl bg-slate-50 p-3" onSubmit={(e) => void addManual(e)}><label className="block text-sm font-semibold">Nombre y apellido<input className={`${field} mt-1`} required minLength={2} value={manual.fullName} onChange={(e) => setManual({ ...manual, fullName: e.target.value })} /></label><label className="block text-sm font-semibold">Congregación<select className={`${field} mt-1`} required value={manual.congregationId} onChange={(e) => setManual({ ...manual, congregationId: e.target.value })}><option value="">Selecciona congregación</option>{data.congregations.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label className="block text-sm font-semibold">Teléfono (opcional)<input className={`${field} mt-1`} inputMode="tel" placeholder="+56 9…" value={manual.phone} onChange={(e) => setManual({ ...manual, phone: e.target.value })} /></label><label className="block text-sm font-semibold">PIN de acceso (opcional; requiere teléfono)<input className={`${field} mt-1`} inputMode="numeric" maxLength={6} value={manual.pin} onChange={(e) => setManual({ ...manual, pin: e.target.value.replace(/\D/g, "") })} /></label><p className="text-xs text-slate-600">Sin teléfono y PIN, queda anotado en la campaña sin acceso de inicio de sesión.</p><button className="campaign-primary w-full" disabled={busy}>Guardar y asignar al punto seleccionado</button></form>}
+        {showManual && <form className="space-y-2 rounded-xl bg-slate-50 p-3" onSubmit={(e) => void addManual(e)}>{pendingManual ? <p className="text-sm">La persona ya fue registrada. Puedes volver a intentar su asignación sin crear otra cuenta.</p> : <><label className="block text-sm font-semibold">Nombre y apellido<input className={`${field} mt-1`} required minLength={2} value={manual.fullName} onChange={(e) => setManual({ ...manual, fullName: e.target.value })} /></label><label className="block text-sm font-semibold">Congregación<select className={`${field} mt-1`} required value={manual.congregationId} onChange={(e) => setManual({ ...manual, congregationId: e.target.value })}><option value="">Selecciona congregación</option>{data.congregations.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label className="block text-sm font-semibold">Teléfono (opcional)<input className={`${field} mt-1`} inputMode="tel" placeholder="+56 9…" value={manual.phone} onChange={(e) => setManual({ ...manual, phone: e.target.value })} /></label><label className="block text-sm font-semibold">PIN de acceso (opcional; requiere teléfono)<input className={`${field} mt-1`} inputMode="numeric" maxLength={6} value={manual.pin} onChange={(e) => setManual({ ...manual, pin: e.target.value.replace(/\D/g, "") })} /></label><p className="text-xs text-slate-600">Para iniciar sesión necesita teléfono y PIN. Sin PIN queda registrado sin acceso.</p></>}<button className="campaign-primary w-full" disabled={busy}>Guardar y asignar al punto seleccionado</button></form>}
       </section>
     </>}
   </section>;

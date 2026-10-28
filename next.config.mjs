@@ -100,6 +100,9 @@ const nextConfig = {
     "/api/campanas/admin/campaigns/*/program/pdf": [
       "./src/modules/campaigns/assets/fonts/*",
     ],
+    "/api/campanas/organization/campaigns/*/program/draft/pdf": [
+      "./src/modules/campaigns/assets/fonts/*",
+    ],
   },
   /* config options here */
   images: {

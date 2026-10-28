@@ -75,7 +75,7 @@ const manualPlannerPersonSchema = z.object({
   pin: pinSchema.optional(),
   timeBlockId: campaignDocumentIdSchema,
 }).strict().superRefine((value, ctx) => {
-  if (!!value.phone !== !!value.pin) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Para crear acceso, ingresa teléfono y PIN juntos; ambos son opcionales." });
+  if (value.pin && !value.phone) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Para crear acceso con PIN, ingresa también el teléfono." });
 });
 
 const humanRole = (role: OrganizationRole) => role === "CAMPAIGN_ADMIN" ? "Administrador principal" : "Ayudante";
@@ -153,17 +153,13 @@ export class CampaignOrganizationService {
     });
     const fullName = normalizePersonName(value.fullName);
     let profile: Participant;
-    if (value.phone && value.pin) {
+    if (value.phone) {
       if (await this.auth.findByPhone(value.phone)) throw new AuthError(409, "Ese teléfono ya pertenece a una cuenta. Agrégala desde Participantes para conservar sus datos.");
       profile = await this.auth.createForOrganizer({ fullName, phone: value.phone, pin: value.pin, congregationId: value.congregationId }, actor.participantId);
     } else {
       const ref = this.db.collection(names.participants).doc();
       const now = Timestamp.now();
-      profile = { id: ref.id, fullName, congregationId: value.congregationId, ...(value.phone ? { phoneNormalized: value.phone } : {}), active: true, sessionVersion: 0, createdAt: now, updatedAt: now };
-      if (value.phone) {
-        const matches = await this.db.collection(names.participants).where("phoneNormalized", "==", value.phone).limit(1).get();
-        if (!matches.empty) throw new AuthError(409, "Ese teléfono ya está registrado.");
-      }
+      profile = { id: ref.id, fullName, congregationId: value.congregationId, active: true, sessionVersion: 0, createdAt: now, updatedAt: now };
       await ref.create(profile);
     }
     return this.withAccess(token, campaignId, async (tx, verifiedActor) => {

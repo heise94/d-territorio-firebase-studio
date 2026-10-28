@@ -192,7 +192,7 @@ export class ParticipantAuthService {
       parsed.data.pin,
       participant?.pinHash ?? (await missingParticipantHash(this.secret)),
     );
-    if (!correct || !participant?.active) {
+    if (!correct || !participant?.active || !participant.pinHash) {
       // The rate document is also an aggregate failure counter; no per-attempt phone/PIN audit.
       await this.recordFailure(parsed.data.phone);
       throw loginFailure();
@@ -392,18 +392,18 @@ export class ParticipantAuthService {
 
   /** Creates a normal participant account without creating a device session. */
   async createForOrganizer(
-    input: { fullName: string; phone: string; pin: string; congregationId: string },
+    input: { fullName: string; phone: string; pin?: string; congregationId: string },
     organizerParticipantId: string,
   ) {
     await this.limit("organizer-create-participant", organizerParticipantId, 10);
-    const pinHash = await hashPin(this.secret, input.pin);
+    const pinHash = input.pin ? await hashPin(this.secret, input.pin) : undefined;
     const ref = this.participants().doc();
     const timestamp = Timestamp.fromMillis(this.now());
     const participant: Participant = {
       id: ref.id,
       fullName: input.fullName,
       phoneNormalized: input.phone,
-      pinHash,
+      ...(pinHash ? { pinHash } : {}),
       congregationId: input.congregationId,
       active: true,
       sessionVersion: 0,

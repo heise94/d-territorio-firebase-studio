@@ -60,6 +60,17 @@ test('Registro atómico, unicidad concurrente, hash/DTO y congregación activa',
   assert.deepEqual((await auth.current(token))?.participant, participant);
 });
 
+test('Un organizador puede guardar teléfono sin PIN sin habilitar inicio de sesión ni duplicar número', async () => {
+  const phone = '+56972345671';
+  const person = await auth.createForOrganizer({ fullName: 'Participante de prueba', phone, congregationId: 'active-congregation' }, 'organizer-no-pin');
+  const stored = (await db.collection('participants').doc(person.id).get()).data()!;
+  assert.equal(stored.phoneNormalized, phone);
+  assert.equal(stored.pinHash, undefined);
+  assert.equal((await auth.findByPhone(phone))?.id, person.id);
+  await assert.rejects(auth.login({ phone, pin: '1234' }));
+  await assert.rejects(auth.createForOrganizer({ fullName: 'Duplicado', phone, congregationId: 'active-congregation' }, 'organizer-no-pin'));
+});
+
 test('Login correcto, incorrecto, inexistente, inactivo y protección distribuida', async () => {
   const created = await auth.register(registration('912345679'));
   const logged = await auth.login({ phone: '912345679', pin: '1234' });
