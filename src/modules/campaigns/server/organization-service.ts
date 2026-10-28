@@ -254,7 +254,11 @@ export class CampaignOrganizationService {
       days: [...days.values()].filter((day) => day.active).sort((a, b) => a.date.localeCompare(b.date)).map((day) => ({
         id: day.id, date: day.date, label: day.label ?? "",
         blocks: activeBlocks.filter((block) => block.campaignDayId === day.id).sort((a, b) => a.startTime.localeCompare(b.startTime))
-          .map((block) => ({ id: block.id, startTime: block.startTime, endTime: block.endTime, label: block.label ?? "" })),
+          .map((block) => ({
+            id: block.id, startTime: block.startTime, endTime: block.endTime, label: block.label ?? "",
+            count: active.filter((registration) => selected.get(registration.id)?.has(block.id)).length,
+            minimum: calculateBlockCapacity(campaignId, block.id, points, blockPoints).minParticipants,
+          })),
       })),
       coverageSummary: { total: coverage.length, missing: coverage.filter((block) => block.available < block.minimum).length },
     };
@@ -462,14 +466,17 @@ export class CampaignOrganizationService {
     event: "organization_create_participant" | "organization_add_existing_participant",
   ) {
     const id = registrationId(campaignId, participant.id), now = Timestamp.now();
-    await reserveAvailabilityPlaces(tx, this.db, campaignId, value.selectedBlockIds);
+    // Organization staff may register additional volunteers after coverage is
+    // reached. The selected blocks are an explicit admin decision and are kept
+    // in the audit trail; public participant signup still uses the normal cap.
+    const capacityOverrides = await reserveAvailabilityPlaces(tx, this.db, campaignId, value.selectedBlockIds, true);
     const registration: CampaignRegistration = { id, campaignId, participantId: participant.id, congregationId: value.congregationId, maxTurns: null, registrationStatus: "active", createdAt: now, updatedAt: now };
     tx.create(this.db.collection(names.campaignRegistrations).doc(id), registration);
     for (const blockId of value.selectedBlockIds) {
       const availability: Availability = { id: availabilityId(id, blockId), campaignId, registrationId: id, timeBlockId: blockId, available: true, createdAt: now, updatedAt: now };
       tx.set(this.db.collection(names.availabilities).doc(availability.id), availability);
     }
-    tx.create(this.db.collection(names.auditLogs).doc(), { campaignId, actorParticipantId, action: event, entityId: id, metadata: { participantId: participant.id }, createdAt: now });
+    tx.create(this.db.collection(names.auditLogs).doc(), { campaignId, actorParticipantId, action: event, entityId: id, metadata: { participantId: participant.id, selectedBlockIds: value.selectedBlockIds, capacityOverrides }, createdAt: now });
     return { kind: "created" as const, registrationId: id, fullName: participant.fullName };
   }
 }

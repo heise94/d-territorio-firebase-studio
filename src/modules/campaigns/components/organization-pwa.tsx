@@ -931,20 +931,28 @@ function Add({
             <article key={d.id} className="campaign-surface p-4">
               <b>{date(d.date)}</b>
               {d.blocks.map((b) => (
-                <label key={b.id} className="mt-2 flex gap-3">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(b.id)}
-                    onChange={() =>
-                      setSelected((s) => {
-                        const n = new Set(s);
-                        n.has(b.id) ? n.delete(b.id) : n.add(b.id);
-                        return n;
-                      })
-                    }
-                  />
-                  {b.startTime}–{b.endTime}
-                </label>
+                <div key={b.id} className="mt-2 rounded-lg border border-slate-200 p-3">
+                  <label className="flex min-h-8 items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(b.id)}
+                      onChange={() =>
+                        setSelected((s) => {
+                          const n = new Set(s);
+                          n.has(b.id) ? n.delete(b.id) : n.add(b.id);
+                          return n;
+                        })
+                      }
+                    />
+                    <span>{b.startTime}–{b.endTime}</span>
+                    {typeof b.minimum === "number" && b.minimum > 0 && (b.count ?? 0) >= b.minimum && (
+                      <span className="ml-auto rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">Cupos cubiertos</span>
+                    )}
+                  </label>
+                  {selected.has(b.id) && typeof b.minimum === "number" && b.minimum > 0 && (b.count ?? 0) >= b.minimum && (
+                    <p className="mt-2 pl-7 text-sm text-slate-600">Puedes agregarlo como apoyo adicional; el horario ya está cubierto.</p>
+                  )}
+                </div>
               ))}
             </article>
           ))}
@@ -965,6 +973,9 @@ function Add({
             <p>{congs.find((c) => c.id === cong)?.name}</p>
             <p>{lookup?.phone}</p>
             <p>{selected.size} horarios seleccionados</p>
+            {o.days.flatMap((day) => day.blocks).some((block) => selected.has(block.id) && typeof block.minimum === "number" && block.minimum > 0 && (block.count ?? 0) >= block.minimum) && (
+              <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Incluiste horarios cubiertos. Se agregará como apoyo adicional y quedará registrado en la actividad de organización.</p>
+            )}
             <p>Compañero acordado: opcional, después desde la ficha.</p>
           </article>
           <div className="grid grid-cols-2 gap-3">
