@@ -321,8 +321,14 @@ function OrganizationPlanner({ id }: { id: string }) {
     } catch (e) { setError((e as Error).message); return false; } finally { setBusy(false); }
   };
   const remove = async (assignment: PlannerAssignment) => {
-    const companion = assignment.person.accepted ? ` y a ${assignment.person.accepted.otherName}, con quien tiene un acuerdo` : "";
-    if (!window.confirm(`¿Liberar a ${assignment.person.fullName}${companion} de este horario? El cambio quedará en borrador.`)) return;
+    const assignments = block?.points.find((item) => item.id === assignment.pointId)?.slots ?? [];
+    const minor = assignments.find((item) => item?.person.isMinor);
+    const groupIds = minor ? [minor.registrationId, minor.person.guardianRegistrationId, assignments[2]?.registrationId] : [];
+    const group = minor && groupIds.includes(assignment.registrationId)
+      ? assignments.filter((item) => item && groupIds.includes(item.registrationId)).map((item) => item!.person.fullName).join(", ")
+      : null;
+    const description = group ? `al grupo ${group}` : assignment.person.accepted ? `a ${assignment.person.fullName} y a ${assignment.person.accepted.otherName}, con quien tiene un acuerdo` : `a ${assignment.person.fullName}`;
+    if (!window.confirm(`¿Liberar ${description} de este horario? El cambio quedará en borrador.`)) return;
     setBusy(true); try { await api(`/api/campanas/organization/campaigns/${id}/planner/${assignment.id}`, "PATCH", { action: "cancel", expectedVersion: assignment.version }); setMessage("Asignación liberada en borrador."); await load(dayId); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };
   const addManual = async (event: React.FormEvent) => {
