@@ -17,6 +17,7 @@ import { acceptedPairKey, pairLockCollection } from "./pair-request-service";
 import type { PairRequest } from "../domain/pair-request";
 import { getPlannerDay, createAssignment, changeAssignment, type TrustedPlannerActor } from "./planner-service";
 import { getDraftProgramForOrganization, publishProgram } from "./program-service";
+import { revokeParticipantAdminSessions } from "./auth/session";
 
 type TeamRecord = {
   campaignId: string;
@@ -112,6 +113,18 @@ export class CampaignOrganizationService {
 
   private async plannerActor(token: string, campaignId: string): Promise<TrustedPlannerActor> {
     return this.withAccess(token, campaignId, async (_tx, participant, access) => ({ uid: participant.id, role: access.role }));
+  }
+
+  async resetParticipantPin(token: string, campaignId: string, registrationId: string, newPin: string) {
+    const actorId = await this.withAccess(token, campaignId, async (_tx, participant) => participant.id);
+    await this.auth.resetCampaignPin(campaignId, registrationId, newPin, actorId, async (tx) => {
+      const participant = await this.auth.participantForTransaction(tx, token);
+      if (participant.id !== actorId) throw new AuthError(403, "Tu sesión cambió. Ingresa nuevamente.");
+      await this.access(tx, participant, campaignId);
+      const grants = await tx.get(this.db.collection(names.organizerUsers).where("uid", "==", participant.id));
+      return { superAdmin: grants.docs.some((doc) => doc.data().active === true && doc.data().role === "SUPER_ADMIN") };
+    }, revokeParticipantAdminSessions);
+    return { ok: true };
   }
 
   async planner(token: string, campaignId: string, dayId?: string) {

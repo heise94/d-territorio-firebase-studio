@@ -16,6 +16,7 @@ import type {
 import { formatHumanDate } from "./campaign-schedule-settings";
 import { useAuth } from "@/hooks/use-auth";
 import { campaignFetch } from "../lib/campaign-fetch";
+import { ResetParticipantPin } from "./reset-participant-pin";
 
 import type { AdminParticipantList } from "../domain/admin-dashboard";
 
@@ -330,6 +331,7 @@ export function DashboardDetail({
                 {nameMessage && <span role="status" className="text-xs text-teal-800">{nameMessage}</span>}
                 {nameError && <span role="alert" className="text-xs text-red-700">{nameError}</span>}
               </div>
+              {user && <ResetParticipantPin campaignId={campaignId} registrationId={detail.registrationId} fullName={detail.fullName} adminToken={() => user.getIdToken()} />}
             </section>
 
             {/* 2. Participación */}

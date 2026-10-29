@@ -1,7 +1,8 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { campaignsAdminDb, requireCampaignOrganizer } from "../firebase-admin";
+import { getAuth } from "firebase-admin/auth";
+import { campaignsAdminApp, campaignsAdminDb, requireCampaignOrganizer } from "../firebase-admin";
 import { ParticipantAuthService } from "./service";
 import { SESSION_SECONDS } from "./crypto";
 
@@ -30,7 +31,15 @@ export async function getCurrentParticipant() {
 export async function requireParticipantSession() {
   const participant = await getCurrentParticipant();
   if (!participant) redirect("/campanas/bienvenida");
+  if (participant.mustChangePin) redirect("/campanas/cambiar-pin");
   return participant;
+}
+
+export async function revokeParticipantAdminSessions(participantId: string) {
+  const auth = getAuth(campaignsAdminApp());
+  try { await auth.getUser(participantId); }
+  catch (error) { if ((error as { code?: string }).code === "auth/user-not-found") return; throw error; }
+  await auth.revokeRefreshTokens(participantId);
 }
 
 // Admin recovery is deliberately a service, not a new administration panel.

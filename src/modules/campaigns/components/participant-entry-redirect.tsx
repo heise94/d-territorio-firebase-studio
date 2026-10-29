@@ -9,7 +9,7 @@ export function ParticipantEntryRedirect({ destination = "/campanas" }: { destin
   useEffect(() => {
     const controller = new AbortController();
     void campaignFetch("/api/campanas/auth/session", { signal: controller.signal })
-      .then((reply) => { if (reply.ok && !controller.signal.aborted) router.replace(destination); })
+      .then(async (reply) => { if (reply.ok && !controller.signal.aborted) { const result = await reply.json(); router.replace(result.participant?.mustChangePin ? "/campanas/cambiar-pin" : destination); } })
       .catch(() => {});
     return () => controller.abort();
   }, [router, destination]);

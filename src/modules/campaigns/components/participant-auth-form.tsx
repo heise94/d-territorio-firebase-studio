@@ -88,7 +88,7 @@ export function ParticipantAuthForm({
       const campaignId = searchParams.get("campana");
       const mode = searchParams.get("modo");
       router.replace(
-        !register && mode === "administracion"
+        result.participant?.mustChangePin ? "/campanas/cambiar-pin" : !register && mode === "administracion"
           ? "/campanas/admin/acceso"
           : !register && mode === "organizacion"
           ? "/campanas/organizacion"
@@ -118,6 +118,7 @@ export function ParticipantAuthForm({
       <p className="mt-2 text-sm leading-6 text-slate-600">
         {register ? "Completa tus datos una sola vez. Después podrás ingresar con tu teléfono y PIN." : administrationMode ? "Ingresa con tu teléfono y PIN para administrar la campaña donde estás autorizado/a." : "Ingresa con tu teléfono y PIN."}
       </p>
+      {searchParams.get("pin") === "actualizado" && <p role="status" className="mt-4 rounded-xl bg-teal-50 p-3 text-sm text-teal-900">Tu PIN personal está listo. Ingresa nuevamente con tu teléfono y tu nuevo PIN.</p>}
       <form
         onSubmit={submit}
         className="mt-6 space-y-5 rounded-2xl border border-slate-200 bg-white p-5"

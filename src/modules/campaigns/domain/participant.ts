@@ -11,6 +11,7 @@ export interface Participant {
   congregationId?: string;
   /** Absent when an organizer records a person without creating login access. */
   pinHash?: string;
+  mustChangePin?: boolean;
   active: boolean;
   sessionVersion: number;
   createdAt: Timestamp;
@@ -22,6 +23,7 @@ export interface ParticipantDTO {
   fullName: string;
   congregationId?: string;
   active: boolean;
+  mustChangePin?: boolean;
 }
 
 export interface DeviceSession {
@@ -43,5 +45,6 @@ export function participantDTO(participant: Participant): ParticipantDTO {
       ? { congregationId: participant.congregationId }
       : {}),
     active: participant.active,
+    ...(participant.mustChangePin ? { mustChangePin: true } : {}),
   };
 }

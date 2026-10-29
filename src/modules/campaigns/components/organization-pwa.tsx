@@ -19,6 +19,7 @@ import {
 } from "../schemas/participant-auth";
 import { joinShareUrl } from "../lib/public-join";
 import { AvailabilitySummary } from "./availability-summary";
+import { ResetParticipantPin } from "./reset-participant-pin";
 import type { PlannerAssignment, PlannerDayView, PlannerView, PlannerWarningDTO } from "../domain/planner";
 import { organizationPlannerBlock, organizationPlannerBlockLabel, organizationPlannerCandidates } from "../lib/organization-planner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -710,6 +711,7 @@ function PeopleV2({
           <p>{detail.phone}</p>
           <div><h3 className="mb-2 font-bold">Disponibilidad</h3><AvailabilitySummary days={detail.days.map((day) => ({ ...day, blocks: day.blocks.map((block) => ({ ...block, selected: block.available === true })) }))} /></div>
         </article>
+        <ResetParticipantPin campaignId={id} registrationId={detail.registrationId} fullName={detail.fullName} />
         <button
           className="campaign-primary w-full"
           onClick={() => setMode("availability")}

@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   try {
     sameOrigin(request);
     const participant = await getCurrentParticipant();
-    if (!participant)
+    if (!participant || participant.mustChangePin)
       throw new AuthError(401, "Ingresa con tu teléfono y PIN para continuar.");
     const access = await participantCampaignAdminAccess(
       campaignsAdminDb(),

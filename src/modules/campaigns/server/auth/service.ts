@@ -284,6 +284,8 @@ export class ParticipantAuthService {
       const current = await this.readSession(tx, token);
       if (!current)
         throw new AuthError(401, "Tu sesión venció. Ingresa nuevamente.");
+      if (current.participant.mustChangePin)
+        throw new AuthError(403, "Debes crear un PIN personal para continuar.");
       return operation(tx, participantDTO(current.participant));
     });
   }
@@ -321,6 +323,8 @@ export class ParticipantAuthService {
       !(await verifyPin(this.secret, parsed.data.currentPin, original.pinHash))
     )
       throw loginFailure();
+    if (original.mustChangePin && parsed.data.currentPin === parsed.data.newPin)
+      throw new AuthError(400, "Elige un PIN distinto al PIN temporal.");
     const pinHash = await hashPin(this.secret, parsed.data.newPin);
     await this.db.runTransaction(async (tx) => {
       const fresh = await this.readSession(tx, token);
@@ -328,6 +332,7 @@ export class ParticipantAuthService {
         throw loginFailure();
       tx.update(this.participants().doc(original.id), {
         pinHash,
+        mustChangePin: false,
         sessionVersion: fresh.participant.sessionVersion + 1,
         updatedAt: Timestamp.fromMillis(this.now()),
       });
@@ -347,6 +352,69 @@ export class ParticipantAuthService {
       pinHash,
     );
   }
+
+  /** The caller must validate the actor and campaign inside the same transaction. */
+  async resetCampaignPin(
+    campaignId: string,
+    registrationId: string,
+    newPin: string,
+    actorUid: string,
+    authorize: (tx: Transaction) => Promise<{ superAdmin: boolean }>,
+    revokeAdminSessions: (participantId: string) => Promise<void>,
+  ) {
+    const parsed = resetPinSchema.safeParse({ participantId: registrationId, newPin });
+    if (!parsed.success || !/^[A-Za-z0-9_-]{1,128}$/.test(campaignId))
+      throw new AuthError(400, "Ingresa un PIN de 4 a 6 números.");
+    await this.limit("reset-pin-organizer", actorUid, 10);
+    await this.limit("reset-pin-registration", `${campaignId}:${registrationId}`, 5);
+    const pinHash = await hashPin(this.secret, newPin);
+    await this.db.runTransaction(async (tx) => {
+      const actor = await authorize(tx);
+      const registration = (await tx.get(this.db.collection(campaignCollections.campaignRegistrations).doc(registrationId))).data();
+      if (!registration || registration.campaignId !== campaignId || registration.registrationStatus !== "active" || typeof registration.participantId !== "string")
+        throw new AuthError(404, "No se encontró una inscripción activa en esta campaña.");
+      const participantId = registration.participantId;
+      const ref = this.participants().doc(participantId);
+      const [participantDoc, grants, registrations] = await Promise.all([
+        tx.get(ref),
+        tx.get(this.db.collection(campaignCollections.organizerUsers).where("uid", "==", participantId)),
+        tx.get(this.db.collection(campaignCollections.campaignRegistrations).where("participantId", "==", participantId)),
+      ]);
+      const participant = participantDoc.data() as Participant | undefined;
+      if (!participant?.active || !participant.phoneNormalized)
+        throw new AuthError(400, "Este participante no tiene un teléfono registrado para ingresar.");
+      const phoneRef = this.phoneRef(participant.phoneNormalized);
+      const phoneIndex = await tx.get(phoneRef);
+      const phoneMatches = await tx.get(this.participants().where("phoneNormalized", "==", participant.phoneNormalized));
+      const loginLimitRef = this.db.collection(authCollections.limits).doc(privateKey(this.secret, "login", participant.phoneNormalized));
+      const loginLimit = await tx.get(loginLimitRef);
+      if ((phoneIndex.exists && phoneIndex.data()?.participantId !== participantId) || phoneMatches.docs.some((doc) => doc.id !== participantId))
+        throw new AuthError(409, "El teléfono está asociado a otra cuenta. Revisa el registro antes de cambiar el PIN.");
+      const teamRefs = [...new Set(registrations.docs.map((doc) => doc.data().campaignId).filter((id): id is string => typeof id === "string"))]
+        .map((id) => this.db.collection(campaignCollections.campaignTeams).doc(id));
+      const teams = teamRefs.length ? await tx.getAll(...teamRefs) : [];
+      const registrationIds = new Set(registrations.docs.map((doc) => doc.id));
+      const privileged = grants.docs.some((doc) => doc.data().active === true) || teams.some((doc) => {
+        const team = doc.data();
+        return !!team && ((typeof team.primaryRegistrationId === "string" && registrationIds.has(team.primaryRegistrationId)) || (Array.isArray(team.helperRegistrationIds) && team.helperRegistrationIds.some((id: string) => registrationIds.has(id))));
+      });
+      if (privileged && !actor.superAdmin)
+        throw new AuthError(403, "Por seguridad, solo el superadministrador puede restablecer el PIN de un organizador.");
+      // Revoke the separate Firebase administrative credentials before changing the PIN.
+      if (privileged) await revokeAdminSessions(participantId);
+      if (!phoneIndex.exists) tx.create(phoneRef, { participantId });
+      if (loginLimit.exists) tx.delete(loginLimitRef);
+      tx.update(ref, { pinHash, mustChangePin: true, sessionVersion: participant.sessionVersion + 1, updatedAt: Timestamp.fromMillis(this.now()) });
+      tx.create(this.db.collection(campaignCollections.auditLogs).doc(), { event: "participant_temporary_pin_set", actorId: actorUid, campaignId, registrationId, participantId, createdAt: Timestamp.fromMillis(this.now()) });
+    });
+  }
+
+  async participantForTransaction(tx: Transaction, token: string) {
+    const current = await this.readSession(tx, token);
+    if (!current) throw new AuthError(401, "Tu sesión venció. Ingresa nuevamente.");
+    if (current.participant.mustChangePin) throw new AuthError(403, "Debes crear un PIN personal para continuar.");
+    return participantDTO(current.participant);
+  }
   async revokeAll(participantId: string) {
     await this.invalidateAll(participantId, "participant_sessions_revoked");
   }
@@ -361,7 +429,7 @@ export class ParticipantAuthService {
       if (!participant)
         throw new AuthError(404, "No se pudo realizar la operación.");
       tx.update(ref, {
-        ...(pinHash ? { pinHash } : {}),
+        ...(pinHash ? { pinHash, mustChangePin: true } : {}),
         sessionVersion: participant.sessionVersion + 1,
         updatedAt: Timestamp.fromMillis(this.now()),
       });
