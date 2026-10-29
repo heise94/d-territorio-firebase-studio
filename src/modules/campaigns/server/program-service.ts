@@ -192,16 +192,16 @@ export async function publishProgram(
       const view = projectProgram(publicationSource, { published: !firstPublication, allowEmpty: true });
       if (view.plannerRevision !== parsed.data.expectedPlannerRevision)
         throw conflict();
+      if (previousVersion &&
+        JSON.stringify(view.snapshot) === JSON.stringify(previousVersion.snapshot) &&
+        JSON.stringify(view.warnings) === JSON.stringify(previousVersion.warnings) &&
+        view.assignmentCount === previousVersion.assignmentCount)
+        throw new AuthError(409, "El programa publicado ya está actualizado. No hay cambios pendientes de publicar.");
       if (
         (view.blockingErrors.length && !parsed.data.confirmBlockingErrors) ||
         (view.warnings.length && !parsed.data.confirmWarnings)
       )
         throw new ProgramValidationError(view);
-      if (previousVersion &&
-        JSON.stringify(view.snapshot) === JSON.stringify(previousVersion.snapshot) &&
-        JSON.stringify(view.warnings) === JSON.stringify(previousVersion.warnings) &&
-        view.assignmentCount === previousVersion.assignmentCount)
-        throw conflict();
       const now = Timestamp.now();
       const version: ProgramVersion = {
         id: versionRef.id,

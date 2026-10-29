@@ -11,6 +11,7 @@ import { seedPlannerFixture, fixtureCampaign, fixtureRegistration } from "./fixt
 import { NextRequest } from "next/server";
 import { POST as assignRoute } from "../../src/app/api/campanas/organization/campaigns/[campaignId]/planner/route";
 import { PATCH as changeRoute } from "../../src/app/api/campanas/organization/campaigns/[campaignId]/planner/[assignmentId]/route";
+import { GET as pdfRoute } from "../../src/app/api/campanas/organization/campaigns/[campaignId]/program/draft/pdf/route";
 
 process.env.FIREBASE_ADMIN_PROJECT_ID = "demo-campaign-auth";
 process.env.CAMPAIGNS_AUTH_SECRET = "organization-planner-integration-only-secret";
@@ -109,4 +110,26 @@ test("Las rutas confirman los cambios guardados y rechazan usuarios sin permiso"
   assert.deepEqual(await removed.json(), { ok: true });
   const updated = await service.planner(organizerToken, fixtureCampaign, "day-0");
   assert.equal(organizationPlannerBlock(updated.blocks, "block-0")!.points.find((p) => p.id === "point-0")!.slots[0], null);
+});
+
+test("El PDF consulta el borrador actualizado y no publica cambios", async () => {
+  const request = () => new NextRequest("http://localhost:3000/api/pdf?view=1", { headers: { cookie: `campaign_participant_session=${organizerToken}` } });
+  const before = await service.draftProgram(organizerToken, fixtureCampaign);
+  const version = (await db.collection("campaigns").doc(fixtureCampaign).get()).data()!.currentProgramVersionId;
+  await service.assignPlanner(organizerToken, fixtureCampaign, { timeBlockId: "block-0", pointId: "point-0", slotNumber: 1, registrationId: fixtureRegistration(7), overrides: [] });
+  const after = await service.draftProgram(organizerToken, fixtureCampaign);
+  assert.notDeepEqual(after.snapshot, before.snapshot);
+  const pdf = await pdfRoute(request(), { params: Promise.resolve({ campaignId: fixtureCampaign }) });
+  assert.equal(pdf.status, 200);
+  assert.equal(pdf.headers.get("content-type"), "application/pdf");
+  assert.match(pdf.headers.get("cache-control")!, /no-store/);
+  assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0, 4).toString(), "%PDF");
+  assert.equal((await db.collection("campaigns").doc(fixtureCampaign).get()).data()!.currentProgramVersionId, version);
+});
+
+test("Publicar sin cambios explica que el programa ya está actualizado", async () => {
+  const draft = await service.draftProgram(organizerToken, fixtureCampaign);
+  await service.publishDraft(organizerToken, fixtureCampaign, { expectedPlannerRevision: draft.plannerRevision, confirmWarnings: true, confirmBlockingErrors: true });
+  const current = await service.draftProgram(organizerToken, fixtureCampaign);
+  await assert.rejects(service.publishDraft(organizerToken, fixtureCampaign, { expectedPlannerRevision: current.plannerRevision, confirmWarnings: true, confirmBlockingErrors: true }), /ya está actualizado/);
 });
