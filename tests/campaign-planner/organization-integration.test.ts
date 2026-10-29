@@ -8,8 +8,13 @@ import { CampaignOrganizationService } from "../../src/modules/campaigns/server/
 import { organizationPlannerBlock, organizationPlannerBlockLabel } from "../../src/modules/campaigns/lib/organization-planner";
 import { renderProgramPdf } from "../../src/modules/campaigns/server/program-pdf";
 import { seedPlannerFixture, fixtureCampaign, fixtureRegistration } from "./fixture";
+import { NextRequest } from "next/server";
+import { POST as assignRoute } from "../../src/app/api/campanas/organization/campaigns/[campaignId]/planner/route";
+import { PATCH as changeRoute } from "../../src/app/api/campanas/organization/campaigns/[campaignId]/planner/[assignmentId]/route";
 
 process.env.FIREBASE_ADMIN_PROJECT_ID = "demo-campaign-auth";
+process.env.CAMPAIGNS_AUTH_SECRET = "organization-planner-integration-only-secret";
+process.env.CAMPAIGNS_APP_ORIGIN = "http://localhost:3000";
 assert.ok(process.env.FIRESTORE_EMULATOR_HOST && process.env.FIREBASE_AUTH_EMULATOR_HOST, "Only local emulators may be used");
 const db = campaignsAdminDb();
 const auth = new ParticipantAuthService(db, "organization-planner-integration-only-secret");
@@ -84,4 +89,24 @@ test("Publicar es explícito y cambios posteriores no alteran la versión public
   const newDraft = await service.draftProgram(organizerToken, fixtureCampaign);
   assert.notDeepEqual(newDraft.snapshot, published.snapshot);
   assert.equal((await db.collection("campaigns").doc(fixtureCampaign).get()).data()!.currentProgramVersionId, campaign.currentProgramVersionId);
+});
+
+test("Las rutas confirman los cambios guardados y rechazan usuarios sin permiso", async () => {
+  const request = (method: string, token: string, body: unknown) => new NextRequest("http://localhost:3000/api/planner", {
+    method, headers: { origin: "http://localhost:3000", "content-type": "application/json", cookie: `campaign_participant_session=${token}` }, body: JSON.stringify(body),
+  });
+  const input = { timeBlockId: "block-0", pointId: "point-0", slotNumber: 1, registrationId: fixtureRegistration(7), overrides: [] };
+  const denied = await assignRoute(request("POST", ordinaryToken, input), { params: Promise.resolve({ campaignId: fixtureCampaign }) });
+  assert.equal(denied.status, 403);
+  const assigned = await assignRoute(request("POST", organizerToken, input), { params: Promise.resolve({ campaignId: fixtureCampaign }) });
+  assert.equal(assigned.status, 200);
+  assert.deepEqual(await assigned.json(), { ok: true });
+  const view = await service.planner(organizerToken, fixtureCampaign, "day-0");
+  const slot = organizationPlannerBlock(view.blocks, "block-0")!.points.find((p) => p.id === "point-0")!.slots[0]!;
+  assert.equal(slot.registrationId, fixtureRegistration(7));
+  const removed = await changeRoute(request("PATCH", organizerToken, { action: "cancel", expectedVersion: slot.version }), { params: Promise.resolve({ campaignId: fixtureCampaign, assignmentId: slot.id }) });
+  assert.equal(removed.status, 200);
+  assert.deepEqual(await removed.json(), { ok: true });
+  const updated = await service.planner(organizerToken, fixtureCampaign, "day-0");
+  assert.equal(organizationPlannerBlock(updated.blocks, "block-0")!.points.find((p) => p.id === "point-0")!.slots[0], null);
 });

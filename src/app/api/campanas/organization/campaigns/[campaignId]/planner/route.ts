@@ -8,6 +8,6 @@ export async function GET(request: NextRequest, context: { params: Promise<{ cam
   catch (error) { return organizationFailure(error); }
 }
 export async function POST(request: NextRequest, context: { params: Promise<{ campaignId: string }> }) {
-  try { const { campaignId } = await context.params; return organizationResponse(await organizationService().assignPlanner(organizationToken(request), campaignId, await registrationBody(request))); }
+  try { const { campaignId } = await context.params; await organizationService().assignPlanner(organizationToken(request), campaignId, await registrationBody(request)); return organizationResponse({ ok: true }); }
   catch (error) { return organizationFailure(error); }
 }

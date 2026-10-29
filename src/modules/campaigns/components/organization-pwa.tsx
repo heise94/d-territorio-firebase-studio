@@ -282,6 +282,7 @@ type PlanData = PlannerDayView & { congregations: { id: string; name: string }[]
 function OrganizationPlanner({ id }: { id: string }) {
   const [data, setData] = useState<PlanData | null>(null), [dayId, setDayId] = useState(""), [blockId, setBlockId] = useState(""), [pointId, setPointId] = useState(""), [targetSlot, setTargetSlot] = useState<number | null>(null), [search, setSearch] = useState(""), [showManual, setShowManual] = useState(false), [manual, setManual] = useState({ fullName: "", congregationId: "", phone: "", pin: "" }), [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [error, setError] = useState(""), [publishIssues, setPublishIssues] = useState<{ revision: string; items: { message: string }[] } | null>(null), [preview, setPreview] = useState(false);
   const [pendingManual, setPendingManual] = useState<{ registrationId: string; blockId: string } | null>(null);
+  const [refreshPending, setRefreshPending] = useState(false);
   const load = async (requestedDay = dayId) => {
     const response = await campaignFetch(`/api/campanas/organization/campaigns/${id}/planner${requestedDay ? `?dayId=${encodeURIComponent(requestedDay)}` : ""}`);
     const body = await response.json(); if (!response.ok) throw Error(body.error ?? "No se pudo cargar el planificador.");
@@ -293,6 +294,10 @@ function OrganizationPlanner({ id }: { id: string }) {
   const block = data ? organizationPlannerBlock(data.blocks, blockId) : null;
   const point = block?.points.find((item) => item.id === pointId) ?? null;
   const candidates = organizationPlannerCandidates(block, search);
+  const refreshSaved = async () => {
+    try { await load(dayId); setRefreshPending(false); }
+    catch { setRefreshPending(true); setError("El cambio se guardó, pero no pudimos actualizar la vista. Pulsa Actualizar vista."); }
+  };
   const api = async (url: string, method: string, body?: unknown) => {
     const response = await campaignFetch(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
     const payload = await response.json().catch(() => ({}));
@@ -307,7 +312,7 @@ function OrganizationPlanner({ id }: { id: string }) {
         try {
           await api(`/api/campanas/organization/campaigns/${id}/planner`, "POST", { timeBlockId: blockId, pointId: targetPointId, registrationId, slotNumber: slot, overrides });
           setMessage("Asignación guardada en borrador."); setTargetSlot(null); setSearch(""); setShowManual(false);
-          try { await load(dayId); } catch { setError("La asignación se guardó, pero no pudimos actualizar la pantalla. Vuelve a abrir el planificador."); }
+          await refreshSaved();
           return true;
         } catch (e) {
           const err = e as Error & { payload?: { warnings?: PlannerWarningDTO[] } };
@@ -332,7 +337,7 @@ function OrganizationPlanner({ id }: { id: string }) {
       : null;
     const description = group ? `al grupo ${group}` : assignment.person.accepted ? `a ${assignment.person.fullName} y a ${assignment.person.accepted.otherName}, con quien tiene un acuerdo` : `a ${assignment.person.fullName}`;
     if (!window.confirm(`¿Liberar ${description} de este horario? El cambio quedará en borrador.`)) return;
-    setBusy(true); try { await api(`/api/campanas/organization/campaigns/${id}/planner/${assignment.id}`, "PATCH", { action: "cancel", expectedVersion: assignment.version }); setMessage("Asignación liberada en borrador."); await load(dayId); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    setBusy(true); setError(""); try { await api(`/api/campanas/organization/campaigns/${id}/planner/${assignment.id}`, "PATCH", { action: "cancel", expectedVersion: assignment.version }); setMessage("Asignación liberada en borrador."); await refreshSaved(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };
   const addManual = async (event: React.FormEvent) => {
     event.preventDefault(); if (!block || !point) return;
@@ -352,7 +357,7 @@ function OrganizationPlanner({ id }: { id: string }) {
       const draft = await api(`/api/campanas/organization/campaigns/${id}/program/draft`, "GET");
       const input = { expectedPlannerRevision: publishIssues?.revision ?? draft.plannerRevision, confirmWarnings: acknowledge, confirmBlockingErrors: acknowledge };
       await api(`/api/campanas/organization/campaigns/${id}/program/draft`, "POST", input);
-      setPublishIssues(null); setMessage("Programa publicado. Los participantes verán esta versión."); await load(dayId);
+      setPublishIssues(null); setMessage("Programa publicado. Los participantes verán esta versión."); await refreshSaved();
     } catch (e) {
       const err = e as Error & { payload?: any }; const payload = err.payload;
       if (payload?.plannerRevision) setPublishIssues({ revision: payload.plannerRevision, items: [...(payload.blockingErrors ?? []), ...(payload.warnings ?? [])] });
@@ -373,6 +378,7 @@ function OrganizationPlanner({ id }: { id: string }) {
     {preview && <section className="campaign-surface overflow-hidden p-3"><p className="mb-2 rounded-lg bg-amber-50 p-2 text-sm font-semibold text-amber-900">Vista previa del programa actual, incluidos los cambios en borrador.</p><a className="mb-3 inline-flex font-semibold text-teal-800 underline" href={`/api/campanas/organization/campaigns/${id}/program/draft/pdf`} target="_blank" rel="noopener noreferrer">Abrir PDF en pantalla completa</a><iframe key={data.updatedAt} title="Vista previa PDF del borrador" className="h-[65vh] w-full rounded-xl border" src={`/api/campanas/organization/campaigns/${id}/program/draft/pdf`} /> </section>}
     {publishIssues && <section className="campaign-surface space-y-3 border-amber-300 p-4"><h3 className="font-bold">Revisión antes de publicar</h3><p className="text-sm">El programa tiene observaciones. Puedes volver a editar o confirmar la publicación con estas observaciones.</p><ul className="max-h-44 list-disc space-y-1 overflow-auto pl-5 text-sm">{publishIssues.items.slice(0, 20).map((item, i) => <li key={i}>{item.message}</li>)}</ul><div className="flex gap-2"><button className="campaign-secondary flex-1" onClick={() => setPublishIssues(null)}>Seguir editando</button><button className="campaign-primary flex-1" disabled={busy} onClick={() => void publish(true)}>Publicar de todos modos</button></div></section>}
     {message && <p role="status" className="rounded-xl bg-teal-50 p-3 text-sm font-semibold text-teal-900">{message}</p>}{error && targetSlot === null && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
+    {refreshPending && <button type="button" className="rounded-xl border border-teal-700 px-4 py-2 text-sm font-semibold text-teal-800" disabled={busy} onClick={async () => { setBusy(true); setError(""); try { await refreshSaved(); } finally { setBusy(false); } }}>Actualizar vista</button>}
     {!block ? <p className="campaign-surface p-4">Selecciona un día y horario para comenzar.</p> : <>
       <section className="space-y-3">{block.points.map((item) => <article key={item.id} className="campaign-surface space-y-3 p-4"><header className="flex items-center justify-between"><div><h3 className="font-bold">{item.name}</h3><p className="text-xs text-slate-500">{item.active && item.globalActive ? "Disponible para asignaciones" : "Punto inactivo"}</p></div></header>
         <div className="grid grid-cols-2 gap-2">{item.slots.map((slot, index) => <div key={index} className={`min-h-20 rounded-xl border p-3 ${slot ? "border-teal-300 bg-teal-50" : "border-slate-200 bg-white"}`}><p className="text-xs font-semibold text-slate-500">Lugar {index + 1}</p>{slot ? <div className="flex items-center justify-between gap-1"><span className="text-sm font-semibold">{slot.person.fullName}</span><button className="text-sm font-semibold text-rose-700" disabled={busy} onClick={() => void remove(slot)}>Liberar</button></div> : <button className="mt-2 text-sm font-bold text-teal-800" disabled={!item.active || !item.globalActive || busy} onClick={() => { setPointId(item.id); setTargetSlot(index + 1); setSearch(""); setShowManual(false); setError(""); }}>+ Agregar</button>}</div>)}</div>
